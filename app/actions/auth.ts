@@ -1,118 +1,114 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
-import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import bcrypt from 'bcryptjs';
 
-const SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key');
+interface LoginResponse {
+  accessToken: string;
+  tokenType: string;     // "Bearer"
+  expiresAt: string;     // ISO instant (ex: "2026-02-17T15:30:00Z")
+  accountId: number;
+  roles: string[];
+}
 
 export async function loginAction(formData: FormData) {
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
+  const usernameOrEmail = formData.get('usernameOrEmail') as string;
+  const password = formData.get('password') as string;
 
-    if (!email || !password) {
-        return { error: 'Email and password are required' };
+  if (!usernameOrEmail || !password) {
+    return { error: 'Username ou email e password são obrigatórios' };
+  }
+
+  try {
+    const backendUrl =
+      process.env.BACKEND_AUTH_URL ?? 'http://localhost:8080/api/v1/auth/login';
+
+    const response = await fetch(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ usernameOrEmail, password }),
+      // Timeout para evitar ficar pendurado
+      signal: AbortSignal.timeout(10000), // 10 segundos
+    });
+
+    if (!response.ok) {
+      // Tenta ler mensagem de erro do backend se existir
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        error:
+          errorData.message ||
+          errorData.error ||
+          `Erro ${response.status}: Falha na autenticação`,
+      };
     }
 
+    const data = (await response.json()) as LoginResponse;
+
+    if (!data.accessToken || !data.tokenType?.toLowerCase().includes('bearer')) {
+      return { error: 'Resposta inválida do servidor (token não recebido)' };
+    }
+
+    const cookieStore = await cookies();
+
+    // Calcula maxAge aproximado em segundos a partir de expiresAt
+    let maxAgeSeconds: number | undefined;
     try {
-        // Try external API first if configured
-        const externalApiUrl = process.env.EXTERNAL_AUTH_URL || 'https://auth.techify.ao/api/auth/external/login';
-        let user = null;
-
-        try {
-            const response = await fetch(externalApiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, password }),
-                signal: AbortSignal.timeout(5000), // 5 second timeout
-            });
-
-            if (response.ok) {
-                const externalData = await response.json();
-
-                if (externalData.success && externalData.user?.role === 'ADMIN') {
-                    const hashedPassword = await bcrypt.hash(password, 10);
-
-                    user = await prisma.user.upsert({
-                        where: { email },
-                        update: {
-                            role: 'ADMIN',
-                            isActive: true,
-                            isVerified: true,
-                            name: externalData.user.name,
-                            password: hashedPassword,
-                        },
-                        create: {
-                            email,
-                            name: externalData.user.name,
-                            password: hashedPassword,
-                            role: 'ADMIN',
-                            isActive: true,
-                            isVerified: true,
-                        },
-                    });
-                }
-            }
-        } catch (externalError) {
-            console.log('External auth unavailable, trying local auth:', externalError);
-        }
-
-        // Fallback to local authentication
-        if (!user) {
-            const localUser = await prisma.user.findUnique({
-                where: { email },
-            });
-
-            if (!localUser) {
-                return { error: 'Invalid email or password' };
-            }
-
-            const isPasswordValid = await bcrypt.compare(password, localUser.password);
-            if (!isPasswordValid) {
-                return { error: 'Invalid email or password' };
-            }
-
-            if (!localUser.isActive) {
-                return { error: 'User account is inactive' };
-            }
-
-            user = localUser;
-        }
-
-        // Generate Session/Token
-        const token = await new SignJWT({
-            userId: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-        })
-            .setProtectedHeader({ alg: 'HS256' })
-            .setIssuedAt()
-            .setExpirationTime('24h')
-            .sign(SECRET_KEY);
-
-        const cookieStore = await cookies();
-        cookieStore.set('session', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 60 * 60 * 24, // 24 hours
-            path: '/',
-        });
-
-        return { success: true };
-    } catch (error) {
-        console.error('Login error:', error);
-        return { error: 'An unexpected error occurred' };
+      const expires = new Date(data.expiresAt);
+      const now = new Date();
+      const diffMs = expires.getTime() - now.getTime();
+      if (diffMs > 0) {
+        maxAgeSeconds = Math.floor(diffMs / 1000);
+      }
+    } catch (e) {
+      console.warn('Não foi possível parsear expiresAt:', data.expiresAt);
+      // fallback: 24h se não conseguir calcular
+      maxAgeSeconds = 60 * 60 * 24;
     }
+
+    cookieStore.set('auth_token', data.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: maxAgeSeconds,           // ideal: usa o tempo real de expiração
+      // expires: new Date(data.expiresAt)  ← alternativa (mais precisa em alguns casos)
+    });
+
+    // Opcional: guardar informação mínima não-sensível (útil para UI rápida)
+    // Não guarda password nem token aqui
+    cookieStore.set(
+      'user_info',
+      JSON.stringify({
+        accountId: data.accountId,
+        roles: data.roles,
+        // name / email / etc... só se o backend retornar
+      }),
+      {
+        httpOnly: false,           // ← permite ler no client se quiseres
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: maxAgeSeconds,
+      }
+    );
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Erro durante login:', err);
+    return {
+      error:
+        err.name === 'TimeoutError'
+          ? 'O servidor demorou muito a responder. Tente novamente.'
+          : 'Erro ao conectar com o servidor de autenticação',
+    };
+  }
 }
 
 export async function logoutAction() {
-    const cookieStore = await cookies();
-    cookieStore.delete('session');
-    redirect('/login');
+  const cookieStore = await cookies();
+  cookieStore.delete('auth_token');
+  cookieStore.delete('user_info'); // se estiver usando
+  redirect('/login');
 }

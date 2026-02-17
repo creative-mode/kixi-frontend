@@ -1,5 +1,0 @@
--- AlterTable
-ALTER TABLE "Career" ALTER COLUMN "portfolio" DROP NOT NULL,
-ALTER COLUMN "ipAddress" DROP NOT NULL,
-ALTER COLUMN "userAgent" DROP NOT NULL,
-ALTER COLUMN "status" SET DEFAULT 'Pendente';

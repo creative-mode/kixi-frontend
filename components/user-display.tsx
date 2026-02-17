@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { User } from 'lucide-react'
-import { getCurrentUser } from '@/lib/auth'
+import { fetchCurrentUser } from '@/lib/auth'
 import type { CurrentUser } from '@/lib/auth'
 
 export function UserDisplay() {
     const [user, setUser] = useState<CurrentUser | null>(null)
 
     useEffect(() => {
-        getCurrentUser().then(setUser)
+        fetchCurrentUser().then(setUser)
     }, [])
 
     if (!user) return null
