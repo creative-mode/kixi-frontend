@@ -50,6 +50,11 @@ export async function loginAction(formData: FormData) {
       return { error: 'Resposta inválida do servidor (token não recebido)' };
     }
 
+    // Verifica se o utilizador tem role ADMIN — só admins podem aceder ao Kixi Manager
+    if (!data.roles || !data.roles.includes('ADMIN')) {
+      return { error: 'Acesso negado. Apenas administradores podem aceder ao Kixi Manager.' };
+    }
+
     const cookieStore = await cookies();
 
     // Calcula maxAge aproximado em segundos a partir de expiresAt

@@ -3,11 +3,17 @@
 Copy this to `.env` and fill in your values:
 
 ```env
-# Database
+# Database (Prisma - legacy, pode ser removido se não usar)
 DATABASE_URL="postgresql://user:password@localhost:5432/kixi"
 
-# JWT Secret (generate a random string)
-JWT_SECRET="your-super-secret-jwt-key-change-this"
+# Backend API URL (Java Spring Boot backend)
+BACKEND_API_URL="http://localhost:8080/api/v1"
+
+# Backend Auth URL (login endpoint)
+BACKEND_AUTH_URL="http://localhost:8080/api/v1/auth/login"
+
+# JWT Secret (DEVE ser o mesmo do backend app.jwt.secret)
+JWT_SECRET="your-super-secret-jwt-key-change-in-production"
 
 # Cloudinary Configuration
 # Get these from https://cloudinary.com/console

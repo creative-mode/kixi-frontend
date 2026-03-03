@@ -24,7 +24,7 @@ const instrumentSerif = Instrument_Serif({
 })
 
 export const metadata: Metadata = {
-  title: "Techify Manager",
+  title: "Kixi Manager",
   description: "Painel de gestão do Kixi",
   manifest: "/manager/manifest.json",
   appleWebApp: {
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#09090b",
+  themeColor: "#111827",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -47,6 +47,7 @@ export const viewport: Viewport = {
 
 import { ManagerNavbar } from "@/components/manager-navbar"
 import { Providers } from "@/components/providers"
+import { AuthLayout } from "@/components/auth-layout"
 
 export default function RootLayout({
   children,
@@ -60,9 +61,9 @@ export default function RootLayout({
       >
         <Providers>
           <ManagerNavbar />
-          <main className="pt-16 min-h-screen bg-background text-foreground">
+          <AuthLayout>
             {children}
-          </main>
+          </AuthLayout>
           <Toaster />
         </Providers>
       </body>

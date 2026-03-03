@@ -4,7 +4,7 @@ import { SchoolYearForm } from '@/components/school-year/school-year-form';
 import { getSchoolYearById } from '@/app/actions/school-year';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Edit } from 'lucide-react';
 import Link from 'next/link';
 
 export default function EditSchoolYearPage() {
@@ -25,12 +25,16 @@ export default function EditSchoolYearPage() {
   }, [id]);
 
   if (loading) {
-    return <div className="p-8 text-center">A carregar dados do ano letivo...</div>;
+    return (
+      <div className="flex items-center justify-center py-20">
+        <span className="animate-spin h-6 w-6 border-2 border-gray-900 border-t-transparent rounded-full" />
+      </div>
+    );
   }
 
   if (!schoolYear) {
     return (
-      <div className="p-8 text-center text-muted-foreground">
+      <div className="p-8 text-center text-gray-400">
         Ano letivo não encontrado.
       </div>
     );
@@ -39,15 +43,23 @@ export default function EditSchoolYearPage() {
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <Link
-        href="/school-years"
-        className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6"
+        href="/school-year"
+        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-6"
       >
         <ArrowLeft size={16} /> Voltar para lista
       </Link>
 
-      <h1 className="text-2xl md:text-3xl font-bold mb-8">
-        Editar Ano Letivo: {schoolYear.startYear} – {schoolYear.endYear}
-      </h1>
+      <div className="flex items-center gap-3 mb-8">
+        <div className="p-2 rounded-lg bg-gray-100">
+          <Edit size={20} className="text-gray-700" />
+        </div>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+            Editar Ano Letivo
+          </h1>
+          <p className="text-sm text-gray-500">{schoolYear.startYear} – {schoolYear.endYear}</p>
+        </div>
+      </div>
 
       <SchoolYearForm initialData={schoolYear} />
     </div>

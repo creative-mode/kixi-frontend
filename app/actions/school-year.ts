@@ -2,7 +2,8 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { getAuthHeaders, API_BASE } from '@/lib/auth';
+import { getAuthHeaders } from '@/lib/auth';
+import { API_BASE } from '@/lib/constants';
 import type { SchoolYearRequest, SchoolYearResponse, SchoolYearList } from '@/types/school-year';
 
 

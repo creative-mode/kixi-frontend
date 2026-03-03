@@ -1,6 +1,13 @@
 'use server'
-import { cookies } from 'next/headers';
 
+import { cookies } from 'next/headers';
+import { jwtVerify } from 'jose';
+import type { CurrentUser } from '@/types/auth';
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
+  return new TextEncoder().encode(secret);
+}
 
 export async function getAuthHeaders() {
   const cookieStore = await cookies();
@@ -17,27 +24,33 @@ export async function getAuthHeaders() {
   };
 }
 
+/**
+ * Obtém o utilizador atual decodificando o JWT armazenado no cookie auth_token.
+ * O JWT do backend contém: sub (accountId) e roles (lista de strings).
+ */
 export async function fetchCurrentUser(): Promise<CurrentUser | null> {
-   try {
-     const headers = await getAuthHeaders();
-     const res = await fetch(`${API_BASE}/auth/me`, {  // endpoint que devolve o user atual
-       headers,
-       cache: 'no-store',
-     });
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
 
-     if (!res.ok) return null;
+    if (!token) return null;
 
-     const data = await res.json();
-     return {
-       accountId: data.accountId,
-       roles: data.roles,
-     };
-   } catch (err) {
-     console.error('Erro ao obter perfil do usuário:', err);
-     return null;
-   }
+    const { payload } = await jwtVerify(token, getJwtSecret());
+
+    return {
+      accountId: Number(payload.sub),
+      roles: (payload.roles as string[]) || [],
+    };
+  } catch (err) {
+    console.error('Erro ao obter perfil do usuário:', err);
+    return null;
+  }
 }
 
-
-
-export const API_BASE = process.env.BACKEND_API_URL ?? 'http://localhost:8080/api/v1';
+/**
+ * Verifica se o utilizador atual tem o role ADMIN.
+ */
+export async function isAdmin(): Promise<boolean> {
+  const user = await fetchCurrentUser();
+  return user?.roles?.includes('ADMIN') ?? false;
+}

@@ -6,6 +6,17 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
   basePath: '/manager',
 
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/manager',
+        basePath: false,
+        permanent: false,
+      },
+    ];
+  },
+
   async rewrites() {
     return [];
   },

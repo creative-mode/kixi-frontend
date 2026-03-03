@@ -29,20 +29,23 @@ const navLinks = [
     label: "Dashboard",
     description: "Visão geral e métricas",
     icon: LayoutDashboard,
-    color: "text-blue-500",
+    color: "text-gray-900",
   },
   {
-    href: "/school-years",
-    label: "School Year",
-    description: "Academic Years",
+    href: "/school-year",
+    label: "Anos Letivos",
+    description: "Gestão de anos letivos",
     icon: Calendar,
-    color: "text-indigo-500",
+    color: "text-gray-900",
   }
 ];
 
 export function ManagerNavbar() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+
+  // Don't render navbar on public pages (login)
+  const isPublicPage = pathname === '/login';
 
   // Close menu when route changes
   useEffect(() => {
@@ -51,7 +54,7 @@ export function ManagerNavbar() {
 
   // Lock body scroll when menu is open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isPublicPage) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
@@ -59,17 +62,20 @@ export function ManagerNavbar() {
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [isOpen]);
+  }, [isOpen, isPublicPage]);
+
+  if (isPublicPage) return null;
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 border-b bg-background/80 backdrop-blur-md">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white/90 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link
-            href="/manager"
-            className="text-xl font-bold tracking-tighter z-50 relative"
+            href="/"
+            className="text-xl font-bold tracking-tighter z-50 relative flex items-center gap-2"
           >
-            Kixi <span className="font-display italic">Manager</span>
+            <span className="text-[#05A649]">Kixi</span>{" "}
+            <span className="font-display italic text-gray-700">Manager</span>
           </Link>
 
           <div className="flex items-center gap-4 z-50 relative">
@@ -117,7 +123,7 @@ export function ManagerNavbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "-100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-40 bg-background/95 backdrop-blur-xl pt-24 pb-8 overflow-y-auto"
+            className="fixed inset-0 z-40 bg-white/98 backdrop-blur-xl pt-24 pb-8 overflow-y-auto"
           >
             <div className="container mx-auto px-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
@@ -137,13 +143,13 @@ export function ManagerNavbar() {
                         className={cn(
                           "group flex items-start gap-4 p-6 rounded-2xl border transition-all duration-300",
                           isActive
-                            ? "bg-muted border-primary/20 shadow-sm"
-                            : "bg-card hover:bg-muted/50 border-border hover:border-primary/20 hover:shadow-md"
+                            ? "bg-gray-50 border-gray-300 shadow-sm"
+                            : "bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 hover:shadow-md"
                         )}
                       >
                         <div
                           className={cn(
-                            "p-3 rounded-xl bg-background shadow-sm group-hover:scale-110 transition-transform duration-300",
+                            "p-3 rounded-xl bg-gray-100 shadow-sm group-hover:scale-110 transition-transform duration-300",
                             link.color
                           )}
                         >

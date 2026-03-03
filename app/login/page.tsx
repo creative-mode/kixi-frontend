@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { loginAction } from '@/app/actions/auth'; // ajusta o caminho se necessário
+import { loginAction } from '@/app/actions/auth';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -28,13 +28,10 @@ export default function LoginPage() {
           duration: 3000,
         });
 
-        // Pequeno delay para garantir que o cookie httpOnly seja definido
-        // e que o middleware consiga ler antes de redirecionar
         await new Promise((resolve) => setTimeout(resolve, 400));
 
-        // Redirecionamento suave (melhor que window.location.href em muitos casos)
-        router.push('/manager');
-        router.refresh(); // força refresh do RSC para carregar dados protegidos
+        router.push('/');
+        router.refresh();
       } else {
         toast.error(result.error || 'Credenciais inválidas', {
           description: 'Verifique o username/email e a senha.',
@@ -51,33 +48,77 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-3xl font-bold">Kixi Manager</CardTitle>
-          <CardDescription className="text-base mt-2">
-            Autenticação de administrador
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen flex">
+      {/* Left — brand panel */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gray-900 relative items-center justify-center overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/5" />
+        <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full bg-white/5" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-white/5" />
 
-        <CardContent>
+        <div className="relative z-10 text-center px-12">
+          <Image
+            src="/manager/kixi-logo-white.svg"
+            alt="Kixi"
+            width={120}
+            height={120}
+            className="mx-auto mb-8 drop-shadow-lg"
+            priority
+          />
+          <h1 className="text-white text-4xl font-bold tracking-tight mb-3">
+            Kixi Manager
+          </h1>
+          <p className="text-white/80 text-lg max-w-sm mx-auto leading-relaxed">
+            Painel de gestão administrativa do Banco de Enunciados.
+          </p>
+        </div>
+      </div>
+
+      {/* Right — login form */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <div className="lg:hidden flex justify-center mb-10">
+            <Image
+              src="/manager/kixi-logo.svg"
+              alt="Kixi"
+              width={64}
+              height={64}
+              priority
+            />
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+              Bem-vindo de volta
+            </h2>
+            <p className="text-gray-500 mt-1.5 text-sm">
+              Inicie sessão para aceder ao painel de gestão.
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="usernameOrEmail">Username ou Email</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="usernameOrEmail" className="text-sm font-medium text-gray-700">
+                Username ou Email
+              </Label>
               <Input
                 id="usernameOrEmail"
                 name="usernameOrEmail"
                 type="text"
-                placeholder="admin@kixi.ao ou admin"
+                placeholder="admin@kixi.ao"
                 required
                 disabled={isLoading}
                 autoComplete="username email"
                 autoFocus
+                className="h-11 bg-gray-50 border-gray-200 focus:bg-white focus:border-gray-900 focus:ring-gray-900/20 transition-all"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Palavra-passe</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                Palavra-passe
+              </Label>
               <Input
                 id="password"
                 name="password"
@@ -86,13 +127,18 @@ export default function LoginPage() {
                 required
                 disabled={isLoading}
                 autoComplete="current-password"
+                className="h-11 bg-gray-50 border-gray-200 focus:bg-white focus:border-gray-900 focus:ring-gray-900/20 transition-all"
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading} size="lg">
+            <Button
+              type="submit"
+              className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white font-medium shadow-sm transition-all duration-200"
+              disabled={isLoading}
+            >
               {isLoading ? (
                 <div className="flex items-center gap-2">
-                  <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                  <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
                   A entrar...
                 </div>
               ) : (
@@ -101,12 +147,11 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Opcional: link de recuperação de senha ou ajuda */}
-          <div className="mt-6 text-center text-sm text-muted-foreground">
+          <p className="mt-8 text-center text-xs text-gray-400">
             Problemas no acesso? Contacte o suporte técnico.
-          </div>
-        </CardContent>
-      </Card>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

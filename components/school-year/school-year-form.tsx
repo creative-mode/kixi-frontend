@@ -14,13 +14,13 @@ import type { SchoolYearResponse } from '@/types/school-year';
 
 const SchoolYearSchema = z.object({
   startYear: z
-    .number({ invalid_type_error: 'Ano de início deve ser um número' })
+    .coerce.number({ invalid_type_error: 'Introduza um ano válido' })
     .positive('Ano de início deve ser positivo')
     .int('Deve ser um ano inteiro')
     .min(1900, 'Ano muito antigo')
     .max(new Date().getFullYear() + 10, 'Ano não pode ser muito futuro'),
   endYear: z
-    .number({ invalid_type_error: 'Ano de fim deve ser um número' })
+    .coerce.number({ invalid_type_error: 'Introduza um ano válido' })
     .positive('Ano de fim deve ser positivo')
     .int('Deve ser um ano inteiro')
     .min(1901, 'Ano muito antigo'),
@@ -42,7 +42,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
 
   const form = useForm<SchoolYearFormData>({
     resolver: zodResolver(SchoolYearSchema),
-    mode: 'onChange',
+    mode: 'onBlur',
     defaultValues: {
       startYear: initialData?.startYear || new Date().getFullYear(),
       endYear: initialData?.endYear || new Date().getFullYear() + 1,
@@ -76,9 +76,6 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
       required: true,
       successMessage: 'Ano válido ✓',
       colSpan: 'full',
-      min: 1900,
-      max: new Date().getFullYear() + 10,
-      step: 1,
     },
     {
       name: 'endYear',
@@ -88,31 +85,29 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
       required: true,
       successMessage: 'Ano válido ✓',
       colSpan: 'full',
-      min: 1901,
-      max: new Date().getFullYear() + 11,
-      step: 1,
     },
   ];
 
   const onSubmit = async (data: SchoolYearFormData) => {
     setLoading();
 
-    const formData = new FormData();
-    formData.append('startYear', data.startYear.toString());
-    formData.append('endYear', data.endYear.toString());
+    const schoolYearData = {
+      startYear: data.startYear,
+      endYear: data.endYear,
+    };
 
     let result;
     if (initialData) {
-      result = await updateSchoolYear(initialData.id, formData);
+      result = await updateSchoolYear(initialData.id, schoolYearData);
     } else {
-      result = await createSchoolYear(formData);
+      result = await createSchoolYear(schoolYearData);
     }
 
     if (result.success) {
       setSuccess();
       toast.success(initialData ? 'Ano letivo atualizado!' : 'Ano letivo adicionado!');
       setTimeout(() => {
-        router.push('/school-years');
+        router.push('/school-year');
         router.refresh(); // força atualização dos dados na lista
       }, 1000);
     } else {
@@ -122,16 +117,20 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
   };
 
   if (!isReady) {
-    return <div className="p-8 text-center">Verificando permissões...</div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <span className="animate-spin h-6 w-6 border-2 border-gray-900 border-t-transparent rounded-full" />
+      </div>
+    );
   }
 
   return (
-    <div className="bg-card border rounded-xl p-6 max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold">
+    <div className="bg-white border border-gray-200 rounded-xl p-8 max-w-2xl mx-auto shadow-sm">
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900">
           {initialData ? 'Editar Ano Letivo' : 'Adicionar Novo Ano Letivo'}
         </h2>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-sm text-gray-500 mt-1">
           {initialData
             ? `Editando: ${initialData.startYear} – ${initialData.endYear}`
             : 'Preencha os anos de início e fim do período letivo'}
