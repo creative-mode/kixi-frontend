@@ -1,167 +1,269 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Calendar, Plus, ArrowRight, GraduationCap, Shield } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { KixiLogo } from '@/components/kixi-logo';
-import { getActiveSchoolYears } from '@/app/actions/school-year';
-import { fetchCurrentUser } from '@/lib/auth';
-import type { SchoolYearResponse } from '@/types/school-year';
+import {
+  BookOpenCheck,
+  CheckCheck,
+  Clock,
+  GraduationCap,
+  Plus,
+  RefreshCw,
+  Target,
+  Users,
+} from 'lucide-react';
+import { getDashboard } from '@/app/actions/analytics';
+import { ActivityChart } from '@/components/dashboard/activity-chart';
+import { AttentionPanel } from '@/components/dashboard/attention-panel';
+import { ClassesTable } from '@/components/dashboard/classes-table';
+import { InstitutionPanel } from '@/components/dashboard/institution-panel';
+import { KpiCard } from '@/components/dashboard/kpi-card';
+import { SectionState } from '@/components/dashboard/section-state';
+import { StatementsTable } from '@/components/dashboard/statements-table';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { formatDuration, formatInt, formatPercent } from '@/lib/format';
+import type { Dashboard } from '@/types/analytics';
+
+const PERIODS = [7, 30, 90] as const;
+const REFRESH_MS = 60_000;
 
 export default function ManagerDashboard() {
-  const [schoolYears, setSchoolYears] = useState<SchoolYearResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [days, setDays] = useState<number>(30);
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // Only the latest request may write state, so a slow response for an old period cannot overwrite a newer one.
+  const requestId = useRef(0);
+
+  const load = useCallback(async () => {
+    const mine = ++requestId.current;
+    setRefreshing(true);
+    try {
+      const result = await getDashboard(days);
+      if (mine === requestId.current) setData(result);
+    } catch (err) {
+      // getDashboard reports per-section failures itself; reaching here means the session is gone.
+      console.error('[dashboard]', err);
+    } finally {
+      if (mine === requestId.current) setRefreshing(false);
+    }
+  }, [days]);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [years, user] = await Promise.all([
-          getActiveSchoolYears().catch(() => []),
-          fetchCurrentUser(),
-        ]);
-        setSchoolYears(years);
-        if (user) setUserRoles(user.roles);
-      } catch {
-        // Silently handle errors
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+    void load();
+  }, [load]);
+
+  // Keep the numbers fresh while the tab is visible.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  const overview = data?.overview ?? null;
+  const o = overview?.ok ? overview.data : null;
+  const isAdmin = o?.scope === 'ADMIN';
+  const loading = overview === null;
+  const retry = () => void load();
 
   return (
-    <div className="p-6 md:p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
+    <div className="mx-auto max-w-7xl space-y-8 p-6 md:p-8 lg:p-10">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-pixel text-2xl leading-tight text-foreground tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Bem-vindo ao painel de gestão do Kixi.
+          <h1 className="font-pixel text-2xl leading-tight tracking-tight text-foreground">Dashboard</h1>
+          <p className="mt-1 text-muted-foreground">
+            Desempenho dos estudantes e estado das provas
+            {o && !isAdmin ? ' nas suas turmas' : ''}.
           </p>
         </div>
-        <KixiLogo size={48} className="hidden md:inline-flex" />
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Anos Letivos</CardTitle>
-            <div className="h-9 w-9 rounded-[4px] border-2 border-current/40 bg-tiro-tint text-tiro-ink flex items-center justify-center">
-              <Calendar className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="font-pixel text-2xl leading-tight text-foreground">
-              {loading ? '—' : schoolYears.length}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              ativos no sistema
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Seu Perfil</CardTitle>
-            <div className="h-9 w-9 rounded-[4px] border-2 border-current/40 bg-radar-tint text-radar-ink flex items-center justify-center">
-              <Shield className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="font-pixel text-2xl leading-tight text-foreground capitalize">
-              {userRoles[0]?.toLowerCase() || '—'}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {userRoles.length > 1 ? `+ ${userRoles.length - 1} outros roles` : 'role principal'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Ações Rápidas</CardTitle>
-            <div className="h-9 w-9 rounded-[4px] border-2 border-current/40 bg-pop-tint text-pop-ink flex items-center justify-center">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button asChild size="sm" className="w-full justify-start ">
-              <Link href="/school-year/new">
-                <Plus size={14} className="mr-2 text-white" />
-                Novo Ano Letivo
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="w-full justify-start border-border text-foreground hover:bg-accent">
-              <Link href="/school-year">
-                <ArrowRight size={14} className="mr-2" />
-                Ver Anos Letivos
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent School Years */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg font-semibold text-foreground">Anos Letivos Recentes</CardTitle>
-          <Button asChild variant="ghost" size="sm" className="text-foreground hover:text-foreground hover:bg-accent">
-            <Link href="/school-year">
-              Ver todos <ArrowRight size={14} className="ml-1" />
+        <div className="flex flex-wrap items-center gap-3">
+          <ToggleGroup
+            type="single"
+            value={String(days)}
+            onValueChange={(v) => v && setDays(Number(v))}
+            variant="outline"
+            size="sm"
+            aria-label="Período da atividade"
+          >
+            {PERIODS.map((p) => (
+              <ToggleGroupItem
+                key={p}
+                value={String(p)}
+                aria-label={`Últimos ${p} dias`}
+                className="px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                {p} dias
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <Button variant="outline" size="sm" onClick={retry} disabled={refreshing} aria-live="polite">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+            {refreshing ? 'A atualizar' : 'Atualizar'}
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/school-year/new">
+              <Plus size={14} aria-hidden />
+              Novo ano letivo
             </Link>
           </Button>
+        </div>
+      </div>
+
+      {/* Headline numbers */}
+      {overview && !overview.ok ? (
+        <SectionState section={overview} onRetry={retry}>{() => null}</SectionState>
+      ) : (
+        <section aria-label="Indicadores" className="grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-6">
+          <KpiCard
+            label="Estudantes"
+            accent="brand"
+            icon={Users}
+            loading={loading}
+            value={formatInt(o?.students)}
+            hint={o ? `${formatInt(o.classes)} turmas${isAdmin ? ` · ${formatInt(o.institutions)} instituições` : ''}` : undefined}
+          />
+          <KpiCard
+            label="Provas publicadas"
+            accent="tiro"
+            icon={BookOpenCheck}
+            loading={loading}
+            value={formatInt(o?.statements.published)}
+            hint={o ? `de ${formatInt(o.statements.total)} no total` : undefined}
+          />
+          <KpiCard
+            label="Simulações concluídas"
+            accent="radar"
+            icon={CheckCheck}
+            loading={loading}
+            value={formatInt(o?.simulations.finished)}
+            hint={o ? `${formatInt(o.simulations.uniqueStudents)} estudantes ativos` : undefined}
+          />
+          <KpiCard
+            label="Nota média"
+            accent="pop"
+            icon={GraduationCap}
+            loading={loading}
+            value={formatPercent(o?.averageScorePercent)}
+            hint={o?.averageScorePercent == null && o ? 'sem simulações concluídas' : 'das simulações concluídas'}
+          />
+          <KpiCard
+            label="Aprovação"
+            accent="lila"
+            icon={Target}
+            loading={loading}
+            value={formatPercent(o?.passRatePercent)}
+            hint="simulações com nota ≥ 50%"
+          />
+          <KpiCard
+            label="Tempo médio"
+            accent="radar"
+            icon={Clock}
+            loading={loading}
+            value={formatDuration(o?.averageTimeSeconds)}
+            hint="por simulação"
+          />
+        </section>
+      )}
+
+      {/* Needs attention */}
+      {o && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-foreground">Precisa de atenção</CardTitle>
+            <CardDescription>Pendências que impedem provas de chegarem aos estudantes.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AttentionPanel overview={o} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-foreground">Atividade</CardTitle>
+          <CardDescription>Simulações concluídas por dia e nota média nesse dia (últimos {days} dias).</CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <span className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
-            </div>
-          ) : schoolYears.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="h-12 w-12 rounded-[4px] border-2 border-border bg-accent flex items-center justify-center mx-auto mb-4">
-                <Calendar size={24} className="text-muted-foreground" />
-              </div>
-              <p className="text-muted-foreground mb-4">Nenhum ano letivo registado ainda.</p>
-              <Button asChild className="">
-                <Link href="/school-year/new">
-                  <Plus size={16} className="mr-2" />
-                  Criar Primeiro Ano Letivo
-                </Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {schoolYears.slice(0, 5).map((year) => (
-                <Link
-                  key={year.id}
-                  href={`/school-year/${year.id}`}
-                  className="flex items-center justify-between p-4 rounded-[4px] border-2 border-border hover:border-primary hover:bg-accent transition-colors group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-[4px] border-2 border-current/40 bg-brand-tint text-phosphor flex items-center justify-center group-hover:bg-accent transition-colors">
-                      <Calendar size={18} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">
-                        {year.startYear} – {year.endYear}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Ano letivo
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-                </Link>
-              ))}
-            </div>
-          )}
+          <SectionState
+            section={data?.activity ?? null}
+            onRetry={retry}
+            skeletonClassName="h-72"
+            isEmpty={(points) => points.every((p) => p.finished === 0)}
+            empty="Ainda não há simulações concluídas neste período."
+          >
+            {(points) => <ActivityChart points={points} />}
+          </SectionState>
         </CardContent>
       </Card>
+
+      {/* Institutions (administrators only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-foreground">Instituições</CardTitle>
+            <CardDescription>Comparação entre instituições com base nas simulações concluídas.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SectionState
+              section={data?.institutions ?? null}
+              onRetry={retry}
+              isEmpty={(items) => items.length === 0}
+              empty="Ainda não há instituições registadas."
+            >
+              {(items) => <InstitutionPanel institutions={items} />}
+            </SectionState>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Classes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-foreground">Turmas</CardTitle>
+          <CardDescription>Desempenho por turma.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SectionState
+            section={data?.classes ?? null}
+            onRetry={retry}
+            isEmpty={(items) => items.length === 0}
+            empty="Ainda não há turmas para mostrar."
+          >
+            {(items) => <ClassesTable classes={items} />}
+          </SectionState>
+        </CardContent>
+      </Card>
+
+      {/* Statements */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-foreground">Provas</CardTitle>
+          <CardDescription>
+            Selecione uma prova para ver o desempenho por questão e identificar lacunas de aprendizagem.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SectionState
+            section={data?.statements ?? null}
+            onRetry={retry}
+            isEmpty={(items) => items.length === 0}
+            empty="Ainda não há provas carregadas."
+          >
+            {(items) => <StatementsTable statements={items} />}
+          </SectionState>
+        </CardContent>
+      </Card>
+
+      {data && (
+        <p className="text-right text-xs text-muted-foreground">
+          Atualizado às{' '}
+          {new Date(data.loadedAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+        </p>
+      )}
     </div>
   );
 }
