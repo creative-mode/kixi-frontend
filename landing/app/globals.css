@@ -86,7 +86,6 @@ a { color: inherit; }
 .pres__strike { background: linear-gradient(currentColor, currentColor) no-repeat 0 56% / var(--k, 0%) .12em; opacity: .75; }
 .pres__arrow { font-weight: 700; }
 .pres__after { padding: 4px 10px; border: 1.6px solid var(--lp-ink); border-radius: 999px; }
-.pres__logo { position: absolute; left: var(--gutter); top: 96px; z-index: 3; pointer-events: none; }
 .pres__hint { position: absolute; left: 50%; bottom: clamp(20px, 6svh, 56px); margin-left: -16px; color: var(--lp-ink); z-index: 3; pointer-events: none; animation: kx-bob 1.1s steps(4, end) infinite; }
 @keyframes kx-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { .pres__hint { animation: none; } }

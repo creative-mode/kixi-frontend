@@ -2,7 +2,7 @@ import { MARK_H, MARK_W, RETRO_MARK } from '@/lib/mark';
 
 /**
  * Prologue, drawn from scroll progress q (0..1):
- * the P1 exam takes the stage with its story ("está pico?") → the text goes, the exam
+ * the logo alone → it leaves and the P1 exam takes the stage with its story ("está pico?") → the text goes, the exam
  * shrinks → the Kixi ship arrives, fires from its tip and the exam shatters into pixels.
  */
 const BOOK = [
@@ -54,6 +54,10 @@ const TYPE1 = 'A P1 está pico?';
 const TYPE2 = 'Não complica';
 
 export function Prologue({ q }: { q: number }) {
+  // 1) the Kixi logo alone, large and still; then it leaves to make room for the exam
+  const logoOut = smooth(win(q, 0.07, 0.15));
+  const logoSc = lerp(13, 9, logoOut);
+
   // 2) the exam takes the stage, big, with its story under it
   const paperIn = smooth(win(q, 0.11, 0.2));
   const shrink = smooth(win(q, 0.52, 0.6));
@@ -98,6 +102,13 @@ export function Prologue({ q }: { q: number }) {
       <g fill="var(--lp-ink)" opacity=".5">
         {STARS.map((s, i) => <circle key={i} cx={s.x} cy={r2(s.y + q * 30 * s.r)} r={s.r} />)}
       </g>
+
+      {/* the Kixi logo, alone, then it leaves */}
+      {logoOut < 1 && (
+        <g transform={`translate(300 285) scale(${logoSc}) translate(${-MARK_W / 2} ${-MARK_H / 2})`} fill="var(--lp-ink)" shapeRendering="crispEdges" opacity={1 - logoOut}>
+          <path d={RETRO_MARK} />
+        </g>
+      )}
 
       {/* the P1 exam, in the spotlight */}
       {paperIn > 0 && swap < 1 && (

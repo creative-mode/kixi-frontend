@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { APP_URL } from '@/lib/content';
 import { Sprite } from './Bug';
 import { Cartridge, LAYERS } from './Cartridge';
-import { Logo } from '@/components/kixi';
 import { Prologue } from './Prologue';
 
 /** Everything the landing has to say, one scene per layer of the cartridge. */
@@ -192,9 +191,6 @@ export function Presentation() {
           <div className="pres__cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>
-        </div>
-        <div className="pres__logo" data-theme="dark" style={{ opacity: 1 - clamp((q - 0.04) / 0.07) }} aria-hidden="true">
-          <Logo size={40} wordmark />
         </div>
         <div className="pres__hint" style={{ opacity: 0.72 * (1 - clamp((q - 0.01) / 0.05)) }} aria-hidden="true">
           <svg viewBox="0 0 11 7" width="32" height="20" shapeRendering="crispEdges" fill="currentColor"><path d="M0 0h3v1h1v1h1v1h1V2h1V1h1V0h3v1h-1v1h-1v1h-1v1h-1v1h-1v1H5V6H4V5H3V4H2V3H1V2H0z" /></svg>
