@@ -54,7 +54,7 @@ a { color: inherit; }
 @media (min-width: 840px) { .site-header__in { grid-template-columns: 1fr auto 1fr; } .site-header__nav { display: flex; } }
 
 /* presentation: one sticky stage, driven by scroll */
-.pres { position: relative; height: 900svh; }
+.pres { position: relative; height: 1100svh; }
 .pres__stick { position: sticky; top: 0; height: 100svh; padding: 72px 24px 0; max-width: 1240px; margin: 0 auto; display: grid; grid-template-rows: 44% 56%; align-items: center; }
 .pres__text { display: grid; align-self: end; text-align: center; padding-bottom: 8px; }
 .pres__scene { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; will-change: opacity, transform; }
