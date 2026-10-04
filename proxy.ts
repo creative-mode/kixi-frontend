@@ -14,17 +14,18 @@ import { jwtVerify } from 'jose'
  * so we use the redirectTo() helper below.
  */
 
-const BASE_PATH = '/manager'
-
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits'
   return new TextEncoder().encode(secret)
 }
 
-/** Build a redirect URL that includes the basePath */
+/**
+ * Redirect inside the manager. NextURL already re-adds the basePath when it is
+ * serialised, so the pathname must NOT include it (otherwise: /manager/manager/login).
+ */
 function redirectTo(path: string, request: NextRequest) {
   const url = request.nextUrl.clone()
-  url.pathname = `${BASE_PATH}${path}`
+  url.pathname = path
   return url
 }
 
