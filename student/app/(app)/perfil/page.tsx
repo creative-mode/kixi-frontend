@@ -20,7 +20,9 @@ export default function Perfil() {
   };
 
   return (
-    <main className="screen__main" style={{ padding: '24px 20px', gap: 18 }}>
+    <main className="screen__main page--wide" style={{ paddingTop: 24 }}>
+      <div className="perfil">
+      <div className="perfil__col">
       <div className="row" style={{ gap: 14 }}>
         <Avatar name="Abner Ede" size={56} ring />
         <div className="stack" style={{ gap: 2 }}>
@@ -35,6 +37,8 @@ export default function Perfil() {
         <Medal name="Sem falhas" icon="trophy">Nota máxima</Medal>
         <Medal name="Mentor" state="locked">Ajuda 5 colegas</Medal>
       </div>
+      </div>
+      <div className="perfil__col">
       <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span className="eyebrow">Definições</span>
         {DEFS.map((d) => (
@@ -47,6 +51,8 @@ export default function Perfil() {
       <form action={sairAction}>
         <Button type="submit" variant="ghost">Terminar sessão</Button>
       </form>
+      </div>
+      </div>
     </main>
   );
 }

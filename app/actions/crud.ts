@@ -1,9 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getAuthHeaders } from '@/lib/auth';
+import { getAuthHeaders } from '@/lib/auth.server';
 import { API_HOST } from '@/lib/constants';
 import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
+import { apiFetch } from '@/lib/mock/fetch';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -29,7 +30,7 @@ async function message(res: Response): Promise<string> {
 
 async function call(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = await getAuthHeaders();
-  return fetch(`${API_HOST}${path}`, { ...init, headers: { ...headers, ...(init.headers ?? {}) }, cache: 'no-store' });
+  return apiFetch(`${API_HOST}${path}`, { ...init, headers: { ...headers, ...(init.headers ?? {}) }, cache: 'no-store' });
 }
 
 const entity = (key: string) => {

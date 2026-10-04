@@ -35,7 +35,7 @@ export function EntrarForm() {
         <Field name="password" label="Palavra-passe" type="password" autoComplete="current-password" required />
         <Submit>Entrar</Submit>
       </form>
-      <p style={{ margin: '24px 0 0', textAlign: 'center', font: '400 14px/22px var(--font-sans)' }} className="muted">
+      <p style={{ margin: '18px 0 0', textAlign: 'center', font: '400 14px/22px var(--font-sans)' }} className="muted">
         Ainda não tens conta? <Link href="/cadastro" style={{ fontWeight: 600 }}>Criar conta</Link>
       </p>
     </>
@@ -47,19 +47,17 @@ export function CadastroForm() {
   const v = state?.fields ?? {};
   return (
     <>
-      <form action={action} className="stack" style={{ gap: 14 }} noValidate>
-        <ErrorBox state={state} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 12 }}>
-          <Field name="firstName" label="Nome" autoComplete="given-name" defaultValue={v.firstName} required />
-          <Field name="lastName" label="Apelido" autoComplete="family-name" defaultValue={v.lastName} required />
-        </div>
-        <Field name="username" label="Utilizador" hint="Número de processo ou o nome que preferires." autoComplete="username" defaultValue={v.username} required />
+      <form action={action} className="stack auth__grid" noValidate>
+        <div style={{ gridColumn: '1 / -1' }}><ErrorBox state={state} /></div>
+        <Field name="firstName" label="Nome" autoComplete="given-name" defaultValue={v.firstName} required />
+        <Field name="lastName" label="Apelido" autoComplete="family-name" defaultValue={v.lastName} required />
+        <Field name="username" label="Utilizador" placeholder="Nº de processo ou nome" autoComplete="username" defaultValue={v.username} required />
         <Field name="email" label="Email" type="email" autoComplete="email" defaultValue={v.email} required />
-        <Field name="password" label="Palavra-passe" type="password" hint="Pelo menos 8 caracteres." autoComplete="new-password" required />
+        <Field name="password" label="Palavra-passe" type="password" placeholder="Pelo menos 8 caracteres" autoComplete="new-password" required />
         <Field name="confirm" label="Repetir palavra-passe" type="password" autoComplete="new-password" required />
-        <Submit>Criar conta</Submit>
+        <div style={{ gridColumn: '1 / -1' }}><Submit>Criar conta</Submit></div>
       </form>
-      <p style={{ margin: '20px 0 0', textAlign: 'center', font: '400 14px/22px var(--font-sans)' }} className="muted">
+      <p style={{ margin: '18px 0 0', textAlign: 'center', font: '400 14px/22px var(--font-sans)' }} className="muted">
         Já tens conta? <Link href="/entrar" style={{ fontWeight: 600 }}>Entrar</Link>
       </p>
     </>

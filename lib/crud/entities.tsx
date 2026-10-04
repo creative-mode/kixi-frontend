@@ -230,7 +230,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Papéis',
     description: 'Permissões de acesso (ADMIN, TEACHER, STUDENT…)',
     icon: Shield,
-    tone: 'bg-alvo-tint text-alvo-ink',
+    tone: 'bg-pop-tint text-pop-ink',
     fields: [
       { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 100, placeholder: 'TEACHER', hint: 'Em maiúsculas, como o backend espera.' },
       { name: 'description', label: 'Descrição', type: 'textarea', max: 500 },
