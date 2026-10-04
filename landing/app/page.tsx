@@ -1,5 +1,4 @@
 import { Audiences } from '@/components/sections/Audiences';
-import { Difference } from '@/components/sections/Difference';
 import { Faq } from '@/components/sections/Faq';
 import { FinalCta, Footer } from '@/components/sections/FinalCta';
 import { Header } from '@/components/sections/Header';
@@ -22,7 +21,6 @@ export default function Landing() {
         <Modules />
         <Preview />
         <Audiences />
-        <Difference />
         <Vision />
         <Faq />
         <FinalCta />

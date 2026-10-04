@@ -12,7 +12,7 @@ export function Header() {
         <nav aria-label="Principal" className="site-header__nav">
           {NAV.map((n) => <a key={n.href} href={n.href}>{n.label}</a>)}
         </nav>
-        <span className="kx-btn-wrap kx-scope">
+        <span className="kx-btn-wrap kx-scope site-header__cta">
           <a href={APP_URL} className="kx-btn kx-btn--sm" style={{ textDecoration: 'none' }}>
             <span className="kx-btn__label">Entrar</span>
           </a>
