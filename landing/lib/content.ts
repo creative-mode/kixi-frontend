@@ -25,8 +25,8 @@ export const MODULES = [
 
 export const AUDIENCES = [
   { id: 'alunos', title: 'Alunos', line: 'Estuda exatamente o que foi cobrado.' },
-  { id: 'professores', title: 'Professores', line: 'Menos correção braçal, mais ensino.' },
-  { id: 'instituicoes', title: 'Instituições', line: 'Complementa o sistema que já usam.' },
+  { id: 'professores', title: 'Professores', line: 'Menos correção, mais tempo para ensinar.' },
+  { id: 'instituicoes', title: 'Instituições', line: 'Ajuda a escola sem mudar o que já usa.' },
 ] as const;
 
 export const FAQ = [
