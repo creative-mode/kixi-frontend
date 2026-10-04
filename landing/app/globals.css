@@ -6,6 +6,9 @@
   --paper: #a8b389; --paper-2: #b7c198; --paper-3: #c8d0ab; --lp-ink: #27311b; --lp-deep: #1b2413; --lp-dim: #8e9c70; --lp-text-on-deep: #d3dab6;
   --sec-y: clamp(96px, 13vw, 168px);
   --head-gap: clamp(48px, 6vw, 80px);
+  /* one lateral rule for the whole page */
+  --gutter: clamp(24px, 6vw, 96px);
+  --page: 1200px;
   /* remap the design-system tokens the buttons use */
   --brand: #27311b; --brand-edge: #0e1408; --brand-hover: #3a4a28; --on-brand: #dfe6c6;
   --surface-raised: #c8d0ab; --surface-high: #d4dbb8; --line-strong: #27311b; --ink: #27311b; --focus: #27311b;
@@ -25,8 +28,8 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 .skip { position: absolute; left: 8px; top: -48px; z-index: 120; background: var(--lp-ink); color: var(--paper-3); padding: 10px 14px; font-weight: 700; }
 .skip:focus { top: 8px; }
-.wrap { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-@media (min-width: 768px) { .wrap { padding: 0 48px; } }
+/* every block shares the same container and the same side gutters */
+.wrap { width: 100%; max-width: calc(var(--page) + 2 * var(--gutter)); margin: 0 auto; padding-inline: var(--gutter); }
 
 /* hatched divider: the same strokes as the drawing */
 .hatch { height: 18px; border-block: 1.6px solid var(--lp-ink); background: repeating-linear-gradient(60deg, var(--lp-ink) 0 1px, transparent 1px 5px); }
@@ -54,10 +57,14 @@ a { color: inherit; }
 @media (min-width: 840px) { .site-header__in { grid-template-columns: 1fr auto 1fr; } .site-header__nav { display: flex; } }
 
 /* presentation: one sticky stage, driven by scroll */
-.pres { position: relative; height: 1100svh; }
-.pres__stick { position: sticky; top: 0; height: 100svh; padding: 72px 24px 0; max-width: 1240px; margin: 0 auto; display: grid; grid-template-rows: 44% 56%; align-items: center; }
+.pres { position: relative; height: 1400svh; }
+.pres__stick { position: sticky; top: 0; height: 100svh; width: 100%; max-width: calc(var(--page) + 2 * var(--gutter)); margin: 0 auto; padding: 72px var(--gutter) 0; display: grid; grid-template-rows: 44% 56%; align-items: center; }
 .pres__text { display: grid; align-self: end; text-align: center; padding-bottom: 8px; }
 .pres__scene { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; will-change: opacity, transform; }
+.pres__art { position: relative; width: 100%; height: 100%; }
+.pres__cart, .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pres__cart { transform-origin: 50% 55%; }
+.prologue { display: block; overflow: visible; }
 .pres__svg { width: 100%; height: 100%; }
 .pres__title { margin: 0; font: 700 clamp(34px, 5.4vw, 80px)/1 var(--font-sans); letter-spacing: -0.045em; text-wrap: balance; }
 .pres__title span { display: block; margin-top: .08em; }
@@ -70,14 +77,14 @@ a { color: inherit; }
 .pres__strike { background: linear-gradient(currentColor, currentColor) no-repeat 0 56% / var(--k, 0%) .12em; opacity: .75; }
 .pres__arrow { font-weight: 700; }
 .pres__after { padding: 4px 10px; border: 1.6px solid var(--lp-ink); border-radius: 999px; }
-.pres__rail { position: absolute; right: 12px; top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
+.pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100vw - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
 .pres__rail span { display: block; height: 100%; background: var(--lp-ink); transform-origin: top; }
 @media (min-width: 960px) {
-  .pres__stick { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; }
+  .pres__stick { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: var(--gutter); }
   .pres__text { align-self: center; text-align: left; padding: 0; }
   .pres__scene { align-items: flex-start; }
   .pres__chip { justify-content: flex-start; }
-  .pres__svg { height: calc(100svh - 112px); }
+  .pres__art { height: calc(100svh - 112px); }
 }
 .pres--still { height: auto; padding-block: var(--sec-y); text-align: center; }
 .pres--still .wrap { display: flex; flex-direction: column; align-items: center; gap: 48px; }

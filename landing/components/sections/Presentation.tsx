@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { APP_URL } from '@/lib/content';
 import { Sprite } from './Bug';
 import { Cartridge, LAYERS } from './Cartridge';
+import { Prologue } from './Prologue';
 
 /** Everything the landing has to say, one scene per layer of the cartridge. */
 const SCENES = [
@@ -39,6 +40,24 @@ function Intro() {
         <Cta href={APP_URL}>Começar a estudar</Cta>
         <Cta href="#para-quem" secondary>Sou professor</Cta>
       </div>
+    </>
+  );
+}
+
+function Bridge() {
+  return (
+    <>
+      <h2 className="pres__head">Aponta a nave à prova.</h2>
+      <p className="pres__sub">O Kixi abre cada prova antiga e transforma-a num gémeo digital.</p>
+    </>
+  );
+}
+
+function Inside() {
+  return (
+    <>
+      <h2 className="pres__head">Por dentro do Kixi.</h2>
+      <p className="pres__sub">Cinco camadas, uma prova.</p>
     </>
   );
 }
@@ -127,18 +146,24 @@ export function Presentation() {
     );
   }
 
-  // Timeline: intro → open → camera in → five layers (each turns and is shown large) → everything reunites → outro
-  const open = smooth(clamp((p - 0.05) / 0.1)) * (1 - smooth(clamp((p - 0.78) / 0.1)));
-  const zoom = smooth(clamp((p - 0.16) / 0.07)) * (1 - smooth(clamp((p - 0.76) / 0.1)));
-  const sc = clamp(((p - 0.23) / 0.52) * 5, 0, 5); // scene clock: 0..5
+  // Timeline: prologue (logo → ship → book shatters) → cartridge: open → camera in → five layers → reunite → outro
+  const P0 = 0.2;
+  const q = clamp(p / P0);
+  const p2 = clamp((p - P0) / (1 - P0));
+  const open = smooth(clamp((p2 - 0.05) / 0.1)) * (1 - smooth(clamp((p2 - 0.78) / 0.1)));
+  const zoom = smooth(clamp((p2 - 0.16) / 0.07)) * (1 - smooth(clamp((p2 - 0.76) / 0.1)));
+  const sc = clamp(((p2 - 0.23) / 0.52) * 5, 0, 5); // scene clock: 0..5
   const sj = Math.min(4, Math.floor(sc));
   const f = sj === 0 ? 0 : sj - 1 + smooth(clamp((sc - sj) / 0.25)); // camera focus travels to the next layer first
-  const turn = smooth(clamp((p - 0.78) / 0.12)) * 360; // the whole cartridge spins once as it closes
+  const turn = smooth(clamp((p2 - 0.78) / 0.12)) * 360; // the whole cartridge spins once as it closes
   const yaws = [0, 1, 2, 3, 4].map((j) => ((smooth(clamp((sc - j - 0.1) / 0.5)) * 360 + turn) * Math.PI) / 180);
   const acts = [0, 1, 2, 3, 4].map((j) => smooth(clamp((sc - j - 0.3) / 0.4)) * clamp((j + 1.1 - sc) / 0.2) * (open > 0.9 ? 1 : 0));
+  const reveal = smooth(clamp((q - 0.78) / 0.16)); // the cartridge appears out of the debris
   const vis = {
-    intro: 1 - clamp((p - 0.04) / 0.05),
-    outro: clamp((p - 0.85) / 0.05),
+    intro: 1 - clamp((q - 0.1) / 0.08),
+    bridge: clamp((q - 0.4) / 0.1) * (1 - clamp((p2 - 0.03) / 0.03)),
+    inside: clamp((p2 - 0.07) / 0.04) * clamp((0.205 - p2) / 0.03),
+    outro: clamp((p2 - 0.85) / 0.05),
     scene: (j: number) => clamp((sc - j - 0.12) / 0.12) * clamp((j + 1 - sc) / 0.1),
   };
   const layerText = (v: number) => ({ opacity: v, transform: `translateY(${(1 - v) * 18}px)`, pointerEvents: (v > 0.6 ? 'auto' : 'none') as 'auto' | 'none' });
@@ -148,6 +173,8 @@ export function Presentation() {
       <div className="pres__stick">
         <div className="pres__text">
           <div className="pres__scene" style={layerText(vis.intro)} aria-hidden={vis.intro < 0.5}><Intro /></div>
+          <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
+          <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
           {SCENES.map((s, i) => {
             const v = vis.scene(i);
             return (
@@ -158,7 +185,12 @@ export function Presentation() {
           })}
           <div className="pres__scene" style={layerText(vis.outro)} aria-hidden={vis.outro < 0.5}><Outro /></div>
         </div>
-        <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
+        <div className="pres__art">
+          <div className="pres__cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
+            <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
+          </div>
+          {q < 1 || p2 < 0.001 ? <Prologue q={q} /> : null}
+        </div>
         <div className="pres__rail" aria-hidden="true"><span style={{ transform: `scaleY(${p})` }} /></div>
       </div>
     </section>
