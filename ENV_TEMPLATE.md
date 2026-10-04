@@ -27,3 +27,23 @@ NODE_ENV="development"
 ```
 
 See `docs/CLOUDINARY_SETUP.md` for detailed Cloudinary setup instructions.
+
+## Student app (`student/`) and manager
+
+```env
+# URL do manager (para onde o login do aluno envia contas ADMIN). Mesmo cookie `auth_token` => sessão única.
+NEXT_PUBLIC_MANAGER_URL="http://localhost:3002/manager"
+```
+
+`BACKEND_API_URL` é lido pelo manager **e** pelo `student/` (login e cadastro: `/auth/login`, `/auth/register`).
+O cadastro precisa do endpoint `POST /api/v1/auth/register` (PR creative-mode/kixi#96).
+
+## Testar sem o backend Java
+
+```bash
+node scripts/mock-api.mjs                 # imita o backend em :8080 (admin / Kixi1234!)
+npm run dev                               # manager em :3002/manager
+npm --prefix student run dev              # aluno em :3003
+```
+
+Contas do mock: `admin`, `professor`, `12345` (todas com `Kixi1234!`). O cadastro cria alunos novos em memória.
