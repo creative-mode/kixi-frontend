@@ -2,10 +2,9 @@ import { FAQ } from '@/lib/content';
 
 export function Faq() {
   return (
-    <section className="sec sec--light" id="faq" aria-labelledby="faq-title">
+    <section className="sec sec--paper" id="faq" aria-labelledby="faq-title">
       <div className="wrap">
         <header className="sec__head">
-          <p className="eyebrow">Perguntas</p>
           <h2 id="faq-title" className="h2">O essencial.</h2>
         </header>
         <div className="faq">

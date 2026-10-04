@@ -3,9 +3,7 @@ import { Sprite } from './Bug';
 export function Vision() {
   return (
     <section className="vision" aria-labelledby="vision-title">
-      <div className="sky" aria-hidden="true" />
       <div className="wrap vision__in">
-        <p className="eyebrow">Visão</p>
         <h2 id="vision-title" className="h2 h2--pixel">Do ITEL a toda a Angola e a África.</h2>
         <p className="sec__sub">Feito por alunos, para alunos.</p>
       </div>

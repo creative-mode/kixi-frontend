@@ -5,7 +5,6 @@ import { Sprite } from './Bug';
 export function FinalCta() {
   return (
     <section className="final" id="comecar" aria-labelledby="final-title">
-      <div className="sky" aria-hidden="true" />
       <div className="wrap final__in">
         <h2 id="final-title" className="h2 h2--pixel">Pronto para disparar?</h2>
         <div className="actions">

@@ -5,7 +5,6 @@ export function Audiences() {
     <section className="sec sec--deep" id="para-quem" aria-labelledby="aud-title">
       <div className="wrap">
         <header className="sec__head">
-          <p className="eyebrow">Para quem é</p>
           <h2 id="aud-title" className="h2">Cada um ganha o seu tempo de volta.</h2>
         </header>
         <div className="aud">

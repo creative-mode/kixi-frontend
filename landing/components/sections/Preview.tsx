@@ -4,10 +4,9 @@ const CELLS = ['correct', 'correct', 'wrong', 'correct', 'current', 'pending', '
 
 export function Preview() {
   return (
-    <section className="sec sec--light" id="app" aria-labelledby="preview-title">
+    <section className="sec sec--paper" id="app" aria-labelledby="preview-title">
       <div className="wrap">
         <header className="sec__head">
-          <p className="eyebrow">A app do aluno</p>
           <h2 id="preview-title" className="h2">Cada exame ganha um gémeo digital.</h2>
           <p className="sec__sub">Estudas exatamente o que foi cobrado.</p>
         </header>
@@ -24,7 +23,7 @@ export function Preview() {
             </div>
           </div>
         </div>
-        <p className="note">Ilustração com dados de exemplo.</p>
+        <p className="note">Fig. 2. Sala de prova, vista do aluno (dados de exemplo).</p>
       </div>
     </section>
   );

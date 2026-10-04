@@ -3,8 +3,7 @@ import { Faq } from '@/components/sections/Faq';
 import { FinalCta, Footer } from '@/components/sections/FinalCta';
 import { Header } from '@/components/sections/Header';
 import { Hero } from '@/components/sections/Hero';
-import { Marquee } from '@/components/sections/Marquee';
-import { Modules } from '@/components/sections/Modules';
+import { Anatomy } from '@/components/sections/Anatomy';
 import { Preview } from '@/components/sections/Preview';
 import { Problem } from '@/components/sections/Problem';
 import { Vision } from '@/components/sections/Vision';
@@ -16,13 +15,19 @@ export default function Landing() {
       <Header />
       <main id="conteudo">
         <Hero />
-        <Marquee />
+        <div className="hatch" aria-hidden="true" />
+        <Anatomy />
+        <div className="hatch" aria-hidden="true" />
         <Problem />
-        <Modules />
+        <div className="hatch" aria-hidden="true" />
         <Preview />
+        <div className="hatch" aria-hidden="true" />
         <Audiences />
+        <div className="hatch" aria-hidden="true" />
         <Vision />
+        <div className="hatch" aria-hidden="true" />
         <Faq />
+        <div className="hatch" aria-hidden="true" />
         <FinalCta />
       </main>
       <Footer />

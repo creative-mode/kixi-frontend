@@ -3,10 +3,9 @@ import { Sprite } from './Bug';
 
 export function Problem() {
   return (
-    <section className="sec sec--light" id="problema" aria-labelledby="problem-title">
+    <section className="sec sec--paper" id="problema" aria-labelledby="problem-title">
       <div className="wrap">
         <header className="sec__head">
-          <p className="eyebrow">O problema</p>
           <h2 id="problem-title" className="h2">Estudar para provas sempre foi difícil.</h2>
           <p className="sec__sub">O Kixi aponta a nave a cada obstáculo.</p>
         </header>

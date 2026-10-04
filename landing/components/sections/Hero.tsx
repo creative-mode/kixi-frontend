@@ -1,31 +1,15 @@
 import { APP_URL } from '@/lib/content';
-import { Sprite } from './Bug';
-
-function Fleet({ side }: { side: 'l' | 'r' }) {
-  return (
-    <div className={`fleet fleet--${side}`} aria-hidden="true">
-      <div className="fleet__row">
-        <Sprite kind="fly" width={32} />
-        <Sprite kind="fly" width={32} />
-      </div>
-      <Sprite kind="moth" width={56} />
-    </div>
-  );
-}
+import { Cartridge } from './Cartridge';
 
 export function Hero() {
   return (
     <section className="hero" aria-labelledby="hero-title">
-      <div className="sky" aria-hidden="true" />
-      <Fleet side="l" />
-      <Fleet side="r" />
-      <div className="hero__in">
-        <p className="eyebrow">Feito por alunos do ITEL</p>
+      <div className="wrap hero__in">
         <h1 id="hero-title" className="hero__title">
           A prova não é o fim.
           <span>É onde o estudo começa.</span>
         </h1>
-        <p className="hero__sub">Simula, estuda com IA e compara com outras escolas.</p>
+        <p className="hero__sub">Simula a prova, estuda com um tutor de IA e compara com alunos de outras escolas.</p>
         <div className="actions">
           <span className="kx-btn-wrap kx-scope">
             <a href={APP_URL} className="kx-btn kx-btn--lg" style={{ textDecoration: 'none' }}>
@@ -39,10 +23,10 @@ export function Hero() {
           </span>
         </div>
       </div>
-      <div className="ship" aria-hidden="true">
-        <span className="ship__shot" />
-        <Sprite kind="ship" width={72} />
-      </div>
+      <figure className="hero__fig">
+        <Cartridge explode={0.2} view="hero" className="hero__cart" />
+        <figcaption>Fig. 1. O cartucho Kixi, fechado.</figcaption>
+      </figure>
     </section>
   );
 }

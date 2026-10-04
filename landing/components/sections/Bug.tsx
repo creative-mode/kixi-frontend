@@ -56,3 +56,7 @@ export function Sprite({ kind = 'moth', width = 44, className }: { kind?: Sprite
 export const Bug = ({ className, width = 44 }: { className?: string; width?: number }) => (
   <Sprite kind="moth" className={className} width={width} />
 );
+
+export function spritePath(kind: SpriteKind) {
+  return PATHS[kind];
+}
