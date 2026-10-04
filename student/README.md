@@ -5,7 +5,7 @@ Next.js 16 (App Router) + React 19 + TypeScript. Interface mobile-first do aluno
 ```bash
 cd student
 npm install
-npm run dev      # http://localhost:3003
+npm run dev      # http://localhost:3003/aluno (ou, com tudo junto: npm run dev:all na raiz → http://localhost:3000/aluno)
 npm run build
 ```
 

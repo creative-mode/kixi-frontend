@@ -32,7 +32,8 @@ See `docs/CLOUDINARY_SETUP.md` for detailed Cloudinary setup instructions.
 
 ```env
 # URL do manager (para onde o login do aluno envia contas ADMIN). Mesmo cookie `auth_token` => sessão única.
-NEXT_PUBLIC_MANAGER_URL="http://localhost:3002/manager"
+# Opcional: por omissão o gestor está em /manager no mesmo endereço
+# NEXT_PUBLIC_MANAGER_URL=""
 ```
 
 `BACKEND_API_URL` é lido pelo manager **e** pelo `student/` (login e cadastro: `/auth/login`, `/auth/register`).
@@ -42,7 +43,8 @@ O cadastro precisa do endpoint `POST /api/v1/auth/register` (PR creative-mode/ki
 
 ```bash
 node scripts/mock-api.mjs                 # imita o backend em :8080 (admin / Kixi1234!)
-npm run dev                               # manager em :3002/manager
+npm run dev:all                           # tudo em http://localhost:3000 (landing /, aluno /aluno, gestor /manager)
+npm run dev                               # só o manager em :3002/manager
 npm --prefix student run dev              # aluno em :3003
 ```
 

@@ -5,6 +5,8 @@ import type { NextConfig } from 'next';
 // Next does not pick up the parent's postcss config, proxy.ts or lockfile.
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Um só endereço: o gateway (npm run dev:all) serve este app em /aluno.
+  basePath: '/aluno',
   turbopack: { root: path.resolve(__dirname) },
 };
 
