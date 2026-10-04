@@ -1,4 +1,4 @@
-import { Bug } from './Bug';
+import { Sprite } from './Bug';
 
 const ITEMS = ['OCR', 'Tutor de IA', 'Salas de prova', 'Social learning', 'Dashboard', 'Provas reais'];
 
@@ -8,7 +8,7 @@ export function Marquee() {
       {ITEMS.map((t, i) => (
         <li key={t}>
           <span>{t}</span>
-          <Bug width={26} className={`marquee__bug marquee__bug--${i % 4}`} />
+          <Sprite kind={(['fly', 'moth', 'ship'] as const)[i % 3]} width={i % 3 === 2 ? 30 : 24} className="marquee__bug" />
         </li>
       ))}
     </ul>

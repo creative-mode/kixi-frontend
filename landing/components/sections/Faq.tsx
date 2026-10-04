@@ -3,7 +3,7 @@ import { FAQ } from '@/lib/content';
 export function Faq() {
   const groups = Array.from(new Set(FAQ.map((f) => f.group)));
   return (
-    <section className="section section--paper" id="faq" aria-labelledby="faq-title">
+    <section className="section section--light" id="faq" aria-labelledby="faq-title">
       <div className="wrap faq">
         <div className="faq__side">
           <p className="eyebrow">Perguntas frequentes</p>

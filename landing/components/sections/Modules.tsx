@@ -13,7 +13,7 @@ export function Modules() {
         </div>
       <ol className="bands">
         {MODULES.map((m, i) => (
-          <li key={m.n} className={`band hue-${m.tone}`} style={{ ['--i' as string]: i }}>
+          <li key={m.n} className={`band band--${i + 1}`} style={{ ['--i' as string]: i }}>
             <div className="wrap band__in">
               <span className="band__n" aria-hidden="true">{m.n}</span>
               <div className="band__main">

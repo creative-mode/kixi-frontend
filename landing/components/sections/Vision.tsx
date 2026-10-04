@@ -1,9 +1,10 @@
-import { Bug } from './Bug';
+import { Sprite } from './Bug';
 
 export function Vision() {
   return (
-    <section className="vision kx-lcd" aria-labelledby="vision-title">
-      <div className="wrap">
+    <section className="vision" aria-labelledby="vision-title">
+      <div className="vision__sky" aria-hidden="true" />
+      <div className="wrap vision__in">
         <p className="eyebrow">Visão</p>
         <h2 id="vision-title" className="vision__title">Do ITEL a toda a Angola e a África.</h2>
         <div className="vision__cols">
@@ -14,8 +15,8 @@ export function Vision() {
         </div>
       </div>
       <div className="vision__march" aria-hidden="true">
-        {Array.from({ length: 14 }).map((_, i) => (
-          <Bug key={i} width={44} className={`vision__bug vision__bug--${i % 4}`} />
+        {Array.from({ length: 9 }).map((_, i) => (
+          <Sprite key={i} kind={i % 2 ? 'fly' : 'moth'} width={i % 2 ? 40 : 56} />
         ))}
       </div>
     </section>

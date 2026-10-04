@@ -13,7 +13,7 @@ export function Preview() {
         </p>
 
         <div className="phones">
-          <figure className="phone-fig phone-fig--pop">
+          <figure className="phone-fig">
             <div className="phone kx-lcd" data-theme="light" inert>
               <div className="phone__bar"><Logo size={20} wordmark /></div>
               <div className="phone__body">
@@ -36,7 +36,7 @@ export function Preview() {
             <figcaption><strong>Social learning.</strong> O feed mostra provas, marcos e dúvidas da tua turma e escola.</figcaption>
           </figure>
 
-          <figure className="phone-fig phone-fig--tiro">
+          <figure className="phone-fig">
             <div className="phone kx-lcd" data-theme="dark" inert>
               <div className="phone__bar"><span className="eyebrow">P1 · Redes</span></div>
               <div className="phone__body">
@@ -51,7 +51,7 @@ export function Preview() {
             <figcaption><strong>Simulação.</strong> Provas reais, com o tempo e os parâmetros definidos pelo professor.</figcaption>
           </figure>
 
-          <figure className="phone-fig phone-fig--radar">
+          <figure className="phone-fig">
             <div className="phone kx-lcd" data-theme="light" inert>
               <div className="phone__bar"><span className="eyebrow">Tutor</span></div>
               <div className="phone__body">
