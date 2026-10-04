@@ -38,7 +38,7 @@ const STARS = Array.from({ length: 22 }, (_, i) => ({ x: 20 + rnd(i, 1) * 560, y
 export function Prologue({ q }: { q: number }) {
   // ship: presented large, turns, shrinks to ship size at the bottom
   const e1 = smooth(clamp((q - 0.14) / 0.34));
-  const angle = lerp(-120, 360, e1);
+  const angle = lerp(0, 360, e1);
   const sc = lerp(13, 7, e1);
   const cx = 300;
   const cy = lerp(350, 590, e1);
