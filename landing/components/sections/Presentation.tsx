@@ -2,17 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { APP_URL } from '@/lib/content';
-import { Sprite } from './Bug';
 import { Cartridge, LAYERS } from './Cartridge';
 import { Prologue } from './Prologue';
 
 /** Everything the landing has to say, one scene per layer of the cartridge. */
 const SCENES = [
-  { before: 'Provas espalhadas', after: 'Um repositório central', head: 'Fotografa a prova. O Kixi lê-a.', line: 'Foto ou PDF viram texto editável, com perguntas, opções e pontuações separadas.' },
-  { before: 'Estudo sem feedback', after: 'Notas na hora', head: 'Salas de prova em tempo real.', line: 'O professor carrega o enunciado e a chave. As notas saem em segundos, em decimais.' },
-  { before: 'Estudar sozinho', after: 'Social learning', head: 'Estudar deixa de ser solitário.', line: 'Compara resoluções e desempenho com alunos de outras escolas.' },
-  { before: 'Dúvidas sem resposta', after: 'Tutor 24 h', head: 'Um tutor que conhece cada questão.', line: 'Responde só com o conteúdo oficial da prova e diz de onde vem.' },
-  { before: null, after: 'Complementa o sistema escolar', head: 'O centro de comando.', line: 'Tempo de entrega e desempenho, do aluno à instituição, com regras definidas pelo professor.' },
+  { head: 'Fotografa a prova.', line: 'Em segundos fica no Kixi, pronta para estudares.' },
+  { head: 'Faz a prova como se fosse a sério.', line: 'Vês a nota logo no fim e sabes onde errar.' },
+  { head: 'Vê como os outros resolveram.', line: 'Aprendes novas formas de pensar, de qualquer escola.' },
+  { head: 'Pergunta ao tutor.', line: 'Ele explica cada questão, a qualquer hora.' },
+  { head: 'Acompanha o teu progresso.', line: 'Alunos e professores veem tudo num só lugar.' },
 ] as const;
 
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -35,7 +34,7 @@ function Intro() {
         A prova não é o fim.
         <span>É onde o estudo começa.</span>
       </h1>
-      <p className="pres__sub">Simula a prova, estuda com um tutor de IA e compara com alunos de outras escolas.</p>
+      <p className="pres__sub">Treina com provas a sério, tira dúvidas e vê como os outros resolveram.</p>
       <div className="actions">
         <Cta href={APP_URL}>Começar a estudar</Cta>
         <Cta href="#para-quem" secondary>Sou professor</Cta>
@@ -48,7 +47,7 @@ function Bridge() {
   return (
     <>
       <h2 className="pres__head">Aponta a nave à prova.</h2>
-      <p className="pres__sub">O Kixi abre cada prova antiga e transforma-a num gémeo digital.</p>
+      <p className="pres__sub">O Kixi pega nas provas antigas e põe-nas ao teu serviço.</p>
     </>
   );
 }
@@ -57,7 +56,7 @@ function Inside() {
   return (
     <>
       <h2 className="pres__head">Por dentro do Kixi.</h2>
-      <p className="pres__sub">Cinco camadas, uma prova.</p>
+      <p className="pres__sub">Cinco coisas que podes fazer.</p>
     </>
   );
 }
@@ -74,21 +73,11 @@ function Outro() {
   );
 }
 
-function Scene({ i, k }: { i: number; k: number }) {
+function Scene({ i }: { i: number }) {
   const s = SCENES[i];
   return (
     <>
-      <p className="pres__tag">Camada {i + 1} de 5</p>
-      <div className="pres__chip">
-        <Sprite kind={i % 2 ? 'fly' : 'moth'} width={i % 2 ? 30 : 36} />
-        {s.before ? (
-          <>
-            <span className="pres__strike" style={{ ['--k' as string]: `${Math.round(k * 100)}%` }}>{s.before}</span>
-            <span className="pres__arrow" aria-hidden="true" style={{ opacity: k }}>→</span>
-          </>
-        ) : null}
-        <span className="pres__after" style={{ opacity: s.before ? clamp((k - 0.6) / 0.4) : 1 }}>{s.after}</span>
-      </div>
+      <p className="pres__tag">{i + 1} de 5 · {LAYERS[i].label}</p>
       <h2 className="pres__head">{s.head}</h2>
       <p className="pres__sub">{s.line}</p>
     </>
@@ -136,7 +125,7 @@ export function Presentation() {
             {SCENES.map((s, i) => (
               <li key={s.head}>
                 <strong>{LAYERS[i].label}</strong>
-                <span>{s.before ? `${s.before} → ` : ''}{s.after}. {s.head} {s.line}</span>
+                <span>{s.head} {s.line}</span>
               </li>
             ))}
           </ol>
@@ -181,7 +170,7 @@ export function Presentation() {
             const v = vis.scene(i);
             return (
               <div key={s.head} className="pres__scene" style={layerText(v)} aria-hidden={v < 0.5}>
-                <Scene i={i} k={clamp((sc - i - 0.25) / 0.3)} />
+                <Scene i={i} />
               </div>
             );
           })}

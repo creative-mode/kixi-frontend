@@ -37,11 +37,11 @@ function plan(z: number, yaw: number) {
 }
 
 export const LAYERS = [
-  { id: 'ocr', label: 'OCR' },
-  { id: 'salas', label: 'Salas de prova' },
-  { id: 'social', label: 'Social learning' },
-  { id: 'tutor', label: 'Tutor de IA' },
-  { id: 'dash', label: 'Dashboard' },
+  { id: 'ocr', label: 'Fotografa' },
+  { id: 'salas', label: 'Simula' },
+  { id: 'social', label: 'Compara' },
+  { id: 'tutor', label: 'Pergunta' },
+  { id: 'dash', label: 'Acompanha' },
 ] as const;
 
 type SlabProps = { x?: number; y?: number; w: number; d: number; h: number; z: number; rx?: number; yaw: number; children?: React.ReactNode };
@@ -213,7 +213,7 @@ export function Cartridge({
   const callAmt = callouts ? clamp((explode - 0.8) / 0.2) * (1 - clamp(zoom * 3)) : 0;
 
   return (
-    <svg className={`cart ${className ?? ''}`} viewBox={`${cx - vbW / 2} ${cy - vbH / 2} ${vbW} ${vbH}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Desenho isométrico do cartucho Kixi desmontado em cinco camadas: OCR, salas de prova, social learning, tutor de IA e dashboard">
+    <svg className={`cart ${className ?? ''}`} viewBox={`${cx - vbW / 2} ${cy - vbH / 2} ${vbW} ${vbH}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Desenho isométrico do cartucho Kixi desmontado em cinco camadas: fotografa, simula, compara, pergunta e acompanha">
       <defs>
         <pattern id="kx-dots" width="4" height="4" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".75" fill="var(--lp-ink)" /></pattern>
         <pattern id="kx-dots2" width="3" height="3" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="var(--lp-ink)" /></pattern>
