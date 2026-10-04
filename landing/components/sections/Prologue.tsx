@@ -31,8 +31,6 @@ const MARK_CELLS: { x: number; y: number }[] = [];
 for (const m of RETRO_MARK.matchAll(/M(\d+) (\d+)h(\d+)v1/g)) {
   for (let i = 0; i < +m[3]; i++) MARK_CELLS.push({ x: +m[1] + i, y: +m[2] });
 }
-const cellKey = new Set(MARK_CELLS.map((c) => `${c.x},${c.y}`));
-const isEdge = (x: number, y: number) => !cellKey.has(`${x - 1},${y}`) || !cellKey.has(`${x + 1},${y}`) || !cellKey.has(`${x},${y - 1}`) || !cellKey.has(`${x},${y + 1}`);
 const hash = (a: number, b: number, c: number) => { const v = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453; return v - Math.floor(v); };
 
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -60,7 +58,7 @@ export function Prologue({ q }: { q: number }) {
   const idle = q < 0.12;
   useEffect(() => {
     if (!idle) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 120);
+    const id = window.setInterval(() => setTick((t) => t + 1), 140);
     return () => window.clearInterval(id);
   }, [idle]);
   const life = 1 - win(q, 0.0, 0.07);
@@ -197,17 +195,16 @@ export function Prologue({ q }: { q: number }) {
           {life > 0.02 ? (
             <>
               {MARK_CELLS.map(({ x, y }) => {
-                const wave = Math.sin(tick * 0.9 + x * 0.55);
-                const dy = Math.round(wave * 0.9 * life);
-                const edge = isEdge(x, y);
-                const dx = edge && hash(x, y, tick) > 0.85 ? (hash(y, x, tick) > 0.5 ? 1 : -1) * Math.round(life) : 0;
-                if (edge && hash(x + 3, y, tick) > 0.97) return null; // a pixel blinks out
+                // a soft ripple: a thin band of pixels lifts one cell as it passes over the ship
+                const band = Math.sin(tick * 0.5 - (x + y * 0.5) * 0.45);
+                const dy = band > 0.82 && life > 0.5 ? -1 : 0;
+                const dx = 0;
                 return <rect key={`${x}-${y}`} x={x + dx} y={y + dy} width="1.04" height="1.04" />;
               })}
-              {[0, 1, 2, 3, 4, 5].map((i) => {
+              {[0, 1, 2].map((i) => {
                 const age = (tick + i * 3) % 14;
                 const px = 3 + hash(i, Math.floor((tick + i * 3) / 14), 1) * 18;
-                return <rect key={`sp${i}`} x={Math.round(px)} y={Math.round(19 + age * 0.9)} width="1" height="1" opacity={(1 - age / 14) * life} />;
+                return <rect key={`sp${i}`} x={Math.round(px)} y={Math.round(19 + age * 0.9)} width="1" height="1" opacity={(1 - age / 14) * life * 0.7} />;
               })}
             </>
           ) : (
