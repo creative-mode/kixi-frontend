@@ -1,4 +1,4 @@
-import { MARK_H, MARK_W, RETRO_MARK, RETRO_WORD, WORD_W } from '@/lib/mark';
+import { MARK_H, MARK_W, RETRO_MARK } from '@/lib/mark';
 
 /**
  * Prologue, drawn from scroll progress q (0..1):
@@ -54,7 +54,7 @@ export function Prologue({ q }: { q: number }) {
   const fr = (FIRE * Math.PI) / 180;
   const tipOff = (0.5 * Math.cos(fr) + 9.5 * Math.sin(fr)) * 7;
   const cx = 300 - tipOff * turnE;
-  const cy = lerp(340, 600, settle);
+  const cy = lerp(330, 600, settle);
   const exit = smooth(win(q, 0.88, 0.95));
 
   // 2) story: the exam paper
@@ -184,9 +184,6 @@ export function Prologue({ q }: { q: number }) {
           <path d={RETRO_MARK} />
         </g>
         {shots.some((b) => b > 0 && b < 0.25) && <rect x={noseX - 5} y={noseY - 16} width={10} height={10} fill="var(--lp-ink)" shapeRendering="crispEdges" />}
-      </g>
-      <g transform={`translate(${cx} ${cy + 10 * sc + 44}) scale(8) translate(${-WORD_W / 2} 0)`} fill="var(--lp-ink)" shapeRendering="crispEdges" opacity={1 - settle}>
-        <path d={RETRO_WORD} />
       </g>
     </svg>
   );
