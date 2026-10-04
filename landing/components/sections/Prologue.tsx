@@ -38,9 +38,12 @@ const STARS = Array.from({ length: 22 }, (_, i) => ({ x: 20 + rnd(i, 1) * 560, y
 export function Prologue({ q }: { q: number }) {
   // ship: presented large, turns, shrinks to ship size at the bottom
   const e1 = smooth(clamp((q - 0.14) / 0.34));
-  const angle = lerp(0, 360, e1);
+  const FIRE = 12; // firing pose: tilted like the reference, tip leads
+  const angle = lerp(0, 360 + FIRE, e1);
   const sc = lerp(13, 7, e1);
-  const cx = 300;
+  const fr = (FIRE * Math.PI) / 180;
+  const tipOff = (0.5 * Math.cos(fr) + 9.5 * Math.sin(fr)) * 7;
+  const cx = 300 - tipOff * e1;
   const cy = lerp(350, 590, e1);
   const exit = smooth(clamp((q - 0.9) / 0.1));
 
@@ -56,8 +59,9 @@ export function Prologue({ q }: { q: number }) {
   const hitPulse = Math.max(...[0, 1, 2].map((k) => clamp(1 - (q - (0.6 + k * 0.07)) / 0.04) * (q >= 0.6 + k * 0.07 ? 1 : 0)));
   const shatter = clamp((q - 0.74) / 0.2);
   const shake = Math.sin(q * 900) * 4 * hitPulse;
-  const noseX = cx + 0.5 * sc;
-  const noseY = cy - (MARK_H / 2) * sc;
+  const ar = (angle * Math.PI) / 180;
+  const noseX = cx + (0.5 * Math.cos(ar) + 9.5 * Math.sin(ar)) * sc;
+  const noseY = cy + (0.5 * Math.sin(ar) - 9.5 * Math.cos(ar)) * sc;
   const bookBottom = bookCy + (BH * bs) / 2;
 
   return (
