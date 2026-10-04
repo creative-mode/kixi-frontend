@@ -195,16 +195,11 @@ export function Prologue({ q }: { q: number }) {
           {life > 0.02 ? (
             <>
               {MARK_CELLS.map(({ x, y }) => {
-                // a soft ripple: a thin band of pixels lifts one cell as it passes over the ship
-                const band = Math.sin(tick * 0.5 - (x + y * 0.5) * 0.45);
-                const dy = band > 0.82 && life > 0.5 ? -1 : 0;
-                const dx = 0;
+                // rows slide one cell at a time (never apart from their neighbours' cells), so the logo stays solid
+                const sway = Math.sin(tick * 0.45 + y * 0.42);
+                const dx = life > 0.5 ? (sway > 0.8 ? 1 : sway < -0.8 ? -1 : 0) : 0;
+                const dy = 0;
                 return <rect key={`${x}-${y}`} x={x + dx} y={y + dy} width="1.04" height="1.04" />;
-              })}
-              {[0, 1, 2].map((i) => {
-                const age = (tick + i * 3) % 14;
-                const px = 3 + hash(i, Math.floor((tick + i * 3) / 14), 1) * 18;
-                return <rect key={`sp${i}`} x={Math.round(px)} y={Math.round(19 + age * 0.9)} width="1" height="1" opacity={(1 - age / 14) * life * 0.7} />;
               })}
             </>
           ) : (
