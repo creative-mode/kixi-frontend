@@ -55,7 +55,7 @@ export function Prologue({ q }: { q: number }) {
   const fr = (FIRE * Math.PI) / 180;
   const tipOff = (0.5 * Math.cos(fr) + 9.5 * Math.sin(fr)) * 7;
   const cx = 300 - tipOff * turnE;
-  const cy = lerp(330, 600, settle);
+  const cy = lerp(285, 600, settle);
   const exit = smooth(win(q, 0.88, 0.95));
 
   // 2) story: the exam paper
