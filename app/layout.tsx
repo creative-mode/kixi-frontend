@@ -1,25 +1,31 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Space_Grotesk, JetBrains_Mono, Instrument_Serif } from "next/font/google"
+import localFont from "next/font/local"
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space",
-  display: "swap",
-})
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-})
-
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
+// Kixi design system v6 typefaces, self-hosted
+const pixel = localFont({
+  src: "./fonts/press-start-2p-latin-400-normal.woff2",
   weight: "400",
-  variable: "--font-display",
+  variable: "--ff-pixel",
+  display: "swap",
+})
+
+const jakarta = localFont({
+  src: [
+    { path: "./fonts/plus-jakarta-sans-latin-400-normal.woff2", weight: "400" },
+    { path: "./fonts/plus-jakarta-sans-latin-600-normal.woff2", weight: "600" },
+    { path: "./fonts/plus-jakarta-sans-latin-700-normal.woff2", weight: "700" },
+  ],
+  variable: "--ff-sans",
+  display: "swap",
+})
+
+const mono = localFont({
+  src: "./fonts/jetbrains-mono-latin-500-normal.woff2",
+  weight: "500",
+  variable: "--ff-mono",
   display: "swap",
 })
 
@@ -38,7 +44,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#111827",
+  themeColor: "#a3d97f",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -57,7 +63,7 @@ export default function RootLayout({
   return (
     <html lang="pt" className="scroll-smooth">
       <body
-        className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} font-sans antialiased`}
+        className={`${pixel.variable} ${jakarta.variable} ${mono.variable} font-sans antialiased`}
       >
         <Providers>
           <ManagerNavbar />

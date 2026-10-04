@@ -1,7 +1,6 @@
 'use client'
 
 import { TechifyUIProvider } from '@techify/ui'
-import '@techify/ui/styles.css'
 import type React from 'react'
 import { useServiceWorker } from '@/hooks/use-service-worker'
 
