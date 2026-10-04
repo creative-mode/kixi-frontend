@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
-import { Avatar, Card, HudBar, Medal } from '@/components/kixi';
+import { sairAction } from '@/lib/auth-actions';
+import { Avatar, Button, Card, HudBar, Medal } from '@/components/kixi';
 
 const DEFS = [
   { key: 'night', label: 'Ecrã Noite', hint: 'O ecrã apagado, para estudar à noite.', def: false },
@@ -44,9 +44,9 @@ export default function Perfil() {
           </label>
         ))}
       </Card>
-      <span className="kx-btn-wrap kx-scope">
-        <Link href="/entrar" className="kx-btn kx-btn--ghost" style={{ textDecoration: 'none', font: '600 15px/1 var(--font-sans)' }}><span className="kx-btn__label" style={{ paddingLeft: 0 }}>Terminar sessão</span></Link>
-      </span>
+      <form action={sairAction}>
+        <Button type="submit" variant="ghost">Terminar sessão</Button>
+      </form>
     </main>
   );
 }

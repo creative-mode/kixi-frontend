@@ -24,6 +24,8 @@ import { logoutAction } from "@/app/actions/auth";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 
+import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
+
 const navLinks = [
   {
     href: "/",
@@ -32,13 +34,10 @@ const navLinks = [
     icon: LayoutDashboard,
     color: "bg-brand-tint text-phosphor",
   },
-  {
-    href: "/school-year",
-    label: "Anos Letivos",
-    description: "Gestão de anos letivos",
-    icon: Calendar,
-    color: "bg-tiro-tint text-tiro-ink",
-  }
+  ...NAV_KEYS.map((k) => {
+    const e = ENTITIES[k];
+    return { href: `/${e.path}`, label: e.plural, description: e.description, icon: e.icon, color: e.tone };
+  }),
 ];
 
 export function ManagerNavbar() {
@@ -130,7 +129,7 @@ export function ManagerNavbar() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
                 {navLinks.map((link, index) => {
                   const Icon = link.icon;
-                  const isActive = pathname === link.href;
+                  const isActive = link.href === "/" ? pathname === "/" : pathname === link.href || pathname.startsWith(`${link.href}/`);
 
                   return (
                     <motion.div
