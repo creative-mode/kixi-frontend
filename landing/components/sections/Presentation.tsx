@@ -158,9 +158,9 @@ export function Presentation() {
   const turn = smooth(clamp((p2 - 0.78) / 0.12)) * 360; // the whole cartridge spins once as it closes
   const yaws = [0, 1, 2, 3, 4].map((j) => ((smooth(clamp((sc - j - 0.1) / 0.5)) * 360 + turn) * Math.PI) / 180);
   const acts = [0, 1, 2, 3, 4].map((j) => smooth(clamp((sc - j - 0.3) / 0.4)) * clamp((j + 1.1 - sc) / 0.2) * (open > 0.9 ? 1 : 0));
-  const reveal = smooth(clamp((q - 0.9) / 0.1)); // the cartridge appears out of the debris
+  const reveal = smooth(clamp((q - 0.92) / 0.08)); // the cartridge appears out of the debris
   const vis = {
-    bridge: clamp((q - 0.93) / 0.07) * (1 - clamp((p2 - 0.03) / 0.03)),
+    bridge: clamp((q - 0.94) / 0.06) * (1 - clamp((p2 - 0.03) / 0.03)),
     inside: clamp((p2 - 0.07) / 0.04) * clamp((0.205 - p2) / 0.03),
     outro: clamp((p2 - 0.85) / 0.05),
     scene: (j: number) => clamp((sc - j - 0.12) / 0.12) * clamp((j + 1 - sc) / 0.1),
@@ -171,7 +171,7 @@ export function Presentation() {
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
         <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
-        <div className="pres__prolog" style={{ ['--px' as string]: smooth(clamp((q - 0.9) / 0.1)) }} aria-hidden="true">
+        <div className="pres__prolog" style={{ ['--px' as string]: smooth(clamp((q - 0.92) / 0.08)) }} aria-hidden="true">
           {q < 1 || p2 < 0.001 ? <Prologue q={q} /> : null}
         </div>
         <div className="pres__text">

@@ -3,26 +3,28 @@ import { MARK_H, MARK_W, RETRO_MARK } from '@/lib/mark';
 
 /**
  * Prologue, drawn from scroll progress q (0..1):
- * the logo alone → a story (the P1 exam, "está pico?") → the exam becomes a book → the logo turns into the ship,
- * fires from its tip and the book shatters into pixels.
+ * the logo alone → it leaves and the P1 exam takes the stage with its story ("está pico?") → the text goes, the exam
+ * shrinks → the Kixi ship arrives, fires from its tip and the exam shatters into pixels.
  */
 const BOOK = [
-  '.############.',
-  '##..........##',
-  '#.##########.#',
-  '#.#........#.#',
-  '#.##########.#',
-  '#............#',
-  '#............#',
-  '#...######...#',
-  '#............#',
-  '#...######...#',
-  '#............#',
-  '#............#',
-  '##..........##',
-  '.############.',
+  '#########...',
+  '#.......##..',
+  '#.......#.#.',
+  '#.......####',
+  '#..........#',
+  '#.########.#',
+  '#..........#',
+  '#.######...#',
+  '#..........#',
+  '#.########.#',
+  '#..........#',
+  '#.#####....#',
+  '#..........#',
+  '#.########.#',
+  '#..........#',
+  '############',
 ];
-const BW = 14;
+const BW = 12;
 const BH = BOOK.length;
 const CELLS: { r: number; c: number }[] = [];
 BOOK.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') CELLS.push({ r, c }); }));
@@ -53,7 +55,7 @@ const TYPE1 = 'A P1 está pico?';
 const TYPE2 = 'E sem o Kixi?';
 
 export function Prologue({ q }: { q: number }) {
-  // idle life of the logo: the pixels themselves move (stepped, like a sprite), until the person scrolls
+  // idle life of the logo: the rows slide a cell, stepped like a sprite, until the person scrolls
   const [tick, setTick] = useState(0);
   const idle = q < 0.12;
   useEffect(() => {
@@ -62,39 +64,43 @@ export function Prologue({ q }: { q: number }) {
     return () => window.clearInterval(id);
   }, [idle]);
   const life = 1 - win(q, 0.0, 0.07);
-  // 1) the logo alone, large; it then settles at the bottom, ready to become the ship
-  const settle = smooth(win(q, 0.08, 0.17));
-  // 4) it turns into the ship pose
-  const turnE = smooth(win(q, 0.54, 0.65));
-  const angle = lerp(0, 360 + FIRE, turnE);
-  const sc = lerp(13, 7, settle);
-  const fr = (FIRE * Math.PI) / 180;
-  const tipOff = (0.5 * Math.cos(fr) + 9.5 * Math.sin(fr)) * 7;
-  const cx = 300 - tipOff * turnE;
-  const cy = lerp(285, 600, settle);
-  const exit = smooth(win(q, 0.88, 0.95));
 
-  // 2) story: the exam paper
-  const paperIn = smooth(win(q, 0.14, 0.22));
-  const toBook = smooth(win(q, 0.5, 0.56));
-  const nerv = win(q, 0.26, 0.5) * (1 - toBook);
+  // 1) the logo alone, large; then it leaves to make room for the exam
+  const logoOut = smooth(win(q, 0.07, 0.15));
+  const logoSc = lerp(13, 9, logoOut);
+
+  // 2) the exam takes the stage, big, with its story under it
+  const paperIn = smooth(win(q, 0.11, 0.2));
+  const shrink = smooth(win(q, 0.52, 0.6));
+  const paperSc = lerp(0.35, 1.45, paperIn) * lerp(1, 0.5 / 1.45, shrink);
+  const paperY = lerp(290, 215, shrink);
+  const nerv = win(q, 0.26, 0.5) * (1 - shrink);
   const shakeP = Math.sin(q * 1400) * 3.2 * nerv;
-  const paperY = lerp(-260, 215, paperIn) + (1 - paperIn) * 0;
   const stamp = smooth(win(q, 0.38, 0.42));
   const t1 = Math.floor(win(q, 0.2, 0.28) * TYPE1.length);
   const t2 = Math.floor(win(q, 0.43, 0.5) * TYPE2.length);
   const captionOp = win(q, 0.2, 0.22) * (1 - win(q, 0.5, 0.54));
   const timer = 1 - win(q, 0.26, 0.4);
+  const swap = win(q, 0.57, 0.6); // vector paper → pixel paper, same size
 
-  // 3) the book (what the paper becomes) is hit three times
+  // 3) the Kixi ship arrives and fires from its tip
+  const shipE = smooth(win(q, 0.6, 0.7));
+  const angle = lerp(0, 360 + FIRE, shipE);
+  const sc = lerp(1, 7, shipE);
+  const fr = (FIRE * Math.PI) / 180;
+  const tipOff = (0.5 * Math.cos(fr) + 9.5 * Math.sin(fr)) * 7;
+  const cx = 300 - tipOff * shipE;
+  const cy = lerp(700, 600, shipE);
+  const exit = smooth(win(q, 0.9, 0.97));
+
   const bs = 8;
-  const bookIn = toBook;
+  const bookIn = swap;
   const bookCx = 300;
   const bookCy = 215;
-  const hitAt = [0.74, 0.79, 0.84];
-  const shots = hitAt.map((h) => clamp((q - (h - 0.08)) / 0.08));
+  const hitAt = [0.77, 0.82, 0.87];
+  const shots = hitAt.map((h) => clamp((q - (h - 0.07)) / 0.07));
   const hitPulse = Math.max(...hitAt.map((h) => (q >= h ? clamp(1 - (q - h) / 0.04) : 0)));
-  const shatter = win(q, 0.85, 0.97);
+  const shatter = win(q, 0.88, 0.98);
   const shake = Math.sin(q * 900) * 4 * hitPulse;
   const ar = (angle * Math.PI) / 180;
   const noseX = cx + (0.5 * Math.cos(ar) + 9.5 * Math.sin(ar)) * sc;
@@ -107,37 +113,50 @@ export function Prologue({ q }: { q: number }) {
         {STARS.map((s, i) => <circle key={i} cx={s.x} cy={r2(s.y + q * 30 * s.r)} r={s.r} />)}
       </g>
 
-      {/* the P1 exam */}
-      {paperIn > 0 && toBook < 1 && (
-        <g transform={`translate(${300 + shakeP} ${paperY}) rotate(${Math.sin(q * 900) * 1.4 * nerv}) scale(${1 + 0.06 * Math.sin(toBook * Math.PI)})`} opacity={1 - toBook}>
-          <rect x="-100" y="-130" width="200" height="260" fill="var(--paper-3)" stroke="var(--lp-ink)" strokeWidth="4" />
-          <path d="M60 -130h40v40z" fill="var(--paper-2)" stroke="var(--lp-ink)" strokeWidth="4" />
+      {/* the Kixi logo, alone and alive, then it leaves */}
+      {logoOut < 1 && (
+        <g transform={`translate(300 285) scale(${logoSc}) translate(${-MARK_W / 2} ${-MARK_H / 2})`} fill="var(--lp-ink)" shapeRendering="crispEdges" opacity={1 - logoOut}>
+          {life > 0.02 ? (
+            MARK_CELLS.map(({ x, y }) => {
+              // rows slide one cell at a time, so the logo stays solid
+              const sway = Math.sin(tick * 0.45 + y * 0.42);
+              const dx = life > 0.5 ? (sway > 0.8 ? 1 : sway < -0.8 ? -1 : 0) : 0;
+              return <rect key={`${x}-${y}`} x={x + dx} y={y} width="1.04" height="1.04" />;
+            })
+          ) : (
+            <path d={RETRO_MARK} />
+          )}
+        </g>
+      )}
+
+      {/* the P1 exam, in the spotlight */}
+      {paperIn > 0 && swap < 1 && (
+        <g transform={`translate(${300 + shakeP} ${paperY}) rotate(${Math.sin(q * 900) * 1.4 * nerv}) scale(${paperSc})`} opacity={(1 - swap) * paperIn}>
+          <rect x="-100" y="-130" width="200" height="260" fill="var(--paper-3)" stroke="var(--lp-ink)" strokeWidth="4" vectorEffect="non-scaling-stroke" />
+          <path d="M60 -130h40v40z" fill="var(--paper-2)" stroke="var(--lp-ink)" strokeWidth="4" vectorEffect="non-scaling-stroke" />
           <text x="-84" y="-92" fontSize="30" fill="var(--lp-ink)" style={PIX}>P1</text>
           {LINES.map((w, i) => <rect key={i} x="-84" y={-62 + i * 26} width={w * 3.2} height="8" fill="var(--lp-ink)" opacity=".55" />)}
-          {/* timer draining */}
-          <rect x="-84" y="104" width="168" height="10" fill="none" stroke="var(--lp-ink)" strokeWidth="3" />
+          <rect x="-84" y="104" width="168" height="10" fill="none" stroke="var(--lp-ink)" strokeWidth="3" vectorEffect="non-scaling-stroke" />
           <rect x="-81" y="107" width={162 * timer} height="4" fill="var(--lp-ink)" />
-          {/* the doubts */}
           {QMARKS.map((m, i) => {
             const k = smooth(win(q, m.t, m.t + 0.05));
             if (k <= 0) return null;
             return <text key={i} x={m.x - 300} y={m.y - 215} fontSize={m.s * (0.4 + 0.6 * k)} textAnchor="middle" fill="var(--lp-ink)" opacity={k} transform={`rotate(${m.a} ${m.x - 300} ${m.y - 215})`} style={PIX}>?</text>;
           })}
-          {/* grade stamp */}
           {stamp > 0 && (
             <g transform={`translate(34 62) rotate(-14) scale(${1 + (1 - stamp) * 1.6})`} opacity={stamp}>
-              <circle r="46" fill="var(--paper-3)" stroke="var(--lp-ink)" strokeWidth="4" strokeDasharray="10 5" />
+              <circle r="46" fill="var(--paper-3)" stroke="var(--lp-ink)" strokeWidth="4" strokeDasharray="10 5" vectorEffect="non-scaling-stroke" />
               <text textAnchor="middle" y="9" fontSize="26" fill="var(--lp-ink)" style={PIX}>4/20</text>
             </g>
           )}
         </g>
       )}
 
-      {/* captions typed under the paper */}
+      {/* captions, under the exam */}
       {captionOp > 0 && (
         <g fill="var(--lp-ink)" opacity={captionOp} style={PIX} textAnchor="middle">
-          <text x="300" y="402" fontSize="19">{TYPE1.slice(0, t1)}{t1 < TYPE1.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
-          <text x="300" y="440" fontSize="19" opacity={t2 > 0 ? 1 : 0}>{TYPE2.slice(0, t2)}{t2 > 0 && t2 < TYPE2.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
+          <text x="300" y="548" fontSize="22">{TYPE1.slice(0, t1)}{t1 < TYPE1.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
+          <text x="300" y="592" fontSize="22" opacity={t2 > 0 ? 1 : 0}>{TYPE2.slice(0, t2)}{t2 > 0 && t2 < TYPE2.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
         </g>
       )}
 
@@ -146,7 +165,7 @@ export function Prologue({ q }: { q: number }) {
         <circle cx={bookCx} cy={bookCy} r={lerp(20, 300, shatter)} fill="none" stroke="var(--lp-ink)" strokeWidth="3" strokeDasharray="8 8" opacity={1 - shatter} />
       )}
 
-      {/* the book */}
+      {/* the exam as pixels: this is what the ship destroys */}
       <g shapeRendering="crispEdges" fill="var(--lp-ink)">
         {bookIn > 0 && CELLS.map(({ r, c }, i) => {
           const ox = (c - BW / 2) * bs;
@@ -189,25 +208,15 @@ export function Prologue({ q }: { q: number }) {
         })}
       </g>
 
-      {/* the Kixi mark: logo first, then ship */}
-      <g transform={`translate(0 ${-exit * 260})`} opacity={1 - exit}>
-        <g transform={`translate(${cx} ${cy}) rotate(${angle}) scale(${sc}) translate(${-MARK_W / 2} ${-MARK_H / 2})`} fill="var(--lp-ink)" shapeRendering="crispEdges">
-          {life > 0.02 ? (
-            <>
-              {MARK_CELLS.map(({ x, y }) => {
-                // rows slide one cell at a time (never apart from their neighbours' cells), so the logo stays solid
-                const sway = Math.sin(tick * 0.45 + y * 0.42);
-                const dx = life > 0.5 ? (sway > 0.8 ? 1 : sway < -0.8 ? -1 : 0) : 0;
-                const dy = 0;
-                return <rect key={`${x}-${y}`} x={x + dx} y={y + dy} width="1.04" height="1.04" />;
-              })}
-            </>
-          ) : (
+      {/* the ship: arrives turning, then fires */}
+      {shipE > 0 && (
+        <g transform={`translate(0 ${-exit * 260})`} opacity={(1 - exit) * clamp(shipE * 3)}>
+          <g transform={`translate(${cx} ${cy}) rotate(${angle}) scale(${sc}) translate(${-MARK_W / 2} ${-MARK_H / 2})`} fill="var(--lp-ink)" shapeRendering="crispEdges">
             <path d={RETRO_MARK} />
-          )}
+          </g>
+          {shots.some((b) => b > 0 && b < 0.25) && <rect x={noseX - 5} y={noseY - 16} width={10} height={10} fill="var(--lp-ink)" shapeRendering="crispEdges" />}
         </g>
-        {shots.some((b) => b > 0 && b < 0.25) && <rect x={noseX - 5} y={noseY - 16} width={10} height={10} fill="var(--lp-ink)" shapeRendering="crispEdges" />}
-      </g>
+      )}
     </svg>
   );
 }
