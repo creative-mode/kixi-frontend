@@ -2,7 +2,8 @@ import { MARK_H, MARK_W, RETRO_MARK, RETRO_WORD, WORD_W } from '@/lib/mark';
 
 /**
  * Prologue, drawn from scroll progress q (0..1):
- * the Kixi logo is presented, turns into the ship, fires at a book and the book shatters into pixels.
+ * the logo alone → a story (the P1 exam, "está pico?") → the exam becomes a book → the logo turns into the ship,
+ * fires from its tip and the book shatters into pixels.
  */
 const BOOK = [
   '.############.',
@@ -35,40 +36,99 @@ const rnd = (i: number, k: number) => {
 
 const STARS = Array.from({ length: 22 }, (_, i) => ({ x: 20 + rnd(i, 1) * 560, y: 20 + rnd(i, 2) * 680, r: 1 + rnd(i, 3) * 1.4 }));
 
+const win = (q: number, a: number, b: number) => clamp((q - a) / (b - a));
+const PIX = { fontFamily: 'var(--font-pixel)' } as const;
+const QMARKS = Array.from({ length: 14 }, (_, i) => ({ x: 300 + (rnd(i * 13 + 5, 11) - 0.5) * 170, y: 215 + (rnd(i * 29 + 2, 12) - 0.5) * 210, s: 22 + rnd(i, 13) * 34, a: (rnd(i, 14) - 0.5) * 40, t: 0.26 + (i / 14) * 0.12 }));
+const LINES = [42, 62, 30, 56, 48, 36];
+const FIRE = 12; // firing pose: tilted like the reference, tip leads
+const TYPE1 = 'A P1 está pico?';
+const TYPE2 = 'E sem o Kixi?';
+
 export function Prologue({ q }: { q: number }) {
-  // ship: presented large, turns, shrinks to ship size at the bottom
-  const e1 = smooth(clamp((q - 0.14) / 0.34));
-  const FIRE = 12; // firing pose: tilted like the reference, tip leads
-  const angle = lerp(0, 360 + FIRE, e1);
-  const sc = lerp(13, 7, e1);
+  // 1) the logo alone, large; it then settles at the bottom, ready to become the ship
+  const settle = smooth(win(q, 0.08, 0.17));
+  // 4) it turns into the ship pose
+  const turnE = smooth(win(q, 0.54, 0.65));
+  const angle = lerp(0, 360 + FIRE, turnE);
+  const sc = lerp(13, 7, settle);
   const fr = (FIRE * Math.PI) / 180;
   const tipOff = (0.5 * Math.cos(fr) + 9.5 * Math.sin(fr)) * 7;
-  const cx = 300 - tipOff * e1;
-  const cy = lerp(350, 590, e1);
-  const exit = smooth(clamp((q - 0.9) / 0.1));
+  const cx = 300 - tipOff * turnE;
+  const cy = lerp(340, 600, settle);
+  const exit = smooth(win(q, 0.88, 0.95));
 
-  // book: drops in from above, then is hit three times
+  // 2) story: the exam paper
+  const paperIn = smooth(win(q, 0.14, 0.22));
+  const toBook = smooth(win(q, 0.5, 0.56));
+  const nerv = win(q, 0.26, 0.5) * (1 - toBook);
+  const shakeP = Math.sin(q * 1400) * 3.2 * nerv;
+  const paperY = lerp(-260, 215, paperIn) + (1 - paperIn) * 0;
+  const stamp = smooth(win(q, 0.38, 0.42));
+  const t1 = Math.floor(win(q, 0.2, 0.28) * TYPE1.length);
+  const t2 = Math.floor(win(q, 0.43, 0.5) * TYPE2.length);
+  const captionOp = win(q, 0.2, 0.22) * (1 - win(q, 0.5, 0.54));
+  const timer = 1 - win(q, 0.26, 0.4);
+
+  // 3) the book (what the paper becomes) is hit three times
   const bs = 8;
-  const bookIn = smooth(clamp((q - 0.08) / 0.22));
+  const bookIn = toBook;
   const bookCx = 300;
-  const bookCy = lerp(-120, 130, bookIn);
-  const shots = [0, 1, 2].map((k) => {
-    const t0 = 0.5 + k * 0.07;
-    return clamp((q - t0) / 0.1);
-  });
-  const hitPulse = Math.max(...[0, 1, 2].map((k) => clamp(1 - (q - (0.6 + k * 0.07)) / 0.04) * (q >= 0.6 + k * 0.07 ? 1 : 0)));
-  const shatter = clamp((q - 0.74) / 0.2);
+  const bookCy = 215;
+  const hitAt = [0.74, 0.79, 0.84];
+  const shots = hitAt.map((h) => clamp((q - (h - 0.08)) / 0.08));
+  const hitPulse = Math.max(...hitAt.map((h) => (q >= h ? clamp(1 - (q - h) / 0.04) : 0)));
+  const shatter = win(q, 0.85, 0.97);
   const shake = Math.sin(q * 900) * 4 * hitPulse;
   const ar = (angle * Math.PI) / 180;
   const noseX = cx + (0.5 * Math.cos(ar) + 9.5 * Math.sin(ar)) * sc;
   const noseY = cy + (0.5 * Math.sin(ar) - 9.5 * Math.cos(ar)) * sc;
   const bookBottom = bookCy + (BH * bs) / 2;
+  const hint = (1 - win(q, 0.04, 0.1)) * (0.55 + 0.45 * Math.sin(q * 160));
 
   return (
     <svg className="prologue" viewBox="0 0 600 720" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <g fill="var(--lp-ink)" opacity=".5">
         {STARS.map((s, i) => <circle key={i} cx={s.x} cy={s.y + q * 30 * s.r} r={s.r} />)}
       </g>
+
+      {/* scroll hint under the big logo */}
+      {hint > 0.02 && (
+        <path d="M284 668h8v8h8v8h8v-8h8v-8h8v8h-8v8h-8v8h-8v-8h-8v-8h-8z" transform="translate(-24 -20)" fill="var(--lp-ink)" opacity={hint} shapeRendering="crispEdges" />
+      )}
+
+      {/* the P1 exam */}
+      {paperIn > 0 && toBook < 1 && (
+        <g transform={`translate(${300 + shakeP} ${paperY}) rotate(${Math.sin(q * 900) * 1.4 * nerv}) scale(${1 + 0.06 * Math.sin(toBook * Math.PI)})`} opacity={1 - toBook}>
+          <rect x="-100" y="-130" width="200" height="260" fill="var(--paper-3)" stroke="var(--lp-ink)" strokeWidth="4" />
+          <path d="M60 -130h40v40z" fill="var(--paper-2)" stroke="var(--lp-ink)" strokeWidth="4" />
+          <text x="-84" y="-92" fontSize="30" fill="var(--lp-ink)" style={PIX}>P1</text>
+          {LINES.map((w, i) => <rect key={i} x="-84" y={-62 + i * 26} width={w * 3.2} height="8" fill="var(--lp-ink)" opacity=".55" />)}
+          {/* timer draining */}
+          <rect x="-84" y="104" width="168" height="10" fill="none" stroke="var(--lp-ink)" strokeWidth="3" />
+          <rect x="-81" y="107" width={162 * timer} height="4" fill="var(--lp-ink)" />
+          {/* the doubts */}
+          {QMARKS.map((m, i) => {
+            const k = smooth(win(q, m.t, m.t + 0.05));
+            if (k <= 0) return null;
+            return <text key={i} x={m.x - 300} y={m.y - 215} fontSize={m.s * (0.4 + 0.6 * k)} textAnchor="middle" fill="var(--lp-ink)" opacity={k} transform={`rotate(${m.a} ${m.x - 300} ${m.y - 215})`} style={PIX}>?</text>;
+          })}
+          {/* grade stamp */}
+          {stamp > 0 && (
+            <g transform={`translate(34 62) rotate(-14) scale(${1 + (1 - stamp) * 1.6})`} opacity={stamp}>
+              <circle r="46" fill="var(--paper-3)" stroke="var(--lp-ink)" strokeWidth="4" strokeDasharray="10 5" />
+              <text textAnchor="middle" y="9" fontSize="26" fill="var(--lp-ink)" style={PIX}>4/20</text>
+            </g>
+          )}
+        </g>
+      )}
+
+      {/* captions typed under the paper */}
+      {captionOp > 0 && (
+        <g fill="var(--lp-ink)" opacity={captionOp} style={PIX} textAnchor="middle">
+          <text x="300" y="402" fontSize="19">{TYPE1.slice(0, t1)}{t1 < TYPE1.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
+          <text x="300" y="440" fontSize="19" opacity={t2 > 0 ? 1 : 0}>{TYPE2.slice(0, t2)}{t2 > 0 && t2 < TYPE2.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
+        </g>
+      )}
 
       {/* shockwave */}
       {shatter > 0 && shatter < 1 && (
@@ -77,7 +137,7 @@ export function Prologue({ q }: { q: number }) {
 
       {/* the book */}
       <g shapeRendering="crispEdges" fill="var(--lp-ink)">
-        {CELLS.map(({ r, c }, i) => {
+        {bookIn > 0 && CELLS.map(({ r, c }, i) => {
           const ox = (c - BW / 2) * bs;
           const oy = (r - BH / 2) * bs;
           const ang = Math.atan2(oy, ox) + (rnd(i, 4) - 0.5) * 1.2;
@@ -103,7 +163,7 @@ export function Prologue({ q }: { q: number }) {
         </g>
       )}
 
-      {/* shots */}
+      {/* shots, out of the tip */}
       <g fill="var(--lp-ink)" shapeRendering="crispEdges">
         {shots.map((b, k) => {
           if (b <= 0 || b >= 1) return null;
@@ -123,10 +183,9 @@ export function Prologue({ q }: { q: number }) {
         <g transform={`translate(${cx} ${cy}) rotate(${angle}) scale(${sc}) translate(${-MARK_W / 2} ${-MARK_H / 2})`} fill="var(--lp-ink)" shapeRendering="crispEdges">
           <path d={RETRO_MARK} />
         </g>
-        {/* recoil flash at the nose while firing */}
         {shots.some((b) => b > 0 && b < 0.25) && <rect x={noseX - 5} y={noseY - 16} width={10} height={10} fill="var(--lp-ink)" shapeRendering="crispEdges" />}
       </g>
-      <g transform={`translate(${cx} ${cy + 10 * sc + 44}) scale(8) translate(${-WORD_W / 2} 0)`} fill="var(--lp-ink)" shapeRendering="crispEdges" opacity={1 - clamp((q - 0.08) / 0.1)}>
+      <g transform={`translate(${cx} ${cy + 10 * sc + 44}) scale(8) translate(${-WORD_W / 2} 0)`} fill="var(--lp-ink)" shapeRendering="crispEdges" opacity={1 - settle}>
         <path d={RETRO_WORD} />
       </g>
     </svg>

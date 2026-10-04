@@ -147,7 +147,7 @@ export function Presentation() {
   }
 
   // Timeline: prologue (logo → ship → book shatters) → cartridge: open → camera in → five layers → reunite → outro
-  const P0 = 0.2;
+  const P0 = 0.3;
   const q = clamp(p / P0);
   const p2 = clamp((p - P0) / (1 - P0));
   const open = smooth(clamp((p2 - 0.05) / 0.1)) * (1 - smooth(clamp((p2 - 0.78) / 0.1)));
@@ -158,10 +158,9 @@ export function Presentation() {
   const turn = smooth(clamp((p2 - 0.78) / 0.12)) * 360; // the whole cartridge spins once as it closes
   const yaws = [0, 1, 2, 3, 4].map((j) => ((smooth(clamp((sc - j - 0.1) / 0.5)) * 360 + turn) * Math.PI) / 180);
   const acts = [0, 1, 2, 3, 4].map((j) => smooth(clamp((sc - j - 0.3) / 0.4)) * clamp((j + 1.1 - sc) / 0.2) * (open > 0.9 ? 1 : 0));
-  const reveal = smooth(clamp((q - 0.78) / 0.16)); // the cartridge appears out of the debris
+  const reveal = smooth(clamp((q - 0.9) / 0.1)); // the cartridge appears out of the debris
   const vis = {
-    intro: 1 - clamp((q - 0.1) / 0.08),
-    bridge: clamp((q - 0.4) / 0.1) * (1 - clamp((p2 - 0.03) / 0.03)),
+    bridge: clamp((q - 0.93) / 0.07) * (1 - clamp((p2 - 0.03) / 0.03)),
     inside: clamp((p2 - 0.07) / 0.04) * clamp((0.205 - p2) / 0.03),
     outro: clamp((p2 - 0.85) / 0.05),
     scene: (j: number) => clamp((sc - j - 0.12) / 0.12) * clamp((j + 1 - sc) / 0.1),
@@ -171,8 +170,11 @@ export function Presentation() {
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
+        <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
+        <div className="pres__prolog" style={{ ['--px' as string]: smooth(clamp((q - 0.9) / 0.1)) }} aria-hidden="true">
+          {q < 1 || p2 < 0.001 ? <Prologue q={q} /> : null}
+        </div>
         <div className="pres__text">
-          <div className="pres__scene" style={layerText(vis.intro)} aria-hidden={vis.intro < 0.5}><Intro /></div>
           <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
           <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
           {SCENES.map((s, i) => {
@@ -189,7 +191,6 @@ export function Presentation() {
           <div className="pres__cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>
-          {q < 1 || p2 < 0.001 ? <Prologue q={q} /> : null}
         </div>
         <div className="pres__rail" aria-hidden="true"><span style={{ transform: `scaleY(${p})` }} /></div>
       </div>
