@@ -46,8 +46,7 @@ function Intro() {
 function Bridge() {
   return (
     <>
-      <h2 className="pres__head">Aponta a nave à prova.</h2>
-      <p className="pres__sub">O Kixi pega nas provas antigas e põe-nas ao teu serviço.</p>
+      <h2 className="pres__head">Tudo para estudares, num só lugar.</h2>
     </>
   );
 }
@@ -55,8 +54,7 @@ function Bridge() {
 function Inside() {
   return (
     <>
-      <h2 className="pres__head">Por dentro do Kixi.</h2>
-      <p className="pres__sub">Cinco coisas que podes fazer.</p>
+      <h2 className="pres__head">O que podes fazer no Kixi.</h2>
     </>
   );
 }
