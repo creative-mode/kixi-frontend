@@ -1,6 +1,9 @@
 /** Landing copy, condensed from the Kixi concept document (@creativemode, 2026). */
 
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '#comecar';
+/** O app do aluno vive no mesmo endereço, em /aluno (gateway). NEXT_PUBLIC_APP_URL só é preciso se estiver noutro domínio. */
+const APP = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '');
+export const LOGIN_URL = `${APP}/aluno/entrar`;
+export const SIGNUP_URL = `${APP}/aluno/cadastro`;
 
 export const NAV = [
   { href: '#solucao', label: 'Solução' },

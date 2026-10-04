@@ -13,7 +13,7 @@ npm run lint     # tsc --noEmit
 ```
 
 ## Configuração
-- `NEXT_PUBLIC_APP_URL` — destino dos botões "Começar a estudar" / "Entrar" (por omissão `#comecar`).
+- `NEXT_PUBLIC_APP_URL` — endereço do app do aluno. opcional. Por omissão o app do aluno está no mesmo endereço, em `/aluno`: "Entrar" abre `/aluno/entrar` e "Começar a estudar" abre `/aluno/cadastro`. Só é preciso se o app do aluno estiver noutro domínio.
 
 ## Estrutura
 - `lib/content.ts` — todo o texto (módulos, públicos, FAQ). Editar aqui.
