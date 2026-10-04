@@ -1,6 +1,9 @@
 /** Landing copy, condensed from the Kixi concept document (@creativemode, 2026). */
 
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '#comecar';
+/** Where the student app lives (login and sign-up screens). */
+const APP = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3003').replace(/\/$/, '');
+export const LOGIN_URL = `${APP}/entrar`;
+export const SIGNUP_URL = `${APP}/cadastro`;
 
 export const NAV = [
   { href: '#solucao', label: 'Solução' },

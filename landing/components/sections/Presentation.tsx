@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { APP_URL } from '@/lib/content';
+import { SIGNUP_URL } from '@/lib/content';
 import { Cartridge, LAYERS } from './Cartridge';
 import { Prologue } from './Prologue';
 
@@ -36,7 +36,7 @@ function Intro() {
       </h1>
       <p className="pres__sub">Treina com provas a sério, tira dúvidas e vê como os outros resolveram.</p>
       <div className="actions">
-        <Cta href={APP_URL}>Começar a estudar</Cta>
+        <Cta href={SIGNUP_URL}>Começar a estudar</Cta>
         <Cta href="#para-quem" secondary>Sou professor</Cta>
       </div>
     </>
@@ -65,7 +65,7 @@ function Outro() {
       <h2 className="pres__title pres__title--pixel">Do ITEL a toda a Angola e a África.</h2>
       <p className="pres__sub">Feito por alunos, para alunos.</p>
       <div className="actions">
-        <Cta href={APP_URL}>Começar a estudar</Cta>
+        <Cta href={SIGNUP_URL}>Começar a estudar</Cta>
       </div>
     </>
   );
