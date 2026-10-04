@@ -77,7 +77,6 @@ function Scene({ i }: { i: number }) {
   const s = SCENES[i];
   return (
     <>
-      <p className="pres__tag">{i + 1} de 5 · {LAYERS[i].label}</p>
       <h2 className="pres__head">{s.head}</h2>
       <p className="pres__sub">{s.line}</p>
     </>

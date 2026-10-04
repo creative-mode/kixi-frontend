@@ -81,7 +81,6 @@ a { color: inherit; }
 .pres__head { margin: 0; font: 700 clamp(26px, min(4.2vw, 7.5svh), 56px)/1.04 var(--font-sans); letter-spacing: -0.035em; max-width: 17ch; text-wrap: balance; }
 .pres__sub { margin: 20px 0 28px; font: 400 clamp(16px, 1.7vw, 20px)/1.5 var(--font-sans); max-width: 38ch; text-wrap: balance; }
 .pres__scene .pres__head + .pres__sub { margin-bottom: 0; }
-.pres__tag { margin: 0 0 14px; font: 400 11px/16px var(--font-pixel); }
 .pres__hint { position: absolute; left: 50%; bottom: clamp(20px, 6svh, 56px); margin-left: -16px; color: var(--lp-ink); z-index: 3; pointer-events: none; animation: kx-bob 1.1s steps(4, end) infinite; }
 @keyframes kx-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { .pres__hint { animation: none; } }
