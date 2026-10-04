@@ -34,7 +34,8 @@ const rnd = (i: number, k: number) => {
   return x - Math.floor(x);
 };
 
-const STARS = Array.from({ length: 22 }, (_, i) => ({ x: 20 + rnd(i, 1) * 560, y: 20 + rnd(i, 2) * 680, r: 1 + rnd(i, 3) * 1.4 }));
+const r2 = (v: number) => Math.round(v * 100) / 100;
+const STARS = Array.from({ length: 22 }, (_, i) => ({ x: r2(20 + rnd(i, 1) * 560), y: r2(20 + rnd(i, 2) * 680), r: r2(1 + rnd(i, 3) * 1.4) }));
 
 const win = (q: number, a: number, b: number) => clamp((q - a) / (b - a));
 const PIX = { fontFamily: 'var(--font-pixel)' } as const;
@@ -83,18 +84,12 @@ export function Prologue({ q }: { q: number }) {
   const noseX = cx + (0.5 * Math.cos(ar) + 9.5 * Math.sin(ar)) * sc;
   const noseY = cy + (0.5 * Math.sin(ar) - 9.5 * Math.cos(ar)) * sc;
   const bookBottom = bookCy + (BH * bs) / 2;
-  const hint = (1 - win(q, 0.04, 0.1)) * (0.55 + 0.45 * Math.sin(q * 160));
 
   return (
     <svg className="prologue" viewBox="0 0 600 720" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <g fill="var(--lp-ink)" opacity=".5">
-        {STARS.map((s, i) => <circle key={i} cx={s.x} cy={s.y + q * 30 * s.r} r={s.r} />)}
+        {STARS.map((s, i) => <circle key={i} cx={s.x} cy={r2(s.y + q * 30 * s.r)} r={s.r} />)}
       </g>
-
-      {/* scroll hint under the big logo */}
-      {hint > 0.02 && (
-        <path d="M284 668h8v8h8v8h8v-8h8v-8h8v8h-8v8h-8v8h-8v-8h-8v-8h-8z" transform="translate(-24 -20)" fill="var(--lp-ink)" opacity={hint} shapeRendering="crispEdges" />
-      )}
 
       {/* the P1 exam */}
       {paperIn > 0 && toBook < 1 && (
