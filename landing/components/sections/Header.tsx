@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Logo } from '@/components/kixi';
-import { APP_URL, NAV } from '@/lib/content';
+import { LOGIN_URL, NAV } from '@/lib/content';
 
 export function Header() {
   return (
@@ -13,7 +13,7 @@ export function Header() {
           {NAV.map((n) => <a key={n.href} href={n.href}>{n.label}</a>)}
         </nav>
         <span className="kx-btn-wrap kx-scope site-header__cta">
-          <a href={APP_URL} className="kx-btn kx-btn--sm" style={{ textDecoration: 'none' }}>
+          <a href={LOGIN_URL} className="kx-btn kx-btn--sm" style={{ textDecoration: 'none' }}>
             <span className="kx-btn__label">Entrar</span>
           </a>
         </span>
