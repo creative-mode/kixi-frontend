@@ -31,7 +31,37 @@ export default function ManagerDashboard() {
             Bem-vindo ao painel de gestão do Kixi{role ? ` · ${role.toLowerCase()}` : ''}.
           </p>
         </div>
-        <KixiLogo size={48} className="hidden md:inline-flex" />
+        <div className="flex flex-wrap items-center gap-3">
+          <ToggleGroup
+            type="single"
+            value={String(days)}
+            onValueChange={(v) => v && setDays(Number(v))}
+            variant="outline"
+            size="sm"
+            aria-label="Período da atividade"
+          >
+            {PERIODS.map((p) => (
+              <ToggleGroupItem
+                key={p}
+                value={String(p)}
+                aria-label={`Últimos ${p} dias`}
+                className="px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                {p} dias
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <Button variant="outline" size="sm" onClick={retry} disabled={refreshing} aria-live="polite">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+            {refreshing ? 'A atualizar' : 'Atualizar'}
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/school-year/new">
+              <Plus size={14} aria-hidden />
+              Novo ano letivo
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
