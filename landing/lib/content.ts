@@ -4,9 +4,7 @@ export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '#comecar';
 
 export const NAV = [
   { href: '#solucao', label: 'Solução' },
-  { href: '#app', label: 'App' },
   { href: '#para-quem', label: 'Para quem' },
-  { href: '#faq', label: 'Perguntas' },
 ] as const;
 
 /** Problems of studying that the ship takes down. */
