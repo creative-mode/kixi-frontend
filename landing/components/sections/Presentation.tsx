@@ -147,7 +147,7 @@ export function Presentation() {
   }
 
   // Timeline: prologue (logo → ship → book shatters) → cartridge: open → camera in → five layers → reunite → outro
-  const P0 = 0.3;
+  const P0 = 0.35; // the last stretch of the prologue (q 0.84 → 0.92) holds the closing words
   const q = clamp(p / P0);
   const p2 = clamp((p - P0) / (1 - P0));
   const open = smooth(clamp((p2 - 0.05) / 0.1)) * (1 - smooth(clamp((p2 - 0.78) / 0.1)));
@@ -172,7 +172,7 @@ export function Presentation() {
       <div className="pres__stick">
         <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
         <div className="pres__prolog" style={{ ['--px' as string]: smooth(clamp((q - 0.92) / 0.08)) }} aria-hidden="true">
-          {q < 1 || p2 < 0.001 ? <Prologue q={q} /> : null}
+          {q < 1 || p2 < 0.001 ? <Prologue q={q / 0.84} /> : null}
         </div>
         <div className="pres__text">
           <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>

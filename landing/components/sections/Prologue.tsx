@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
 import { MARK_H, MARK_W, RETRO_MARK } from '@/lib/mark';
 
 /**
  * Prologue, drawn from scroll progress q (0..1):
- * the logo alone → it leaves and the P1 exam takes the stage with its story ("está pico?") → the text goes, the exam
+ * the P1 exam takes the stage with its story ("está pico?") → the text goes, the exam
  * shrinks → the Kixi ship arrives, fires from its tip and the exam shatters into pixels.
  */
 const BOOK = [
@@ -52,23 +51,9 @@ const QMARKS = Array.from({ length: 14 }, (_, i) => ({ x: 300 + (rnd(i * 13 + 5,
 const LINES = [42, 62, 30, 56, 48, 36];
 const FIRE = 12; // firing pose: tilted like the reference, tip leads
 const TYPE1 = 'A P1 está pico?';
-const TYPE2 = 'E sem o Kixi?';
+const TYPE2 = 'Não complica';
 
 export function Prologue({ q }: { q: number }) {
-  // idle life of the logo: the rows slide a cell, stepped like a sprite, until the person scrolls
-  const [tick, setTick] = useState(0);
-  const idle = q < 0.12;
-  useEffect(() => {
-    if (!idle) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 140);
-    return () => window.clearInterval(id);
-  }, [idle]);
-  const life = 1 - win(q, 0.0, 0.07);
-
-  // 1) the logo alone, large; then it leaves to make room for the exam
-  const logoOut = smooth(win(q, 0.07, 0.15));
-  const logoSc = lerp(13, 9, logoOut);
-
   // 2) the exam takes the stage, big, with its story under it
   const paperIn = smooth(win(q, 0.11, 0.2));
   const shrink = smooth(win(q, 0.52, 0.6));
@@ -78,8 +63,9 @@ export function Prologue({ q }: { q: number }) {
   const shakeP = Math.sin(q * 1400) * 3.2 * nerv;
   const stamp = smooth(win(q, 0.38, 0.42));
   const t1 = Math.floor(win(q, 0.2, 0.28) * TYPE1.length);
-  const t2 = Math.floor(win(q, 0.43, 0.5) * TYPE2.length);
+  const t2 = Math.floor(win(q, 0.95, 0.995) * TYPE2.length); // after the exam is gone
   const captionOp = win(q, 0.2, 0.22) * (1 - win(q, 0.5, 0.54));
+  const endOp = win(q, 0.95, 0.96) * (1 - win(q, 1.06, 1.12));
   const timer = 1 - win(q, 0.26, 0.4);
   const swap = win(q, 0.57, 0.6); // vector paper → pixel paper, same size
 
@@ -113,22 +99,6 @@ export function Prologue({ q }: { q: number }) {
         {STARS.map((s, i) => <circle key={i} cx={s.x} cy={r2(s.y + q * 30 * s.r)} r={s.r} />)}
       </g>
 
-      {/* the Kixi logo, alone and alive, then it leaves */}
-      {logoOut < 1 && (
-        <g transform={`translate(300 285) scale(${logoSc}) translate(${-MARK_W / 2} ${-MARK_H / 2})`} fill="var(--lp-ink)" shapeRendering="crispEdges" opacity={1 - logoOut}>
-          {life > 0.02 ? (
-            MARK_CELLS.map(({ x, y }) => {
-              // rows slide one cell at a time, so the logo stays solid
-              const sway = Math.sin(tick * 0.45 + y * 0.42);
-              const dx = life > 0.5 ? (sway > 0.8 ? 1 : sway < -0.8 ? -1 : 0) : 0;
-              return <rect key={`${x}-${y}`} x={x + dx} y={y} width="1.04" height="1.04" />;
-            })
-          ) : (
-            <path d={RETRO_MARK} />
-          )}
-        </g>
-      )}
-
       {/* the P1 exam, in the spotlight */}
       {paperIn > 0 && swap < 1 && (
         <g transform={`translate(${300 + shakeP} ${paperY}) rotate(${Math.sin(q * 900) * 1.4 * nerv}) scale(${paperSc})`} opacity={(1 - swap) * paperIn}>
@@ -156,8 +126,14 @@ export function Prologue({ q }: { q: number }) {
       {captionOp > 0 && (
         <g fill="var(--lp-ink)" opacity={captionOp} style={PIX} textAnchor="middle">
           <text x="300" y="548" fontSize="22">{TYPE1.slice(0, t1)}{t1 < TYPE1.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
-          <text x="300" y="592" fontSize="22" opacity={t2 > 0 ? 1 : 0}>{TYPE2.slice(0, t2)}{t2 > 0 && t2 < TYPE2.length && Math.floor(q * 90) % 2 ? '_' : ''}</text>
         </g>
+      )}
+
+      {/* after the exam is gone */}
+      {endOp > 0 && (
+        <text x="300" y="232" fontSize="34" textAnchor="middle" fill="var(--lp-ink)" opacity={endOp} style={PIX}>
+          {TYPE2.slice(0, t2)}{t2 < TYPE2.length && Math.floor(q * 90) % 2 ? '_' : ''}
+        </text>
       )}
 
       {/* shockwave */}

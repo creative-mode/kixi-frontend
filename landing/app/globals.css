@@ -54,7 +54,9 @@ a { color: inherit; }
 /* header */
 .site-header { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--paper) 90%, transparent); backdrop-filter: blur(8px); border-bottom: 1.6px solid var(--lp-ink); }
 .site-header__in { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: 72px; }
-.site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--lp-ink); }
+/* light-green logo, same as the footer */
+.site-header__logo .kx-logo { color: var(--lp-text-on-deep); }
+.site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--lp-text-on-deep); }
 .site-header__cta { justify-self: end; }
 .site-header__nav { display: none; gap: 32px; }
 .site-header__nav a { text-decoration: none; font: 600 14px/1 var(--font-sans); padding: 12px 0; }
