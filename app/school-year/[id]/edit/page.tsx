@@ -27,14 +27,14 @@ export default function EditSchoolYearPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <span className="animate-spin h-6 w-6 border-2 border-gray-900 border-t-transparent rounded-full" />
+        <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
 
   if (!schoolYear) {
     return (
-      <div className="p-8 text-center text-gray-400">
+      <div className="p-8 text-center text-muted-foreground">
         Ano letivo não encontrado.
       </div>
     );
@@ -44,20 +44,20 @@ export default function EditSchoolYearPage() {
     <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <Link
         href="/school-year"
-        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-6"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
       >
         <ArrowLeft size={16} /> Voltar para lista
       </Link>
 
       <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 rounded-lg bg-gray-100">
-          <Edit size={20} className="text-gray-700" />
+        <div className="p-2 rounded-lg bg-muted">
+          <Edit size={20} className="text-foreground" />
         </div>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
             Editar Ano Letivo
           </h1>
-          <p className="text-sm text-gray-500">{schoolYear.startYear} – {schoolYear.endYear}</p>
+          <p className="text-sm text-muted-foreground">{schoolYear.startYear} – {schoolYear.endYear}</p>
         </div>
       </div>
 

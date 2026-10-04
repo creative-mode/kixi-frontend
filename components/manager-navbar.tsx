@@ -22,6 +22,9 @@ import {
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/app/actions/auth";
 import { UserDisplay } from "./user-display";
+import { KixiLogo } from "./kixi-logo";
+
+import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 
 const navLinks = [
   {
@@ -29,15 +32,12 @@ const navLinks = [
     label: "Dashboard",
     description: "Visão geral e métricas",
     icon: LayoutDashboard,
-    color: "text-gray-900",
+    color: "bg-brand-tint text-phosphor",
   },
-  {
-    href: "/school-year",
-    label: "Anos Letivos",
-    description: "Gestão de anos letivos",
-    icon: Calendar,
-    color: "text-gray-900",
-  }
+  ...NAV_KEYS.map((k) => {
+    const e = ENTITIES[k];
+    return { href: `/${e.path}`, label: e.plural, description: e.description, icon: e.icon, color: e.tone };
+  }),
 ];
 
 export function ManagerNavbar() {
@@ -68,14 +68,14 @@ export function ManagerNavbar() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white/90 backdrop-blur-md">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link
             href="/"
             className="text-xl font-bold tracking-tighter z-50 relative flex items-center gap-2"
           >
-            <span className="text-[#05A649]">Kixi</span>{" "}
-            <span className="font-display italic text-gray-700">Manager</span>
+            <KixiLogo size={28} wordmark />
+            <span className="font-pixel text-[10px] uppercase tracking-wider text-muted-foreground">Manager</span>
           </Link>
 
           <div className="flex items-center gap-4 z-50 relative">
@@ -84,7 +84,7 @@ export function ManagerNavbar() {
             </div>
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full hover:bg-muted transition-colors relative group"
+              className="p-2 rounded-[4px] border-2 border-transparent hover:border-border hover:bg-accent transition-colors relative group"
             >
               <div className="relative w-6 h-6 flex items-center justify-center">
                 <AnimatePresence mode="wait">
@@ -123,13 +123,13 @@ export function ManagerNavbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "-100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-40 bg-white/98 backdrop-blur-xl pt-24 pb-8 overflow-y-auto"
+            className="fixed inset-0 z-40 bg-background pt-24 pb-8 overflow-y-auto"
           >
             <div className="container mx-auto px-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
                 {navLinks.map((link, index) => {
                   const Icon = link.icon;
-                  const isActive = pathname === link.href;
+                  const isActive = link.href === "/" ? pathname === "/" : pathname === link.href || pathname.startsWith(`${link.href}/`);
 
                   return (
                     <motion.div
@@ -141,15 +141,15 @@ export function ManagerNavbar() {
                       <Link
                         href={link.href}
                         className={cn(
-                          "group flex items-start gap-4 p-6 rounded-2xl border transition-all duration-300",
+                          "group flex items-start gap-4 p-6 rounded-[4px] border-2 transition-colors duration-200",
                           isActive
-                            ? "bg-gray-50 border-gray-300 shadow-sm"
-                            : "bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 hover:shadow-md"
+                            ? "bg-accent border-primary"
+                            : "bg-card hover:bg-accent border-border hover:border-primary"
                         )}
                       >
                         <div
                           className={cn(
-                            "p-3 rounded-xl bg-gray-100 shadow-sm group-hover:scale-110 transition-transform duration-300",
+                            "p-3 rounded-[4px] border-2 border-current/40",
                             link.color
                           )}
                         >
@@ -186,7 +186,7 @@ export function ManagerNavbar() {
                 </div>
                 <button
                   onClick={() => logoutAction()}
-                  className="flex items-center gap-2 px-6 py-3 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300 font-medium ml-auto"
+                  className="flex items-center gap-2 px-6 py-3 rounded-[4px] border-2 border-b-4 border-alvo-edge bg-alvo text-on-alvo hover:brightness-105 active:translate-y-[3px] active:border-b-[1px] font-semibold ml-auto"
                 >
                   <LogOut size={18} />
                   Sair do Sistema

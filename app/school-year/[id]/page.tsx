@@ -30,15 +30,15 @@ export default function SchoolYearDetailsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <span className="animate-spin h-6 w-6 border-2 border-gray-900 border-t-transparent rounded-full" />
+        <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
 
   if (!schoolYear) {
     return (
-      <div className="text-center py-16 text-gray-400">
-        <Calendar size={40} className="mx-auto mb-3 text-gray-300" />
+      <div className="text-center py-16 text-muted-foreground">
+        <Calendar size={40} className="mx-auto mb-3 text-muted-foreground" />
         <p>Ano letivo não encontrado.</p>
         <Button asChild variant="outline" size="sm" className="mt-4">
           <Link href="/school-year">Voltar para lista</Link>
@@ -52,47 +52,47 @@ export default function SchoolYearDetailsPage() {
       <div className="flex items-center justify-between mb-8">
         <Link
           href="/school-year"
-          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft size={16} /> Voltar para lista
         </Link>
 
         <Link href={`/school-year/${schoolYear.id}/edit`}>
-          <Button variant="outline" size="sm" className="border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300">
+          <Button variant="outline" size="sm" className="border-border text-muted-foreground hover:text-foreground hover:border-primary">
             <Edit size={16} className="mr-2" /> Editar
           </Button>
         </Link>
       </div>
 
-      <Card className="border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-100 bg-gray-50/50">
+      <Card>
+        <CardHeader className="border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gray-100">
-              <Calendar size={20} className="text-gray-700" />
+            <div className="p-2 rounded-[4px] border-2 border-current/40 bg-tiro-tint text-tiro-ink">
+              <Calendar size={20} />
             </div>
-            <CardTitle className="text-2xl text-gray-900">
+            <CardTitle className="text-2xl text-foreground">
               {schoolYear.startYear} – {schoolYear.endYear}
             </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="pt-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
-              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Ano de início</h3>
-              <p className="text-2xl font-bold text-gray-900">{schoolYear.startYear}</p>
+            <div className="p-4 rounded-lg bg-accent border border-border">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Ano de início</h3>
+              <p className="text-2xl font-bold text-foreground">{schoolYear.startYear}</p>
             </div>
-            <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
-              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Ano de fim</h3>
-              <p className="text-2xl font-bold text-gray-900">{schoolYear.endYear}</p>
+            <div className="p-4 rounded-lg bg-accent border border-border">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Ano de fim</h3>
+              <p className="text-2xl font-bold text-foreground">{schoolYear.endYear}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-gray-100 pt-8 mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-border pt-8 mt-8">
             <div className="flex items-start gap-3">
-              <Clock size={16} className="text-gray-400 mt-0.5" />
+              <Clock size={16} className="text-muted-foreground mt-0.5" />
               <div>
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Criado em</h3>
-                <p className="mt-1 text-sm text-gray-700">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Criado em</h3>
+                <p className="mt-1 text-sm text-foreground">
                   {format(new Date(schoolYear.createdAt), "dd 'de' MMMM 'de' yyyy, HH:mm", {
                     locale: pt,
                   })}
@@ -100,10 +100,10 @@ export default function SchoolYearDetailsPage() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <RefreshCw size={16} className="text-gray-400 mt-0.5" />
+              <RefreshCw size={16} className="text-muted-foreground mt-0.5" />
               <div>
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Última atualização</h3>
-                <p className="mt-1 text-sm text-gray-700">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Última atualização</h3>
+                <p className="mt-1 text-sm text-foreground">
                   {format(new Date(schoolYear.updatedAt), "dd 'de' MMMM 'de' yyyy, HH:mm", {
                     locale: pt,
                   })}
@@ -112,10 +112,10 @@ export default function SchoolYearDetailsPage() {
             </div>
             {schoolYear.deletedAt && (
               <div className="flex items-start gap-3">
-                <Calendar size={16} className="text-red-400 mt-0.5" />
+                <Calendar size={16} className="text-alvo-ink mt-0.5" />
                 <div>
-                  <h3 className="text-xs font-medium text-red-500 uppercase tracking-wider">Eliminado em</h3>
-                  <p className="mt-1 text-sm text-red-600">
+                  <h3 className="text-xs font-medium text-alvo-ink uppercase tracking-wider">Eliminado em</h3>
+                  <p className="mt-1 text-sm text-alvo-ink">
                     {format(new Date(schoolYear.deletedAt), "dd 'de' MMMM 'de' yyyy, HH:mm", {
                       locale: pt,
                     })}

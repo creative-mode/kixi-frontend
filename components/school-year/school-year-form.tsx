@@ -1,7 +1,7 @@
 'use client';
 
 import { FormBuilder, useInlineReaction } from '@techify/ui';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createSchoolYear, updateSchoolYear } from '@/app/actions/school-year';
@@ -14,13 +14,13 @@ import type { SchoolYearResponse } from '@/types/school-year';
 
 const SchoolYearSchema = z.object({
   startYear: z
-    .coerce.number({ invalid_type_error: 'Introduza um ano válido' })
+    .coerce.number({ error: 'Introduza um ano válido' })
     .positive('Ano de início deve ser positivo')
     .int('Deve ser um ano inteiro')
     .min(1900, 'Ano muito antigo')
     .max(new Date().getFullYear() + 10, 'Ano não pode ser muito futuro'),
   endYear: z
-    .coerce.number({ invalid_type_error: 'Introduza um ano válido' })
+    .coerce.number({ error: 'Introduza um ano válido' })
     .positive('Ano de fim deve ser positivo')
     .int('Deve ser um ano inteiro')
     .min(1901, 'Ano muito antigo'),
@@ -41,7 +41,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
   const [isReady, setIsReady] = useState(false);
 
   const form = useForm<SchoolYearFormData>({
-    resolver: zodResolver(SchoolYearSchema),
+    resolver: zodResolver(SchoolYearSchema) as unknown as Resolver<SchoolYearFormData>,
     mode: 'onBlur',
     defaultValues: {
       startYear: initialData?.startYear || new Date().getFullYear(),
@@ -119,18 +119,18 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
   if (!isReady) {
     return (
       <div className="flex items-center justify-center py-12">
-        <span className="animate-spin h-6 w-6 border-2 border-gray-900 border-t-transparent rounded-full" />
+        <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-8 max-w-2xl mx-auto shadow-sm">
+    <div className="px-box p-8 max-w-2xl mx-auto">
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900">
+        <h2 className="text-xl font-semibold text-foreground">
           {initialData ? 'Editar Ano Letivo' : 'Adicionar Novo Ano Letivo'}
         </h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {initialData
             ? `Editando: ${initialData.startYear} – ${initialData.endYear}`
             : 'Preencha os anos de início e fim do período letivo'}

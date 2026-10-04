@@ -68,22 +68,22 @@ export default function SchoolYearsManager() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="p-2 rounded-lg bg-gray-100">
-              <Calendar size={20} className="text-gray-700" />
+            <div className="p-2 rounded-[4px] border-2 border-current/40 bg-tiro-tint text-tiro-ink">
+              <Calendar size={20} />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Anos Letivos</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Anos Letivos</h1>
           </div>
-          <p className="text-sm text-gray-500 ml-12">Gestão de períodos letivos do sistema</p>
+          <p className="text-sm text-muted-foreground ml-12">Gestão de períodos letivos do sistema</p>
         </div>
         
         <div className="flex gap-3">
-          <Button asChild variant="outline" className="border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+          <Button asChild variant="outline" className="border-border text-muted-foreground hover:bg-accent hover:text-foreground">
             <Link href="/school-year/trash">
               <Archive size={16} className="mr-2" />
               Lixeira
             </Link>
           </Button>
-          <Button asChild className="bg-gray-900 hover:bg-gray-800 text-white shadow-sm">
+          <Button asChild >
             <Link href="/school-year/new">
               <Plus size={16} className="mr-2" />
               Novo Ano Letivo
@@ -93,39 +93,39 @@ export default function SchoolYearsManager() {
       </div>
 
       {/* Table Card */}
-      <Card className="border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-100 bg-gray-50/50">
-          <CardTitle className="text-base font-semibold text-gray-800">Anos Letivos Ativos</CardTitle>
+      <Card>
+        <CardHeader className="border-b border-border">
+          <CardTitle className="text-base font-semibold text-foreground">Anos Letivos Ativos</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-100 hover:bg-transparent">
-                <TableHead className="text-gray-500 font-medium">Ano Letivo</TableHead>
-                <TableHead className="text-gray-500 font-medium">Início</TableHead>
-                <TableHead className="text-gray-500 font-medium">Fim</TableHead>
-                <TableHead className="text-gray-500 font-medium">Criado em</TableHead>
-                <TableHead className="text-gray-500 font-medium">Últ. atualização</TableHead>
-                <TableHead className="text-right text-gray-500 font-medium">Ações</TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground font-medium">Ano Letivo</TableHead>
+                <TableHead className="text-muted-foreground font-medium">Início</TableHead>
+                <TableHead className="text-muted-foreground font-medium">Fim</TableHead>
+                <TableHead className="text-muted-foreground font-medium">Criado em</TableHead>
+                <TableHead className="text-muted-foreground font-medium">Últ. atualização</TableHead>
+                <TableHead className="text-right text-muted-foreground font-medium">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
-                      <span className="animate-spin h-6 w-6 border-2 border-gray-900 border-t-transparent rounded-full" />
+                      <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
                       <span className="text-sm">A carregar anos letivos...</span>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : schoolYears.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
-                      <Calendar size={32} className="text-gray-300" />
+                      <Calendar size={32} className="text-muted-foreground" />
                       <span className="text-sm">Nenhum ano letivo registado ainda.</span>
-                      <Button asChild size="sm" className="mt-2 bg-gray-900 hover:bg-gray-800 text-white">
+                      <Button asChild size="sm" className="mt-2 ">
                         <Link href="/school-year/new">
                           <Plus size={14} className="mr-1" />
                           Criar primeiro ano letivo
@@ -136,27 +136,27 @@ export default function SchoolYearsManager() {
                 </TableRow>
               ) : (
                 schoolYears.map((year) => (
-                  <TableRow key={year.id} className="hover:bg-gray-50/50 border-gray-100 transition-colors">
-                    <TableCell className="font-semibold text-gray-900">
+                  <TableRow key={year.id} className="hover:bg-accent/50 border-border transition-colors">
+                    <TableCell className="font-semibold text-foreground">
                       {year.startYear} – {year.endYear}
                     </TableCell>
-                    <TableCell className="text-gray-600">{year.startYear}</TableCell>
-                    <TableCell className="text-gray-600">{year.endYear}</TableCell>
-                    <TableCell className="whitespace-nowrap text-gray-500 text-sm">
+                    <TableCell className="text-muted-foreground">{year.startYear}</TableCell>
+                    <TableCell className="text-muted-foreground">{year.endYear}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
                       {format(new Date(year.createdAt), "dd 'de' MMM yyyy, HH:mm", { locale: pt })}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-gray-500 text-sm">
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
                       {format(new Date(year.updatedAt), "dd 'de' MMM yyyy, HH:mm", { locale: pt })}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-900 hover:bg-gray-100" asChild>
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" asChild>
                           <Link href={`/school-year/${year.id}`}>
                             <Eye size={16} />
                           </Link>
                         </Button>
 
-                        <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-900 hover:bg-gray-100" asChild>
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" asChild>
                           <Link href={`/school-year/${year.id}/edit`}>
                             <Edit size={16} />
                           </Link>
@@ -165,7 +165,7 @@ export default function SchoolYearsManager() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          className="text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          className="text-muted-foreground hover:text-alvo-ink hover:bg-alvo-tint"
                           disabled={deletingId === year.id}
                           onClick={() => handleSoftDelete(year)}
                         >

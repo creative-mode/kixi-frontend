@@ -38,6 +38,7 @@ export async function loginAction(formData: FormData) {
       const errorData = await response.json().catch(() => ({}));
       return {
         error:
+          errorData.detail ||
           errorData.message ||
           errorData.error ||
           `Erro ${response.status}: Falha na autenticação`,

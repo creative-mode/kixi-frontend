@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import Image from 'next/image';
+import { KixiLogo } from '@/components/kixi-logo';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -49,57 +49,51 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left — brand panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gray-900 relative items-center justify-center overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/5" />
-        <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full bg-white/5" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-white/5" />
+      {/* Left — brand panel: the handheld screen with the ship and a formation of study topics */}
+      <div className="kx-screen hidden lg:flex lg:w-1/2 bg-muted relative items-center justify-center overflow-hidden border-r-2 border-border">
+        <div className="absolute inset-x-0 top-12 flex justify-center gap-10 text-alvo" aria-hidden="true">
+          {['text-alvo', 'text-pop', 'text-radar', 'text-tiro', 'text-lila'].map((c, i) => (
+            <svg key={i} viewBox="0 0 11 8" width="44" height="32" shapeRendering="crispEdges" className={c}>
+              <path fill="currentColor" d="M2 0h1v1h-1zM8 0h1v1h-1zM3 1h5v1h-5zM2 2h7v1h-7zM1 3h2v1h-2zM4 3h3v1h-3zM8 3h2v1h-2zM0 4h11v1h-11zM0 5h1v1h-1zM2 5h7v1h-7zM10 5h1v1h-1zM2 6h1v1h-1zM8 6h1v1h-1zM1 7h2v1h-2zM8 7h2v1h-2z" />
+            </svg>
+          ))}
+        </div>
+        <div className="absolute left-1/2 top-[88px] -translate-x-1/2 flex flex-col gap-3" aria-hidden="true">
+          <span className="block h-3 w-1 bg-tiro" />
+          <span className="block h-3 w-1 bg-tiro" />
+        </div>
 
         <div className="relative z-10 text-center px-12">
-          <Image
-            src="/manager/kixi-logo-white.svg"
-            alt="Kixi"
-            width={120}
-            height={120}
-            className="mx-auto mb-8 drop-shadow-lg"
-            priority
-          />
-          <h1 className="text-white text-4xl font-bold tracking-tight mb-3">
+          <KixiLogo size={120} wordmark stacked className="mx-auto mb-10" />
+          <h1 className="font-pixel text-lg leading-relaxed text-foreground mb-4">
             Kixi Manager
           </h1>
-          <p className="text-white/80 text-lg max-w-sm mx-auto leading-relaxed">
+          <p className="text-muted-foreground text-base max-w-sm mx-auto leading-relaxed">
             Painel de gestão administrativa do Banco de Enunciados.
           </p>
         </div>
       </div>
 
       {/* Right — login form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
+      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-card">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="lg:hidden flex justify-center mb-10">
-            <Image
-              src="/manager/kixi-logo.svg"
-              alt="Kixi"
-              width={64}
-              height={64}
-              priority
-            />
+            <KixiLogo size={72} wordmark stacked />
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+            <h2 className="text-2xl font-bold text-foreground tracking-tight">
               Bem-vindo de volta
             </h2>
-            <p className="text-gray-500 mt-1.5 text-sm">
+            <p className="text-muted-foreground mt-1.5 text-sm">
               Inicie sessão para aceder ao painel de gestão.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="usernameOrEmail" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="usernameOrEmail" className="text-sm font-medium text-foreground">
                 Username ou Email
               </Label>
               <Input
@@ -111,12 +105,12 @@ export default function LoginPage() {
                 disabled={isLoading}
                 autoComplete="username email"
                 autoFocus
-                className="h-11 bg-gray-50 border-gray-200 focus:bg-white focus:border-gray-900 focus:ring-gray-900/20 transition-all"
+                className="h-11"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+              <Label htmlFor="password" className="text-sm font-medium text-foreground">
                 Palavra-passe
               </Label>
               <Input
@@ -127,18 +121,18 @@ export default function LoginPage() {
                 required
                 disabled={isLoading}
                 autoComplete="current-password"
-                className="h-11 bg-gray-50 border-gray-200 focus:bg-white focus:border-gray-900 focus:ring-gray-900/20 transition-all"
+                className="h-11"
               />
             </div>
 
             <Button
               type="submit"
-              className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white font-medium shadow-sm transition-all duration-200"
+              className="w-full h-11"
               disabled={isLoading}
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
-                  <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
                   A entrar...
                 </div>
               ) : (
@@ -147,7 +141,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-gray-400">
+          <p className="mt-8 text-center text-xs text-muted-foreground">
             Problemas no acesso? Contacte o suporte técnico.
           </p>
         </div>

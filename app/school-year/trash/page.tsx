@@ -85,65 +85,65 @@ export default function SchoolYearTrashPage() {
         <div>
           <Link
             href="/school-year"
-            className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors mb-3 text-sm"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-3 text-sm"
           >
             <ArrowLeft size={14} /> Voltar para lista
           </Link>
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-red-50">
-              <Trash2 size={20} className="text-red-500" />
+            <div className="p-2 rounded-lg bg-alvo-tint">
+              <Trash2 size={20} className="text-alvo-ink" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Lixeira</h1>
-              <p className="text-sm text-gray-500">Anos letivos eliminados</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Lixeira</h1>
+              <p className="text-sm text-muted-foreground">Anos letivos eliminados</p>
             </div>
           </div>
         </div>
       </div>
 
-      <Card className="border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-100 bg-gray-50/50">
-          <CardTitle className="text-base font-semibold text-gray-800">Anos Letivos Eliminados</CardTitle>
+      <Card>
+        <CardHeader className="border-b border-border">
+          <CardTitle className="text-base font-semibold text-foreground">Anos Letivos Eliminados</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-100 hover:bg-transparent">
-                <TableHead className="text-gray-500 font-medium">Ano Letivo</TableHead>
-                <TableHead className="text-gray-500 font-medium">Início</TableHead>
-                <TableHead className="text-gray-500 font-medium">Fim</TableHead>
-                <TableHead className="text-gray-500 font-medium">Eliminado em</TableHead>
-                <TableHead className="text-right text-gray-500 font-medium">Ações</TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground font-medium">Ano Letivo</TableHead>
+                <TableHead className="text-muted-foreground font-medium">Início</TableHead>
+                <TableHead className="text-muted-foreground font-medium">Fim</TableHead>
+                <TableHead className="text-muted-foreground font-medium">Eliminado em</TableHead>
+                <TableHead className="text-right text-muted-foreground font-medium">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
-                      <span className="animate-spin h-6 w-6 border-2 border-gray-300 border-t-transparent rounded-full" />
+                      <span className="animate-spin h-6 w-6 border-2 border-border border-t-transparent rounded-full" />
                       <span className="text-sm">A carregar...</span>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : schoolYears.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
-                      <Trash2 size={32} className="text-gray-300" />
+                      <Trash2 size={32} className="text-muted-foreground" />
                       <span className="text-sm">A lixeira está vazia.</span>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 schoolYears.map((year) => (
-                  <TableRow key={year.id} className="hover:bg-red-50/30 border-gray-100 transition-colors">
-                    <TableCell className="font-semibold text-gray-900">
+                  <TableRow key={year.id} className="hover:bg-alvo-tint border-border transition-colors">
+                    <TableCell className="font-semibold text-foreground">
                       {year.startYear} – {year.endYear}
                     </TableCell>
-                    <TableCell className="text-gray-600">{year.startYear}</TableCell>
-                    <TableCell className="text-gray-600">{year.endYear}</TableCell>
-                    <TableCell className="whitespace-nowrap text-gray-500 text-sm">
+                    <TableCell className="text-muted-foreground">{year.startYear}</TableCell>
+                    <TableCell className="text-muted-foreground">{year.endYear}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
                       {year.deletedAt
                         ? format(new Date(year.deletedAt), "dd 'de' MMM yyyy, HH:mm", { locale: pt })
                         : '—'}
@@ -153,7 +153,7 @@ export default function SchoolYearTrashPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                          className="text-muted-foreground hover:text-foreground hover:bg-muted"
                           disabled={actionId === year.id}
                           onClick={() => handleRestore(year)}
                         >
@@ -164,7 +164,7 @@ export default function SchoolYearTrashPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          className="text-muted-foreground hover:text-alvo-ink hover:bg-alvo-tint"
                           disabled={actionId === year.id}
                           onClick={() => handlePurge(year)}
                         >

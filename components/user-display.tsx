@@ -18,12 +18,12 @@ export function UserDisplay() {
 
     return (
         <div className="flex items-center gap-2 text-sm">
-            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
-                <User size={16} className="text-gray-700" />
+            <div className="h-8 w-8 rounded-[4px] border-2 border-primary bg-brand-tint flex items-center justify-center">
+                <User size={16} className="text-foreground" />
             </div>
             <div className="hidden lg:block">
-                <p className="font-medium leading-none text-gray-900">Admin</p>
-                <p className="text-xs text-gray-500 capitalize">{primaryRole.toLowerCase()}</p>
+                <p className="font-medium leading-none text-foreground">Admin</p>
+                <p className="text-xs text-muted-foreground capitalize">{primaryRole.toLowerCase()}</p>
             </div>
         </div>
     )
