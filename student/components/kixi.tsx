@@ -234,7 +234,7 @@ var h = React.createElement;
 
 
   /* ---------- Social ---------- */
-  var HUES = ['brand', 'tiro', 'pop', 'radar', 'lila', 'alvo'];
+  var HUES = ['brand', 'tiro', 'pop', 'radar', 'lila'];
   function hueOf(s) { var n = 5381, t = s || ''; for (var i = 0; i < t.length; i++) n = ((n * 33) ^ t.charCodeAt(i)) >>> 0; return HUES[(n >>> 2) % HUES.length]; }
   function initialsOf(name) { var w = (name || '?').trim().split(/\s+/); return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase(); }
 

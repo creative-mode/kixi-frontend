@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3002",
+    "mock": "node scripts/mock-api.mjs",
     "dev:all": "node scripts/dev-all.mjs",
     "build": "next build",
     "start": "next start",

@@ -1,0 +1,56 @@
+/* Auth screens: same paper, ink and hatch as the landing page; sized for a laptop */
+.auth {
+  --paper: #a8b389; --paper-3: #c8d0ab; --lp-ink: #27311b;
+  --brand: #27311b; --brand-edge: #0e1408; --brand-hover: #3a4a28; --on-brand: #dfe6c6;
+  --surface-raised: #c8d0ab; --surface-high: #d4dbb8; --surface-sunken: #d4dbb8; --line-strong: #27311b; --line: #27311b;
+  --ink: #27311b; --ink-muted: #4a5733; --phosphor: #27311b; --focus: #27311b; --alvo-ink: #8a2b1c;
+  position: relative; width: 100%; min-height: 100dvh; display: flex; flex-direction: column; background: var(--paper); color: var(--lp-ink);
+}
+.auth::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none; opacity: .22; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .15  0 0 0 0 .2  0 0 0 0 .1  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+.auth a { color: inherit; }
+.auth__bar { display: flex; align-items: center; justify-content: flex-end; min-height: 56px; padding-inline: clamp(24px, 6vw, 96px); }
+.auth__logo { display: inline-flex; text-decoration: none; }
+.auth__back { font: 600 14px/1 var(--font-sans); text-decoration: none; padding: 12px 0; }
+.auth__back:hover { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+.auth__hatch { height: 12px; border-block: 1.6px solid var(--lp-ink); background: repeating-linear-gradient(60deg, var(--lp-ink) 0 1px, transparent 1px 5px); }
+.auth__main { flex: 1; display: grid; place-items: center; padding: 20px 24px; }
+/* Card: stair-stepped pixel corners like the buttons, an ink edge with a thick bottom step, and a hatched label strip on top */
+.auth__card { --s: 6px; --edge: var(--lp-ink); position: relative; isolation: isolate; width: 100%; max-width: 400px; padding: 30px 28px 34px; background: var(--edge); color: var(--lp-ink);
+  clip-path: polygon(0 calc(var(--s)*2), var(--s) calc(var(--s)*2), var(--s) var(--s), calc(var(--s)*2) var(--s), calc(var(--s)*2) 0, calc(100% - var(--s)*2) 0, calc(100% - var(--s)*2) var(--s), calc(100% - var(--s)) var(--s), calc(100% - var(--s)) calc(var(--s)*2), 100% calc(var(--s)*2), 100% calc(100% - var(--s)*2), calc(100% - var(--s)) calc(100% - var(--s)*2), calc(100% - var(--s)) calc(100% - var(--s)), calc(100% - var(--s)*2) calc(100% - var(--s)), calc(100% - var(--s)*2) 100%, calc(var(--s)*2) 100%, calc(var(--s)*2) calc(100% - var(--s)), var(--s) calc(100% - var(--s)), var(--s) calc(100% - var(--s)*2), 0 calc(100% - var(--s)*2)); }
+.auth__card::before { content: ''; position: absolute; z-index: -1; inset: 3px 3px 9px 3px; background: var(--paper-3); --s: 4px;
+  clip-path: polygon(0 calc(var(--s)*2), var(--s) calc(var(--s)*2), var(--s) var(--s), calc(var(--s)*2) var(--s), calc(var(--s)*2) 0, calc(100% - var(--s)*2) 0, calc(100% - var(--s)*2) var(--s), calc(100% - var(--s)) var(--s), calc(100% - var(--s)) calc(var(--s)*2), 100% calc(var(--s)*2), 100% calc(100% - var(--s)*2), calc(100% - var(--s)) calc(100% - var(--s)*2), calc(100% - var(--s)) calc(100% - var(--s)), calc(100% - var(--s)*2) calc(100% - var(--s)), calc(100% - var(--s)*2) 100%, calc(var(--s)*2) 100%, calc(var(--s)*2) calc(100% - var(--s)), var(--s) calc(100% - var(--s)), var(--s) calc(100% - var(--s)*2), 0 calc(100% - var(--s)*2)); }
+.auth__title { margin: 0; font: 700 28px/1.1 var(--font-sans); letter-spacing: -0.03em; }
+.auth__sub { margin: 6px 0 16px; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); }
+.auth .kx-field { max-width: none; gap: 4px; }
+.auth .kx-field__label { font-size: 12px; }
+.auth .kx-field__input { min-height: 40px; font-size: 14px; padding: 6px 10px; background: var(--surface-high); border-width: 1.6px; border-radius: 0; }
+.auth .kx-field__hint { font-size: 12px; line-height: 16px; }
+.auth .kx-btn--lg .kx-btn__label { min-height: 44px; font-size: 15px; }
+.auth form.stack { gap: 12px !important; }
+.auth__card--wide { max-width: 640px; }
+.auth__grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px !important; }
+@media (max-width: 560px) { .auth__grid { grid-template-columns: 1fr; } }
+@media (min-width: 768px) { .inicio-head .kx-logo { display: none; } .inicio-head { justify-content: flex-end; } }
+
+/* Self-contained: the manager does not load the student design-system CSS. */
+.auth { --font-sans: var(--ff-sans), system-ui, sans-serif; --kx-clip: polygon(0 4px,4px 4px,4px 0,calc(100% - 4px) 0,calc(100% - 4px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 4px) calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 4px),0 calc(100% - 4px)); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; line-height: 1.5; }
+.auth *, .auth *::before, .auth *::after { box-sizing: border-box; }
+.auth .kx-field { display: flex; flex-direction: column; }
+.auth .kx-field__label { font-weight: 600; line-height: 16px; color: var(--ink); }
+.auth .kx-field__input { font-family: var(--font-sans); line-height: 24px; color: var(--ink); width: 100%; }
+.auth .kx-field__input::placeholder { color: var(--ink-muted); }
+.auth .kx-field__input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.auth .kx-field__input:disabled { opacity: .6; }
+.auth__submit { --face: var(--brand); --edge: var(--brand-edge); position: relative; isolation: isolate; display: block; width: 100%; margin: 0; border: 0; padding: 0 0 4px; background: var(--edge); color: var(--on-brand); cursor: pointer; clip-path: var(--kx-clip); font: 600 15px/20px var(--font-sans); letter-spacing: .01em; }
+.auth__submit::before { content: ''; position: absolute; z-index: -1; left: 2px; right: 2px; top: 2px; bottom: 4px; background: var(--face); clip-path: var(--kx-clip); }
+.auth__submit span { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 24px; }
+.auth__submit:hover:not(:disabled) { --face: var(--brand-hover); }
+.auth__submit:active:not(:disabled) { padding: 4px 0 0; }
+.auth__submit:active:not(:disabled)::before { top: 4px; bottom: 2px; }
+.auth__submit:disabled { --face: var(--surface-sunken); --edge: var(--line); color: var(--ink-muted); cursor: not-allowed; }
+.auth__submit:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.auth__error { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border: 2px solid #c0392b; color: #c0392b; font: 600 14px/20px var(--font-sans); }
+.auth__foot { margin: 18px 0 0; text-align: center; font: 400 14px/22px var(--font-sans); color: var(--ink-muted); }
+.auth form.stack { display: flex; flex-direction: column; }
+.auth .kx-field__input { border: 1.6px solid var(--lp-ink); background: var(--surface-high); }

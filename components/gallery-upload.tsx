@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { Upload, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { uploadImage } from '@/lib/mock/upload'
 
 interface GalleryUploadProps {
     onUploadComplete: (data: { url: string; publicId: string }) => void
@@ -34,28 +35,10 @@ export function GalleryUpload({ onUploadComplete, currentImage, onRemove }: Gall
         setIsUploading(true)
 
         try {
-            // Create FormData
-            const formData = new FormData()
-            formData.append('file', file)
-            formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'techify_preset')
-            formData.append('folder', 'techify/gallery')
-
-            // Upload to Cloudinary
-            const response = await fetch(
-                `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-                {
-                    method: 'POST',
-                    body: formData,
-                }
-            )
-
-            if (!response.ok) {
-                throw new Error('Falha no upload')
-            }
-
-            const data = await response.json()
-            const imageUrl = data.secure_url
-            const publicId = data.public_id
+            // Local mock: no network (see lib/mock/upload.ts)
+            const data = await uploadImage(file)
+            const imageUrl = data.url
+            const publicId = data.publicId
 
             setPreview(imageUrl)
             onUploadComplete({ url: imageUrl, publicId })

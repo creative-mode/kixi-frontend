@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { Upload, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { uploadImage } from '@/lib/mock/upload'
 
 interface ImageUploadProps {
     onUploadComplete: (url: string) => void
@@ -35,26 +36,9 @@ export function ImageUpload({ onUploadComplete, currentImage, onRemove }: ImageU
         setIsUploading(true)
 
         try {
-            // Create FormData
-            const formData = new FormData()
-            formData.append('file', file)
-            formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'techify_preset')
-
-            // Upload to Cloudinary
-            const response = await fetch(
-                `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-                {
-                    method: 'POST',
-                    body: formData,
-                }
-            )
-
-            if (!response.ok) {
-                throw new Error('Falha no upload')
-            }
-
-            const data = await response.json()
-            const imageUrl = data.secure_url
+            // Local mock: no network (see lib/mock/upload.ts)
+            const data = await uploadImage(file)
+            const imageUrl = data.url
 
             setPreview(imageUrl)
             onUploadComplete(imageUrl)

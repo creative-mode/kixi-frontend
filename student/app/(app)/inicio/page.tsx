@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Avatar, Badge, Button, Card, Composer, GradeTile, Icon, Logo, ProgressBar, Reward, Story } from '@/components/kixi';
-import { KIND_BAND, posts, stories } from '@/lib/data';
+import { Avatar, Badge, Button, Card, Composer, GradeTile, HudBar, Icon, Logo, ProgressBar, Reward, Story } from '@/components/kixi';
+import { KIND_BAND, posts, stories, suggestions, trending } from '@/lib/data';
 
 const TABS = ['Turma', 'Escola', 'A seguir'] as const;
 
@@ -14,14 +14,15 @@ export default function Inicio() {
 
   return (
     <>
-      <header className="screen__head kx-sky" style={{ borderBottom: '2px solid var(--line-strong)', background: 'var(--surface-raised)' }}>
+      <header className="screen__head inicio-head kx-sky" style={{ borderBottom: '2px solid var(--line-strong)', background: 'var(--surface-raised)' }}>
         <Logo size={24} wordmark />
         <Button size="sm" icon="plus">Publicar</Button>
       </header>
-      <main className="screen__main">
+      <main className="screen__main page--wide inicio">
+        <aside className="inicio__rail">
         <section aria-label="Em destaque na turma" className="stack" style={{ gap: 4 }}>
           <span className="eyebrow">Em destaque na turma</span>
-          <div style={{ display: 'flex', gap: 4, overflowX: 'auto', margin: '0 -20px', padding: '4px 20px' }}>
+          <div className="stories">
             {stories.map((s) => <Story key={s.name} name={s.name} value={s.value} hue={s.hue} seen={s.seen} />)}
           </div>
         </section>
@@ -41,18 +42,51 @@ export default function Inicio() {
           </Card>
         </Link>
 
+        <div className="only-wide"><HudBar level={7} xp={1240} xpMax={1500} streak={12} /></div>
+
+        <section className="side-card only-wide" aria-label="Desafio da semana">
+          <span className="eyebrow">Desafio da semana</span>
+          <p className="side-card__big">Sobe 1 lugar no ranking da turma</p>
+          <ProgressBar value={3} max={5} slim valueLabel={false} segments={10} label="Provas feitas esta semana" />
+          <span className="muted" style={{ font: '400 13px/18px var(--font-sans)' }}>3 de 5 simulações · prémio +80 XP</span>
+        </section>
+
+        <section className="side-card only-wide" aria-label="Em alta na escola">
+          <span className="eyebrow">Em alta no ITEL</span>
+          <ul className="side-list">
+            {trending.map((t, i) => (
+              <li key={t.tag}><span className="side-list__n">{i + 1}</span><b>#{t.tag}</b><span className="muted">{t.count} publicações</span></li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="side-card only-wide" aria-label="Sugestões para seguir">
+          <span className="eyebrow">Quem seguir</span>
+          <ul className="side-list">
+            {suggestions.map((u) => (
+              <li key={u.name} className="side-user">
+                <Avatar name={u.name} size={40} />
+                <span className="side-user__who"><b>{u.name}</b><span className="muted">{u.meta}</span></span>
+                <button type="button" className="follow" aria-pressed={!!on['s' + u.name]} onClick={() => flip('s' + u.name)}>{on['s' + u.name] ? 'A seguir' : 'Seguir'}</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+        </aside>
+
+        <div className="inicio__feed">
         <Composer name="Abner Ede" placeholder="Partilha com a turma" />
 
         <div className="seg" role="group" aria-label="Mostrar publicações de">
           {TABS.map((t) => <button key={t} type="button" aria-pressed={t === tab} onClick={() => setTab(t)}>{t}</button>)}
         </div>
 
-        {posts.map((p) => {
+        {posts.map((p, idx) => {
           const band = KIND_BAND[p.kind];
           const clapped = !!on['c' + p.id];
           const forced = !!on['f' + p.id];
           return (
-            <article key={p.id} className={`kx-post kx-card kx-scope${band.cls}`}>
+            <article key={p.id} className={`kx-post kx-card kx-scope${band.cls}`} style={{ ['--i' as string]: idx }}>
               <div className="kx-post__band" aria-hidden="true" />
               <header className="kx-post__head">
                 <Avatar name={p.name} ring={p.fresh} />
@@ -69,6 +103,7 @@ export default function Inicio() {
                 <button type="button" className={`kx-react kx-react--pop${forced ? ' is-on' : ''}`} aria-pressed={forced} onClick={() => flip('f' + p.id)}>
                   <Icon name="bolt" size={16} /><span>Força</span><b>{p.forces + (forced ? 1 : 0)}</b>
                 </button>
+                <button type="button" className="kx-react kx-react--radar"><Icon name="chat" size={16} /><span>Comentar</span><b>{p.comments}</b></button>
                 <div className="kx-reactions__end">
                   <Link href={p.cta.href} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 4px', font: '700 13px/1 var(--font-sans)' }}>{p.cta.label}</Link>
                 </div>
@@ -76,6 +111,7 @@ export default function Inicio() {
             </article>
           );
         })}
+        </div>
       </main>
     </>
   );

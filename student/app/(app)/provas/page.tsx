@@ -20,16 +20,18 @@ export default function Provas() {
           </Link>
         </span>
       </header>
-      <main className="screen__main" style={{ paddingTop: 8 }}>
+      <main className="screen__main page--wide" style={{ paddingTop: 8 }}>
         <Field label="Procurar" type="search" placeholder="Disciplina, escola ou ano" value={q} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)} />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} role="group" aria-label="Filtrar">
           {subjects.map((s) => <button key={s} type="button" className="chip" aria-pressed={s === filter} onClick={() => setFilter(s)}>{s}</button>)}
         </div>
+        <div className="cards">
         {list.map((e) => (
           <Link key={e.id} href={`/prova/${e.id}`} className="linkbtn" aria-label={`Abrir ${e.title}`}>
             <ExamCard kind={e.kind} title={e.title} subject={e.subject} school={e.school} year={e.year} status={e.status} statusTone={e.tone} mastery={e.mastery} />
           </Link>
         ))}
+        </div>
         {list.length === 0 && <p className="muted" style={{ margin: 0 }}>Nenhuma prova encontrada. Carrega uma foto da prova e o Kixi lê as questões.</p>}
       </main>
     </>
