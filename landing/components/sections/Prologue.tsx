@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { MARK_H, MARK_W, RETRO_MARK } from '@/lib/mark';
 
 /**
@@ -26,6 +27,14 @@ const BH = BOOK.length;
 const CELLS: { r: number; c: number }[] = [];
 BOOK.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') CELLS.push({ r, c }); }));
 
+const MARK_CELLS: { x: number; y: number }[] = [];
+for (const m of RETRO_MARK.matchAll(/M(\d+) (\d+)h(\d+)v1/g)) {
+  for (let i = 0; i < +m[3]; i++) MARK_CELLS.push({ x: +m[1] + i, y: +m[2] });
+}
+const cellKey = new Set(MARK_CELLS.map((c) => `${c.x},${c.y}`));
+const isEdge = (x: number, y: number) => !cellKey.has(`${x - 1},${y}`) || !cellKey.has(`${x + 1},${y}`) || !cellKey.has(`${x},${y - 1}`) || !cellKey.has(`${x},${y + 1}`);
+const hash = (a: number, b: number, c: number) => { const v = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453; return v - Math.floor(v); };
+
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -46,6 +55,15 @@ const TYPE1 = 'A P1 está pico?';
 const TYPE2 = 'E sem o Kixi?';
 
 export function Prologue({ q }: { q: number }) {
+  // idle life of the logo: the pixels themselves move (stepped, like a sprite), until the person scrolls
+  const [tick, setTick] = useState(0);
+  const idle = q < 0.12;
+  useEffect(() => {
+    if (!idle) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 120);
+    return () => window.clearInterval(id);
+  }, [idle]);
+  const life = 1 - win(q, 0.0, 0.07);
   // 1) the logo alone, large; it then settles at the bottom, ready to become the ship
   const settle = smooth(win(q, 0.08, 0.17));
   // 4) it turns into the ship pose
@@ -176,7 +194,25 @@ export function Prologue({ q }: { q: number }) {
       {/* the Kixi mark: logo first, then ship */}
       <g transform={`translate(0 ${-exit * 260})`} opacity={1 - exit}>
         <g transform={`translate(${cx} ${cy}) rotate(${angle}) scale(${sc}) translate(${-MARK_W / 2} ${-MARK_H / 2})`} fill="var(--lp-ink)" shapeRendering="crispEdges">
-          <path d={RETRO_MARK} />
+          {life > 0.02 ? (
+            <>
+              {MARK_CELLS.map(({ x, y }) => {
+                const wave = Math.sin(tick * 0.9 + x * 0.55);
+                const dy = Math.round(wave * 0.9 * life);
+                const edge = isEdge(x, y);
+                const dx = edge && hash(x, y, tick) > 0.85 ? (hash(y, x, tick) > 0.5 ? 1 : -1) * Math.round(life) : 0;
+                if (edge && hash(x + 3, y, tick) > 0.97) return null; // a pixel blinks out
+                return <rect key={`${x}-${y}`} x={x + dx} y={y + dy} width="1.04" height="1.04" />;
+              })}
+              {[0, 1, 2, 3, 4, 5].map((i) => {
+                const age = (tick + i * 3) % 14;
+                const px = 3 + hash(i, Math.floor((tick + i * 3) / 14), 1) * 18;
+                return <rect key={`sp${i}`} x={Math.round(px)} y={Math.round(19 + age * 0.9)} width="1" height="1" opacity={(1 - age / 14) * life} />;
+              })}
+            </>
+          ) : (
+            <path d={RETRO_MARK} />
+          )}
         </g>
         {shots.some((b) => b > 0 && b < 0.25) && <rect x={noseX - 5} y={noseY - 16} width={10} height={10} fill="var(--lp-ink)" shapeRendering="crispEdges" />}
       </g>

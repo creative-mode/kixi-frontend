@@ -192,8 +192,8 @@ export function Presentation() {
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>
         </div>
-        <div className="pres__hint" style={{ opacity: 1 - clamp((q - 0.01) / 0.05) }} aria-hidden="true">
-          <svg viewBox="0 0 11 7" width="44" height="28" shapeRendering="crispEdges" fill="currentColor"><path d="M0 0h3v1h1v1h1v1h1V2h1V1h1V0h3v1h-1v1h-1v1h-1v1h-1v1h-1v1H5V6H4V5H3V4H2V3H1V2H0z" /></svg>
+        <div className="pres__hint" style={{ opacity: 0.72 * (1 - clamp((q - 0.01) / 0.05)) }} aria-hidden="true">
+          <svg viewBox="0 0 11 7" width="32" height="20" shapeRendering="crispEdges" fill="currentColor"><path d="M0 0h3v1h1v1h1v1h1V2h1V1h1V0h3v1h-1v1h-1v1h-1v1h-1v1h-1v1H5V6H4V5H3V4H2V3H1V2H0z" /></svg>
         </div>
         <div className="pres__rail" aria-hidden="true"><span style={{ transform: `scaleY(${p})` }} /></div>
       </div>
