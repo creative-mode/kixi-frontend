@@ -2,7 +2,8 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { BACKEND, COOKIE, MANAGER_URL } from './session';
+import { BACKEND, COOKIE, managerUrl } from './session';
+import { MOCK, mockPost } from './mock/auth';
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
 
@@ -18,12 +19,14 @@ async function startSession(data: LoginResponse): Promise<string> {
   const left = Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000);
   const jar = await cookies();
   jar.set(COOKIE, data.accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: left > 0 ? left : 60 * 60 * 24 });
-  return data.roles.includes('ADMIN') ? MANAGER_URL : '/inicio';
+  return data.roles.includes('ADMIN') ? await managerUrl() : '/inicio';
 }
 
 async function post(path: string, payload: object): Promise<{ data?: LoginResponse; error?: string }> {
   try {
-    const res = await fetch(`${BACKEND}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(10000), cache: 'no-store' });
+    const res = MOCK
+      ? await mockPost(path, payload as Record<string, unknown>)
+      : await fetch(`${BACKEND}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(10000), cache: 'no-store' });
     if (!res.ok) {
       if (path === '/auth/login' && (res.status === 400 || res.status === 401)) return { error: 'Utilizador ou palavra-passe incorretos.' };
       return { error: await detail(res) };

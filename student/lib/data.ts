@@ -8,6 +8,7 @@ export interface FeedPost {
   text: string;
   claps: number;
   forces: number;
+  comments: number;
   cta: { label: string; href: string };
   exam?: { title: string; meta: string; delta?: string; grade: string };
   reward?: { label: string; icon: string; tone: 'tiro' | 'pop' };
@@ -15,18 +16,18 @@ export interface FeedPost {
 }
 
 export const stories = [
-  { name: 'Mariana Costa', value: '18,2', hue: 'pop', seen: false },
+  { name: 'Mariana Costa', value: '18,2', hue: 'tiro', seen: false },
   { name: 'Paulo Neto', value: '30 DIAS', hue: 'tiro', seen: false },
-  { name: 'Inês Lopes', value: 'VLANs', hue: 'radar', seen: false },
-  { name: 'Nuno Dias', value: '+2,5', hue: 'lila', seen: true },
-  { name: 'Sara Pinto', value: 'DÚVIDA', hue: 'alvo', seen: true },
+  { name: 'Inês Lopes', value: 'VLANs', hue: 'pop', seen: false },
+  { name: 'Nuno Dias', value: '+2,5', hue: 'radar', seen: true },
+  { name: 'Sara Pinto', value: 'DÚVIDA', hue: 'lila', seen: true },
 ] as const;
 
 export const posts: FeedPost[] = [
-  { id: 'a', kind: 'exam', name: 'Mariana Costa', meta: '12B · ITEL · há 2 h', text: 'Fiz a simulação da P1 de Redes. Subnetting finalmente entrou!', claps: 24, forces: 9, cta: { label: 'Fazer esta prova', href: '/prova/redes-p1' }, exam: { title: 'P1 · Redes de Computadores', meta: 'ITEL 2024', delta: '+3,0 QUE A ÚLTIMA', grade: '18,2' } },
-  { id: 'b', kind: 'milestone', name: 'Paulo Neto', meta: '12A · ITEL · há 5 h', text: '30 dias seguidos a estudar. A pausa grátis salvou-me duas vezes.', claps: 41, forces: 18, cta: { label: 'Ver perfil', href: '/perfil' }, reward: { label: '30 dias seguidos', icon: 'shot', tone: 'tiro' }, fresh: true },
-  { id: 'c', kind: 'doubt', name: 'Sara Pinto', meta: '12B · ITEL · ontem', text: 'Alguém percebeu a Q4 do exame de Matemática Discreta 2023? Não estou a ver a indução.', claps: 6, forces: 2, cta: { label: 'Abrir no tutor', href: '/tutor' } },
-  { id: 'd', kind: 'topic', name: 'Inês Lopes', meta: '12B · ITEL · ontem', text: 'VLANs: de 40% para 90% de domínio numa semana. O tutor ajudou muito.', claps: 17, forces: 6, cta: { label: 'Estudar VLANs', href: '/provas' }, reward: { label: 'VLANs derrotado', icon: 'target', tone: 'pop' } },
+  { id: 'a', kind: 'exam', name: 'Mariana Costa', meta: '12B · ITEL · há 2 h', text: 'Fiz a simulação da P1 de Redes. Subnetting finalmente entrou!', claps: 24, forces: 9, comments: 6, cta: { label: 'Fazer esta prova', href: '/prova/redes-p1' }, exam: { title: 'P1 · Redes de Computadores', meta: 'ITEL 2024', delta: '+3,0 QUE A ÚLTIMA', grade: '18,2' } },
+  { id: 'b', kind: 'milestone', name: 'Paulo Neto', meta: '12A · ITEL · há 5 h', text: '30 dias seguidos a estudar. A pausa grátis salvou-me duas vezes.', claps: 41, forces: 18, comments: 12, cta: { label: 'Ver perfil', href: '/perfil' }, reward: { label: '30 dias seguidos', icon: 'shot', tone: 'tiro' }, fresh: true },
+  { id: 'c', kind: 'doubt', name: 'Sara Pinto', meta: '12B · ITEL · ontem', text: 'Alguém percebeu a Q4 do exame de Matemática Discreta 2023? Não estou a ver a indução.', claps: 6, forces: 2, comments: 4, cta: { label: 'Abrir no tutor', href: '/tutor' } },
+  { id: 'd', kind: 'topic', name: 'Inês Lopes', meta: '12B · ITEL · ontem', text: 'VLANs: de 40% para 90% de domínio numa semana. O tutor ajudou muito.', claps: 17, forces: 6, comments: 3, cta: { label: 'Estudar VLANs', href: '/provas' }, reward: { label: 'VLANs derrotado', icon: 'target', tone: 'pop' } },
 ];
 
 export const KIND_BAND: Record<PostKind, { cls: string; tone: string; label: string }> = {
@@ -87,3 +88,16 @@ export const tutorChat = [
 ] as const;
 
 export const tutorChips = ['Dá-me uma dica', 'Explica em binário', 'Outra questão igual'];
+
+export const suggestions = [
+  { name: 'Helder Gomes', meta: '12A · ITEL · 19,1 de média' },
+  { name: 'Beatriz Lima', meta: '11B · ISPTEC · Redes' },
+  { name: 'Tomás Reis', meta: '12B · ITEL · 21 dias seguidos' },
+] as const;
+
+export const trending = [
+  { tag: 'Subnetting', count: 48 },
+  { tag: 'Indução', count: 31 },
+  { tag: 'VLANs', count: 27 },
+  { tag: 'Exame de POO', count: 19 },
+] as const;

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Icon } from './kixi';
+import { Icon, Logo } from './kixi';
 
 const ITEMS = [
   { href: '/inicio', label: 'Início', icon: 'home' },
@@ -16,6 +16,7 @@ export function AppNav() {
   const path = usePathname();
   return (
     <nav className="kx-nav kx-scope" aria-label="Principal">
+      <span className="kx-nav__brand"><Logo size={28} wordmark /></span>
       {ITEMS.map((it) => {
         const active = path === it.href;
         return (

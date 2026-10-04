@@ -267,7 +267,7 @@
 .kx-avatar--radar{--ac:var(--radar);--ae:var(--line-strong);--ao:var(--on-radar)}
 .kx-avatar--lila{--ac:var(--lila);--ae:var(--lila-edge);--ao:var(--on-lila)}
 .kx-avatar--alvo{--ac:var(--alvo);--ae:var(--alvo-edge);--ao:var(--on-alvo)}
-.kx-avatar.has-ring{padding:3px;clip-path:var(--kx-clip);background:repeating-linear-gradient(45deg,var(--tiro) 0 4px,var(--pop) 4px 8px)}
+.kx-avatar.has-ring{padding:3px;clip-path:var(--kx-clip);background:repeating-linear-gradient(45deg,var(--tiro) 0 4px,var(--brand-edge) 4px 8px)}
 .kx-avatar__face{position:relative;display:grid;place-items:center;width:100%;height:100%;clip-path:var(--kx-clip);background:var(--ae);color:var(--ao);font:400 10px/1 var(--font-pixel);letter-spacing:0}
 .kx-avatar__face::before{content:'';position:absolute;inset:2px;background:var(--ac);clip-path:var(--kx-clip);z-index:-1}
 .kx-avatar__face{isolation:isolate}
@@ -329,7 +329,7 @@
 
 /* Sky: a strip of pixel confetti behind a header or hero. Decorative. */
 .kx-sky{position:relative}
-.kx-sky::after{content:'';position:absolute;right:12px;top:10px;width:4px;height:4px;color:var(--tiro);background:currentColor;box-shadow:-28px 8px 0 var(--pop),-52px 2px 0 var(--radar),-76px 12px 0 var(--tiro),-100px 4px 0 var(--lila),-124px 10px 0 var(--pop);pointer-events:none}
+.kx-sky::after{content:'';position:absolute;right:12px;top:10px;width:4px;height:4px;color:var(--tiro);background:currentColor;box-shadow:-28px 8px 0 var(--brand),-52px 2px 0 var(--tiro),-76px 12px 0 var(--brand),-100px 4px 0 var(--tiro),-124px 10px 0 var(--brand);pointer-events:none}
 @media (prefers-reduced-motion:no-preference){
   .kx-react.is-on{animation:kx-pop .3s cubic-bezier(.34,1.56,.64,1)}
   .kx-sky::after{animation:kx-twinkle 2.4s steps(2,jump-none) infinite}

@@ -14,9 +14,13 @@ export default function SalaProva() {
         <Link href="/provas" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, font: '600 14px/1 var(--font-sans)', color: 'var(--alvo-ink)' }}>Sair da sala</Link>
         <span className="eyebrow">P1 · Redes</span>
       </header>
-      <main className="screen__main">
+      <main className="screen__main page--wide">
+        <div className="room">
+        <div className="room__side stack" style={{ gap: 16 }}>
         <Timer time="42:10" progress={0.7} extra="+25% tempo" />
         <QuestionMap cells={questionCells} legend={false} />
+        </div>
+        <div className="room__main stack" style={{ gap: 16 }}>
         <div className="stack" style={{ gap: 8 }}>
           <span className="eyebrow">Questão {question.number} de {question.total} · {question.points} valores</span>
           <p style={{ margin: 0, font: '400 17px/28px var(--font-sans)' }}>{question.text}</p>
@@ -27,6 +31,8 @@ export default function SalaProva() {
           ))}
         </div>
         {sel !== undefined && <p className="muted" style={{ margin: 0, font: '400 14px/22px var(--font-sans)' }} role="status">Resposta guardada. Podes mudar até entregares a prova.</p>}
+        </div>
+        </div>
       </main>
       <footer className="screen__foot">
         <Button variant="secondary">Saltar</Button>

@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: 'Estuda, dispara, domina. A plataforma de provas e estudo feita por alunos, para alunos.',
 };
 
-export const viewport: Viewport = { themeColor: '#a3d97f', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = { themeColor: '#a8b389', width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

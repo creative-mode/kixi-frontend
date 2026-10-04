@@ -1,10 +1,15 @@
 import 'server-only';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 export const COOKIE = 'auth_token';
 export const BACKEND = (process.env.BACKEND_API_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
 /** Where ADMIN accounts are sent: the manager app (same cookie, so no second sign-in). */
-export const MANAGER_URL = process.env.NEXT_PUBLIC_MANAGER_URL ?? 'http://localhost:3002/manager';
+export async function managerUrl(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_MANAGER_URL) return process.env.NEXT_PUBLIC_MANAGER_URL;
+  const h = await headers();
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
+  return `${h.get('x-forwarded-proto') ?? 'http'}://${host}/manager`;
+}
 
 export type Session = { accountId: number | null; roles: string[]; exp: number };
 

@@ -2,9 +2,10 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { getAuthHeaders } from '@/lib/auth';
+import { getAuthHeaders } from '@/lib/auth.server';
 import { API_BASE } from '@/lib/constants';
 import type { SchoolYearRequest, SchoolYearResponse, SchoolYearList } from '@/types/school-year';
+import { apiFetch } from '@/lib/mock/fetch';
 
 
 const BASE = `${API_BASE}/school-years`;
@@ -13,7 +14,7 @@ export async function getActiveSchoolYears(): Promise<SchoolYearList> {
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(BASE, {
+    const res = await apiFetch(BASE, {
       method: 'GET',
       headers,
       next: { tags: ['school-years-active'] }, // para revalidação
@@ -35,7 +36,7 @@ export async function getTrashedSchoolYears(): Promise<SchoolYearList> {
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(`${BASE}/trash`, {
+    const res = await apiFetch(`${BASE}/trash`, {
       headers,
       next: { tags: ['school-years-trashed'] },
     });
@@ -51,7 +52,7 @@ export async function createSchoolYear(data: SchoolYearRequest) {
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(BASE, {
+    const res = await apiFetch(BASE, {
       method: 'POST',
       headers,
       body: JSON.stringify(data),
@@ -77,7 +78,7 @@ export async function updateSchoolYear(id: number, data: SchoolYearRequest) {
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(`${BASE}/${id}`, {
+    const res = await apiFetch(`${BASE}/${id}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify(data),
@@ -100,7 +101,7 @@ export async function softDeleteSchoolYear(id: number) {
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(`${BASE}/${id}`, {
+    const res = await apiFetch(`${BASE}/${id}`, {
       method: 'DELETE',
       headers,
     });
@@ -120,7 +121,7 @@ export async function restoreSchoolYear(id: number) {
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(`${BASE}/${id}/restore`, {
+    const res = await apiFetch(`${BASE}/${id}/restore`, {
       method: 'POST',
       headers,
     });
@@ -140,7 +141,7 @@ export async function purgeSchoolYear(id: number) {
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(`${BASE}/${id}/purge`, {
+    const res = await apiFetch(`${BASE}/${id}/purge`, {
       method: 'DELETE',
       headers,
     });
@@ -163,7 +164,7 @@ export async function getSchoolYearById(id: number): Promise<SchoolYearResponse>
   try {
     const headers = await getAuthHeaders();
 
-    const res = await fetch(`${API_BASE}/school-years/${id}`, {
+    const res = await apiFetch(`${API_BASE}/school-years/${id}`, {
       method: 'GET',
       headers,
       cache: 'no-store',           // sempre fresco para dados protegidos

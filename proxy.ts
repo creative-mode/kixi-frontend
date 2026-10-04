@@ -1,30 +1,21 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
+import { getJwtSecret } from '@/lib/jwt'
 
 /**
  * Next.js 16 proxy convention — replaces middleware.ts.
  *
  * With basePath: '/manager' in next.config.ts, the proxy receives
- * pathnames WITHOUT the prefix:
- *   browser URL /manager/login  →  pathname = /login
- *   browser URL /manager/       →  pathname = /
- *
- * But NextResponse.redirect() needs the FULL URL including basePath,
- * so we use the redirectTo() helper below.
+ * pathnames WITHOUT the prefix (/manager/login → /login). Cloning nextUrl keeps the basePath,
+ * so the redirects below only set the unprefixed pathname.
  */
 
-const BASE_PATH = '/manager'
-
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits'
-  return new TextEncoder().encode(secret)
-}
-
-/** Build a redirect URL that includes the basePath */
+/** nextUrl already carries the basePath separately: setting pathname adds the prefix, so do not add it again. */
 function redirectTo(path: string, request: NextRequest) {
   const url = request.nextUrl.clone()
-  url.pathname = `${BASE_PATH}${path}`
+  url.pathname = path
+  url.search = ''
   return url
 }
 
@@ -72,10 +63,8 @@ export async function proxy(request: NextRequest) {
     // Only ADMIN role can access Kixi Manager
     const roles = (payload.roles as string[]) || []
     if (!roles.includes('ADMIN')) {
-      const response = NextResponse.redirect(redirectTo('/login', request))
-      response.cookies.delete('auth_token')
-      response.cookies.delete('user_info')
-      return response
+      // A valid student session is shared with the aluno app (same cookie): send them to the login, but keep it.
+      return NextResponse.redirect(redirectTo('/login', request))
     }
 
     // Authenticated admin — forward with user info headers
@@ -94,6 +83,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    // With a basePath the dashboard (/manager) reaches the proxy as an empty path, which the pattern below misses: list it explicitly.
+    '/',
     '/((?!_next|api|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|woff|woff2|ttf|eot|json|ico)$).*)',
   ],
 }

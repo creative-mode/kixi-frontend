@@ -1,21 +1,25 @@
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import 'server-only';
+import { getJwtSecret } from './jwt';
 
 export { API_BASE } from './constants';
 
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
-  return new TextEncoder().encode(secret);
-}
-
+/** Headers for backend calls. Only a valid, unexpired ADMIN session gets a token: server actions are public
+ *  POST endpoints, so the proxy is not enough; every call re-checks the session itself. */
 export async function getAuthHeaders() {
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value;
+  if (!token) throw new Error('Não autenticado');
 
-  if (!token) {
+  let roles: string[] = [];
+  try {
+    const { payload } = await jwtVerify(token, getJwtSecret());
+    roles = (payload.roles as string[]) || [];
+  } catch {
     throw new Error('Não autenticado');
   }
+  if (!roles.includes('ADMIN')) throw new Error('Não autenticado');
 
   return {
     'Authorization': `Bearer ${token}`,
