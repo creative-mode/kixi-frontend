@@ -4,7 +4,7 @@ const CELLS = ['correct', 'correct', 'wrong', 'correct', 'current', 'pending', '
 
 export function Preview() {
   return (
-    <section className="section" id="app" aria-labelledby="preview-title">
+    <section className="section section--night" data-theme="dark" id="app" aria-labelledby="preview-title">
       <div className="wrap">
         <p className="eyebrow">A app do aluno</p>
         <h2 id="preview-title" className="h2">Três formas de usar a mesma prova.</h2>
@@ -13,7 +13,7 @@ export function Preview() {
         </p>
 
         <div className="phones">
-          <figure className="phone-fig">
+          <figure className="phone-fig phone-fig--pop">
             <div className="phone kx-lcd" data-theme="light" inert>
               <div className="phone__bar"><Logo size={20} wordmark /></div>
               <div className="phone__body">
@@ -36,7 +36,7 @@ export function Preview() {
             <figcaption><strong>Social learning.</strong> O feed mostra provas, marcos e dúvidas da tua turma e escola.</figcaption>
           </figure>
 
-          <figure className="phone-fig">
+          <figure className="phone-fig phone-fig--tiro">
             <div className="phone kx-lcd" data-theme="dark" inert>
               <div className="phone__bar"><span className="eyebrow">P1 · Redes</span></div>
               <div className="phone__body">
@@ -51,7 +51,7 @@ export function Preview() {
             <figcaption><strong>Simulação.</strong> Provas reais, com o tempo e os parâmetros definidos pelo professor.</figcaption>
           </figure>
 
-          <figure className="phone-fig">
+          <figure className="phone-fig phone-fig--radar">
             <div className="phone kx-lcd" data-theme="light" inert>
               <div className="phone__bar"><span className="eyebrow">Tutor</span></div>
               <div className="phone__body">

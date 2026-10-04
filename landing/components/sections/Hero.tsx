@@ -11,12 +11,12 @@ const TARGETS = [
 
 export function Hero() {
   return (
-    <section className="hero kx-lcd" aria-labelledby="hero-title">
+    <section className="hero" data-theme="dark" aria-labelledby="hero-title">
       <div className="wrap hero__in">
         <div className="hero__copy">
-          <p className="eyebrow eyebrow--tiro">Feito por alunos do ITEL, para alunos</p>
+          <p className="eyebrow eyebrow--tiro"><span className="blink" aria-hidden="true" />Feito por alunos do ITEL, para alunos</p>
           <h1 id="hero-title" className="hero__title">
-            A prova não é o fim.<br />
+            <span className="nw">A prova não é o fim.</span>
             <span className="hero__mark">É onde o estudo começa.</span>
           </h1>
           <p className="lead">
@@ -24,7 +24,7 @@ export function Hero() {
           </p>
           <div className="hero__cta">
             <span className="kx-btn-wrap kx-scope">
-              <a href={APP_URL} className="kx-btn kx-btn--lg" style={{ textDecoration: 'none' }}>
+              <a href={APP_URL} className="kx-btn kx-btn--gold kx-btn--lg" style={{ textDecoration: 'none' }}>
                 <span className="kx-btn__label">Começar a estudar</span>
               </a>
             </span>
@@ -34,7 +34,7 @@ export function Hero() {
               </a>
             </span>
           </div>
-          <p className="hero__tag" aria-hidden="true">Estuda. Dispara. Domina.</p>
+          
         </div>
 
         <div

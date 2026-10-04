@@ -3,27 +3,28 @@ import { MODULES } from '@/lib/content';
 
 export function Modules() {
   return (
-    <section className="section section--sunken" id="solucao" aria-labelledby="modules-title">
-      <div className="wrap">
+    <section className="modules-sec" data-theme="dark" id="solucao" aria-labelledby="modules-title">
+      <div className="wrap modules-sec__head">
         <p className="eyebrow">A solução</p>
         <h2 id="modules-title" className="h2">Cinco módulos que trabalham juntos.</h2>
         <p className="lead lead--narrow">
           O Kixi centraliza enunciados, permite simulá-los e analisa o desempenho, com um módulo de IA que automatiza o trabalho manual e torna o estudo mais motivador.
         </p>
-        <ol className="modules">
-          {MODULES.map((m) => (
-            <li key={m.n} className={`module hue-${m.tone}`}>
-              <div className="module__head">
-                <span className="module__icon"><Icon name={m.icon} size={24} /></span>
-                <span className="module__n">{m.n}</span>
+        </div>
+      <ol className="bands">
+        {MODULES.map((m, i) => (
+          <li key={m.n} className={`band hue-${m.tone}`} style={{ ['--i' as string]: i }}>
+            <div className="wrap band__in">
+              <span className="band__n" aria-hidden="true">{m.n}</span>
+              <div className="band__main">
+                <p className="band__tag"><Icon name={m.icon} size={18} />{m.title}</p>
+                <h3 className="band__title">{m.headline}</h3>
               </div>
-              <h3 className="module__title">{m.title}</h3>
-              <p className="module__headline">{m.headline}</p>
-              <p className="module__text">{m.text}</p>
-            </li>
-          ))}
-        </ol>
-      </div>
+              <p className="band__text">{m.text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

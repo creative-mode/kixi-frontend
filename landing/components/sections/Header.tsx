@@ -4,7 +4,7 @@ import { APP_URL, NAV } from '@/lib/content';
 
 export function Header() {
   return (
-    <header className="site-header">
+    <header className="site-header" data-theme="dark">
       <div className="wrap site-header__in">
         <Link href="/" aria-label="Kixi, início" className="site-header__logo">
           <Logo size={28} wordmark />
