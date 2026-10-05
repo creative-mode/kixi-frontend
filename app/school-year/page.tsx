@@ -68,7 +68,7 @@ export default function SchoolYearsManager() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="p-2 rounded-[4px] border-2 border-current/40 bg-tiro-tint text-tiro-ink">
+            <div className="p-2 rounded-md border-2 border-current/40 bg-warning-soft text-warning">
               <Calendar size={20} />
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">Anos Letivos</h1>
@@ -165,7 +165,7 @@ export default function SchoolYearsManager() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          className="text-muted-foreground hover:text-alvo-ink hover:bg-alvo-tint"
+                          className="text-muted-foreground hover:text-destructive hover:bg-danger-soft"
                           disabled={deletingId === year.id}
                           onClick={() => handleSoftDelete(year)}
                         >

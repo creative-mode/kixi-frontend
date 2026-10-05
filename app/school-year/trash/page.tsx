@@ -90,8 +90,8 @@ export default function SchoolYearTrashPage() {
             <ArrowLeft size={14} /> Voltar para lista
           </Link>
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-alvo-tint">
-              <Trash2 size={20} className="text-alvo-ink" />
+            <div className="p-2 rounded-lg bg-danger-soft">
+              <Trash2 size={20} className="text-destructive" />
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-foreground">Lixeira</h1>
@@ -137,7 +137,7 @@ export default function SchoolYearTrashPage() {
                 </TableRow>
               ) : (
                 schoolYears.map((year) => (
-                  <TableRow key={year.id} className="hover:bg-alvo-tint border-border transition-colors">
+                  <TableRow key={year.id} className="hover:bg-danger-soft border-border transition-colors">
                     <TableCell className="font-semibold text-foreground">
                       {year.startYear} – {year.endYear}
                     </TableCell>
@@ -164,7 +164,7 @@ export default function SchoolYearTrashPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:text-alvo-ink hover:bg-alvo-tint"
+                          className="text-muted-foreground hover:text-destructive hover:bg-danger-soft"
                           disabled={actionId === year.id}
                           onClick={() => handlePurge(year)}
                         >

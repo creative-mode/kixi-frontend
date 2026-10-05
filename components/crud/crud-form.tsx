@@ -138,7 +138,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
                         {...common}
                         value={values[f.name] ?? ''}
                         onChange={(e) => set(f.name, e.target.value)}
-                        className="h-10 w-full rounded-[4px] border-2 border-input bg-muted px-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:border-destructive"
+                        className="h-10 w-full rounded-md border-2 border-input bg-muted px-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:border-destructive"
                       >
                         <option value="">Escolher…</option>
                         {(options[f.optionsFrom ?? ''] ?? []).map((o) => (

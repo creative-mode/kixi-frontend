@@ -39,7 +39,7 @@ export function StatementDetail({ id }: { id: number }) {
             <CardContent className="space-y-4">
               {questions.length === 0 ? <p className="text-sm text-muted-foreground">Ainda sem questões extraídas.</p> : null}
               {questions.map((q) => (
-                <div key={q.id} className="rounded-[4px] border-2 border-border p-4">
+                <div key={q.id} className="rounded-md border-2 border-border p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <strong>Questão {q.number}</strong>
                     <Badge variant="outline">{q.questionType}</Badge>

@@ -26,7 +26,7 @@ export function PageHead({
       ) : null}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
-          <div className={`rounded-[4px] border-2 border-current/40 p-2 ${entity.tone}`}>
+          <div className={`rounded-md border-2 border-current/40 p-2 ${entity.tone}`}>
             <Icon size={20} />
           </div>
           <div>
