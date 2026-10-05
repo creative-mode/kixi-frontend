@@ -1,105 +1,112 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { jwtVerify } from 'jose'
-import { getJwtSecret } from '@/lib/jwt'
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/jwt';
+import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/lib/roles';
 
-/**
- * Next.js 16 proxy convention — replaces middleware.ts.
- *
- * With basePath: '/manager' in next.config.ts, the proxy receives
- * pathnames WITHOUT the prefix (/manager/login → /login). Cloning nextUrl keeps the basePath,
- * so the redirects below only set the unprefixed pathname.
- */
+const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
-/** nextUrl already carries the basePath separately: setting pathname adds the prefix, so do not add it again. */
-function redirectTo(path: string, request: NextRequest) {
-  const url = request.nextUrl.clone()
-  // Atrás do gateway/Docker o origin visto pelo Next é o interno (0.0.0.0:3002): usa o endereço público.
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
-  if (host) {
-    url.host = host
-    url.protocol = request.headers.get('x-forwarded-proto') ?? url.protocol
+function redirectTo(path: string, request: NextRequest, query?: Record<string, string>) {
+  const url = request.nextUrl.clone();
+  url.pathname = path;
+  url.search = '';
+  for (const [key, value] of Object.entries(query ?? {})) {
+    url.searchParams.set(key, value);
   }
-  url.pathname = path
-  url.search = ''
-  return url
+  return url;
+}
+
+function isRoute(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function isManagerOnlyRoute(pathname: string) {
+  return MANAGER_ONLY_ROUTES.some((route) => isRoute(pathname, route));
+}
+
+function rolesFromPayload(value: unknown): Role[] {
+  return normalizeRoles(value);
 }
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname } = request.nextUrl;
+  const isLoginRoute = isRoute(pathname, '/login');
+  const isForbiddenRoute = isRoute(pathname, '/403');
 
-  // ── Public routes (no auth required) ──────────────────────────
-  const isLoginRoute = pathname === '/login' || pathname.startsWith('/login/')
+  if (isLoginRoute || isForbiddenRoute) {
+    if (isForbiddenRoute) return NextResponse.next();
 
-  if (isLoginRoute) {
-    // If already authenticated as ADMIN, redirect away from login
-    const token = request.cookies.get('auth_token')?.value
-    if (token) {
-      try {
-        const { payload } = await jwtVerify(token, getJwtSecret())
-        const roles = (payload.roles as string[]) || []
-        if (roles.includes('ADMIN')) {
-          return NextResponse.redirect(redirectTo('/', request))
+    const token = request.cookies.get('auth_token')?.value;
+    if (!token) return NextResponse.next();
+
+    try {
+      const { payload } = await jwtVerify(token, getJwtSecret());
+      const roles = rolesFromPayload(payload.roles);
+
+      if (canAccessManager(roles)) {
+        if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
+          return NextResponse.redirect(redirectTo('/exam-builder', request));
         }
-        if (roles.includes('TEACHER')) {
-          return NextResponse.redirect(redirectTo('/exam-builder', request))
-        }
-      } catch {
-        // Token invalid — let them see login page
+        return NextResponse.redirect(redirectTo('/', request));
       }
+
+      if (isStudentOnly(roles)) {
+        return NextResponse.redirect(redirectTo('/403', request, { reason: 'student-manager' }));
+      }
+    } catch {
+      // Token inválido — deixa ver a página de login
+      return NextResponse.next();
     }
-    return NextResponse.next()
+
+    return NextResponse.next();
   }
 
-  // ── Protected routes — require valid auth_token cookie ────────
-  const token = request.cookies.get('auth_token')?.value
-
+  const token = request.cookies.get('auth_token')?.value;
   if (!token) {
-    return NextResponse.redirect(redirectTo('/login', request))
+    return NextResponse.redirect(redirectTo('/login', request, { reason: 'required' }));
   }
 
   try {
-    const { payload } = await jwtVerify(token, getJwtSecret())
+    const { payload } = await jwtVerify(token, getJwtSecret());
+    const roles = rolesFromPayload(payload.roles);
 
-    // Expired token
-    if (payload.exp && Date.now() >= payload.exp * 1000) {
-      const response = NextResponse.redirect(redirectTo('/login', request))
-      response.cookies.delete('auth_token')
-      response.cookies.delete('user_info')
-      return response
+    if (isStudentOnly(roles)) {
+      return NextResponse.redirect(redirectTo('/403', request, { reason: 'student-manager' }));
     }
 
-    // Only ADMIN role can access Kixi Manager
-    const roles = (payload.roles as string[]) || []
-    const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN')
-    if (isTeacher) {
-      // O professor só trabalha no exam builder.
-      if (!pathname.startsWith('/exam-builder')) {
-        return NextResponse.redirect(redirectTo('/exam-builder', request))
-      }
-    } else if (!roles.includes('ADMIN')) {
-      // A valid student session is shared with the aluno app (same cookie): send them to the login, but keep it.
-      return NextResponse.redirect(redirectTo('/login', request))
+    if (!canAccessManager(roles)) {
+      const response = NextResponse.redirect(
+        redirectTo('/login', request, { reason: 'invalid-session' }),
+      );
+      response.cookies.delete('auth_token');
+      response.cookies.delete('user_info');
+      return response;
     }
 
-    // Authenticated admin — forward with user info headers
-    const response = NextResponse.next()
-    response.headers.set('x-user-id', String(payload.sub))
-    response.headers.set('x-user-roles', JSON.stringify(roles))
-    return response
-  } catch (error) {
-    console.error('[proxy] JWT verification failed:', error)
-    const response = NextResponse.redirect(redirectTo('/login', request))
-    response.cookies.delete('auth_token')
-    response.cookies.delete('user_info')
-    return response
+    const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN');
+    if (isTeacher && !pathname.startsWith('/exam-builder')) {
+      return NextResponse.redirect(redirectTo('/exam-builder', request));
+    }
+
+    if (roles.includes('TEACHER') && isManagerOnlyRoute(pathname)) {
+      return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
+    }
+
+    const response = NextResponse.next();
+    response.headers.set('x-user-id', String(payload.sub ?? ''));
+    response.headers.set('x-user-roles', JSON.stringify(roles));
+    return response;
+  } catch {
+    const response = NextResponse.redirect(redirectTo('/login', request, { reason: 'session-expired' }));
+    response.cookies.delete('auth_token');
+    response.cookies.delete('user_info');
+    return response;
   }
 }
 
 export const config = {
   matcher: [
-    // With a basePath the dashboard (/manager) reaches the proxy as an empty path, which the pattern below misses: list it explicitly.
     '/',
     '/((?!_next|api|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|woff|woff2|ttf|eot|json|ico)$).*)',
   ],
-}
+};
