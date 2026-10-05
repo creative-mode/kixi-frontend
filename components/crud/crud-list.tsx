@@ -9,10 +9,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { deleteRow, listRows } from '@/app/actions/crud';
-import { ENTITIES, rowId, type EntityKey, type Row } from '@/lib/crud/entities';
+import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
 import { AccountRoles } from './account-roles';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
+import { TableRowsSkeleton } from './loading';
 
 /** Generic list: search, rows, edit, move to trash. Accounts also get a roles dialog per row. */
 export function CrudList({ entityKey }: { entityKey: EntityKey }) {
@@ -45,13 +46,13 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   function askDelete(row: Row) {
     setConfirm({
       title: `Mover para a lixeira?`,
-      description: `${entity.singular} «${entity.titleOf(row)}» sai da lista mas pode ser restaurado na lixeira.`,
+      description: `${entity.singular} «${entity.titleOf(row)}» sai da lista mas pode ser ${gender(entity, 'restaurado')} na lixeira.`,
       action: 'Mover para a lixeira',
       destructive: true,
       run: async () => {
         const res = await deleteRow(entityKey, rowId(entity, row));
         if (res.ok) {
-          toast.success(`${entity.singular} movido para a lixeira`);
+          toast.success(`${entity.singular} ${gender(entity, 'movido')} para a lixeira`);
           load();
         } else toast.error(res.error);
       },
@@ -74,7 +75,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
             {entity.canCreate ? (
               <Button asChild>
                 <Link href={`/${entity.path}/new`}>
-                  <Plus size={16} className="mr-2" /> Novo
+                  <Plus size={16} className="mr-2" /> {newLabel(entity)}
                 </Link>
               </Button>
             ) : null}
@@ -102,12 +103,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
             </TableHeader>
             <TableBody>
               {rows === null ? (
-                <TableRow>
-                  <TableCell colSpan={cols} className="py-16 text-center text-muted-foreground">
-                    <span className="mx-auto mb-2 block h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    A carregar…
-                  </TableCell>
-                </TableRow>
+                <TableRowsSkeleton cols={cols} />
               ) : error ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-12 text-center">

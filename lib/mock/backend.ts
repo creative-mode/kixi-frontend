@@ -36,7 +36,7 @@ const seq = G.__kixiMock.seq;
 const nextId = (t) => (seq[t] = (seq[t] ?? 0) + 1);
 G.__kixiMock.db ??= {
   roles: [], accounts: [], users: [], accountRoles: [], 'school-years': [], terms: [], subjects: [], courses: [],
-  classes: [], statements: [], simulations: [], 'simulation-answers': [],
+  classes: [], statements: [], simulations: [], 'simulation-answers': [], sessions: [], 'question-images': [],
 };
 const db: any = G.__kixiMock.db;
 function add(table, data) {
@@ -110,6 +110,25 @@ const RES = {
     table: 'classes', req: ['code', 'grade', 'courseId', 'schoolYearId'], noUpdate: true,
     pick: (b) => ({ code: b.code, grade: b.grade, course: db.courses.find((c) => c.id === b.courseId), schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId) }),
     validate: (b) => (!db.courses.find((c) => c.id === b.courseId) ? 'course not found' : !db['school-years'].find((s) => s.id === b.schoolYearId) ? 'school year not found' : null),
+  },
+  sessions: {
+    table: 'sessions', admin: true, req: ['accountId', 'token', 'ipAddress'],
+    pick: (b) => ({ accountId: b.accountId, token: b.token, ipAddress: b.ipAddress, expiresAt: b.expiresAt ?? null }),
+    defaults: { lastUsed: null },
+    validate: (b) => (!db.accounts.find((a) => a.id === b.accountId && !a.deletedAt) ? 'account not found' : null),
+  },
+  'simulation-answers': {
+    table: 'simulation-answers', req: ['simulationId', 'questionId'],
+    pick: (b) => {
+      const sim = db.simulations.find((x) => x.id === b.simulationId);
+      const q = db.statements.find((x) => x.id === sim?.statementId)?.questions.find((x) => x.id === b.questionId);
+      const opt = q?.options?.find((o) => o.id === b.selectedOptionId);
+      return {
+        simulationId: b.simulationId, questionId: b.questionId, selectedOptionId: b.selectedOptionId ?? null, answerText: b.answerText ?? null, answeredAt: b.answeredAt ?? now(),
+        isCorrect: opt ? !!opt.isCorrect : null, scoreObtained: opt ? (opt.isCorrect ? Number(q.maxScore ?? 1) : 0) : null,
+      };
+    },
+    validate: (b) => (!db.simulations.find((x) => x.id === b.simulationId && !x.deletedAt) ? 'simulation not found' : null),
   },
   roles: { table: 'roles', admin: true, req: ['name'], pick: (b) => ({ name: b.name, description: b.description ?? null }) },
   users: { table: 'users', admin: true, req: ['accountId', 'firstName', 'lastName'], pick: (b) => ({ accountId: b.accountId, firstName: b.firstName, lastName: b.lastName, photo: b.photo ?? null }) },
@@ -249,6 +268,45 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       if (sub === '/visibility' && method === 'PATCH') { s.visible = url.searchParams.get('visible') === 'true'; return json(200, mapStatement(s)); }
     }
 
+    // ── question images (multipart upload) ──
+    if ((m = path.match(/^\/api\/v1\/question-images\/question\/(\d+)$/)) && method === 'GET') {
+      return json(200, db['question-images'].filter((i) => !i.deletedAt && i.questionId === Number(m[1])).sort((a, b) => a.orderIndex - b.orderIndex));
+    }
+    if (path === '/api/v1/question-images' && method === 'POST') {
+      const b = readBody();
+      const d = b.data ?? {};
+      const f = Array.isArray(b.file) ? b.file[0] : b.file;
+      if (!d.questionId) return problem(400, 'Question ID is required');
+      if (!f?.dataUrl) return problem(400, 'Image file is required (max 1,5 MB in the mock)');
+      if (!String(f.type).startsWith('image/')) return problem(400, 'Only image files are accepted');
+      const order = d.orderIndex ?? db['question-images'].filter((i) => !i.deletedAt && i.questionId === d.questionId).length;
+      return json(201, add('question-images', { questionId: d.questionId, imageUrl: f.dataUrl, caption: d.caption ?? null, orderIndex: order }));
+    }
+    if ((m = path.match(/^\/api\/v1\/question-images\/(\d+)$/)) && ['PUT', 'DELETE', 'GET'].includes(method)) {
+      const img = db['question-images'].find((i) => i.id === Number(m[1]) && !i.deletedAt);
+      if (!img) return problem(404, 'Question image not found');
+      if (method === 'GET') return json(200, img);
+      if (method === 'DELETE') { img.deletedAt = now(); return json(204); }
+      const b = readBody();
+      Object.assign(img, { caption: b.caption ?? null, orderIndex: b.orderIndex ?? img.orderIndex, updatedAt: now() });
+      return json(200, img);
+    }
+
+    // ── OCR import: creates a statement waiting for review ──
+    if ((path === '/api/v1/statements/ocr/extract' || path === '/api/v1/statements/ocr/extract/single') && method === 'POST') {
+      const b = readBody();
+      const files = [b.files ?? b.file].flat().filter(Boolean);
+      if (!files.length) return problem(400, 'At least one file is required');
+      const title = String(files[0].name ?? 'Prova importada').replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Prova importada';
+      const sy = db['school-years'][0];
+      const s = add('statements', {
+        title, examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
+        source: 'OCR', ocrConfidence: 0.82, ocrRequestId: `req-${Date.now()}`, schoolYearId: sy?.id ?? null, termId: null, subjectId: null, classId: null,
+        questions: [1, 2, 3].map((n) => ({ id: 1000 + nextId('questions'), number: n, questionType: 'MULTIPLE_CHOICE', text: `Questão ${n} extraída de ${files.length} ficheiro(s). Reveja o texto.`, maxScore: 2, needsReview: true, options: ['A', 'B', 'C', 'D'].map((l, i) => ({ id: 1000 + nextId('options'), optionLabel: l, optionText: `Opção ${l}`, isCorrect: i === 0 })) })),
+      });
+      return json(201, s);
+    }
+
     // ── simulations (note: /api/simulations, restore is PUT, purge is /permanent) ──
     if ((m = path.match(/^\/api\/simulations(?:\/(trash|\d+)(?:\/(restore|permanent))?)?$/))) {
       const t = m[1];
@@ -320,6 +378,8 @@ export async function handle(method: string, rawUrl: string, authorization: stri
 
 // ── extra seed + analytics ──────────────────────────────────────────────────
 function seedExtras() {
+  add('sessions', { accountId: db.accounts[0].id, token: crypto.randomBytes(24).toString('hex'), ipAddress: '41.63.10.22', expiresAt: new Date(Date.now() + 86400000).toISOString().slice(0, 19), lastUsed: now() });
+  add('sessions', { accountId: db.accounts[2].id, token: crypto.randomBytes(24).toString('hex'), ipAddress: '41.63.11.7', expiresAt: new Date(Date.now() - 86400000).toISOString().slice(0, 19), lastUsed: null });
   const student = db.accounts.find((a: any) => a.username === '12345');
   const sy = db['school-years'][0];
   add('simulations', { accountId: student.id, statementId: 1, schoolYearId: sy.id, startedAt: now(), finishedAt: now(), timeSpentSeconds: 3120, finalScore: 15.5, status: 'COMPLETED' });
@@ -335,6 +395,11 @@ function seedExtras() {
   db.statements.forEach((st: any, si: number) => {
     st.questions = qs.map(([text, o, c]: any, i: number) => ({ id: si * 10 + i + 1, number: i + 1, text, questionType: 'MULTIPLE_CHOICE', maxScore: 20 / qs.length, needsReview: st.needsReview && i === 2, options: opts(o, c) }));
   });
+  for (const [qid, opt] of [[1, 2], [2, 1], [3, 2]]) {
+    const q = db.statements[0].questions.find((x: any) => x.id === qid);
+    const o = q.options.find((x: any) => x.id === opt);
+    add('simulation-answers', { simulationId: 1, questionId: qid, selectedOptionId: opt, answerText: null, answeredAt: now(), isCorrect: o.isCorrect, scoreObtained: o.isCorrect ? q.maxScore : 0 });
+  }
   for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
 }
 
