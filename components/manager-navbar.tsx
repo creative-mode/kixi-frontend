@@ -6,18 +6,10 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
-  FileText,
-  Calendar,
-  Image,
-  UserCheck,
-  Layers,
-  Briefcase,
-  Newspaper,
   LogOut,
   X,
   Menu as MenuIcon,
   ChevronRight,
-  Quote,
   FilePen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,7 +57,8 @@ export function ManagerNavbar() {
 
   // Close menu when route changes
   useEffect(() => {
-    setIsOpen(false);
+    const task = window.setTimeout(() => setIsOpen(false), 0);
+    return () => window.clearTimeout(task);
   }, [pathname]);
 
   // Lock body scroll when menu is open

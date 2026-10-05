@@ -47,8 +47,8 @@ const safeId = (id: string | number) => {
 async function guard<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
   try {
     return await fn();
-  } catch (e: any) {
-    const msg = String(e?.message ?? '');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '';
     return fail(msg.includes('Não autenticado') ? 'Sessão expirada. Inicie sessão novamente.' : msg || 'Não foi possível contactar o servidor.');
   }
 }

@@ -46,6 +46,9 @@ export interface Column {
   className?: string;
 }
 
+// CRUD rows are intentionally open because the registry mirrors multiple backend DTOs.
+// Keep the dynamic boundary explicit while preserving typed DTOs everywhere else.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Row = Record<string, any>;
 export type EntityKey =
   | 'school-years'

@@ -1,6 +1,5 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { getAuthHeaders } from '@/lib/auth.server';
 import { API_BASE } from '@/lib/constants';
@@ -26,9 +25,9 @@ export async function getActiveSchoolYears(): Promise<SchoolYearList> {
     }
 
     return await res.json();
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[getActiveSchoolYears]', err);
-    throw new Error(err.message || 'Não foi possível carregar os anos letivos');
+    throw new Error(err instanceof Error ? err.message : 'Não foi possível carregar os anos letivos');
   }
 }
 
@@ -43,7 +42,7 @@ export async function getTrashedSchoolYears(): Promise<SchoolYearList> {
 
     if (!res.ok) throw new Error(`Erro ${res.status}`);
     return await res.json();
-  } catch (err: any) {
+  } catch {
     throw new Error('Não foi possível carregar os anos letivos eliminados');
   }
 }
@@ -69,8 +68,8 @@ export async function createSchoolYear(data: SchoolYearRequest) {
     revalidatePath('/school-years/trash');
 
     return { success: true, data: created };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Erro ao criar ano letivo' };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao criar ano letivo' };
   }
 }
 
@@ -92,8 +91,8 @@ export async function updateSchoolYear(id: number, data: SchoolYearRequest) {
     revalidatePath(`/school-years/${id}`);
 
     return { success: true, data: updated };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Erro ao atualizar' };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao atualizar' };
   }
 }
 
@@ -112,8 +111,8 @@ export async function softDeleteSchoolYear(id: number) {
     revalidatePath('/school-years/trash');
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Erro ao mover para o lixo' };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao mover para o lixo' };
   }
 }
 
@@ -132,8 +131,8 @@ export async function restoreSchoolYear(id: number) {
     revalidatePath('/school-years/trash');
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Erro ao restaurar' };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao restaurar' };
   }
 }
 
@@ -151,8 +150,8 @@ export async function purgeSchoolYear(id: number) {
     revalidatePath('/school-years/trash');
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Erro ao eliminar permanentemente' };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao eliminar permanentemente' };
   }
 }
 
@@ -172,7 +171,7 @@ export async function getSchoolYearById(id: number): Promise<SchoolYearResponse>
     });
 
     if (!res.ok) {
-      let errorMessage = await res.text().catch(() => 'Erro desconhecido');
+      const errorMessage = await res.text().catch(() => 'Erro desconhecido');
 
       if (res.status === 401) {
         throw new Error('Sessão expirada. Faça login novamente.');
@@ -195,14 +194,14 @@ export async function getSchoolYearById(id: number): Promise<SchoolYearResponse>
     }
 
     return data;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`[getSchoolYearById] ID ${id}:`, err);
     
     // Transforma em erro amigável para o frontend
     throw new Error(
-      err.message?.includes('Sessão expirada') 
+      err instanceof Error && err.message.includes('Sessão expirada')
         ? 'Sessão expirada. Por favor, faça login novamente.'
-        : err.message || 'Não foi possível carregar os dados do ano letivo. Tente novamente.'
+        : err instanceof Error ? err.message : 'Não foi possível carregar os dados do ano letivo. Tente novamente.'
     );
   }
 }

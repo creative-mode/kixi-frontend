@@ -35,9 +35,9 @@ export default function SchoolYearsManager() {
     try {
       const data = await getActiveSchoolYears();
       setSchoolYears(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar anos letivos:', error);
-      toast.error(error.message || 'Erro ao carregar anos letivos');
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar anos letivos');
     } finally {
       setLoading(false);
     }
@@ -57,8 +57,8 @@ export default function SchoolYearsManager() {
       } else {
         toast.error(result.error || 'Erro ao eliminar');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao eliminar');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao eliminar');
     } finally {
       setDeletingId(null);
     }

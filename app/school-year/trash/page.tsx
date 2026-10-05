@@ -34,9 +34,9 @@ export default function SchoolYearTrashPage() {
     try {
       const data = await getTrashedSchoolYears();
       setSchoolYears(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar lixeira:', error);
-      toast.error(error.message || 'Erro ao carregar lixeira');
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar lixeira');
     } finally {
       setLoading(false);
     }
@@ -52,8 +52,8 @@ export default function SchoolYearTrashPage() {
       } else {
         toast.error(result.error || 'Erro ao restaurar');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao restaurar');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao restaurar');
     } finally {
       setActionId(null);
     }
@@ -73,8 +73,8 @@ export default function SchoolYearTrashPage() {
       } else {
         toast.error(result.error || 'Erro ao eliminar permanentemente');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao eliminar permanentemente');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao eliminar permanentemente');
     } finally {
       setActionId(null);
     }
