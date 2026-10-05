@@ -6,7 +6,7 @@ import 'server-only';
 import crypto from 'node:crypto';
 
 const PORT = 0;
-const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
+const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
 
 
