@@ -3,65 +3,84 @@
 import { useState } from 'react';
 import { loginAction } from '@/app/actions/auth';
 import { useRouter } from 'next/navigation';
-import './login.css';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { KixiLogo } from '@/components/kixi-logo';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [user, setUser] = useState('');
+  const [show, setShow] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
 
     const formData = new FormData(e.currentTarget);
-    setUser(String(formData.get('usernameOrEmail') ?? ''));
 
     try {
       const result = await loginAction(formData);
 
       if (result.success) {
+        toast.success('Login realizado com sucesso!', {
+          description: 'A redirecionar para o painel...',
+          duration: 3000,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
         router.push('/');
         router.refresh();
       } else {
-        setError(result.error || 'Utilizador ou palavra-passe incorretos.');
+        toast.error(result.error || 'Credenciais inválidas', {
+          description: 'Verifique o username/email e a senha.',
+        });
       }
     } catch (error) {
       console.error('Erro no login:', error);
-      setError('Não foi possível contactar o servidor. Tenta de novo.');
+      toast.error('Erro de conexão', {
+        description: 'Não foi possível conectar ao servidor. Tente novamente.',
+      });
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <div className="auth">
-      <header className="auth__bar">
-        <a href="/" className="auth__back">← Voltar ao início</a>
-      </header>
-      <main className="auth__main">
-        <section className="auth__card">
-          <h1 className="auth__title">Kixi Manager</h1>
-          <p className="auth__sub">Painel de gestão do Banco de Enunciados.</p>
-          <form onSubmit={handleSubmit} className="stack" style={{ gap: 12 }} noValidate>
-            {error && <p role="alert" className="auth__error">{error}</p>}
-            <div className="kx-field">
-              <label className="kx-field__label" htmlFor="usernameOrEmail">Utilizador ou email</label>
-              <input id="usernameOrEmail" name="usernameOrEmail" className="kx-field__input" placeholder="ex.: admin" autoComplete="username" defaultValue={user} required disabled={isLoading} autoFocus />
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
+      <div className="flex items-center gap-3">
+        <KixiLogo size={28} wordmark />
+        <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">Manager</span>
+      </div>
+      <div className="grid w-full max-w-[400px] gap-6 rounded-xl border bg-card p-6 shadow-xs sm:p-8">
+        <div className="grid gap-1.5">
+          <h1 className="text-2xl leading-tight font-bold tracking-tight">Bem-vindo de volta</h1>
+          <p className="text-sm text-muted-foreground">Inicie sessão para aceder ao painel de gestão.</p>
+        </div>
+        <form onSubmit={handleSubmit} className="grid gap-5">
+          <div className="grid gap-2">
+            <Label htmlFor="usernameOrEmail">Username ou email</Label>
+            <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username email" autoFocus />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="password">Palavra-passe</Label>
+            <div className="relative">
+              <Input id="password" name="password" type={show ? 'text' : 'password'} placeholder="••••••••" required disabled={isLoading} autoComplete="current-password" className="pr-10" />
+              <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'} className="absolute inset-y-0 right-0 grid w-10 place-items-center text-muted-foreground hover:text-foreground">
+                {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
             </div>
-            <div className="kx-field">
-              <label className="kx-field__label" htmlFor="password">Palavra-passe</label>
-              <input id="password" name="password" type="password" className="kx-field__input" autoComplete="current-password" required disabled={isLoading} />
-            </div>
-            <button type="submit" className="auth__submit" disabled={isLoading} aria-busy={isLoading}>
-              <span>{isLoading ? 'A processar…' : 'Entrar'}</span>
-            </button>
-          </form>
-          <p className="auth__foot">Problemas no acesso? Contacta o suporte técnico.</p>
-        </section>
-      </main>
-    </div>
+          </div>
+          <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+            {isLoading ? (<><span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />A entrar...</>) : 'Entrar'}
+          </Button>
+        </form>
+
+      </div>
+      <p className="text-center text-xs text-muted-foreground">Problemas no acesso? Contacte o suporte técnico.</p>
+    </main>
   );
 }

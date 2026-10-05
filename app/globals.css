@@ -2,133 +2,14 @@
 @import "tw-animate-css";
 /* @techify/ui ships an unlayered Tailwind v3 preflight that beats Tailwind v4 utilities; load it inside the base layer so utilities win. */
 @import "@techify/ui/styles.css" layer(base);
-@import "./kixi-tokens.css";
-@theme {
-  --animate-shimmer: shimmer 2s infinite;
+/* Kixi design system: tokens + Tailwind mapping (cópias geradas por `npm run ds:sync`) */
+@import "./ds-tokens.css";
+@import "./ds-theme.css";
 
-  @keyframes shimmer {
-    100% {
-      transform: translateX(100%);
-    }
-  }
-}
-@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
-
-/* shadcn variables point at the Kixi tokens, so every shadcn/Radix component follows the design system. */
-:root {
-  --background: var(--surface);
-  --foreground: var(--ink);
-  --card: var(--surface-raised);
-  --card-foreground: var(--ink);
-  --popover: var(--surface-raised);
-  --popover-foreground: var(--ink);
-  --primary: var(--brand);
-  --primary-foreground: var(--on-brand);
-  --secondary: var(--surface-high);
-  --secondary-foreground: var(--ink);
-  --muted: var(--surface-sunken);
-  --muted-foreground: var(--ink-muted);
-  --accent: var(--surface-high);
-  --accent-foreground: var(--ink);
-  --destructive: var(--alvo);
-  --destructive-foreground: var(--on-alvo);
-  --border: var(--line-strong);
-  --input: var(--line-strong);
-  --ring: var(--focus);
-  --radius: 0.25rem;
-  --chart-1: var(--brand);
-  --chart-2: var(--tiro-ink);
-  --chart-3: var(--radar-ink);
-  --chart-4: var(--pop-ink);
-  --chart-5: var(--lila-ink);
-  --sidebar: var(--surface-raised);
-  --sidebar-foreground: var(--ink);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: var(--on-brand);
-  --sidebar-accent: var(--surface-high);
-  --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: var(--line-strong);
-  --sidebar-ring: var(--focus);
-}
-
+/* Fontes carregadas por next/font neste app */
 @theme inline {
-  --font-sans: var(--ff-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--ff-mono), ui-monospace, Menlo, Consolas, monospace;
-  --font-pixel: var(--ff-pixel), "JetBrains Mono", ui-monospace, monospace;
-  --font-display: var(--ff-pixel), "JetBrains Mono", ui-monospace, monospace;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --shadow-xs: none;
-  --shadow-sm: none;
-  --shadow-md: 4px 4px 0 0 var(--ink);
-  --shadow-lg: 4px 4px 0 0 var(--ink);
-  --shadow-xl: 6px 6px 0 0 var(--ink);
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
-  --radius-xl: 6px;
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-brand: var(--brand);
-  --color-brand-edge: var(--brand-edge);
-  --color-brand-tint: var(--brand-tint);
-  --color-phosphor: var(--phosphor);
-  --color-line: var(--line);
-  --color-surface-high: var(--surface-high);
-  --color-surface-sunken: var(--surface-sunken);
-  --color-tiro: var(--tiro);
-  --color-tiro-edge: var(--tiro-edge);
-  --color-tiro-ink: var(--tiro-ink);
-  --color-tiro-tint: var(--tiro-tint);
-  --color-on-tiro: var(--on-tiro);
-  --color-alvo: var(--alvo);
-  --color-alvo-edge: var(--alvo-edge);
-  --color-alvo-ink: var(--alvo-ink);
-  --color-alvo-tint: var(--alvo-tint);
-  --color-on-alvo: var(--on-alvo);
-  --color-radar: var(--radar);
-  --color-radar-edge: var(--radar-edge);
-  --color-radar-ink: var(--radar-ink);
-  --color-radar-tint: var(--radar-tint);
-  --color-on-radar: var(--on-radar);
-  --color-pop: var(--pop);
-  --color-pop-edge: var(--pop-edge);
-  --color-pop-ink: var(--pop-ink);
-  --color-pop-tint: var(--pop-tint);
-  --color-on-pop: var(--on-pop);
-  --color-lila: var(--lila);
-  --color-lila-edge: var(--lila-edge);
-  --color-lila-ink: var(--lila-ink);
-  --color-lila-tint: var(--lila-tint);
-  --color-on-lila: var(--on-lila);
+  --font-sans: var(--ff-sans), 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--ff-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
 @layer base {
@@ -137,87 +18,226 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
-    /* The LCD: dot-matrix grid and the soft shade at the top of a handheld screen */
-    background-image:
-      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 9%, transparent) 0.8px, transparent 1.2px),
-      linear-gradient(color-mix(in srgb, var(--ink) 10%, transparent), transparent 220px);
-    background-size: 3px 3px, 100% 100%;
-    background-attachment: fixed;
   }
   h1, h2, h3 { letter-spacing: -0.02em; }
-  :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 }
-
-/* Pixel box: a 2px outline and a face, both with stepped corners (design system "pixel-box") */
-.px-box {
-  position: relative;
-  clip-path: var(--kx-clip);
-  background: var(--px-edge, var(--line-strong));
-  isolation: isolate;
-}
-.px-box::before {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  background: var(--px-face, var(--card));
-  clip-path: var(--kx-clip);
-  z-index: -1;
-}
-.px-label { font-family: var(--font-pixel); font-size: 10px; line-height: 14px; letter-spacing: 0.06em; text-transform: uppercase; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* @techify/ui (FormBuilder) reads its own --tui-* variables: point them at the Kixi tokens */
+/* @techify/ui (FormBuilder) lê as suas próprias variáveis --tui-*: apontam para os tokens do design system */
 :root:root,
 :root:root [data-tui],
 :root:root .techify-ui-root {
-  --tui-success: var(--phosphor) !important;
-  --tui-error: var(--alvo-ink) !important;
-  --tui-loading: var(--radar-ink) !important;
-  --tui-warning: var(--tiro-ink) !important;
-  --tui-info: var(--radar-ink) !important;
+  --tui-success: var(--success) !important;
+  --tui-error: var(--destructive) !important;
+  --tui-loading: var(--info) !important;
+  --tui-warning: var(--warning) !important;
+  --tui-info: var(--info) !important;
   --tui-background: var(--card) !important;
-  --tui-foreground: var(--ink) !important;
-  --tui-muted: var(--surface-sunken) !important;
-  --tui-muted-foreground: var(--ink-muted) !important;
-  --tui-border: var(--line-strong) !important;
-  --tui-ring: var(--focus) !important;
-  --tui-input-background: var(--surface-sunken) !important;
-  --tui-primary: var(--brand) !important;
-  --tui-primary-foreground: var(--on-brand) !important;
-  --tui-secondary: var(--surface-high) !important;
-  --tui-secondary-foreground: var(--ink) !important;
-  --tui-destructive: var(--alvo) !important;
-  --tui-destructive-foreground: var(--on-alvo) !important;
-  --tui-radius-sm: 2px !important;
-  --tui-radius-md: 4px !important;
-  --tui-radius-lg: 4px !important;
-  --tui-radius-xl: 6px !important;
-  --tui-border-width: 2px !important;
+  --tui-foreground: var(--foreground) !important;
+  --tui-muted: var(--muted) !important;
+  --tui-muted-foreground: var(--muted-foreground) !important;
+  --tui-border: var(--input) !important;
+  --tui-ring: var(--ring) !important;
+  --tui-input-background: var(--card) !important;
+  --tui-primary: var(--primary) !important;
+  --tui-primary-foreground: var(--primary-foreground) !important;
+  --tui-secondary: var(--secondary) !important;
+  --tui-secondary-foreground: var(--secondary-foreground) !important;
+  --tui-destructive: var(--destructive) !important;
+  --tui-destructive-foreground: var(--destructive-foreground) !important;
+  --tui-radius-sm: 6px !important;
+  --tui-radius-md: 8px !important;
+  --tui-radius-lg: 10px !important;
+  --tui-radius-xl: 14px !important;
+  --tui-border-width: 1px !important;
   --tui-font-family: var(--font-sans) !important;
   --tui-font-family-mono: var(--font-mono) !important;
-  --tui-shadow-sm: none !important;
-  --tui-shadow-md: none !important;
-  --tui-shadow-lg: 4px 4px 0 0 var(--ink) !important;
+  --tui-shadow-sm: var(--shadow-xs) !important;
+  --tui-shadow-md: var(--shadow-xs) !important;
+  --tui-shadow-lg: var(--shadow-md) !important;
 }
 
-/* FormBuilder controls follow the pixel language: 2px outlines, a 4px tactile edge on the submit button */
 [data-tui] input,
 [data-tui] textarea,
 [data-tui] select {
-  border-width: 2px !important;
-  border-radius: 4px !important;
+  border-width: 1px !important;
+  border-radius: 8px !important;
 }
 [data-tui] button[type="submit"] {
-  border: 2px solid var(--brand-edge) !important;
-  border-bottom-width: 4px !important;
-  border-radius: 4px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
   font-weight: 600 !important;
 }
-[data-tui] button[type="submit"]:active {
-  transform: translateY(3px);
-  border-bottom-width: 1px !important;
+
+/* Smooth scroll with Lenis-like behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* Hide scrollbar */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Text mask animation */
+.text-mask {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0% 100%);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--foreground) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Noise texture overlay */
+.noise-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Horizontal scroll container */
+.horizontal-scroll-container {
+  display: flex;
+  flex-wrap: nowrap;
+  will-change: transform;
+}
+
+/* Split text animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.split-text-line {
+  overflow: hidden;
+  display: block;
+}
+
+.split-text-word {
+  display: inline-block;
+  transform: translateY(100%);
+  animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Magnetic button effect */
+.magnetic-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Custom cursor styles */
+.cursor-dot {
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--foreground);
+  border-radius: 50%;
+  z-index: 9999;
+  mix-blend-mode: difference;
+}
+
+/* Reveal animation */
+.reveal-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.reveal-block {
+  position: absolute;
+  inset: 0;
+  background: var(--foreground);
+  transform-origin: left;
+}
+
+/* Marquee */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Stagger children */
+.stagger-children > * {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.stagger-children.in-view > * {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.stagger-children.in-view > *:nth-child(1) {
+  transition-delay: 0s;
+}
+.stagger-children.in-view > *:nth-child(2) {
+  transition-delay: 0.1s;
+}
+.stagger-children.in-view > *:nth-child(3) {
+  transition-delay: 0.2s;
+}
+.stagger-children.in-view > *:nth-child(4) {
+  transition-delay: 0.3s;
+}
+.stagger-children.in-view > *:nth-child(5) {
+  transition-delay: 0.4s;
+}
+.stagger-children.in-view > *:nth-child(6) {
+  transition-delay: 0.5s;
 }

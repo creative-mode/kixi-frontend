@@ -1,14 +1,22 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, ChatBubble, Field } from '@/components/kixi';
-import { tutorChat, tutorChips } from '@/lib/data';
+import { useEffect, useRef, useState } from 'react';
+import { FileText, Send } from 'lucide-react';
+import { Column, Page, PageHeader } from '@/components/page';
+import { UserAvatar } from '@/components/user-avatar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { me, tutorChat, tutorChips } from '@/lib/data';
 
 type Msg = { from: 'student' | 'tutor'; text: string; source?: string };
 
 export default function Tutor() {
   const [msgs, setMsgs] = useState<Msg[]>([...tutorChat] as Msg[]);
   const [text, setText] = useState('');
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs]);
 
   const send = (value: string) => {
     const v = value.trim();
@@ -18,21 +26,33 @@ export default function Tutor() {
   };
 
   return (
-    <>
-      <header className="screen__head screen__head--line" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <h1 className="h1">Tutor</h1>
-        <p className="muted" style={{ margin: 0, font: '400 13px/20px var(--font-sans)' }}>A estudar: P1 Redes · ITEL 2024 · questão 3</p>
-      </header>
-      <main className="screen__main" style={{ gap: 14 }}>
-        {msgs.map((m, i) => <ChatBubble key={i} from={m.from} source={m.source}>{m.text}</ChatBubble>)}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {tutorChips.map((c) => <button key={c} type="button" className="chip" onClick={() => send(c)}>{c}</button>)}
-        </div>
-      </main>
-      <form className="screen__foot" style={{ alignItems: 'flex-end', gap: 10, padding: '12px 20px', borderTop: '1px solid var(--line)' }} onSubmit={(e) => { e.preventDefault(); send(text); }}>
-        <div style={{ flexGrow: 1 }}><Field label="Mensagem" placeholder="Escreve a tua resposta" value={text} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setText(e.target.value)} /></div>
-        <Button type="submit" icon="shot" aria-label="Enviar">Enviar</Button>
-      </form>
-    </>
+    <Page>
+      <Column className="gap-5">
+        <PageHeader title="Tutor" description="A estudar a P1 de Redes (ITEL 2024), questão 3. As respostas citam a prova." />
+        <Card className="min-h-[calc(100dvh-230px)] gap-0 py-0" aria-label="Conversa com o tutor">
+          <div className="flex flex-1 flex-col gap-4 p-4 md:p-5" role="log" aria-live="polite">
+            {msgs.map((m, i) => (
+              <div key={i} className={cn('flex max-w-[94%] gap-2.5 md:max-w-[86%]', m.from === 'student' && 'flex-row-reverse self-end')}>
+                {m.from === 'tutor'
+                  ? <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-[13px] font-bold text-background" aria-hidden="true">K</span>
+                  : <UserAvatar name={me.name} size={32} className="max-md:hidden" />}
+                <div className={cn('rounded-xl border px-3.5 py-2.5 leading-relaxed', m.from === 'student' ? 'border-primary bg-primary text-primary-foreground' : 'bg-secondary')}>
+                  {m.text}
+                  {m.source && <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><FileText className="size-3.5" />Fonte: {m.source}</div>}
+                </div>
+              </div>
+            ))}
+            <div ref={end} />
+          </div>
+          <div className="grid gap-2.5 border-t p-3.5 md:px-5">
+            <div className="flex flex-wrap gap-2">{tutorChips.map((c) => <Button key={c} type="button" variant="outline" size="sm" className="rounded-full text-muted-foreground" onClick={() => send(c)}>{c}</Button>)}</div>
+            <form className="flex gap-2.5" onSubmit={(e) => { e.preventDefault(); send(text); }}>
+              <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Escreve a tua resposta ou dúvida" aria-label="Mensagem para o tutor" />
+              <Button type="submit" disabled={!text.trim()}><Send />Enviar</Button>
+            </form>
+          </div>
+        </Card>
+      </Column>
+    </Page>
   );
 }

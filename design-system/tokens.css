@@ -1,0 +1,103 @@
+/*
+ * Kixi design system · tokens
+ * Fonte única das cores, raios e estados. Nomes iguais aos do shadcn/ui, para os componentes (Radix + Tailwind) seguirem o tema sem ajustes.
+ * Não editar as cópias em student/styles e app/: edita este ficheiro e corre `npm run ds:sync`.
+ * Temas: claro (por omissão) e escuro (`.dark` ou `[data-theme='dark']`).
+ */
+:root,[data-theme='light']{
+  --background:#f6f8f5;
+  --foreground:#121c15;
+  --card:#ffffff;
+  --card-foreground:#121c15;
+  --popover:#ffffff;
+  --popover-foreground:#121c15;
+  --primary:#1f5a2c;
+  --primary-foreground:#ffffff;
+  --secondary:#edf1ea;
+  --secondary-foreground:#1b2a1f;
+  --muted:#edf1ea;
+  --muted-foreground:#617066;
+  --accent:#e3efe0;
+  --accent-foreground:#1b4d27;
+  --destructive:#c2383e;
+  --destructive-foreground:#ffffff;
+  --border:#e1e7de;
+  --input:#cfd8cb;
+  --ring:#2a7a3c;
+  --radius:.625rem;
+
+  --success:#1f7a3c;
+  --success-soft:#e1f2e5;
+  --warning:#8a5a00;
+  --warning-soft:#fbf1d6;
+  --info:#245f9e;
+  --info-soft:#e6eff8;
+  --danger-soft:#fbe9ea;
+
+  --chart-1:#1f5a2c;
+  --chart-2:#d49a00;
+  --chart-3:#245f9e;
+  --chart-4:#b0343a;
+  --chart-5:#6b4aa3;
+
+  --sidebar:#ffffff;
+  --sidebar-foreground:#121c15;
+  --sidebar-primary:#1f5a2c;
+  --sidebar-primary-foreground:#ffffff;
+  --sidebar-accent:#e3efe0;
+  --sidebar-accent-foreground:#1b4d27;
+  --sidebar-border:#e1e7de;
+  --sidebar-ring:#2a7a3c;
+
+  --shadow-xs:0 1px 2px rgba(18,28,21,.05);
+  --shadow-md:0 8px 28px rgba(18,28,21,.14);
+  color-scheme:light;
+}
+.dark,[data-theme='dark']{
+  --background:#0b120e;
+  --foreground:#e8f1e6;
+  --card:#121b16;
+  --card-foreground:#e8f1e6;
+  --popover:#121b16;
+  --popover-foreground:#e8f1e6;
+  --primary:#8fe86a;
+  --primary-foreground:#0b1a10;
+  --secondary:#1a261f;
+  --secondary-foreground:#e8f1e6;
+  --muted:#1a261f;
+  --muted-foreground:#8b9d8e;
+  --accent:#173020;
+  --accent-foreground:#b9f2a0;
+  --destructive:#ff8a90;
+  --destructive-foreground:#2a0b0d;
+  --border:#22302a;
+  --input:#33463b;
+  --ring:#8fe86a;
+
+  --success:#7ddc86;
+  --success-soft:#143020;
+  --warning:#e8c26a;
+  --warning-soft:#2f2713;
+  --info:#8dbdf0;
+  --info-soft:#14283d;
+  --danger-soft:#3a1a1d;
+
+  --chart-1:#8fe86a;
+  --chart-2:#e8c26a;
+  --chart-3:#8dbdf0;
+  --chart-4:#ff8a90;
+  --chart-5:#c9a9ec;
+
+  --sidebar:#0f1813;
+  --sidebar-foreground:#e8f1e6;
+  --sidebar-primary:#8fe86a;
+  --sidebar-primary-foreground:#0b1a10;
+  --sidebar-accent:#173020;
+  --sidebar-accent-foreground:#b9f2a0;
+  --sidebar-border:#22302a;
+  --sidebar-ring:#8fe86a;
+
+  --shadow-xs:none;
+  --shadow-md:0 8px 28px rgba(0,0,0,.45);
+  color-scheme:dark;
+}

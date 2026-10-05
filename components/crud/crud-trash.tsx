@@ -84,7 +84,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => restore(row)} aria-label="Restaurar"><RotateCcw size={16} /></Button>
-                        <Button variant="ghost" size="sm" className="hover:bg-alvo-tint hover:text-alvo-ink" onClick={() => askPurge(row)} aria-label="Eliminar definitivamente"><Trash2 size={16} /></Button>
+                        <Button variant="ghost" size="sm" className="hover:bg-danger-soft hover:text-destructive" onClick={() => askPurge(row)} aria-label="Eliminar definitivamente"><Trash2 size={16} /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

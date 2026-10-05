@@ -14,8 +14,8 @@ import type { ActivityPoint } from '@/types/analytics';
 
 // Design-system tokens, so the chart follows the light "Ecrã" and dark "Noite" themes.
 const config = {
-  finished: { label: 'Simulações concluídas', color: 'var(--radar)' },
-  averageScorePercent: { label: 'Nota média (%)', color: 'var(--brand)' },
+  finished: { label: 'Simulações concluídas', color: 'var(--chart-1)' },
+  averageScorePercent: { label: 'Nota média (%)', color: 'var(--chart-2)' },
 } satisfies ChartConfig;
 
 /** Finished simulations per day (bars) and the average score of that day (line). */

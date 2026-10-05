@@ -5,7 +5,7 @@ export const metadata = { title: 'Entrar · Kixi' };
 
 export default function Entrar() {
   return (
-    <AuthShell title="Entrar" sub="Continua a estudar onde ficaste.">
+    <AuthShell title="Entrar" lead="Usa o teu número de processo ou o teu email.">
       <EntrarForm />
     </AuthShell>
   );

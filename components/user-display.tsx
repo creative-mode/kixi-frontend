@@ -18,7 +18,7 @@ export function UserDisplay() {
 
     return (
         <div className="flex items-center gap-2 text-sm">
-            <div className="h-8 w-8 rounded-[4px] border-2 border-primary bg-brand-tint flex items-center justify-center">
+            <div className="h-8 w-8 rounded-md border-2 border-primary bg-accent flex items-center justify-center">
                 <User size={16} className="text-foreground" />
             </div>
             <div className="hidden lg:block">
