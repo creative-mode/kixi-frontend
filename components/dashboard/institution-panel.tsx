@@ -8,7 +8,7 @@ import type { InstitutionStats } from '@/types/analytics';
 import { ScoreCell } from './score-cell';
 
 const config = {
-  averageScorePercent: { label: 'Nota média (%)', color: 'var(--brand)' },
+  averageScorePercent: { label: 'Nota média (%)', color: 'var(--chart-1)' },
 } satisfies ChartConfig;
 
 /** Institutions side by side: average score as bars, volumes in a table below. */
@@ -28,8 +28,8 @@ export function InstitutionPanel({ institutions }: { institutions: InstitutionSt
           <BarChart data={withData} layout="vertical" margin={{ top: 0, right: 48, left: 8, bottom: 0 }}>
             <CartesianGrid horizontal={false} />
             <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} />
-            <YAxis dataKey="name" type="category" width={96} tickLine={false} axisLine={false} />
-            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <YAxis dataKey="code" type="category" width={64} tickLine={false} axisLine={false} />
+            <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, p) => (p?.[0]?.payload as { name?: string } | undefined)?.name ?? ''} />} />
             <Bar dataKey="averageScorePercent" isAnimationActive={false} fill="var(--color-averageScorePercent)" radius={2} barSize={20}>
               <LabelList
                 dataKey="averageScorePercent"
@@ -41,7 +41,7 @@ export function InstitutionPanel({ institutions }: { institutions: InstitutionSt
           </BarChart>
         </ChartContainer>
       ) : (
-        <p className="rounded-[4px] border-2 border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-md border-2 border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
           Ainda nenhuma instituição tem simulações concluídas para comparar.
         </p>
       )}

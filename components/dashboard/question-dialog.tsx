@@ -64,7 +64,7 @@ export function QuestionDialog({ statement, onClose }: { statement: StatementSta
             return (
               <div className="space-y-4">
                 {hardest && (
-                  <p className="rounded-[4px] border-2 border-tiro-edge bg-tiro-tint px-3 py-2 text-sm text-tiro-ink">
+                  <p className="rounded-md border-2 border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
                     Questão mais difícil: <strong>Q{hardest.number}</strong> ({formatPercent(hardest.correctPercent)} de acertos).
                   </p>
                 )}
@@ -72,7 +72,7 @@ export function QuestionDialog({ statement, onClose }: { statement: StatementSta
                   {questions.map((q) => {
                     const tone = scoreTone(q.correctPercent);
                     return (
-                      <li key={q.id} className="rounded-[4px] border-2 border-border p-3">
+                      <li key={q.id} className="rounded-md border-2 border-border p-3">
                         <div className="flex items-start justify-between gap-3">
                           <p className="text-sm text-foreground">
                             <span className="mr-2 font-semibold">Q{q.number}</span>
@@ -82,7 +82,7 @@ export function QuestionDialog({ statement, onClose }: { statement: StatementSta
                             {formatPercent(q.correctPercent)}
                           </span>
                         </div>
-                        <div className="mt-2 h-2 overflow-hidden border border-border bg-surface-sunken" aria-hidden>
+                        <div className="mt-2 h-2 overflow-hidden border border-border bg-muted" aria-hidden>
                           <div
                             className={`h-full ${TONE_BAR[tone]}`}
                             style={{ width: `${q.correctPercent ?? 0}%` }}

@@ -67,7 +67,7 @@ export default function SchoolYearDetailsPage() {
       <Card>
         <CardHeader className="border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-[4px] border-2 border-current/40 bg-tiro-tint text-tiro-ink">
+            <div className="p-2 rounded-md border-2 border-current/40 bg-warning-soft text-warning">
               <Calendar size={20} />
             </div>
             <CardTitle className="text-2xl text-foreground">
@@ -112,10 +112,10 @@ export default function SchoolYearDetailsPage() {
             </div>
             {schoolYear.deletedAt && (
               <div className="flex items-start gap-3">
-                <Calendar size={16} className="text-alvo-ink mt-0.5" />
+                <Calendar size={16} className="text-destructive mt-0.5" />
                 <div>
-                  <h3 className="text-xs font-medium text-alvo-ink uppercase tracking-wider">Eliminado em</h3>
-                  <p className="mt-1 text-sm text-alvo-ink">
+                  <h3 className="text-xs font-medium text-destructive uppercase tracking-wider">Eliminado em</h3>
+                  <p className="mt-1 text-sm text-destructive">
                     {format(new Date(schoolYear.deletedAt), "dd 'de' MMMM 'de' yyyy, HH:mm", {
                       locale: pt,
                     })}

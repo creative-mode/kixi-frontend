@@ -125,7 +125,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
   }
 
   return (
-    <div className="px-box p-8 max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto rounded-xl border bg-card p-8 shadow-xs">
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-foreground">
           {initialData ? 'Editar Ano Letivo' : 'Adicionar Novo Ano Letivo'}

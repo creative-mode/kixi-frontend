@@ -57,7 +57,7 @@ export function AccountRoles({ account }: { account: Row }) {
             <ul className="space-y-2">
               {roles.map((r) => (
                 <li key={r.id}>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-[4px] border-2 border-border p-3 hover:bg-accent/50">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-md border-2 border-border p-3 hover:bg-accent/50">
                     <input
                       type="checkbox"
                       className="mt-1 h-4 w-4 accent-[var(--primary)]"

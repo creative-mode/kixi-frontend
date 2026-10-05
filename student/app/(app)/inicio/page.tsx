@@ -2,117 +2,191 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Avatar, Badge, Button, Card, Composer, GradeTile, HudBar, Icon, Logo, ProgressBar, Reward, Story } from '@/components/kixi';
-import { KIND_BAND, posts, stories, suggestions, trending } from '@/lib/data';
+import { Bookmark, ChevronRight, MessageCircle, Send, ThumbsUp, TrendingUp, BookOpen } from 'lucide-react';
+import { Column, Page, PageHeader, Rail } from '@/components/page';
+import { Mastery } from '@/components/mastery';
+import { UserAvatar } from '@/components/user-avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { KIND_LABEL, me, posts as seed, ranking, topicsToReview, upcoming, type FeedPost } from '@/lib/data';
 
 const TABS = ['Turma', 'Escola', 'A seguir'] as const;
+const SHORTCUTS = [
+  { label: 'Partilhar resultado', icon: TrendingUp },
+  { label: 'Fazer uma pergunta', icon: MessageCircle },
+  { label: 'Dica de estudo', icon: BookOpen },
+];
+
+function Attach({ p }: { p: FeedPost }) {
+  const a = p.attach;
+  if (!a) return null;
+  if (a.type === 'questao') {
+    return (
+      <blockquote className="rounded-r-md border-l-[3px] border-input bg-secondary px-3.5 py-2.5 text-sm text-foreground/80">
+        <b className="mb-0.5 block text-[13px] font-semibold text-muted-foreground">{a.title}</b>{a.excerpt}
+      </blockquote>
+    );
+  }
+  return (
+    <Link href={a.href} className="flex items-center justify-between gap-4 rounded-md border bg-secondary/60 px-3.5 py-3 transition-colors hover:border-input hover:bg-secondary">
+      <span className="min-w-0"><span className="block text-sm font-semibold">{a.title}</span><span className="text-[13px] text-muted-foreground">{a.meta}</span></span>
+      {a.type === 'resultado' ? (
+        <span className="shrink-0 text-right leading-tight"><b className="block text-2xl font-bold tracking-tight tabular-nums">{a.score}</b>{a.delta && <span className="text-xs font-semibold text-success">{a.delta}</span>}</span>
+      ) : <ChevronRight className="size-5 shrink-0 text-muted-foreground" />}
+    </Link>
+  );
+}
+
+function Post({ p }: { p: FeedPost }) {
+  const [useful, setUseful] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState(p.comments);
+  const [draft, setDraft] = useState('');
+
+  const send = (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = draft.trim();
+    if (!t) return;
+    setList((l) => [...l, { name: me.name, text: t, time: 'agora' }]);
+    setDraft('');
+  };
+  const act = 'h-10 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
+
+  return (
+    <Card className="gap-3 pt-4 pb-0">
+      <CardContent className="grid gap-3">
+        <header className="flex items-center gap-3">
+          <UserAvatar name={p.name} size={44} />
+          <div className="min-w-0 flex-1 leading-tight"><div className="font-bold">{p.name}</div><div className="text-[13px] text-muted-foreground">{p.meta}</div></div>
+          <Badge variant="secondary">{KIND_LABEL[p.kind]}</Badge>
+        </header>
+        <p className="max-w-[62ch] leading-relaxed">{p.text}</p>
+        <Attach p={p} />
+      </CardContent>
+
+      <div className="flex flex-wrap items-center gap-0.5 border-t px-2 py-1">
+        <Button variant="ghost" className={act} aria-pressed={useful} onClick={() => setUseful((v) => !v)}>
+          <ThumbsUp className={cn(useful && 'fill-primary/15')} />Útil<span className="tabular-nums">{p.useful + (useful ? 1 : 0)}</span>
+        </Button>
+        <Button variant="ghost" className={act} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <MessageCircle />Comentar<span className="tabular-nums">{list.length}</span>
+        </Button>
+        <Button variant="ghost" size="icon" className="text-muted-foreground aria-pressed:text-primary" aria-pressed={saved} aria-label={saved ? 'Remover dos guardados' : 'Guardar'} onClick={() => setSaved((v) => !v)}>
+          <Bookmark className={cn(saved && 'fill-primary/15')} />
+        </Button>
+        {p.cta && <Button asChild variant="ghost" size="sm" className="ml-auto max-w-full text-primary"><Link href={p.cta.href}>{p.cta.label}</Link></Button>}
+      </div>
+
+      {open && (
+        <div className="grid gap-3 border-t px-5 py-4">
+          {list.map((c, i) => (
+            <div className="flex gap-2.5" key={i}>
+              <UserAvatar name={c.name} size={32} />
+              <div>
+                <div className="rounded-xl bg-secondary px-3 py-2 text-sm leading-snug"><b className="mr-1.5 font-bold">{c.name}</b>{c.text}</div>
+                <div className="mt-0.5 ml-3 text-xs text-muted-foreground">{c.time}</div>
+              </div>
+            </div>
+          ))}
+          <form className="flex items-center gap-2.5" onSubmit={send}>
+            <UserAvatar name={me.name} size={32} />
+            <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" />
+            <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário"><Send /></Button>
+          </form>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function Inicio() {
   const [tab, setTab] = useState<(typeof TABS)[number]>('Turma');
-  const [on, setOn] = useState<Record<string, boolean>>({});
-  const flip = (k: string) => setOn((s) => ({ ...s, [k]: !s[k] }));
+  const [text, setText] = useState('');
+  const [mine, setMine] = useState<FeedPost[]>([]);
+
+  const publish = (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = text.trim();
+    if (!t) return;
+    setMine((m) => [{ id: 'm' + m.length, kind: 'duvida', name: me.name, meta: `${me.turma} · ${me.escola} · agora`, text: t, useful: 0, comments: [] }, ...m]);
+    setText('');
+  };
+  const top = ranking.Turma.rows.slice(0, 3);
 
   return (
-    <>
-      <header className="screen__head inicio-head kx-sky" style={{ borderBottom: '2px solid var(--line-strong)', background: 'var(--surface-raised)' }}>
-        <Logo size={24} wordmark />
-        <Button size="sm" icon="plus">Publicar</Button>
-      </header>
-      <main className="screen__main page--wide inicio">
-        <aside className="inicio__rail">
-        <section aria-label="Em destaque na turma" className="stack" style={{ gap: 4 }}>
-          <span className="eyebrow">Em destaque na turma</span>
-          <div className="stories">
-            {stories.map((s) => <Story key={s.name} name={s.name} value={s.value} hue={s.hue} seen={s.seen} />)}
+    <Page variant="feed">
+      <Column>
+        <PageHeader title="Início" />
+
+        <Card className="flex-row items-center gap-4 px-5 py-4" aria-label="Simulação em curso">
+          <div className="grid min-w-0 flex-1 gap-2">
+            <div><div className="font-bold">P1 · Redes de Computadores</div><div className="text-[13px] text-muted-foreground">Em curso · questão 5 de 12 · 42 min restantes</div></div>
+            <Progress value={(5 / 12) * 100} aria-label="Progresso da simulação" />
           </div>
-        </section>
+          <Button asChild><Link href="/prova/redes-p1">Continuar</Link></Button>
+        </Card>
 
-        <Link href="/prova/redes-p1" className="linkbtn" aria-label="Continuar a simulação P1 de Redes, questão 5 de 12">
-          <Card style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="row" style={{ justifyContent: 'space-between', gap: 12 }}>
-              <div className="stack" style={{ gap: 2, minWidth: 0 }}>
-                <span style={{ font: '400 10px/14px var(--font-pixel)', textTransform: 'uppercase', color: 'var(--tiro-ink)' }}>Continuar</span>
-                <span style={{ font: '700 15px/22px var(--font-sans)' }}>P1 · Redes de Computadores</span>
-              </div>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 10px', background: 'var(--tiro)', color: 'var(--on-tiro)', borderBottom: '4px solid var(--tiro-edge)', font: '400 10px/1 var(--font-pixel)' }}>
-                <Icon name="play" size={16} />5/12
-              </span>
+        <Card className="gap-3 py-4">
+          <form className="grid gap-3 px-4" onSubmit={publish}>
+            <div className="flex items-center gap-3">
+              <UserAvatar name={me.name} size={40} />
+              <Input className="h-11 rounded-full bg-secondary px-4" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha um resultado ou pergunta à turma" aria-label="Nova publicação" />
+              <Button type="submit" size="sm" disabled={!text.trim()}>Publicar</Button>
             </div>
-            <ProgressBar value={5} max={12} slim valueLabel={false} segments={12} label="Progresso da simulação" />
-          </Card>
-        </Link>
+            <div className="flex flex-wrap gap-1.5 md:pl-[52px]">
+              {SHORTCUTS.map((a) => (
+                <Button key={a.label} type="button" variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setText((t) => t || a.label + ': ')}><a.icon />{a.label}</Button>
+              ))}
+            </div>
+          </form>
+        </Card>
 
-        <div className="only-wide"><HudBar level={7} xp={1240} xpMax={1500} streak={12} /></div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as (typeof TABS)[number])}>
+          <TabsList aria-label="Mostrar publicações de">{TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
+        </Tabs>
 
-        <section className="side-card only-wide" aria-label="Desafio da semana">
-          <span className="eyebrow">Desafio da semana</span>
-          <p className="side-card__big">Sobe 1 lugar no ranking da turma</p>
-          <ProgressBar value={3} max={5} slim valueLabel={false} segments={10} label="Provas feitas esta semana" />
-          <span className="muted" style={{ font: '400 13px/18px var(--font-sans)' }}>3 de 5 simulações · prémio +80 XP</span>
-        </section>
+        {[...mine, ...seed].map((p) => <Post key={p.id} p={p} />)}
+      </Column>
 
-        <section className="side-card only-wide" aria-label="Em alta na escola">
-          <span className="eyebrow">Em alta no ITEL</span>
-          <ul className="side-list">
-            {trending.map((t, i) => (
-              <li key={t.tag}><span className="side-list__n">{i + 1}</span><b>#{t.tag}</b><span className="muted">{t.count} publicações</span></li>
-            ))}
-          </ul>
-        </section>
+      <Rail>
+        <Card className="gap-4"><CardHeader><CardTitle>Para rever</CardTitle></CardHeader>
+          <CardContent className="grid gap-3.5">
+            {topicsToReview.map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}
+            <Button asChild variant="outline" size="sm"><Link href="/tutor">Rever com o tutor</Link></Button>
+          </CardContent>
+        </Card>
 
-        <section className="side-card only-wide" aria-label="Sugestões para seguir">
-          <span className="eyebrow">Quem seguir</span>
-          <ul className="side-list">
-            {suggestions.map((u) => (
-              <li key={u.name} className="side-user">
-                <Avatar name={u.name} size={40} />
-                <span className="side-user__who"><b>{u.name}</b><span className="muted">{u.meta}</span></span>
-                <button type="button" className="follow" aria-pressed={!!on['s' + u.name]} onClick={() => flip('s' + u.name)}>{on['s' + u.name] ? 'A seguir' : 'Seguir'}</button>
-              </li>
-            ))}
-          </ul>
-        </section>
-        </aside>
+        <Card className="gap-4"><CardHeader><CardTitle>Na tua turma</CardTitle></CardHeader>
+          <CardContent className="grid gap-3">
+            <ol className="grid gap-2.5">
+              {top.map((r) => (
+                <li key={r.name} className="flex items-center gap-2.5 text-sm">
+                  <span className="w-5 text-center font-semibold text-muted-foreground tabular-nums">{r.rank}</span>
+                  <UserAvatar name={r.name} size={28} /><span className="min-w-0 flex-1 truncate">{r.name}</span><span className="text-muted-foreground tabular-nums">{r.score}</span>
+                </li>
+              ))}
+            </ol>
+            <Button asChild variant="link" size="sm" className="justify-start px-0"><Link href="/ranking">Ver a turma toda</Link></Button>
+          </CardContent>
+        </Card>
 
-        <div className="inicio__feed">
-        <Composer name="Abner Ede" placeholder="Partilha com a turma" />
-
-        <div className="seg" role="group" aria-label="Mostrar publicações de">
-          {TABS.map((t) => <button key={t} type="button" aria-pressed={t === tab} onClick={() => setTab(t)}>{t}</button>)}
-        </div>
-
-        {posts.map((p, idx) => {
-          const band = KIND_BAND[p.kind];
-          const clapped = !!on['c' + p.id];
-          const forced = !!on['f' + p.id];
-          return (
-            <article key={p.id} className={`kx-post kx-card kx-scope${band.cls}`} style={{ ['--i' as string]: idx }}>
-              <div className="kx-post__band" aria-hidden="true" />
-              <header className="kx-post__head">
-                <Avatar name={p.name} ring={p.fresh} />
-                <div className="kx-post__who"><span className="kx-post__name">{p.name}</span><span className="kx-post__meta">{p.meta}</span></div>
-                <Badge tone={band.tone}>{band.label}</Badge>
-              </header>
-              <p className="kx-post__text">{p.text}</p>
-              {p.exam && <GradeTile title={p.exam.title} meta={p.exam.meta} delta={p.exam.delta} grade={p.exam.grade} />}
-              {p.reward && <div><Reward icon={p.reward.icon} tone={p.reward.tone}>{p.reward.label}</Reward></div>}
-              <div className="kx-reactions">
-                <button type="button" className={`kx-react kx-react--tiro${clapped ? ' is-on' : ''}`} aria-pressed={clapped} onClick={() => flip('c' + p.id)}>
-                  <Icon name="star" size={16} /><span>Aplaudir</span><b>{p.claps + (clapped ? 1 : 0)}</b>
-                </button>
-                <button type="button" className={`kx-react kx-react--pop${forced ? ' is-on' : ''}`} aria-pressed={forced} onClick={() => flip('f' + p.id)}>
-                  <Icon name="bolt" size={16} /><span>Força</span><b>{p.forces + (forced ? 1 : 0)}</b>
-                </button>
-                <button type="button" className="kx-react kx-react--radar"><Icon name="chat" size={16} /><span>Comentar</span><b>{p.comments}</b></button>
-                <div className="kx-reactions__end">
-                  <Link href={p.cta.href} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 4px', font: '700 13px/1 var(--font-sans)' }}>{p.cta.label}</Link>
-                </div>
+        <Card className="gap-4 md:col-span-2 xl:col-span-1"><CardHeader><CardTitle>Próximas provas</CardTitle></CardHeader>
+          <CardContent className="grid gap-3.5">
+            {upcoming.map((u) => (
+              <div className="flex items-center gap-3" key={u.title}>
+                <div className="grid size-11 shrink-0 place-items-center rounded-md bg-accent text-center text-[15px] leading-none font-bold text-accent-foreground"><span>{u.day}<small className="mt-0.5 block text-[10px] font-semibold opacity-80">{u.month}</small></span></div>
+                <div className="leading-tight"><div className="text-sm font-semibold">{u.title}</div><div className="text-[13px] text-muted-foreground">{u.meta}</div></div>
               </div>
-            </article>
-          );
-        })}
-        </div>
-      </main>
-    </>
+            ))}
+          </CardContent>
+        </Card>
+      </Rail>
+    </Page>
   );
 }
