@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Archive, Check, Eye, EyeOff, FileSearch, Trash2 } from 'lucide-react';
+import { Archive, Check, Eye, EyeOff, FileSearch, ScanText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { approveStatement, deleteRow, listStatements, setStatementVisible } from
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
+import { TableRowsSkeleton } from './loading';
 
 const entity = ENTITIES.statements;
 const FILTERS = [
@@ -53,9 +54,14 @@ export function StatementsManager() {
       <PageHead
         entity={entity}
         actions={
-          <Button asChild variant="outline">
-            <Link href="/statements/trash"><Archive size={16} className="mr-2" /> Lixeira</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link href="/statements/trash"><Archive size={16} /> Lixeira</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/statements/import"><ScanText size={16} /> Importar prova</Link>
+            </Button>
+          </div>
         }
       />
       <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Filtro">
@@ -79,7 +85,7 @@ export function StatementsManager() {
             </TableHeader>
             <TableBody>
               {rows === null ? (
-                <TableRow><TableCell colSpan={6} className="py-16 text-center text-muted-foreground">A carregar…</TableCell></TableRow>
+                <TableRowsSkeleton cols={6} />
               ) : error ? (
                 <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
               ) : rows.length === 0 ? (
@@ -141,7 +147,7 @@ export function StatementsManager() {
           </Table>
         </CardContent>
       </Card>
-      <p className="mt-3 text-xs text-muted-foreground">Os enunciados chegam pelo OCR: aqui revê-se, publica-se e arquiva-se.</p>
+      <p className="mt-3 text-xs text-muted-foreground">Os enunciados chegam pelo OCR (Importar prova): aqui revê-se, publica-se e arquiva-se.</p>
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );

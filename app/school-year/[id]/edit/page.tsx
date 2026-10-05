@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Edit } from 'lucide-react';
 import Link from 'next/link';
+import { FormSkeleton } from '@/components/crud/loading';
 
 export default function EditSchoolYearPage() {
   const params = useParams();
@@ -26,9 +27,7 @@ export default function EditSchoolYearPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-      </div>
+      <div className="mx-auto max-w-3xl p-4 md:p-8"><FormSkeleton fields={2} /></div>
     );
   }
 

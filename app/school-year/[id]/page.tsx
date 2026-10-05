@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Edit, ArrowLeft, Calendar, Clock, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { DetailSkeleton } from '@/components/crud/loading';
 
 export default function SchoolYearDetailsPage() {
   const params = useParams();
@@ -29,9 +30,7 @@ export default function SchoolYearDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-      </div>
+      <div className="mx-auto max-w-4xl p-4 md:p-8"><DetailSkeleton /></div>
     );
   }
 
@@ -67,7 +66,7 @@ export default function SchoolYearDetailsPage() {
       <Card>
         <CardHeader className="border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-md border-2 border-current/40 bg-warning-soft text-warning">
+            <div className="p-2 rounded-md bg-warning-soft text-warning">
               <Calendar size={20} />
             </div>
             <CardTitle className="text-2xl text-foreground">
@@ -78,11 +77,11 @@ export default function SchoolYearDetailsPage() {
         <CardContent className="pt-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="p-4 rounded-lg bg-accent border border-border">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Ano de início</h3>
+              <h3 className="text-xs font-medium text-muted-foreground mb-1">Ano de início</h3>
               <p className="text-2xl font-bold text-foreground">{schoolYear.startYear}</p>
             </div>
             <div className="p-4 rounded-lg bg-accent border border-border">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Ano de fim</h3>
+              <h3 className="text-xs font-medium text-muted-foreground mb-1">Ano de fim</h3>
               <p className="text-2xl font-bold text-foreground">{schoolYear.endYear}</p>
             </div>
           </div>
@@ -91,7 +90,7 @@ export default function SchoolYearDetailsPage() {
             <div className="flex items-start gap-3">
               <Clock size={16} className="text-muted-foreground mt-0.5" />
               <div>
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Criado em</h3>
+                <h3 className="text-xs font-medium text-muted-foreground">Criado em</h3>
                 <p className="mt-1 text-sm text-foreground">
                   {format(new Date(schoolYear.createdAt), "dd 'de' MMMM 'de' yyyy, HH:mm", {
                     locale: pt,
@@ -102,7 +101,7 @@ export default function SchoolYearDetailsPage() {
             <div className="flex items-start gap-3">
               <RefreshCw size={16} className="text-muted-foreground mt-0.5" />
               <div>
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Última atualização</h3>
+                <h3 className="text-xs font-medium text-muted-foreground">Última atualização</h3>
                 <p className="mt-1 text-sm text-foreground">
                   {format(new Date(schoolYear.updatedAt), "dd 'de' MMMM 'de' yyyy, HH:mm", {
                     locale: pt,
@@ -114,7 +113,7 @@ export default function SchoolYearDetailsPage() {
               <div className="flex items-start gap-3">
                 <Calendar size={16} className="text-destructive mt-0.5" />
                 <div>
-                  <h3 className="text-xs font-medium text-destructive uppercase tracking-wider">Eliminado em</h3>
+                  <h3 className="text-xs font-medium text-destructive">Eliminado em</h3>
                   <p className="mt-1 text-sm text-destructive">
                     {format(new Date(schoolYear.deletedAt), "dd 'de' MMMM 'de' yyyy, HH:mm", {
                       locale: pt,
