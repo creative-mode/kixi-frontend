@@ -6,8 +6,20 @@ import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/li
 
 const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
+function publicOrigin(request: NextRequest) {
+  const configured = process.env.NEXT_PUBLIC_MANAGER_URL;
+  if (configured) {
+    const url = new URL(configured);
+    return `${url.protocol}//${url.host}`;
+  }
+  return new URL(request.url).origin;
+}
+
 function redirectTo(path: string, request: NextRequest, query?: Record<string, string>) {
   const url = request.nextUrl.clone();
+  const origin = new URL(publicOrigin(request));
+  url.protocol = origin.protocol;
+  url.host = origin.host;
   url.pathname = path;
   url.search = '';
   for (const [key, value] of Object.entries(query ?? {})) {
