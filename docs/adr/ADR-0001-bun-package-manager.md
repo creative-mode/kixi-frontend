@@ -53,7 +53,7 @@ workspaces (single root lockfile) without changing toolchain.
 
 - `package.json` workspaces: `[".", "student", "landing"]` (or move apps under `apps/`);
 - single `bun.lock`, delete the three `package-lock.json`;
-- `bun install` once at root; `bun --filter … run dev` in `dev-all.mjs`;
+- `bun install` once at root; `bun --filter <pkg> dev` in `dev-all.mjs`;
 - Docker: `oven/bun` base image (or multi-stage: install with Bun, run with Node);
 - CI: `oven-sh/setup-bun` + `bun install --frozen-lockfile`;
 - pin the version (`bun --version`, e.g. 1.4.x) and document it in the README.
