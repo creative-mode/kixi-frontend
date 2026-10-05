@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { KixiLogo } from '@/components/kixi-logo';
 import { Eye, EyeOff } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +76,7 @@ export default function LoginPage() {
             </div>
           </div>
           <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
-            {isLoading ? (<><span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />A entrar...</>) : 'Entrar'}
+            {isLoading ? (<><Spinner className="size-4" />A entrar...</>) : 'Entrar'}
           </Button>
         </form>
 

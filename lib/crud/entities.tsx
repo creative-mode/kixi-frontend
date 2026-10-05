@@ -5,7 +5,9 @@ import {
   CalendarRange,
   FileText,
   GraduationCap,
+  KeyRound,
   Layers,
+  ListChecks,
   PlayCircle,
   Shield,
   User,
@@ -18,7 +20,7 @@ import type { ReactNode } from 'react';
  * the server actions and the navigation. Paths and DTO shapes mirror creative-mode/kixi (backend-api).
  */
 
-export type FieldType = 'text' | 'number' | 'textarea' | 'email' | 'password' | 'select';
+export type FieldType = 'text' | 'number' | 'textarea' | 'email' | 'password' | 'select' | 'datetime';
 
 export interface Field {
   name: string;
@@ -53,7 +55,9 @@ export type EntityKey =
   | 'accounts'
   | 'users'
   | 'statements'
-  | 'simulations';
+  | 'simulations'
+  | 'sessions'
+  | 'simulation-answers';
 
 export interface Entity {
   key: EntityKey;
@@ -65,6 +69,8 @@ export interface Entity {
   idKey: 'id' | 'code';
   singular: string;
   plural: string;
+  /** feminine noun: concordância nas mensagens (criada, movida, restaurada) */
+  fem?: boolean;
   description: string;
   icon: LucideIcon;
   tone: string;
@@ -85,6 +91,9 @@ export interface Entity {
 }
 
 const date = (v?: string | null) => (v ? new Date(v).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+const dateTime = (v?: string | null) => (v ? new Date(v).toLocaleString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+const localInput = (v?: string | null) => (v ? String(v).slice(0, 16) : '');
+const num = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
 const dim = (v: ReactNode) => <span className="text-muted-foreground">{v ?? '—'}</span>;
 
 export const ENTITIES: Record<EntityKey, Entity> = {
@@ -138,6 +147,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
   },
   subjects: {
     key: 'subjects',
+    fem: true,
     path: 'subjects',
     api: '/api/v1/subjects',
     idKey: 'code',
@@ -194,6 +204,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
   },
   classes: {
     key: 'classes',
+    fem: true,
     path: 'classes',
     api: '/api/v1/classes',
     idKey: 'id',
@@ -249,6 +260,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
   },
   accounts: {
     key: 'accounts',
+    fem: true,
     path: 'accounts',
     api: '/api/v1/accounts',
     idKey: 'id',
@@ -303,6 +315,76 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     purge: { suffix: '/purge' },
     toForm: (r) => ({ accountId: r.accountId, firstName: r.firstName, lastName: r.lastName, photo: r.photo ?? '' }),
   },
+  sessions: {
+    key: 'sessions',
+    fem: true,
+    path: 'sessions',
+    api: '/api/v1/sessions',
+    idKey: 'id',
+    singular: 'Sessão',
+    plural: 'Sessões',
+    description: 'Sessões de acesso ativas e expiradas das contas',
+    icon: KeyRound,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'accountId', label: 'Conta', type: 'select', required: true, optionsFrom: 'accounts' },
+      { name: 'token', label: 'Token', type: 'text', required: true, max: 500, hint: 'Identificador secreto da sessão. Não o partilhe.' },
+      { name: 'ipAddress', label: 'Endereço IP', type: 'text', required: true, max: 45, placeholder: '41.xxx.xxx.xxx' },
+      { name: 'expiresAt', label: 'Expira em', type: 'datetime' },
+    ],
+    columns: [
+      { label: 'Conta', value: (r) => <strong>#{r.accountId}</strong>, className: 'w-24' },
+      { label: 'IP', value: (r) => <span className="font-mono text-xs">{r.ipAddress}</span>, className: 'w-40' },
+      { label: 'Expira', value: (r) => (r.expiresAt && new Date(r.expiresAt) < new Date() ? <span className="text-warning">Expirada · {dateTime(r.expiresAt)}</span> : dim(dateTime(r.expiresAt))) },
+      { label: 'Último uso', value: (r) => dim(dateTime(r.lastUsed)) },
+    ],
+    titleOf: (r) => `Sessão #${r.id} · conta #${r.accountId}`,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toRequest: (v) => ({ accountId: Number(v.accountId), token: String(v.token).trim(), ipAddress: String(v.ipAddress).trim(), expiresAt: v.expiresAt ? `${v.expiresAt}:00` : null }),
+    toForm: (r) => ({ accountId: r.accountId, token: r.token, ipAddress: r.ipAddress, expiresAt: localInput(r.expiresAt) }),
+  },
+  'simulation-answers': {
+    key: 'simulation-answers',
+    fem: true,
+    path: 'simulation-answers',
+    api: '/api/v1/simulation-answers',
+    idKey: 'id',
+    singular: 'Resposta',
+    plural: 'Respostas',
+    description: 'Respostas dadas pelos alunos em cada simulação',
+    icon: ListChecks,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'simulationId', label: 'Simulação', type: 'select', required: true, optionsFrom: 'simulations', createOnly: true },
+      { name: 'questionId', label: 'Questão (n.º interno)', type: 'number', required: true, min: 1, createOnly: true },
+      { name: 'selectedOptionId', label: 'Opção escolhida (n.º interno)', type: 'number', min: 1, hint: 'Para questões de escolha múltipla.' },
+      { name: 'answerText', label: 'Resposta escrita', type: 'textarea', max: 5000, hint: 'Para questões de resposta aberta.' },
+      { name: 'answeredAt', label: 'Respondida em', type: 'datetime' },
+    ],
+    columns: [
+      { label: 'Simulação', value: (r) => <strong>#{r.simulationId}</strong>, className: 'w-28' },
+      { label: 'Questão', value: (r) => `#${r.questionId}`, className: 'w-24' },
+      { label: 'Resposta', value: (r) => (r.selectedOptionId != null ? `Opção #${r.selectedOptionId}` : dim(r.answerText ? String(r.answerText).slice(0, 48) : null)) },
+      { label: 'Correta', value: (r) => (r.isCorrect == null ? dim(null) : r.isCorrect ? <span className="text-success">Sim</span> : <span className="text-destructive">Não</span>), className: 'w-24' },
+      { label: 'Pontos', value: (r) => dim(r.scoreObtained == null ? null : num(r.scoreObtained)), className: 'w-20' },
+    ],
+    titleOf: (r) => `Resposta #${r.id}`,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toRequest: (v) => ({
+      simulationId: Number(v.simulationId),
+      questionId: Number(v.questionId),
+      selectedOptionId: v.selectedOptionId === '' || v.selectedOptionId == null ? null : Number(v.selectedOptionId),
+      answerText: v.answerText || null,
+      answeredAt: v.answeredAt ? `${v.answeredAt}:00` : null,
+    }),
+    toForm: (r) => ({ simulationId: r.simulationId, questionId: r.questionId, selectedOptionId: r.selectedOptionId ?? '', answerText: r.answerText ?? '', answeredAt: localInput(r.answeredAt) }),
+  },
   // Statements and simulations are managed (moderated), not authored here: statements arrive through OCR.
   statements: {
     key: 'statements',
@@ -329,6 +411,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
   },
   simulations: {
     key: 'simulations',
+    fem: true,
     path: 'simulations',
     api: '/api/simulations',
     idKey: 'id',
@@ -341,10 +424,10 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     columns: [
       { label: 'Aluno', value: (r) => <strong>{r.account?.username ?? '—'}</strong> },
       { label: 'Prova', value: (r) => r.statement?.title ?? '—' },
-      { label: 'Nota', value: (r) => (r.finalScore == null ? dim(null) : String(r.finalScore).replace('.', ',')), className: 'w-20' },
+      { label: 'Nota', value: (r) => (r.finalScore == null ? dim(null) : num(r.finalScore)), className: 'w-20' },
       { label: 'Estado', value: (r) => r.status, className: 'w-32' },
     ],
-    titleOf: (r) => `#${r.id}`,
+    titleOf: (r) => `#${r.id} · ${r.account?.username ?? 'aluno'} · ${r.statement?.title ?? 'prova'}`,
     canCreate: false,
     canEdit: false,
     // simulations use PUT /{id}/restore and DELETE /{id}/permanent
@@ -354,7 +437,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
 };
 
 /** Entities with a plain create/edit form (statements and simulations have their own screens). */
-export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'roles', 'accounts', 'users'];
+export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'roles', 'accounts', 'users', 'sessions', 'simulation-answers'];
 export const NAV_KEYS: EntityKey[] = [...CRUD_KEYS, 'statements', 'simulations'];
 
 export function entityByPath(path: string): Entity | undefined {
@@ -364,3 +447,7 @@ export function rowId(entity: Entity, row: Row): string {
   return String(row[entity.idKey]);
 }
 export { BookOpen };
+
+/** "criado" / "criada", "movido" / "movida"… conforme o género da entidade. */
+export const gender = (e: Entity, masculine: string) => (e.fem ? masculine.replace(/o$/, 'a') : masculine);
+export const newLabel = (e: Entity) => (e.fem ? 'Nova' : 'Novo');

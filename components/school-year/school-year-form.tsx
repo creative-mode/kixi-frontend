@@ -11,6 +11,7 @@ import type { FormField } from '@techify/ui';
 import { fetchCurrentUser } from '@/lib/auth';
 import { toast } from 'sonner';
 import type { SchoolYearResponse } from '@/types/school-year';
+import { FormSkeleton } from '@/components/crud/loading';
 
 const SchoolYearSchema = z.object({
   startYear: z
@@ -118,9 +119,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
 
   if (!isReady) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-      </div>
+      <FormSkeleton fields={2} />
     );
   }
 

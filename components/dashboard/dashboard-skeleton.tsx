@@ -65,7 +65,7 @@ export function SectionSkeleton({ children }: { children?: React.ReactNode }) {
 export function DashboardSkeleton() {
   return (
     <div role="status" aria-label="A carregar o painel" className="space-y-8">
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">{Array.from({ length: 10 }, (_, i) => <TileSkeleton key={i} />)}</section>
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">{Array.from({ length: 12 }, (_, i) => <TileSkeleton key={i} />)}</section>
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-6">{Array.from({ length: 6 }, (_, i) => <KpiSkeleton key={i} />)}</section>
       <SectionSkeleton><ChartSkeleton /></SectionSkeleton>
       <SectionSkeleton />
