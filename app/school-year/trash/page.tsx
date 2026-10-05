@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react';
 import type { SchoolYearResponse } from '@/types/school-year';
+import { TableRowsSkeleton } from '@/components/crud/loading';
 
 export default function SchoolYearTrashPage() {
   const [schoolYears, setSchoolYears] = useState<SchoolYearResponse[]>([]);
@@ -118,14 +119,7 @@ export default function SchoolYearTrashPage() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="animate-spin h-6 w-6 border-2 border-border border-t-transparent rounded-full" />
-                      <span className="text-sm">A carregar...</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <TableRowsSkeleton cols={5} />
               ) : schoolYears.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
