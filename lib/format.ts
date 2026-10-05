@@ -44,17 +44,17 @@ export function scoreTone(percent: number | null | undefined): ScoreTone {
   return 'low';
 }
 
-// Design-system tokens: brand = good, tiro (yellow) = borderline, alvo (red) = low.
+// Design-system tokens: primary = good, warning = borderline, destructive = low.
 export const TONE_TEXT: Record<ScoreTone, string> = {
-  good: 'text-phosphor',
-  ok: 'text-tiro-ink',
-  low: 'text-alvo-ink',
+  good: 'text-primary',
+  ok: 'text-warning',
+  low: 'text-destructive',
   none: 'text-muted-foreground',
 };
 
 export const TONE_BAR: Record<ScoreTone, string> = {
-  good: 'bg-brand',
-  ok: 'bg-tiro',
-  low: 'bg-alvo',
-  none: 'bg-surface-sunken',
+  good: 'bg-primary',
+  ok: 'bg-warning',
+  low: 'bg-destructive',
+  none: 'bg-muted',
 };

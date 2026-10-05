@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   BookOpenCheck,
+  ArrowRight,
   CheckCheck,
   Clock,
-  ArrowRight,
   FileSearch,
   GraduationCap,
   Plus,
@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { getDashboard } from '@/app/actions/analytics';
 import { dashboardCounts } from '@/app/actions/crud';
-import { ENTITIES, NAV_KEYS } from '@/lib/crud/entities';
 import { ActivityChart } from '@/components/dashboard/activity-chart';
 import { AttentionPanel } from '@/components/dashboard/attention-panel';
 import { ClassesTable } from '@/components/dashboard/classes-table';
@@ -27,6 +26,7 @@ import { StatementsTable } from '@/components/dashboard/statements-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ENTITIES, NAV_KEYS } from '@/lib/crud/entities';
 import { formatDuration, formatInt, formatPercent } from '@/lib/format';
 import type { Dashboard } from '@/types/analytics';
 
@@ -37,9 +37,15 @@ export default function ManagerDashboard() {
   const [days, setDays] = useState<number>(30);
   const [data, setData] = useState<Dashboard | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [counts, setCounts] = useState<Record<string, number> | null>(null);
   // Only the latest request may write state, so a slow response for an old period cannot overwrite a newer one.
   const requestId = useRef(0);
+  const [counts, setCounts] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    dashboardCounts().then((r) => r.ok && setCounts(r.data));
+  }, []);
+  const review = counts?.review ?? 0;
+  const value = (n?: number) => (counts == null ? '—' : n == null || n < 0 ? '!' : String(n));
 
   const load = useCallback(async () => {
     const mine = ++requestId.current;
@@ -67,12 +73,6 @@ export default function ManagerDashboard() {
     return () => clearInterval(timer);
   }, [load]);
 
-  useEffect(() => {
-    dashboardCounts().then((r) => { if (r.ok) setCounts(r.data); });
-  }, []);
-  const value = (n?: number) => (counts == null ? '—' : n == null || n < 0 ? '!' : String(n));
-  const review = counts?.review ?? 0;
-
   const overview = data?.overview ?? null;
   const o = overview?.ok ? overview.data : null;
   const isAdmin = o?.scope === 'ADMIN';
@@ -84,7 +84,7 @@ export default function ManagerDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground">Dashboard</h1>
+          <h1 className="text-2xl leading-tight tracking-tight text-foreground">Dashboard</h1>
           <p className="mt-1 text-muted-foreground">
             Desempenho dos estudantes e estado das provas
             {o && !isAdmin ? ' nas suas turmas' : ''}.
@@ -121,6 +121,39 @@ export default function ManagerDashboard() {
             </Link>
           </Button>
         </div>
+      </div>
+
+      {review > 0 ? (
+        <Link href="/statements" className="flex items-center gap-4 rounded-md border-2 border-warning/40 bg-warning-soft p-4 text-warning transition-colors hover:brightness-105">
+          <FileSearch size={22} />
+          <span className="font-semibold">
+            {review} {review === 1 ? 'enunciado espera' : 'enunciados esperam'} revisão
+          </span>
+          <ArrowRight size={16} className="ml-auto" />
+        </Link>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+        {NAV_KEYS.map((k) => {
+          const e = ENTITIES[k];
+          const Icon = e.icon;
+          return (
+            <Link key={k} href={`/${e.path}`} className="group">
+              <Card className="h-full transition-colors group-hover:border-primary">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{e.plural}</CardTitle>
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-md border-2 border-current/40 ${e.tone}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl leading-tight text-foreground">{value(counts?.[k])}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">ativos</p>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
       {/* Headline numbers */}
@@ -178,40 +211,6 @@ export default function ManagerDashboard() {
           />
         </section>
       )}
-
-      {/* Atalhos e revisão */}
-      {review > 0 ? (
-        <Link href="/statements" className="flex items-center gap-4 rounded-md border-2 border-warning/40 bg-warning-soft p-4 text-warning transition-colors hover:brightness-105">
-          <FileSearch size={22} />
-          <span className="font-semibold">
-            {review} {review === 1 ? 'enunciado espera' : 'enunciados esperam'} revisão
-          </span>
-          <ArrowRight size={16} className="ml-auto" />
-        </Link>
-      ) : null}
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-        {NAV_KEYS.map((k) => {
-          const e = ENTITIES[k];
-          const Icon = e.icon;
-          return (
-            <Link key={k} href={`/${e.path}`} className="group">
-              <Card className="h-full transition-colors group-hover:border-primary">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">{e.plural}</CardTitle>
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-md border-2 border-current/40 ${e.tone}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold leading-tight text-foreground">{value(counts?.[k])}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">ativos</p>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
-      </div>
 
       {/* Needs attention */}
       {o && (

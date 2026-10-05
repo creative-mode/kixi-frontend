@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { apiFetch } from '@/lib/mock/fetch';
 
 interface LoginResponse {
   accessToken: string;
@@ -23,7 +24,7 @@ export async function loginAction(formData: FormData) {
     const backendUrl =
       process.env.BACKEND_AUTH_URL ?? 'http://localhost:8080/api/v1/auth/login';
 
-    const response = await fetch(backendUrl, {
+    const response = await apiFetch(backendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -32,6 +33,10 @@ export async function loginAction(formData: FormData) {
       // Timeout para evitar ficar pendurado
       signal: AbortSignal.timeout(10000), // 10 segundos
     });
+
+    if (response.status === 400 || response.status === 401) {
+      return { error: 'Utilizador ou palavra-passe incorretos.' };
+    }
 
     if (!response.ok) {
       // Tenta ler mensagem de erro do backend se existir

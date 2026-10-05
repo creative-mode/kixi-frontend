@@ -1,6 +1,6 @@
 'use server';
 
-import { getAuthHeaders } from '@/lib/auth';
+import { getAuthHeaders } from '@/lib/auth.server';
 import { API_BASE } from '@/lib/constants';
 import type {
   ActivityPoint,
@@ -12,13 +12,14 @@ import type {
   Section,
   StatementStats,
 } from '@/types/analytics';
+import { apiFetch } from '@/lib/mock/fetch';
 
 const BASE = `${API_BASE}/analytics`;
 
 async function get<T>(path: string): Promise<T> {
   const headers = await getAuthHeaders();
   // Dashboards must never be served from a cache: the numbers change as students finish simulations.
-  const res = await fetch(`${BASE}${path}`, { headers, cache: 'no-store' });
+  const res = await apiFetch(`${BASE}${path}`, { headers, cache: 'no-store' });
 
   if (!res.ok) {
     if (res.status === 401) throw new Error('Sessão expirada. Inicie sessão novamente.');

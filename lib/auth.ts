@@ -3,26 +3,7 @@
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import type { CurrentUser } from '@/types/auth';
-
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
-  return new TextEncoder().encode(secret);
-}
-
-export async function getAuthHeaders() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('auth_token')?.value;
-
-  if (!token) {
-    throw new Error('Não autenticado');
-  }
-
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
-}
+import { getJwtSecret } from './jwt';
 
 /**
  * Obtém o utilizador atual decodificando o JWT armazenado no cookie auth_token.
