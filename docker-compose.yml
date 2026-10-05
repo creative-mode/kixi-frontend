@@ -1,0 +1,77 @@
+# Kixi frontend: três apps Next e um gateway.
+#   docker compose up --build      -> http://localhost:3000  (landing /, aluno /aluno, gestor /manager)
+# Só o gateway é publicado. Os apps falam entre si na rede interna, por isso o browser vê uma origem única
+# (cookies, redirecionamentos e CORS sem surpresas). Para abrir um app diretamente, ver docker-compose.debug.yml.
+name: kixi-frontend
+
+x-app: &app
+  restart: unless-stopped
+  environment: &env
+    # Mesmo segredo no manager e no aluno: é ele que valida a sessão.
+    JWT_SECRET: ${JWT_SECRET:-}
+    # true = backend simulado dentro do próprio app (demo). false = backend real em BACKEND_API_URL.
+    KIXI_MOCK: ${KIXI_MOCK:-true}
+    BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:8080/api/v1}
+  extra_hosts:
+    - host.docker.internal:host-gateway
+
+services:
+  gateway:
+    build: { context: ., dockerfile: docker/gateway.Dockerfile }
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      MANAGER_HOST: manager
+      MANAGER_PORT: 3002
+      STUDENT_HOST: student
+      STUDENT_PORT: 3003
+      LANDING_HOST: landing
+      LANDING_PORT: 3004
+    depends_on:
+      landing: { condition: service_healthy }
+      student: { condition: service_healthy }
+      manager: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 15s
+      timeout: 3s
+
+  manager:
+    <<: *app
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args: { APP_DIR: ".", PORT: 3002 }
+    expose: ["3002"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3002/manager/login"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+
+  student:
+    <<: *app
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args: { APP_DIR: student, PORT: 3003, NEXT_PUBLIC_MANAGER_URL: "${NEXT_PUBLIC_MANAGER_URL:-}" }
+    expose: ["3003"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3003/aluno/entrar"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+
+  landing:
+    <<: *app
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args: { APP_DIR: landing, PORT: 3004, NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-}" }
+    expose: ["3004"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s

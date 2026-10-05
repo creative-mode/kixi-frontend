@@ -14,6 +14,12 @@ import { getJwtSecret } from '@/lib/jwt'
 /** nextUrl already carries the basePath separately: setting pathname adds the prefix, so do not add it again. */
 function redirectTo(path: string, request: NextRequest) {
   const url = request.nextUrl.clone()
+  // Atrás do gateway/Docker o origin visto pelo Next é o interno (0.0.0.0:3002): usa o endereço público.
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
+  if (host) {
+    url.host = host
+    url.protocol = request.headers.get('x-forwarded-proto') ?? url.protocol
+  }
   url.pathname = path
   url.search = ''
   return url
