@@ -23,8 +23,6 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-highlight: var(--highlight);
-  --color-highlight-foreground: var(--highlight-foreground);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
@@ -49,12 +47,4 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-}
-
-/* Papel: grão de pontos discreto sobre o verde-musgo, como a grelha de um ecrã LCD */
-@layer base {
-  body {
-    background-image: radial-gradient(color-mix(in srgb, var(--foreground) 9%, transparent) 1px, transparent 1px);
-    background-size: 18px 18px;
-  }
 }

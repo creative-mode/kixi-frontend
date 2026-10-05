@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: 'Provas, simulações e tutor para estudar com a tua turma.',
 };
 
-export const viewport: Viewport = { themeColor: '#27311b', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

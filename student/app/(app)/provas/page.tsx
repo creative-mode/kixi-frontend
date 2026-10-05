@@ -16,7 +16,7 @@ function State({ e }: { e: Exam }) {
     return (
       <div className="grid gap-1.5">
         <Badge variant="warning" className="justify-self-start">Em curso · {e.done}/{e.total}</Badge>
-        <Progress value={((e.done ?? 0) / (e.total ?? 1)) * 100} indicatorClassName="bg-highlight" aria-label="Progresso" />
+        <Progress value={((e.done ?? 0) / (e.total ?? 1)) * 100} indicatorClassName="bg-[#d49a00]" aria-label="Progresso" />
       </div>
     );
   }
