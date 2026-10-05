@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createRow, getRow, listOptions, updateRow } from '@/app/actions/crud';
-import { ENTITIES, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
+import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
 
 type Errors = Record<string, string>;
@@ -100,7 +100,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
     const res = editing ? await updateRow(entityKey, id!, values) : await createRow(entityKey, values);
     setSaving(false);
     if (res.ok) {
-      toast.success(editing ? `${entity.singular} atualizado` : `${entity.singular} criado`);
+      toast.success(editing ? `${entity.singular} ${gender(entity, 'atualizado')}` : `${entity.singular} ${gender(entity, 'criado')}`);
       router.push(`/${entity.path}`);
       router.refresh();
     } else toast.error(res.error);
@@ -110,7 +110,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
     <div className="mx-auto max-w-3xl p-4 md:p-8">
       <PageHead
         entity={entity}
-        title={editing ? `Editar ${entity.singular.toLowerCase()}` : `Novo ${entity.singular.toLowerCase()}`}
+        title={editing ? `Editar ${entity.singular.toLowerCase()}` : `${newLabel(entity)} ${entity.singular.toLowerCase()}`}
         subtitle={editing ? title : entity.description}
         back={{ href: `/${entity.path}`, label: 'Voltar à lista' }}
       />
@@ -148,7 +148,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
                     ) : (
                       <Input
                         {...common}
-                        type={f.type === 'number' ? 'number' : f.type}
+                        type={f.type === 'number' ? 'number' : f.type === 'datetime' ? 'datetime-local' : f.type}
                         inputMode={f.type === 'number' ? 'numeric' : undefined}
                         autoComplete={f.type === 'password' ? 'new-password' : 'off'}
                         value={values[f.name] ?? ''}

@@ -175,7 +175,7 @@ export default function ManagerDashboard() {
 
       <section
         aria-label="Cadastros"
-        className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5"
+        className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
       >
         {counts == null
           ? NAV_KEYS.map((k) => <TileSkeleton key={k} />)

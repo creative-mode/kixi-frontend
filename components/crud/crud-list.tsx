@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { deleteRow, listRows } from '@/app/actions/crud';
-import { ENTITIES, rowId, type EntityKey, type Row } from '@/lib/crud/entities';
+import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
 import { AccountRoles } from './account-roles';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
@@ -45,13 +45,13 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   function askDelete(row: Row) {
     setConfirm({
       title: `Mover para a lixeira?`,
-      description: `${entity.singular} «${entity.titleOf(row)}» sai da lista mas pode ser restaurado na lixeira.`,
+      description: `${entity.singular} «${entity.titleOf(row)}» sai da lista mas pode ser ${gender(entity, 'restaurado')} na lixeira.`,
       action: 'Mover para a lixeira',
       destructive: true,
       run: async () => {
         const res = await deleteRow(entityKey, rowId(entity, row));
         if (res.ok) {
-          toast.success(`${entity.singular} movido para a lixeira`);
+          toast.success(`${entity.singular} ${gender(entity, 'movido')} para a lixeira`);
           load();
         } else toast.error(res.error);
       },
@@ -74,7 +74,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
             {entity.canCreate ? (
               <Button asChild>
                 <Link href={`/${entity.path}/new`}>
-                  <Plus size={16} className="mr-2" /> Novo
+                  <Plus size={16} className="mr-2" /> {newLabel(entity)}
                 </Link>
               </Button>
             ) : null}

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getStatementFull } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
+import { QuestionImages } from './question-images';
 
 export function StatementDetail({ id }: { id: number }) {
   const [s, setS] = useState<Row | null>(null);
@@ -39,7 +40,7 @@ export function StatementDetail({ id }: { id: number }) {
             <CardContent className="space-y-4">
               {questions.length === 0 ? <p className="text-sm text-muted-foreground">Ainda sem questões extraídas.</p> : null}
               {questions.map((q) => (
-                <div key={q.id} className="rounded-md border-2 border-border p-4">
+                <div key={q.id} className="rounded-lg border p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <strong>Questão {q.number}</strong>
                     <Badge variant="outline">{q.questionType}</Badge>
@@ -56,6 +57,7 @@ export function StatementDetail({ id }: { id: number }) {
                       ))}
                     </ul>
                   ) : null}
+                  <QuestionImages questionId={q.id} />
                 </div>
               ))}
             </CardContent>

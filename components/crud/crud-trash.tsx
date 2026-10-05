@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { listRows, listStatements, purgeRow, restoreRow } from '@/app/actions/crud';
-import { ENTITIES, rowId, type EntityKey, type Row } from '@/lib/crud/entities';
+import { ENTITIES, rowId, type EntityKey, type Row, gender } from '@/lib/crud/entities';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
 
@@ -33,7 +33,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
   async function restore(row: Row) {
     const res = await restoreRow(entityKey, rowId(entity, row));
     if (res.ok) {
-      toast.success(`${entity.singular} restaurado`);
+      toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`);
       load();
     } else toast.error(res.error);
   }
@@ -56,7 +56,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
   const cols = entity.columns.length + 1;
   return (
     <div className="mx-auto max-w-7xl p-4 md:p-8">
-      <PageHead entity={entity} title="Lixeira" subtitle={`${entity.plural} eliminados`} back={{ href: `/${entity.path}`, label: 'Voltar à lista' }} />
+      <PageHead entity={entity} title="Lixeira" subtitle={`${entity.plural} ${entity.fem ? 'eliminadas' : 'eliminados'}`} back={{ href: `/${entity.path}`, label: 'Voltar à lista' }} />
       <Card>
         <CardContent className="p-0">
           <Table>
