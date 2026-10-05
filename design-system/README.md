@@ -50,4 +50,4 @@ O gestor traz ainda o conjunto completo do shadcn (dialog, sheet, select, sideba
 
 ## Auth
 
-Ecrã dividido: painel verde escuro de apresentação (só `lg+`) e formulário a 400px. Aluno: `student/components/AuthShell.tsx`; gestor: `app/login/page.tsx`.
+Uma coluna centrada: marca e cartão com o formulário (400px), sem painel lateral. Aluno: `student/components/AuthShell.tsx`; gestor: `app/login/page.tsx`.
