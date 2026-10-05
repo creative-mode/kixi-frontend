@@ -142,7 +142,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                             <Link href={`/${entity.path}/${rowId(entity, row)}/edit`}><Edit size={16} /></Link>
                           </Button>
                         ) : null}
-                        <Button variant="ghost" size="sm" aria-label="Mover para a lixeira" className="hover:bg-alvo-tint hover:text-alvo-ink" onClick={() => askDelete(row)}>
+                        <Button variant="ghost" size="sm" aria-label="Mover para a lixeira" className="hover:bg-danger-soft hover:text-destructive" onClick={() => askDelete(row)}>
                           <Trash2 size={16} />
                         </Button>
                       </div>

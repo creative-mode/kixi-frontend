@@ -4,14 +4,7 @@ import localFont from "next/font/local"
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
 
-// Kixi design system v6 typefaces, self-hosted
-const pixel = localFont({
-  src: "./fonts/press-start-2p-latin-400-normal.woff2",
-  weight: "400",
-  variable: "--ff-pixel",
-  display: "swap",
-})
-
+// Tipos do design system Kixi, self-hosted
 const jakarta = localFont({
   src: [
     { path: "./fonts/plus-jakarta-sans-latin-400-normal.woff2", weight: "400" },
@@ -44,7 +37,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#a3d97f",
+  themeColor: "#f6f8f5",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -61,9 +54,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt" className="scroll-smooth">
+    <html lang="pt" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('kixi-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} />
+      </head>
       <body
-        className={`${pixel.variable} ${jakarta.variable} ${mono.variable} font-sans antialiased`}
+        className={`${jakarta.variable} ${mono.variable} font-sans antialiased`}
       >
         <Providers>
           <ManagerNavbar />

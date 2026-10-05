@@ -25,6 +25,6 @@ npm run build
 ## Estrutura
 
 - `styles/theme.css`: tokens (cores claro/escuro, raios, tipo) e fonte Plus Jakarta Sans.
-- `styles/app.css`: estilos de todos os componentes e páginas. Em ecrãs largos há barra lateral e painel à direita; no telemóvel, barra superior e separadores em baixo.
-- `components/ui.tsx`: Logo, Icon, Avatar, Mastery (barra de domínio) e Field. `components/Shell.tsx`: navegação.
+- Estilo: Tailwind v4 + componentes shadcn (`components/ui`) sobre os tokens do design system partilhado (`design-system/README.md`; `npm run ds:sync` na raiz). Em ecrãs largos há barra lateral e painel à direita; no telemóvel, barra superior e separadores em baixo.
+- `components/brand.tsx`, `icon.tsx`, `user-avatar.tsx`, `mastery.tsx`: marca, ícones, avatar e barra de domínio. `components/Shell.tsx`: navegação. `components/AuthShell.tsx`: ecrã de entrada/cadastro.
 - `lib/data.ts`: dados de exemplo. Ainda não há ligação à API para o conteúdo; o login e o cadastro usam o backend.

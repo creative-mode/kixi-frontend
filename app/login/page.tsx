@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { KixiLogo } from '@/components/kixi-logo';
+import { Check, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [show, setShow] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -48,104 +50,56 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left — brand panel: the handheld screen with the ship and a formation of study topics */}
-      <div className="kx-screen hidden lg:flex lg:w-1/2 bg-muted relative items-center justify-center overflow-hidden border-r-2 border-border">
-        <div className="absolute inset-x-0 top-12 flex justify-center gap-10 text-alvo" aria-hidden="true">
-          {['text-alvo', 'text-pop', 'text-radar', 'text-tiro', 'text-lila'].map((c, i) => (
-            <svg key={i} viewBox="0 0 11 8" width="44" height="32" shapeRendering="crispEdges" className={c}>
-              <path fill="currentColor" d="M2 0h1v1h-1zM8 0h1v1h-1zM3 1h5v1h-5zM2 2h7v1h-7zM1 3h2v1h-2zM4 3h3v1h-3zM8 3h2v1h-2zM0 4h11v1h-11zM0 5h1v1h-1zM2 5h7v1h-7zM10 5h1v1h-1zM2 6h1v1h-1zM8 6h1v1h-1zM1 7h2v1h-2zM8 7h2v1h-2z" />
-            </svg>
+    <div className="grid min-h-dvh lg:grid-cols-[5fr_6fr]">
+      <aside className="relative hidden flex-col justify-between gap-10 overflow-hidden bg-[#14391d] p-12 text-[#e5f0e2] lg:flex">
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[.07] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:22px_22px]" />
+        <div className="relative flex items-center gap-3">
+          <KixiLogo size={30} wordmark className="[&_svg]:text-[#8fe86a]" />
+          <span className="rounded-full border border-white/20 px-2.5 py-0.5 text-xs font-semibold text-[#b7d1b3]">Manager</span>
+        </div>
+
+        <div className="relative grid gap-4">
+          <h2 className="max-w-[16ch] text-[34px] leading-[1.15] font-bold tracking-tight">Gere o banco de enunciados da escola.</h2>
+          <p className="max-w-[40ch] text-[#b7d1b3]">Provas, questões, turmas e o desempenho dos alunos, num único painel.</p>
+        </div>
+
+        <ul className="relative grid gap-3 text-sm text-[#cfd8cb]">
+          {['Enunciados e questões por disciplina e ano lectivo', 'Revisão e aprovação antes de chegarem aos alunos', 'Indicadores de actividade e desempenho em tempo real'].map((p) => (
+            <li key={p} className="flex items-center gap-2.5"><Check className="size-4 text-[#8fe86a]" />{p}</li>
           ))}
-        </div>
-        <div className="absolute left-1/2 top-[88px] -translate-x-1/2 flex flex-col gap-3" aria-hidden="true">
-          <span className="block h-3 w-1 bg-tiro" />
-          <span className="block h-3 w-1 bg-tiro" />
-        </div>
+        </ul>
+      </aside>
 
-        <div className="relative z-10 text-center px-12">
-          <KixiLogo size={120} wordmark stacked className="mx-auto mb-10" />
-          <h1 className="font-pixel text-lg leading-relaxed text-foreground mb-4">
-            Kixi Manager
-          </h1>
-          <p className="text-muted-foreground text-base max-w-sm mx-auto leading-relaxed">
-            Painel de gestão administrativa do Banco de Enunciados.
-          </p>
-        </div>
-      </div>
-
-      {/* Right — login form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-card">
-        <div className="w-full max-w-sm">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex justify-center mb-10">
-            <KixiLogo size={72} wordmark stacked />
+      <main className="flex items-start justify-center px-6 py-10 sm:items-center">
+        <div className="grid w-full max-w-[400px] gap-7">
+          <KixiLogo size={24} wordmark className="lg:hidden" />
+          <div className="grid gap-1.5">
+            <h1 className="text-[26px] leading-tight font-bold tracking-tight">Bem-vindo de volta</h1>
+            <p className="text-sm text-muted-foreground">Inicie sessão para aceder ao painel de gestão.</p>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-foreground tracking-tight">
-              Bem-vindo de volta
-            </h2>
-            <p className="text-muted-foreground mt-1.5 text-sm">
-              Inicie sessão para aceder ao painel de gestão.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="usernameOrEmail" className="text-sm font-medium text-foreground">
-                Username ou Email
-              </Label>
-              <Input
-                id="usernameOrEmail"
-                name="usernameOrEmail"
-                type="text"
-                placeholder="admin@kixi.ao"
-                required
-                disabled={isLoading}
-                autoComplete="username email"
-                autoFocus
-                className="h-11"
-              />
+          <form onSubmit={handleSubmit} className="grid gap-5">
+            <div className="grid gap-2">
+              <Label htmlFor="usernameOrEmail">Username ou email</Label>
+              <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username email" autoFocus />
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium text-foreground">
-                Palavra-passe
-              </Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                required
-                disabled={isLoading}
-                autoComplete="current-password"
-                className="h-11"
-              />
+            <div className="grid gap-2">
+              <Label htmlFor="password">Palavra-passe</Label>
+              <div className="relative">
+                <Input id="password" name="password" type={show ? 'text' : 'password'} placeholder="••••••••" required disabled={isLoading} autoComplete="current-password" className="pr-10" />
+                <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'} className="absolute inset-y-0 right-0 grid w-10 place-items-center text-muted-foreground hover:text-foreground">
+                  {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
-
-            <Button
-              type="submit"
-              className="w-full h-11"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                  A entrar...
-                </div>
-              ) : (
-                'Entrar'
-              )}
+            <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+              {isLoading ? (<><span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />A entrar...</>) : 'Entrar'}
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-muted-foreground">
-            Problemas no acesso? Contacte o suporte técnico.
-          </p>
+          <p className="text-center text-xs text-muted-foreground">Problemas no acesso? Contacte o suporte técnico.</p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

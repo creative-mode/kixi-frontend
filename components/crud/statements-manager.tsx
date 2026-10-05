@@ -118,7 +118,7 @@ export function StatementsManager() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="hover:bg-alvo-tint hover:text-alvo-ink"
+                          className="hover:bg-danger-soft hover:text-destructive"
                           aria-label="Mover para a lixeira"
                           onClick={() =>
                             setConfirm({

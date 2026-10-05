@@ -8,7 +8,7 @@ import type { InstitutionStats } from '@/types/analytics';
 import { ScoreCell } from './score-cell';
 
 const config = {
-  averageScorePercent: { label: 'Nota média (%)', color: 'var(--brand)' },
+  averageScorePercent: { label: 'Nota média (%)', color: 'var(--chart-1)' },
 } satisfies ChartConfig;
 
 /** Institutions side by side: average score as bars, volumes in a table below. */
@@ -41,7 +41,7 @@ export function InstitutionPanel({ institutions }: { institutions: InstitutionSt
           </BarChart>
         </ChartContainer>
       ) : (
-        <p className="rounded-[4px] border-2 border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-md border-2 border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
           Ainda nenhuma instituição tem simulações concluídas para comparar.
         </p>
       )}

@@ -96,7 +96,7 @@ export function ImageUpload({ onUploadComplete, currentImage, onRemove }: ImageU
                     <button
                         type="button"
                         onClick={handleRemove}
-                        className="absolute top-2 right-2 p-2 bg-destructive text-destructive-foreground rounded-[4px] border-2 border-alvo-edge opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-2 bg-destructive text-destructive-foreground rounded-md border-2 border-destructive/40 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                         <X size={16} />
                     </button>

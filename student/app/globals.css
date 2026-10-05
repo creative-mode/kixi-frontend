@@ -1,2 +1,13 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '../styles/ds-tokens.css';
+@import '../styles/ds-theme.css';
 @import '../styles/theme.css';
-@import '../styles/app.css';
+
+@layer base {
+  * { border-color: var(--border); }
+  html { -webkit-text-size-adjust: 100%; }
+  body { background: var(--background); color: var(--foreground); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  :focus-visible { outline-color: var(--ring); }
+  button:not(:disabled), [role='button']:not(:disabled), [role='tab'], [role='switch'], summary { cursor: pointer; }
+}

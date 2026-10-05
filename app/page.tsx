@@ -84,7 +84,7 @@ export default function ManagerDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-pixel text-2xl leading-tight tracking-tight text-foreground">Dashboard</h1>
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground">Dashboard</h1>
           <p className="mt-1 text-muted-foreground">
             Desempenho dos estudantes e estado das provas
             {o && !isAdmin ? ' nas suas turmas' : ''}.
@@ -181,7 +181,7 @@ export default function ManagerDashboard() {
 
       {/* Atalhos e revisão */}
       {review > 0 ? (
-        <Link href="/statements" className="flex items-center gap-4 rounded-[4px] border-2 border-tiro-edge bg-tiro-tint p-4 text-tiro-ink transition-colors hover:brightness-105">
+        <Link href="/statements" className="flex items-center gap-4 rounded-md border-2 border-warning/40 bg-warning-soft p-4 text-warning transition-colors hover:brightness-105">
           <FileSearch size={22} />
           <span className="font-semibold">
             {review} {review === 1 ? 'enunciado espera' : 'enunciados esperam'} revisão
@@ -199,12 +199,12 @@ export default function ManagerDashboard() {
               <Card className="h-full transition-colors group-hover:border-primary">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">{e.plural}</CardTitle>
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-[4px] border-2 border-current/40 ${e.tone}`}>
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-md border-2 border-current/40 ${e.tone}`}>
                     <Icon className="h-4 w-4" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="font-pixel text-2xl leading-tight text-foreground">{value(counts?.[k])}</div>
+                  <div className="text-2xl font-bold leading-tight text-foreground">{value(counts?.[k])}</div>
                   <p className="mt-1 text-xs text-muted-foreground">ativos</p>
                 </CardContent>
               </Card>

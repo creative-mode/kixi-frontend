@@ -1,8 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Check, LogOut, MessageCircle } from 'lucide-react';
 import { sairAction } from '@/lib/auth-actions';
-import { Avatar, Icon, Mastery } from '@/components/ui';
+import { Column, Page } from '@/components/page';
+import { Mastery } from '@/components/mastery';
+import { UserAvatar } from '@/components/user-avatar';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { me, result, topicsToReview } from '@/lib/data';
 
 const TABS = ['Atividade', 'Desempenho', 'Guardados'] as const;
@@ -11,17 +19,20 @@ const DEFS = [
   { key: 'time', label: '+25% de tempo nas provas', hint: 'Ajuste de tempo para quem precisa.', def: true },
   { key: 'motion', label: 'Reduzir movimento', hint: 'Menos animações na interface.', def: false },
 ];
+const ACTIVITY = [
+  { t: 'Concluíste a P1 · Redes de Computadores', m: 'Nota 15,0 · há 2 dias', icon: Check },
+  { t: 'Perguntaste na turma sobre subnetting', m: '3 respostas · há 4 dias', icon: MessageCircle },
+  { t: 'Concluíste a P2 · Sistemas Operativos', m: 'Nota 16,4 · há 1 semana', icon: Check },
+];
 
 export default function Perfil() {
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Atividade');
   const [on, setOn] = useState<Record<string, boolean>>(Object.fromEntries(DEFS.map((d) => [d.key, d.def])));
 
   useEffect(() => {
     setOn((s) => ({ ...s, night: document.documentElement.getAttribute('data-theme') === 'dark' }));
   }, []);
 
-  const toggle = (key: string) => {
-    const next = !on[key];
+  const toggle = (key: string, next: boolean) => {
     setOn((s) => ({ ...s, [key]: next }));
     if (key === 'night') {
       const t = next ? 'dark' : 'light';
@@ -31,59 +42,59 @@ export default function Perfil() {
   };
 
   return (
-    <div className="page page--single">
-      <div className="col">
-        <section className="card" style={{ overflow: 'hidden' }}>
-          <div className="cover" />
-          <div className="profile">
-            <div className="profile__top">
-              <Avatar name={me.name} size={84} />
-              <button type="button" className="btn btn--ghost btn--sm">Editar perfil</button>
+    <Page>
+      <Column className="gap-5">
+        <Card className="gap-0 overflow-hidden py-0">
+          <div className="h-24 border-b bg-gradient-to-br from-accent to-secondary" />
+          <div className="grid gap-3.5 px-5 pb-5">
+            <div className="-mt-9 flex flex-wrap items-end justify-between gap-3">
+              <UserAvatar name={me.name} size={84} className="border-4 border-card" />
+              <Button variant="outline" size="sm">Editar perfil</Button>
             </div>
-            <div><h1>{me.name}</h1><p className="muted">{me.escola} · {me.curso} · Turma {me.turma}</p></div>
-            <div className="stats">
-              <div className="stat"><b className="num">8</b><span>provas feitas</span></div>
-              <div className="stat"><b className="num">15,0</b><span>média das simulações</span></div>
-              <div className="stat"><b className="num">5.º</b><span>na turma</span></div>
+            <div><h1 className="text-[22px] font-bold tracking-tight">{me.name}</h1><p className="text-sm text-muted-foreground">{me.escola} · {me.curso} · Turma {me.turma}</p></div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[['8', 'provas feitas'], ['15,0', 'média das simulações'], ['5.º', 'na turma']].map(([v, l]) => (
+                <div key={l} className="rounded-lg border px-4 py-3"><b className="block text-[22px] tracking-tight tabular-nums">{v}</b><span className="text-[13px] text-muted-foreground">{l}</span></div>
+              ))}
             </div>
           </div>
-        </section>
+        </Card>
 
-        <div className="tabs" role="tablist" aria-label="Perfil">
-          {TABS.map((t) => <button key={t} type="button" role="tab" className="tab" aria-selected={t === tab} onClick={() => setTab(t)}>{t}</button>)}
-        </div>
+        <Tabs defaultValue="Atividade">
+          <TabsList aria-label="Perfil">{TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
+          <TabsContent value="Atividade">
+            <Card className="gap-0 divide-y py-0">
+              {ACTIVITY.map((a) => (
+                <div key={a.t} className="flex items-center gap-3.5 px-5 py-3.5">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><a.icon className="size-[18px]" /></span>
+                  <div className="leading-snug"><b className="block text-sm">{a.t}</b><span className="text-[13px] text-muted-foreground">{a.m}</span></div>
+                </div>
+              ))}
+            </Card>
+          </TabsContent>
+          <TabsContent value="Desempenho">
+            <Card><CardHeader><CardTitle>Domínio por tema</CardTitle></CardHeader>
+              <CardContent className="grid gap-3.5">{[...result.topics, ...topicsToReview.filter((t) => !result.topics.some((r) => r.label === t.label))].map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}</CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="Guardados">
+            <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground"><b className="text-foreground">Ainda não guardaste nada</b><span>Guarda publicações do início para as encontrares aqui.</span></Card>
+          </TabsContent>
+        </Tabs>
 
-        {tab === 'Atividade' && (
-          <section className="card list">
-            {[{ t: 'Concluíste a P1 · Redes de Computadores', m: 'Nota 15,0 · há 2 dias', i: 'check' }, { t: 'Perguntaste na turma sobre subnetting', m: '3 respostas · há 4 dias', i: 'chat' }, { t: 'Concluíste a P2 · Sistemas Operativos', m: 'Nota 16,4 · há 1 semana', i: 'check' }].map((a) => (
-              <div key={a.t} className="review"><span className="upload__icon" style={{ width: 36, height: 36 }}><Icon name={a.i} size={18} /></span><div className="review__main"><b>{a.t}</b><span>{a.m}</span></div></div>
+        <Card><CardHeader><CardTitle>Definições</CardTitle></CardHeader>
+          <CardContent className="divide-y">
+            {DEFS.map((d) => (
+              <div key={d.key} className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
+                <Label htmlFor={`def-${d.key}`} className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">{d.label}</span><span className="text-[13px] font-normal text-muted-foreground">{d.hint}</span></Label>
+                <Switch id={`def-${d.key}`} checked={on[d.key]} onCheckedChange={(v) => toggle(d.key, v)} />
+              </div>
             ))}
-          </section>
-        )}
-        {tab === 'Desempenho' && (
-          <section className="card"><div className="card__pad" style={{ display: 'grid', gap: 14 }}>
-            <h2 className="card__title">Domínio por tema</h2>
-            {[...result.topics, ...topicsToReview.filter((t) => !result.topics.some((r) => r.label === t.label))].map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}
-          </div></section>
-        )}
-        {tab === 'Guardados' && (
-          <section className="card"><div className="empty"><b>Ainda não guardaste nada</b><span>Guarda publicações do início para as encontrares aqui.</span></div></section>
-        )}
+          </CardContent>
+        </Card>
 
-        <section className="card"><div className="card__pad">
-          <h2 className="card__title" style={{ marginBottom: 4 }}>Definições</h2>
-          {DEFS.map((d) => (
-            <label key={d.key} className="switch">
-              <span><b>{d.label}</b><span>{d.hint}</span></span>
-              <input type="checkbox" role="switch" checked={on[d.key]} onChange={() => toggle(d.key)} />
-            </label>
-          ))}
-        </div></section>
-
-        <form action={sairAction}>
-          <button type="submit" className="btn btn--ghost"><Icon name="out" size={18} />Terminar sessão</button>
-        </form>
-      </div>
-    </div>
+        <form action={sairAction}><Button type="submit" variant="outline"><LogOut />Terminar sessão</Button></form>
+      </Column>
+    </Page>
   );
 }

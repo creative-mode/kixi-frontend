@@ -33,7 +33,7 @@ export function SectionState<T>({
     return (
       <div
         role="alert"
-        className="flex flex-col items-center justify-center gap-3 rounded-[4px] border-2 border-dashed border-alvo-edge bg-alvo-tint px-4 py-10 text-center text-alvo-ink"
+        className="flex flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-destructive/40 bg-danger-soft px-4 py-10 text-center text-destructive"
       >
         <AlertTriangle className="h-5 w-5" aria-hidden />
         <p className="text-sm font-medium">{section.error}</p>
@@ -47,7 +47,7 @@ export function SectionState<T>({
 
   if (isEmpty?.(section.data)) {
     return (
-      <div className="rounded-[4px] border-2 border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-md border-2 border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
         {empty ?? 'Sem dados para mostrar.'}
       </div>
     );
