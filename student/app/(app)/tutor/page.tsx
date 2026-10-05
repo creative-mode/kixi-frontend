@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, ChatBubble, Field } from '@/components/kixi';
-import { tutorChat, tutorChips } from '@/lib/data';
+import { useEffect, useRef, useState } from 'react';
+import { Icon, Avatar } from '@/components/ui';
+import { me, tutorChat, tutorChips } from '@/lib/data';
 
 type Msg = { from: 'student' | 'tutor'; text: string; source?: string };
 
 export default function Tutor() {
   const [msgs, setMsgs] = useState<Msg[]>([...tutorChat] as Msg[]);
   const [text, setText] = useState('');
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs]);
 
   const send = (value: string) => {
     const v = value.trim();
@@ -18,21 +20,31 @@ export default function Tutor() {
   };
 
   return (
-    <>
-      <header className="screen__head screen__head--line" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <h1 className="h1">Tutor</h1>
-        <p className="muted" style={{ margin: 0, font: '400 13px/20px var(--font-sans)' }}>A estudar: P1 Redes · ITEL 2024 · questão 3</p>
-      </header>
-      <main className="screen__main" style={{ gap: 14 }}>
-        {msgs.map((m, i) => <ChatBubble key={i} from={m.from} source={m.source}>{m.text}</ChatBubble>)}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {tutorChips.map((c) => <button key={c} type="button" className="chip" onClick={() => send(c)}>{c}</button>)}
-        </div>
-      </main>
-      <form className="screen__foot" style={{ alignItems: 'flex-end', gap: 10, padding: '12px 20px', borderTop: '1px solid var(--line)' }} onSubmit={(e) => { e.preventDefault(); send(text); }}>
-        <div style={{ flexGrow: 1 }}><Field label="Mensagem" placeholder="Escreve a tua resposta" value={text} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setText(e.target.value)} /></div>
-        <Button type="submit" icon="shot" aria-label="Enviar">Enviar</Button>
-      </form>
-    </>
+    <div className="page page--single">
+      <div className="col">
+        <div className="pagehead"><div><h1>Tutor</h1><p>A estudar a P1 de Redes (ITEL 2024), questão 3. As respostas citam a prova.</p></div></div>
+        <section className="card chat" aria-label="Conversa com o tutor">
+          <div className="chat__log" role="log" aria-live="polite">
+            {msgs.map((m, i) => (
+              <div key={i} className={`msg${m.from === 'student' ? ' msg--me' : ''}`}>
+                {m.from === 'tutor' ? <span className="tutor-badge" aria-hidden="true">K</span> : <Avatar name={me.name} size={32} />}
+                <div className="msg__bubble">
+                  {m.text}
+                  {m.source && <div className="msg__src"><Icon name="file" size={14} />Fonte: {m.source}</div>}
+                </div>
+              </div>
+            ))}
+            <div ref={end} />
+          </div>
+          <div className="chat__foot">
+            <div className="chips">{tutorChips.map((c) => <button key={c} type="button" className="chip" onClick={() => send(c)}>{c}</button>)}</div>
+            <form className="chat__form" onSubmit={(e) => { e.preventDefault(); send(text); }}>
+              <input className="composer__input" style={{ borderRadius: 8 }} value={text} onChange={(e) => setText(e.target.value)} placeholder="Escreve a tua resposta ou dúvida" aria-label="Mensagem para o tutor" />
+              <button type="submit" className="btn" disabled={!text.trim()}><Icon name="send" size={18} />Enviar</button>
+            </form>
+          </div>
+        </section>
+      </div>
+    </div>
   );
 }

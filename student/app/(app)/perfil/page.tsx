@@ -1,52 +1,89 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { sairAction } from '@/lib/auth-actions';
-import { Avatar, Button, Card, HudBar, Medal } from '@/components/kixi';
+import { Avatar, Icon, Mastery } from '@/components/ui';
+import { me, result, topicsToReview } from '@/lib/data';
 
+const TABS = ['Atividade', 'Desempenho', 'Guardados'] as const;
 const DEFS = [
-  { key: 'night', label: 'Ecrã Noite', hint: 'O ecrã apagado, para estudar à noite.', def: false },
+  { key: 'night', label: 'Tema escuro', hint: 'Fundo escuro, para estudar à noite.', def: false },
   { key: 'time', label: '+25% de tempo nas provas', hint: 'Ajuste de tempo para quem precisa.', def: true },
-  { key: 'motion', label: 'Reduzir movimento', hint: 'Sem animações de recompensa.', def: false },
+  { key: 'motion', label: 'Reduzir movimento', hint: 'Menos animações na interface.', def: false },
 ];
 
 export default function Perfil() {
+  const [tab, setTab] = useState<(typeof TABS)[number]>('Atividade');
   const [on, setOn] = useState<Record<string, boolean>>(Object.fromEntries(DEFS.map((d) => [d.key, d.def])));
+
+  useEffect(() => {
+    setOn((s) => ({ ...s, night: document.documentElement.getAttribute('data-theme') === 'dark' }));
+  }, []);
 
   const toggle = (key: string) => {
     const next = !on[key];
     setOn((s) => ({ ...s, [key]: next }));
-    if (key === 'night') document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
+    if (key === 'night') {
+      const t = next ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      try { localStorage.setItem('kixi-theme', t); } catch {}
+    }
   };
 
   return (
-    <main className="screen__main" style={{ padding: '24px 20px', gap: 18 }}>
-      <div className="row" style={{ gap: 14 }}>
-        <Avatar name="Abner Ede" size={56} ring />
-        <div className="stack" style={{ gap: 2 }}>
-          <h1 style={{ margin: 0, font: '700 22px/28px var(--font-sans)' }}>Abner Ede</h1>
-          <p className="muted" style={{ margin: 0, font: '400 14px/20px var(--font-sans)' }}>ITEL · Informática · Turma 12B</p>
+    <div className="page page--single">
+      <div className="col">
+        <section className="card" style={{ overflow: 'hidden' }}>
+          <div className="cover" />
+          <div className="profile">
+            <div className="profile__top">
+              <Avatar name={me.name} size={84} />
+              <button type="button" className="btn btn--ghost btn--sm">Editar perfil</button>
+            </div>
+            <div><h1>{me.name}</h1><p className="muted">{me.escola} · {me.curso} · Turma {me.turma}</p></div>
+            <div className="stats">
+              <div className="stat"><b className="num">8</b><span>provas feitas</span></div>
+              <div className="stat"><b className="num">15,0</b><span>média das simulações</span></div>
+              <div className="stat"><b className="num">5.º</b><span>na turma</span></div>
+            </div>
+          </div>
+        </section>
+
+        <div className="tabs" role="tablist" aria-label="Perfil">
+          {TABS.map((t) => <button key={t} type="button" role="tab" className="tab" aria-selected={t === tab} onClick={() => setTab(t)}>{t}</button>)}
         </div>
+
+        {tab === 'Atividade' && (
+          <section className="card list">
+            {[{ t: 'Concluíste a P1 · Redes de Computadores', m: 'Nota 15,0 · há 2 dias', i: 'check' }, { t: 'Perguntaste na turma sobre subnetting', m: '3 respostas · há 4 dias', i: 'chat' }, { t: 'Concluíste a P2 · Sistemas Operativos', m: 'Nota 16,4 · há 1 semana', i: 'check' }].map((a) => (
+              <div key={a.t} className="review"><span className="upload__icon" style={{ width: 36, height: 36 }}><Icon name={a.i} size={18} /></span><div className="review__main"><b>{a.t}</b><span>{a.m}</span></div></div>
+            ))}
+          </section>
+        )}
+        {tab === 'Desempenho' && (
+          <section className="card"><div className="card__pad" style={{ display: 'grid', gap: 14 }}>
+            <h2 className="card__title">Domínio por tema</h2>
+            {[...result.topics, ...topicsToReview.filter((t) => !result.topics.some((r) => r.label === t.label))].map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}
+          </div></section>
+        )}
+        {tab === 'Guardados' && (
+          <section className="card"><div className="empty"><b>Ainda não guardaste nada</b><span>Guarda publicações do início para as encontrares aqui.</span></div></section>
+        )}
+
+        <section className="card"><div className="card__pad">
+          <h2 className="card__title" style={{ marginBottom: 4 }}>Definições</h2>
+          {DEFS.map((d) => (
+            <label key={d.key} className="switch">
+              <span><b>{d.label}</b><span>{d.hint}</span></span>
+              <input type="checkbox" role="switch" checked={on[d.key]} onChange={() => toggle(d.key)} />
+            </label>
+          ))}
+        </div></section>
+
+        <form action={sairAction}>
+          <button type="submit" className="btn btn--ghost"><Icon name="out" size={18} />Terminar sessão</button>
+        </form>
       </div>
-      <HudBar level={7} xp={1240} xpMax={1500} streak={12} />
-      <span className="eyebrow">Medalhas</span>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Medal name="Primeiro tiro" icon="target">1.ª simulação</Medal>
-        <Medal name="Sem falhas" icon="trophy">Nota máxima</Medal>
-        <Medal name="Mentor" state="locked">Ajuda 5 colegas</Medal>
-      </div>
-      <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span className="eyebrow">Definições</span>
-        {DEFS.map((d) => (
-          <label key={d.key} className="row" style={{ justifyContent: 'space-between', gap: 12, minHeight: 48, font: '600 15px/22px var(--font-sans)', cursor: 'pointer' }}>
-            <span>{d.label}<span className="muted" style={{ display: 'block', font: '400 13px/18px var(--font-sans)' }}>{d.hint}</span></span>
-            <input type="checkbox" checked={on[d.key]} onChange={() => toggle(d.key)} style={{ width: 22, height: 22, accentColor: 'var(--brand)' }} />
-          </label>
-        ))}
-      </Card>
-      <form action={sairAction}>
-        <Button type="submit" variant="ghost">Terminar sessão</Button>
-      </form>
-    </main>
+    </div>
   );
 }

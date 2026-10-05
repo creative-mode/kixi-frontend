@@ -3,17 +3,19 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Kixi',
-  description: 'Estuda, dispara, domina. A plataforma de provas e estudo feita por alunos, para alunos.',
+  description: 'Provas, simulações e tutor para estudar com a tua turma.',
 };
 
-export const viewport: Viewport = { themeColor: '#a3d97f', width: 'device-width', initialScale: 1 };
+export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt" data-theme="light">
-      <body>
-        <div className="app">{children}</div>
-      </body>
+    <html lang="pt" data-theme="light" suppressHydrationWarning>
+      <head>
+        {/* Aplica o tema guardado antes de pintar, para não piscar. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('kixi-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }

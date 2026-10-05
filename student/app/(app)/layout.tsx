@@ -1,10 +1,5 @@
-import { AppNav } from '@/components/AppNav';
+import { Shell } from '@/components/Shell';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="screen kx-lcd">
-      {children}
-      <AppNav />
-    </div>
-  );
+  return <Shell>{children}</Shell>;
 }
