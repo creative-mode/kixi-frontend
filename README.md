@@ -12,6 +12,8 @@ Três apps Next.js no mesmo repo (gestão, aluno e landing), servidas por um gat
 
 ```bash
 npm install
+npm --prefix student install
+npm --prefix landing install
 npm run dev:all   # landing + aluno + gestor + gateway em http://localhost:3000
 ```
 
@@ -37,8 +39,8 @@ npm --prefix landing run dev   # landing :3004
 ## Scripts úteis
 
 ```bash
-npm run build / npm run lint        # raiz (gestor)
-npm run ds:sync                     # sincroniza o design system para student/ e landing/
+npm run build && npm run lint   # raiz (gestor)
+npm run ds:sync                 # sincroniza o design system para student/ e landing/
 docker compose up --build           # tudo em contentores, http://localhost:3000
 ```
 
