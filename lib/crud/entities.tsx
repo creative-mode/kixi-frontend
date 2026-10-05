@@ -97,7 +97,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Anos letivos',
     description: 'Períodos letivos do sistema',
     icon: Calendar,
-    tone: 'bg-warning-soft text-warning',
+    tone: 'bg-accent text-primary',
     fields: [
       { name: 'startYear', label: 'Ano de início', type: 'number', required: true, min: 1900, max: 2200, placeholder: '2025' },
       { name: 'endYear', label: 'Ano de fim', type: 'number', required: true, min: 1901, max: 2200, placeholder: '2026' },
@@ -121,7 +121,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Trimestres',
     description: 'Divisões do ano letivo',
     icon: CalendarRange,
-    tone: 'bg-danger-soft text-destructive',
+    tone: 'bg-accent text-primary',
     fields: [
       { name: 'number', label: 'Número', type: 'number', required: true, min: 1, max: 12, placeholder: '1' },
       { name: 'name', label: 'Nome', type: 'text', required: true, max: 120, placeholder: '1.º Trimestre' },
@@ -145,7 +145,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Disciplinas',
     description: 'Disciplinas leccionadas e avaliadas',
     icon: BookOpen,
-    tone: 'bg-info-soft text-info',
+    tone: 'bg-accent text-primary',
     fields: [
       { name: 'code', label: 'Código', type: 'text', required: true, max: 50, placeholder: 'RED', hint: 'Identifica a disciplina e não muda depois.', createOnly: true },
       { name: 'name', label: 'Nome', type: 'text', required: true, max: 255, placeholder: 'Redes de Computadores' },
@@ -174,7 +174,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Cursos',
     description: 'Cursos oferecidos pelas escolas',
     icon: GraduationCap,
-    tone: 'bg-secondary text-chart-5',
+    tone: 'bg-accent text-primary',
     fields: [
       { name: 'code', label: 'Código', type: 'text', required: true, min: 2, max: 50, placeholder: 'TISM' },
       { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 255, placeholder: 'Técnico de Informática e Sistemas Multimédia' },
@@ -201,7 +201,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Turmas',
     description: 'Turmas por curso e ano letivo',
     icon: Users,
-    tone: 'bg-warning-soft text-warning',
+    tone: 'bg-accent text-primary',
     fields: [
       { name: 'code', label: 'Código', type: 'text', required: true, max: 50, placeholder: '12B' },
       { name: 'grade', label: 'Classe', type: 'number', required: true, min: 1, max: 13, placeholder: '12' },
@@ -230,7 +230,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Papéis',
     description: 'Permissões de acesso (ADMIN, TEACHER, STUDENT…)',
     icon: Shield,
-    tone: 'bg-danger-soft text-destructive',
+    tone: 'bg-accent text-primary',
     fields: [
       { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 100, placeholder: 'TEACHER', hint: 'Em maiúsculas, como o backend espera.' },
       { name: 'description', label: 'Descrição', type: 'textarea', max: 500 },
@@ -284,7 +284,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Perfis',
     description: 'Nome e foto ligados a cada conta',
     icon: Layers,
-    tone: 'bg-danger-soft text-destructive',
+    tone: 'bg-accent text-primary',
     fields: [
       { name: 'accountId', label: 'Conta', type: 'select', required: true, optionsFrom: 'accounts' },
       { name: 'firstName', label: 'Nome', type: 'text', required: true, min: 2, max: 100 },
@@ -313,7 +313,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Enunciados',
     description: 'Provas importadas: rever, publicar e arquivar',
     icon: FileText,
-    tone: 'bg-secondary text-chart-5',
+    tone: 'bg-accent text-primary',
     fields: [],
     columns: [
       { label: 'Título', value: (r) => <strong>{r.title}</strong> },
@@ -336,7 +336,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     plural: 'Simulações',
     description: 'Provas feitas pelos alunos',
     icon: PlayCircle,
-    tone: 'bg-warning-soft text-warning',
+    tone: 'bg-accent text-primary',
     fields: [],
     columns: [
       { label: 'Aluno', value: (r) => <strong>{r.account?.username ?? '—'}</strong> },

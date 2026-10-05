@@ -28,8 +28,8 @@ export function InstitutionPanel({ institutions }: { institutions: InstitutionSt
           <BarChart data={withData} layout="vertical" margin={{ top: 0, right: 48, left: 8, bottom: 0 }}>
             <CartesianGrid horizontal={false} />
             <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} />
-            <YAxis dataKey="name" type="category" width={96} tickLine={false} axisLine={false} />
-            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <YAxis dataKey="code" type="category" width={64} tickLine={false} axisLine={false} />
+            <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, p) => (p?.[0]?.payload as { name?: string } | undefined)?.name ?? ''} />} />
             <Bar dataKey="averageScorePercent" isAnimationActive={false} fill="var(--color-averageScorePercent)" radius={2} barSize={20}>
               <LabelList
                 dataKey="averageScorePercent"

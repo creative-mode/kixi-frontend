@@ -5,15 +5,6 @@
 /* Kixi design system: tokens + Tailwind mapping (cópias geradas por `npm run ds:sync`) */
 @import "./ds-tokens.css";
 @import "./ds-theme.css";
-@theme {
-  --animate-shimmer: shimmer 2s infinite;
-
-  @keyframes shimmer {
-    100% {
-      transform: translateX(100%);
-    }
-  }
-}
 
 /* Fontes carregadas por next/font neste app */
 @theme inline {

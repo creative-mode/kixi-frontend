@@ -29,6 +29,8 @@ Regra: nunca uses cores literais em componentes. Usa sempre o token (`text-destr
 
 Base comum às duas apps: `Button` (default, secondary, outline, ghost, destructive, link; tamanhos sm/default/lg/icon), `Input`, `Label`, `Card`, `Badge` (default, secondary, outline, success, warning, info, destructive), `Table`, `Checkbox`.
 
+`Skeleton` / `SkeletonText`: marcador de carregamento (bloco `muted` com varrimento de luz; respeita `prefers-reduced-motion`). Dá-lhe a forma do conteúdo real. No gestor há composições prontas em `components/dashboard/dashboard-skeleton.tsx` (KPI, atalho, tabela, gráfico, secção e a dashboard inteira).
+
 Só no aluno: `Textarea`, `Avatar`, `Progress`, `Separator`, `Switch`, `Tabs`, `Alert`, `Field` (rótulo + controlo + erro) e `PasswordInput`.
 O gestor traz ainda o conjunto completo do shadcn (dialog, sheet, select, sidebar, etc.), já a usar os mesmos tokens.
 
@@ -51,3 +53,9 @@ O gestor traz ainda o conjunto completo do shadcn (dialog, sheet, select, sideba
 ## Auth
 
 Uma coluna centrada: marca e cartão com o formulário (400px), sem painel lateral. Aluno: `student/components/AuthShell.tsx`; gestor: `app/login/page.tsx`.
+
+## Estados da dashboard
+
+- **A carregar:** esqueletos com a forma do conteúdo, nunca spinners em branco.
+- **Sem sessão (401/403):** aviso neutro com "Iniciar sessão", sem vermelho; as secções de dados escondem-se em vez de repetirem o erro.
+- **Erro genérico:** aviso suave com `warning` e "Tentar novamente". O vermelho (`destructive`) fica para acções destrutivas e valores baixos.

@@ -7,8 +7,8 @@ const ACCENT = {
   brand: 'bg-accent text-primary',
   tiro: 'bg-warning-soft text-warning',
   radar: 'bg-info-soft text-info',
-  pop: 'bg-danger-soft text-destructive',
-  lila: 'bg-secondary text-chart-5',
+  pop: 'bg-accent text-primary',
+  lila: 'bg-accent text-primary',
 } as const;
 
 interface Props {
@@ -26,7 +26,7 @@ export function KpiCard({ label, value, hint, icon: Icon, accent = 'brand', load
       <CardHeader className="flex flex-row items-center justify-between pb-0">
         <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
         <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border-2 border-current/40 ${ACCENT[accent]}`}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${ACCENT[accent]}`}
         >
           <Icon className="h-4 w-4" aria-hidden />
         </div>

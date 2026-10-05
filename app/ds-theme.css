@@ -2,6 +2,7 @@
 @custom-variant dark (&:is(.dark *, [data-theme='dark'] *));
 
 @theme inline {
+  --animate-shimmer: kx-shimmer 1.6s ease-in-out infinite;
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --color-background: var(--background);
@@ -48,3 +49,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
+
+/* Skeleton: varrimento de luz suave sobre `muted`; parado com prefers-reduced-motion */
+@keyframes kx-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { [data-slot='skeleton'] > span { display: none; } }
