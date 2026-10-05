@@ -6,6 +6,9 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   turbopack: { root: path.resolve(__dirname) },
+  // Imagem Docker mínima (docker/app.Dockerfile); a raiz fixa evita que o servidor fique em subpastas.
+  output: 'standalone',
+  outputFileTracingRoot: path.resolve(__dirname),
   // Se a landing for aberta direto em :3004 (sem o gateway em :3000), /aluno e /manager vão para os outros apps.
   async rewrites() {
     if (process.env.NODE_ENV === 'production') return [];

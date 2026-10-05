@@ -1,0 +1,7 @@
+# Publica também cada app na sua porta (só para depuração local):
+#   docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
+# Atenção: cada app tem um basePath (/manager, /aluno); abre http://localhost:3002/manager, http://localhost:3003/aluno, http://localhost:3004
+services:
+  manager: { ports: ["3002:3002"] }
+  student: { ports: ["3003:3003"] }
+  landing: { ports: ["3004:3004"] }

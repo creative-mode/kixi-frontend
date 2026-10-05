@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   enablePrerenderSourceMaps: false,
   productionBrowserSourceMaps: false,
   basePath: '/manager',
+  // Imagem Docker mínima (docker/app.Dockerfile)
+  output: 'standalone',
 
   async redirects() {
     return [

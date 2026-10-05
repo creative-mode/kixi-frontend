@@ -6,25 +6,32 @@ import http from 'node:http';
 import net from 'node:net';
 
 const PORT = Number(process.env.PORT ?? 3000);
+// Em Docker cada app é um contentor: MANAGER_HOST=manager, STUDENT_HOST=student, LANDING_HOST=landing.
 const ROUTES = [
-  { prefix: '/manager', port: Number(process.env.MANAGER_PORT ?? 3002) },
-  { prefix: '/aluno', port: Number(process.env.STUDENT_PORT ?? 3003) },
+  { prefix: '/manager', host: process.env.MANAGER_HOST ?? '127.0.0.1', port: Number(process.env.MANAGER_PORT ?? 3002) },
+  { prefix: '/aluno', host: process.env.STUDENT_HOST ?? '127.0.0.1', port: Number(process.env.STUDENT_PORT ?? 3003) },
 ];
-const LANDING = Number(process.env.LANDING_PORT ?? 3004);
+const LANDING = { host: process.env.LANDING_HOST ?? '127.0.0.1', port: Number(process.env.LANDING_PORT ?? 3004) };
 
 const pick = (url = '/') => {
   const hit = ROUTES.find((r) => url === r.prefix || url.startsWith(r.prefix + '/') || url.startsWith(r.prefix + '?'));
-  return hit ? hit.port : LANDING;
+  return hit ?? LANDING;
 };
 
 const forwarded = (req) => ({
   ...req.headers,
   'x-forwarded-host': req.headers.host,
-  'x-forwarded-proto': 'http',
+  // atrás de um proxy TLS (nginx, Caddy, Traefik) mantém o protocolo original
+  'x-forwarded-proto': req.headers['x-forwarded-proto'] ?? 'http',
 });
 
 const server = http.createServer((req, res) => {
-  const up = http.request({ host: '127.0.0.1', port: pick(req.url), method: req.method, path: req.url, headers: forwarded(req) }, (r) => {
+  if (req.url === '/healthz') {
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    return res.end('ok');
+  }
+  const t = pick(req.url);
+  const up = http.request({ host: t.host, port: t.port, method: req.method, path: req.url, headers: forwarded(req) }, (r) => {
     res.writeHead(r.statusCode ?? 502, r.headers);
     r.pipe(res);
   });
@@ -37,7 +44,8 @@ const server = http.createServer((req, res) => {
 
 // HMR (websocket) dos três apps
 server.on('upgrade', (req, socket, head) => {
-  const up = net.connect(pick(req.url), '127.0.0.1', () => {
+  const t = pick(req.url);
+  const up = net.connect(t.port, t.host, () => {
     const lines = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
     for (let i = 0; i < req.rawHeaders.length; i += 2) lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
     up.write(lines.join('\r\n') + '\r\n\r\n');
