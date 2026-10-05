@@ -3,10 +3,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 /** Public: the two entrance screens. Everything else needs a live session. */
 const PUBLIC = ['/entrar', '/cadastro'];
 /** O manager vive no mesmo endereço, em /manager (fora do basePath deste app). */
-const managerUrl = (req: NextRequest) => process.env.NEXT_PUBLIC_MANAGER_URL ?? new URL('/manager', req.url).toString();
+/** Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público (cabeçalhos do gateway). */
+function publicOrigin(req: NextRequest) {
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.host;
+  const proto = req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '');
+  return `${proto}://${host}`;
+}
+const managerUrl = (req: NextRequest) => process.env.NEXT_PUBLIC_MANAGER_URL ?? new URL('/manager', publicOrigin(req)).toString();
 /** Redireciona dentro deste app (mantém o basePath /aluno). */
 function go(req: NextRequest, pathname: string) {
   const url = req.nextUrl.clone();
+  url.host = new URL(publicOrigin(req)).host;
+  url.protocol = new URL(publicOrigin(req)).protocol;
   url.pathname = pathname;
   return NextResponse.redirect(url);
 }
