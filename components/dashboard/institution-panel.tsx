@@ -41,7 +41,7 @@ export function InstitutionPanel({ institutions }: { institutions: InstitutionSt
           </BarChart>
         </ChartContainer>
       ) : (
-        <p className="rounded-md border-2 border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
           Ainda nenhuma instituição tem simulações concluídas para comparar.
         </p>
       )}

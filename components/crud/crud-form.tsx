@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { createRow, getRow, listOptions, updateRow } from '@/app/actions/crud';
 import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
+import { FormSkeleton } from './loading';
 
 type Errors = Record<string, string>;
 
@@ -117,7 +119,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       <Card>
         <CardContent className="p-6">
           {loading ? (
-            <div className="flex justify-center py-12"><span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+            <FormSkeleton fields={Math.max(2, fields.length)} />
           ) : loadError && editing && Object.keys(values).length === 0 ? (
             <p className="py-8 text-center text-sm text-destructive">{loadError}</p>
           ) : (
@@ -134,17 +136,16 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
                     {f.type === 'textarea' ? (
                       <Textarea {...common} rows={4} value={values[f.name] ?? ''} onChange={(e) => set(f.name, e.target.value)} placeholder={f.placeholder} />
                     ) : f.type === 'select' ? (
-                      <select
+                      <NativeSelect
                         {...common}
                         value={values[f.name] ?? ''}
                         onChange={(e) => set(f.name, e.target.value)}
-                        className="h-10 w-full rounded-md border-2 border-input bg-muted px-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:border-destructive"
                       >
                         <option value="">Escolher…</option>
                         {(options[f.optionsFrom ?? ''] ?? []).map((o) => (
                           <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
-                      </select>
+                      </NativeSelect>
                     ) : (
                       <Input
                         {...common}

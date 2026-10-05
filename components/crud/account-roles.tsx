@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { accountRoles, listRows, setAccountRole } from '@/app/actions/crud';
 import type { Row } from '@/lib/crud/entities';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 
 /** Which roles an account has: each checkbox assigns or removes the role straight away. */
 export function AccountRoles({ account }: { account: Row }) {
@@ -52,18 +54,17 @@ export function AccountRoles({ account }: { account: Row }) {
             <DialogDescription>O que a conta pode fazer na plataforma. As alterações aplicam-se de imediato.</DialogDescription>
           </DialogHeader>
           {loading ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">A carregar…</p>
+            <div className="grid gap-2" aria-label="A carregar"><Skeleton className="h-14" /><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
           ) : (
             <ul className="space-y-2">
               {roles.map((r) => (
                 <li key={r.id}>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-md border-2 border-border p-3 hover:bg-accent/50">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 accent-[var(--primary)]"
+                  <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-accent/50">
+                    <Checkbox
+                      className="mt-0.5"
                       checked={mine.has(r.id)}
                       disabled={busy === r.id}
-                      onChange={(e) => toggle(r, e.target.checked)}
+                      onCheckedChange={(v) => toggle(r, v === true)}
                     />
                     <span>
                       <span className="block font-mono text-xs font-bold">{r.name}</span>

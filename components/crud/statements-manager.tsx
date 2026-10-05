@@ -12,6 +12,7 @@ import { approveStatement, deleteRow, listStatements, setStatementVisible } from
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
+import { TableRowsSkeleton } from './loading';
 
 const entity = ENTITIES.statements;
 const FILTERS = [
@@ -84,7 +85,7 @@ export function StatementsManager() {
             </TableHeader>
             <TableBody>
               {rows === null ? (
-                <TableRow><TableCell colSpan={6} className="py-16 text-center text-muted-foreground">A carregar…</TableCell></TableRow>
+                <TableRowsSkeleton cols={6} />
               ) : error ? (
                 <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
               ) : rows.length === 0 ? (

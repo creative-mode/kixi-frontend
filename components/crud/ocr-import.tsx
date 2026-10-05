@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { importStatementOcr } from '@/app/actions/media';
 import { ENTITIES } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
+import { Spinner } from '@/components/ui/spinner';
 
 const ACCEPT = 'image/*,application/pdf';
 const size = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1000))} KB`);
@@ -54,7 +55,7 @@ export function OcrImport() {
               onDragOver={(e) => { e.preventDefault(); setOver(true); }}
               onDragLeave={() => setOver(false)}
               onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}
-              className={`grid place-items-center gap-2 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors ${over ? 'border-primary bg-accent' : 'border-border'}`}
+              className={`grid place-items-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center transition-colors ${over ? 'border-primary bg-accent' : 'border-border'}`}
             >
               <UploadCloud className="size-8 text-muted-foreground" aria-hidden />
               <p className="text-sm font-medium">Arraste os ficheiros para aqui</p>
@@ -80,7 +81,7 @@ export function OcrImport() {
         <div className="flex justify-end gap-3">
           <Button asChild variant="outline"><Link href="/statements">Cancelar</Link></Button>
           <Button type="submit" disabled={busy || files.length === 0}>
-            {busy ? (<><span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />A ler a prova…</>) : (<><ScanText size={16} />Importar e extrair</>)}
+            {busy ? (<><Spinner className="size-4" />A ler a prova…</>) : (<><ScanText size={16} />Importar e extrair</>)}
           </Button>
         </div>
       </form>

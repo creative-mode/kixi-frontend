@@ -36,7 +36,7 @@ export function StatementsTable({ statements }: { statements: StatementStats[] }
                 <button
                   type="button"
                   onClick={() => setSelected(s)}
-                  className="text-left font-semibold text-foreground hover:underline"
+                  className="rounded-sm text-left font-semibold text-foreground outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40"
                 >
                   {s.title ?? `Prova #${s.id}`}
                 </button>
@@ -70,7 +70,7 @@ export function StatementsTable({ statements }: { statements: StatementStats[] }
                   type="button"
                   onClick={() => setSelected(s)}
                   aria-label={`Ver questões de ${s.title ?? `prova ${s.id}`}`}
-                  className="p-1 text-muted-foreground hover:text-foreground"
+                  className="rounded-md p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
                 >
                   <ChevronRight className="h-4 w-4" aria-hidden />
                 </button>

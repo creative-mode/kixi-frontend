@@ -93,6 +93,7 @@ export interface Entity {
 const date = (v?: string | null) => (v ? new Date(v).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const dateTime = (v?: string | null) => (v ? new Date(v).toLocaleString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 const localInput = (v?: string | null) => (v ? String(v).slice(0, 16) : '');
+const num = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
 const dim = (v: ReactNode) => <span className="text-muted-foreground">{v ?? '—'}</span>;
 
 export const ENTITIES: Record<EntityKey, Entity> = {
@@ -368,7 +369,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { label: 'Questão', value: (r) => `#${r.questionId}`, className: 'w-24' },
       { label: 'Resposta', value: (r) => (r.selectedOptionId != null ? `Opção #${r.selectedOptionId}` : dim(r.answerText ? String(r.answerText).slice(0, 48) : null)) },
       { label: 'Correta', value: (r) => (r.isCorrect == null ? dim(null) : r.isCorrect ? <span className="text-success">Sim</span> : <span className="text-destructive">Não</span>), className: 'w-24' },
-      { label: 'Pontos', value: (r) => dim(r.scoreObtained == null ? null : String(r.scoreObtained).replace('.', ',')), className: 'w-20' },
+      { label: 'Pontos', value: (r) => dim(r.scoreObtained == null ? null : num(r.scoreObtained)), className: 'w-20' },
     ],
     titleOf: (r) => `Resposta #${r.id}`,
     canCreate: true,
@@ -423,7 +424,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     columns: [
       { label: 'Aluno', value: (r) => <strong>{r.account?.username ?? '—'}</strong> },
       { label: 'Prova', value: (r) => r.statement?.title ?? '—' },
-      { label: 'Nota', value: (r) => (r.finalScore == null ? dim(null) : String(r.finalScore).replace('.', ',')), className: 'w-20' },
+      { label: 'Nota', value: (r) => (r.finalScore == null ? dim(null) : num(r.finalScore)), className: 'w-20' },
       { label: 'Estado', value: (r) => r.status, className: 'w-32' },
     ],
     titleOf: (r) => `#${r.id} · ${r.account?.username ?? 'aluno'} · ${r.statement?.title ?? 'prova'}`,

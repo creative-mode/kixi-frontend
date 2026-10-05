@@ -162,7 +162,7 @@ export default function ManagerDashboard() {
       {review > 0 ? (
         <Link
           href="/statements"
-          className="flex items-center gap-4 rounded-md border-2 border-warning/40 bg-warning-soft p-4 text-warning transition-colors hover:brightness-105"
+          className="flex items-center gap-4 rounded-md border border-warning/30 bg-warning-soft p-4 text-warning transition-colors hover:brightness-105"
         >
           <FileSearch size={22} />
           <span className="font-semibold">

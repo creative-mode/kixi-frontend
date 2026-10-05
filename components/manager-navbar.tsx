@@ -20,6 +20,7 @@ import {
   Quote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
@@ -75,7 +76,7 @@ export function ManagerNavbar() {
             className="text-xl font-bold tracking-tighter z-50 relative flex items-center gap-2"
           >
             <KixiLogo size={28} wordmark />
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Manager</span>
+            <span className="text-xs text-muted-foreground">Manager</span>
           </Link>
 
           <div className="flex items-center gap-4 z-50 relative">
@@ -84,7 +85,7 @@ export function ManagerNavbar() {
             </div>
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-md border-2 border-transparent hover:border-border hover:bg-accent transition-colors relative group"
+              className="p-2 rounded-md border border-transparent hover:border-border hover:bg-accent transition-colors relative group"
             >
               <div className="relative w-6 h-6 flex items-center justify-center">
                 <AnimatePresence mode="wait">
@@ -141,7 +142,7 @@ export function ManagerNavbar() {
                       <Link
                         href={link.href}
                         className={cn(
-                          "group flex items-start gap-4 p-6 rounded-md border-2 transition-colors duration-200",
+                          "group flex items-start gap-4 p-6 rounded-md border transition-colors duration-200",
                           isActive
                             ? "bg-accent border-primary"
                             : "bg-card hover:bg-accent border-border hover:border-primary"
@@ -149,7 +150,7 @@ export function ManagerNavbar() {
                       >
                         <div
                           className={cn(
-                            "p-3 rounded-md border-2 border-current/40",
+                            "p-3 rounded-md",
                             link.color
                           )}
                         >
@@ -184,13 +185,10 @@ export function ManagerNavbar() {
                 <div className="md:hidden">
                   <UserDisplay />
                 </div>
-                <button
-                  onClick={() => logoutAction()}
-                  className="flex items-center gap-2 px-6 py-3 rounded-md border-2 border-b-4 border-destructive/40 bg-destructive text-destructive-foreground hover:brightness-105 active:translate-y-[3px] active:border-b-[1px] font-semibold ml-auto"
-                >
+                <Button variant="destructive" size="lg" className="ml-auto" onClick={() => logoutAction()}>
                   <LogOut size={18} />
-                  Sair do Sistema
-                </button>
+                  Sair do sistema
+                </Button>
               </motion.div>
             </div>
           </motion.div>

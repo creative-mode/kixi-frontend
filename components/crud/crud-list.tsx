@@ -13,6 +13,7 @@ import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/l
 import { AccountRoles } from './account-roles';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
+import { TableRowsSkeleton } from './loading';
 
 /** Generic list: search, rows, edit, move to trash. Accounts also get a roles dialog per row. */
 export function CrudList({ entityKey }: { entityKey: EntityKey }) {
@@ -102,12 +103,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
             </TableHeader>
             <TableBody>
               {rows === null ? (
-                <TableRow>
-                  <TableCell colSpan={cols} className="py-16 text-center text-muted-foreground">
-                    <span className="mx-auto mb-2 block h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    A carregar…
-                  </TableCell>
-                </TableRow>
+                <TableRowsSkeleton cols={cols} />
               ) : error ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-12 text-center">

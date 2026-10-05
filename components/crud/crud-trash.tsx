@@ -10,6 +10,7 @@ import { listRows, listStatements, purgeRow, restoreRow } from '@/app/actions/cr
 import { ENTITIES, rowId, type EntityKey, type Row, gender } from '@/lib/crud/entities';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
+import { TableRowsSkeleton } from './loading';
 
 export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
   const entity = ENTITIES[entityKey];
@@ -70,7 +71,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
             </TableHeader>
             <TableBody>
               {rows === null ? (
-                <TableRow><TableCell colSpan={cols} className="py-16 text-center text-muted-foreground">A carregar…</TableCell></TableRow>
+                <TableRowsSkeleton cols={cols} />
               ) : error ? (
                 <TableRow><TableCell colSpan={cols} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
               ) : rows.length === 0 ? (

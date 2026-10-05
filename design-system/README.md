@@ -59,3 +59,13 @@ Uma coluna centrada: marca e cartão com o formulário (400px), sem painel later
 - **A carregar:** esqueletos com a forma do conteúdo, nunca spinners em branco.
 - **Sem sessão (401/403):** aviso neutro com "Iniciar sessão", sem vermelho; as secções de dados escondem-se em vez de repetirem o erro.
 - **Erro genérico:** aviso suave com `warning` e "Tentar novamente". O vermelho (`destructive`) fica para acções destrutivas e valores baixos.
+
+## Checklist de conformidade (gestor e aluno)
+
+- Cores só por token (`bg-card`, `text-muted-foreground`, `text-destructive`…). Nada de hex, `text-white` ou paletas do Tailwind.
+- Contornos de 1px (`border`); `border-2` só em tracejados de largura de arrasto. Sem sombras duras nem cantos recortados.
+- Controlos de formulário: `Input`, `Textarea`, `NativeSelect`, `Checkbox`, `Switch`. Nunca `<input>`/`<select>` crus (excepto `type=file` oculto).
+- Acções: sempre `Button` (variantes `default`, `outline`, `ghost`, `destructive`). Botões crus só como alvo de clique com `focus-visible:ring`.
+- A carregar: `Skeleton` com a forma do conteúdo (`TableRowsSkeleton`, `FormSkeleton`, `DetailSkeleton`, `DashboardSkeleton`); `Spinner` só dentro de botões que estão a executar uma acção.
+- Texto: sem MAIÚSCULAS forçadas nem enums do backend à vista (traduzir: `MULTIPLE_CHOICE` → "Escolha múltipla"); números com `Intl.NumberFormat('pt-PT')`.
+- Género nas mensagens: `gender()` / `newLabel()` em `lib/crud/entities.tsx`.

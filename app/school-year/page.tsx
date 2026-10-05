@@ -18,6 +18,8 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Eye, Edit, Trash2, Plus, Calendar, Archive } from 'lucide-react';
 import type { SchoolYearResponse } from '@/types/school-year';
+import { Spinner } from '@/components/ui/spinner';
+import { TableRowsSkeleton } from '@/components/crud/loading';
 
 export default function SchoolYearsManager() {
   const [schoolYears, setSchoolYears] = useState<SchoolYearResponse[]>([]);
@@ -68,7 +70,7 @@ export default function SchoolYearsManager() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="p-2 rounded-md border-2 border-current/40 bg-warning-soft text-warning">
+            <div className="p-2 rounded-md bg-warning-soft text-warning">
               <Calendar size={20} />
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">Anos Letivos</h1>
@@ -111,14 +113,7 @@ export default function SchoolYearsManager() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-                      <span className="text-sm">A carregar anos letivos...</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <TableRowsSkeleton cols={6} />
               ) : schoolYears.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
@@ -170,7 +165,7 @@ export default function SchoolYearsManager() {
                           onClick={() => handleSoftDelete(year)}
                         >
                           {deletingId === year.id ? (
-                            <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                            <Spinner className="size-4" />
                           ) : (
                             <Trash2 size={16} />
                           )}

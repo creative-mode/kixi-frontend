@@ -48,7 +48,7 @@ export function QuestionImages({ questionId }: { questionId: number }) {
   return (
     <div className="mt-4 border-t pt-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-muted-foreground">Imagens da questão{images ? ` (${images.length})` : ''}</p>
+        <p className="text-xs text-muted-foreground"><span className="font-semibold">Imagens da questão{images?.length ? ` (${images.length})` : ''}</span>{images?.length === 0 ? ' · nenhuma. PNG, JPG ou WEBP até 5 MB.' : ''}</p>
         <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={onPick} aria-label="Escolher imagem" />
         <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
           <ImagePlus size={14} aria-hidden />{uploading ? 'A enviar…' : 'Adicionar imagem'}
@@ -57,9 +57,7 @@ export function QuestionImages({ questionId }: { questionId: number }) {
       {error ? <p className="text-xs text-muted-foreground">{error}</p> : null}
       {images === null ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3"><Skeleton className="aspect-video" /><Skeleton className="aspect-video" /></div>
-      ) : images.length === 0 ? (
-        <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">Sem imagens. PNG, JPG ou WEBP até 5 MB.</p>
-      ) : (
+      ) : images.length === 0 ? null : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {images.map((img) => (
             <li key={img.id} className="grid gap-1.5 rounded-lg border bg-card p-2">

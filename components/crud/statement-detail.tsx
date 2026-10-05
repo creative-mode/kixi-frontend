@@ -7,6 +7,10 @@ import { getStatementFull } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
 import { QuestionImages } from './question-images';
+import { DetailSkeleton } from './loading';
+
+const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento' };
+const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
 
 export function StatementDetail({ id }: { id: number }) {
   const [s, setS] = useState<Row | null>(null);
@@ -23,13 +27,13 @@ export function StatementDetail({ id }: { id: number }) {
       {error ? (
         <p className="py-12 text-center text-sm text-destructive">{error}</p>
       ) : !s ? (
-        <p className="py-12 text-center text-sm text-muted-foreground">A carregar…</p>
+        <DetailSkeleton />
       ) : (
         <div className="space-y-6">
           <Card>
             <CardContent className="grid gap-4 p-6 text-sm sm:grid-cols-4">
               <Info label="Duração" value={s.durationMinutes ? `${s.durationMinutes} min` : '—'} />
-              <Info label="Cotação" value={s.totalMaxScore != null ? String(s.totalMaxScore).replace('.', ',') : '—'} />
+              <Info label="Cotação" value={s.totalMaxScore != null ? score(s.totalMaxScore) : '—'} />
               <Info label="Origem" value={s.source ?? '—'} />
               <Info label="Confiança OCR" value={s.ocrConfidence != null ? `${Math.round(s.ocrConfidence * 100)}%` : '—'} />
             </CardContent>
@@ -43,8 +47,8 @@ export function StatementDetail({ id }: { id: number }) {
                 <div key={q.id} className="rounded-lg border p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <strong>Questão {q.number}</strong>
-                    <Badge variant="outline">{q.questionType}</Badge>
-                    {q.maxScore != null ? <span className="text-xs text-muted-foreground">{String(q.maxScore).replace('.', ',')} val.</span> : null}
+                    <Badge variant="outline">{QUESTION_TYPES[q.questionType] ?? q.questionType}</Badge>
+                    {q.maxScore != null ? <span className="text-xs text-muted-foreground">{score(q.maxScore)} val.</span> : null}
                     {q.needsReview ? <Badge variant="secondary">A rever</Badge> : null}
                   </div>
                   <p className="text-sm">{q.text}</p>
