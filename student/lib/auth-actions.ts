@@ -1,6 +1,6 @@
 'use server';
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { BACKEND, COOKIE, managerUrl } from './session';
 import { MOCK, mockPost } from './mock/auth';
@@ -18,7 +18,7 @@ async function detail(res: Response): Promise<string> {
 async function startSession(data: LoginResponse): Promise<string> {
   const left = Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000);
   const jar = await cookies();
-  jar.set(COOKIE, data.accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: left > 0 ? left : 60 * 60 * 24 });
+  jar.set(COOKIE, data.accessToken, { httpOnly: true, secure: (await headers()).get('x-forwarded-proto') === 'https', sameSite: 'lax', path: '/', maxAge: left > 0 ? left : 60 * 60 * 24 });
   return data.roles.includes('ADMIN') ? await managerUrl() : '/inicio';
 }
 

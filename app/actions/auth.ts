@@ -1,6 +1,6 @@
 'use server';
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { apiFetch } from '@/lib/mock/fetch';
 
@@ -62,6 +62,8 @@ export async function loginAction(formData: FormData) {
     }
 
     const cookieStore = await cookies();
+    // Cookie Secure só em HTTPS (direto ou atrás de um proxy TLS); em HTTP o browser descartaria o cookie e o login não ficaria guardado.
+    const secure = (await headers()).get('x-forwarded-proto') === 'https';
 
     // Calcula maxAge aproximado em segundos a partir de expiresAt
     let maxAgeSeconds: number | undefined;
@@ -80,7 +82,7 @@ export async function loginAction(formData: FormData) {
 
     cookieStore.set('auth_token', data.accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       path: '/',
       maxAge: maxAgeSeconds,           // ideal: usa o tempo real de expiração
@@ -98,7 +100,7 @@ export async function loginAction(formData: FormData) {
       }),
       {
         httpOnly: false,           // ← permite ler no client se quiseres
-        secure: process.env.NODE_ENV === 'production',
+        secure,
         sameSite: 'lax',
         path: '/',
         maxAge: maxAgeSeconds,

@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
  *  The secret matches the manager's, so an ADMIN who signs in here is accepted there. */
 export const MOCK = process.env.KIXI_MOCK !== 'false';
 
-const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
+const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
 
 type Account = { id: number; username: string; email: string; passwordHash: string; roles: string[]; active: boolean };
