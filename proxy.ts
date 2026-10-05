@@ -41,6 +41,9 @@ export async function proxy(request: NextRequest) {
         if (roles.includes('ADMIN')) {
           return NextResponse.redirect(redirectTo('/', request))
         }
+        if (roles.includes('TEACHER')) {
+          return NextResponse.redirect(redirectTo('/exam-builder', request))
+        }
       } catch {
         // Token invalid — let them see login page
       }
@@ -68,7 +71,13 @@ export async function proxy(request: NextRequest) {
 
     // Only ADMIN role can access Kixi Manager
     const roles = (payload.roles as string[]) || []
-    if (!roles.includes('ADMIN')) {
+    const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN')
+    if (isTeacher) {
+      // O professor só trabalha no exam builder.
+      if (!pathname.startsWith('/exam-builder')) {
+        return NextResponse.redirect(redirectTo('/exam-builder', request))
+      }
+    } else if (!roles.includes('ADMIN')) {
       // A valid student session is shared with the aluno app (same cookie): send them to the login, but keep it.
       return NextResponse.redirect(redirectTo('/login', request))
     }

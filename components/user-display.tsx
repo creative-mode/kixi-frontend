@@ -22,7 +22,7 @@ export function UserDisplay() {
                 <User size={16} className="text-foreground" />
             </div>
             <div className="hidden lg:block">
-                <p className="font-medium leading-none text-foreground">Admin</p>
+                <p className="font-medium leading-none text-foreground">{primaryRole === 'TEACHER' ? 'Professor' : 'Admin'}</p>
                 <p className="text-xs text-muted-foreground capitalize">{primaryRole.toLowerCase()}</p>
             </div>
         </div>

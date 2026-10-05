@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Building2,
   BookOpen,
   Calendar,
   CalendarRange,
@@ -11,6 +12,7 @@ import {
   PlayCircle,
   Shield,
   User,
+  UserSquare,
   Users,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -54,6 +56,8 @@ export type EntityKey =
   | 'roles'
   | 'accounts'
   | 'users'
+  | 'institutions'
+  | 'teachers'
   | 'statements'
   | 'simulations'
   | 'sessions'
@@ -315,6 +319,65 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     purge: { suffix: '/purge' },
     toForm: (r) => ({ accountId: r.accountId, firstName: r.firstName, lastName: r.lastName, photo: r.photo ?? '' }),
   },
+  institutions: {
+    key: 'institutions',
+    fem: true,
+    path: 'institutions',
+    api: '/api/v1/institutions',
+    idKey: 'id',
+    singular: 'Instituição',
+    plural: 'Instituições',
+    description: 'Escolas, com disciplinas, professores e alunos afiliados',
+    icon: Building2,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'code', label: 'Código', type: 'text', required: true, max: 20, placeholder: 'ITEL' },
+      { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 200, placeholder: 'Instituto de Telecomunicações' },
+      { name: 'short_name', label: 'Sigla', type: 'text', max: 50, placeholder: 'ITEL' },
+      { name: 'logo', label: 'Logótipo (URL)', type: 'text', placeholder: 'https://…', hint: 'Aparece no cabeçalho das provas.' },
+    ],
+    columns: [
+      { label: 'Código', value: (r) => <span className="font-mono text-xs font-bold">{r.code}</span>, className: 'w-28' },
+      { label: 'Nome', value: (r) => <strong>{r.name}</strong> },
+      { label: 'Sigla', value: (r) => dim(r.short_name) },
+    ],
+    titleOf: (r) => r.name,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toForm: (r) => ({ code: r.code, name: r.name, short_name: r.short_name ?? '', logo: r.logo ?? '' }),
+  },
+  teachers: {
+    key: 'teachers',
+    path: 'teachers',
+    api: '/api/v1/teachers',
+    idKey: 'id',
+    singular: 'Professor',
+    plural: 'Professores',
+    description: 'Docentes; podem ter acesso à plataforma',
+    icon: UserSquare,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'firstName', label: 'Nome', type: 'text', required: true, min: 2, max: 100 },
+      { name: 'lastName', label: 'Apelido', type: 'text', required: true, min: 2, max: 100 },
+      { name: 'email', label: 'Email', type: 'email', max: 255 },
+      { name: 'specialty', label: 'Especialidade', type: 'text', max: 150 },
+      { name: 'employeeNumber', label: 'N.º de funcionário', type: 'text', max: 50 },
+      { name: 'photo', label: 'Foto (URL)', type: 'text', max: 500, placeholder: 'https://…' },
+    ],
+    columns: [
+      { label: 'Nome', value: (r) => <strong>{r.firstName} {r.lastName}</strong> },
+      { label: 'Especialidade', value: (r) => dim(r.specialty) },
+      { label: 'Acesso', value: (r) => (r.hasAccess ? <span className="text-xs font-semibold text-primary">Com acesso</span> : dim('Sem acesso')), className: 'w-32' },
+    ],
+    titleOf: (r) => `${r.firstName} ${r.lastName}`,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toForm: (r) => ({ firstName: r.firstName, lastName: r.lastName, email: r.email ?? '', specialty: r.specialty ?? '', employeeNumber: r.employeeNumber ?? '', photo: r.photo ?? '' }),
+  },
   sessions: {
     key: 'sessions',
     fem: true,
@@ -437,7 +500,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
 };
 
 /** Entities with a plain create/edit form (statements and simulations have their own screens). */
-export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'roles', 'accounts', 'users', 'sessions', 'simulation-answers'];
+export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'institutions', 'teachers', 'roles', 'accounts', 'users', 'sessions', 'simulation-answers'];
 export const NAV_KEYS: EntityKey[] = [...CRUD_KEYS, 'statements', 'simulations'];
 
 export function entityByPath(path: string): Entity | undefined {

@@ -37,6 +37,7 @@ const nextId = (t) => (seq[t] = (seq[t] ?? 0) + 1);
 G.__kixiMock.db ??= {
   roles: [], accounts: [], users: [], accountRoles: [], 'school-years': [], terms: [], subjects: [], courses: [],
   classes: [], statements: [], simulations: [], 'simulation-answers': [], sessions: [], 'question-images': [],
+  institutions: [], teachers: [], institutionSubjects: [], institutionTeachers: [], institutionStudents: [],
 };
 const db: any = G.__kixiMock.db;
 function add(table, data) {
@@ -64,6 +65,7 @@ for (const [name, description] of [
 seedAccount('admin', 'admin@kixi.ao', 'ADMIN', 'Administrador', 'Kixi');
 seedAccount('professor', 'professor@kixi.ao', 'TEACHER', 'Helena', 'Gomes');
 const student = seedAccount('12345', 'aluno@kixi.ao', 'STUDENT', 'Abner', 'Ede');
+const teacherAcc = db.accounts.find((a) => a.username === 'professor');
 
 const sy = add('school-years', { startYear: 2025, endYear: 2026 });
 add('school-years', { startYear: 2024, endYear: 2025 });
@@ -83,6 +85,14 @@ add('statements', {
   title: 'P1 · POO (a rever)', examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
   source: 'OCR', ocrConfidence: 0.87, ocrRequestId: 'req-1', schoolYearId: sy.id, termId: 2, subjectId: 1, classId: cls.id, questions: [],
 });
+
+  const itel = add('institutions', { code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: '/manager/exam/itel.png' });
+  for (const sub of db.subjects) db.institutionSubjects.push({ institutionId: itel.id, subjectId: sub.id });
+  const helena = add('teachers', { accountId: teacherAcc.id, firstName: 'Helena', lastName: 'Gomes', email: 'professor@kixi.ao', photo: null, specialty: 'Redes', employeeNumber: 'P-001' });
+  db.institutionTeachers.push({ institutionId: itel.id, teacherId: helena.id });
+  add('teachers', { accountId: null, firstName: 'Carlos', lastName: 'Mendes', email: 'carlos@itel.ao', photo: null, specialty: 'Sistemas Operativos', employeeNumber: 'P-002' });
+  const stUser = db.users.find((u) => u.accountId === student.id);
+  if (stUser) db.institutionStudents.push({ institutionId: itel.id, userId: stUser.id });
 
   seedExtras();
 }
@@ -130,6 +140,12 @@ const RES = {
     },
     validate: (b) => (!db.simulations.find((x) => x.id === b.simulationId && !x.deletedAt) ? 'simulation not found' : null),
   },
+  institutions: { table: 'institutions', req: ['code', 'name'], unique: (b, id) => (db.institutions.some((i) => !i.deletedAt && i.id !== id && i.code === b.code) ? 'Institution code already exists' : null), pick: (b) => ({ code: b.code, name: b.name, short_name: b.short_name ?? null, logo: b.logo ?? null }) },
+  teachers: {
+    table: 'teachers', admin: true, req: ['firstName', 'lastName'],
+    pick: (b) => ({ firstName: b.firstName, lastName: b.lastName, email: b.email ?? null, photo: b.photo ?? null, specialty: b.specialty ?? null, employeeNumber: b.employeeNumber ?? null }),
+    defaults: { accountId: null },
+  },
   roles: { table: 'roles', admin: true, req: ['name'], pick: (b) => ({ name: b.name, description: b.description ?? null }) },
   users: { table: 'users', admin: true, req: ['accountId', 'firstName', 'lastName'], pick: (b) => ({ accountId: b.accountId, firstName: b.firstName, lastName: b.lastName, photo: b.photo ?? null }) },
   accounts: {
@@ -145,7 +161,11 @@ function authorize(auth: any, method: string, path: string) {
   const has = (...r) => r.some((x) => roles.includes(x));
   if (path.startsWith('/api/v1/auth/')) return 200;
   if (!auth) return 401;
-  if (/^\/api\/v1\/(accounts|users|roles|sessions)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/(accounts|users|roles|sessions|teachers)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/institutions(\/|$)/.test(path)) {
+    const readable = method === 'GET' && (path === '/api/v1/institutions' || path === '/api/v1/institutions/mine' || /^\/api\/v1\/institutions\/\d+(\/subjects)?$/.test(path));
+    return readable || has('ADMIN') ? 200 : 403;
+  }
   if (method === 'GET') {
     if (/^\/api\/v1\/statements\/(review|from-ocr|trash|stats)$/.test(path) || /\/trash$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
     return 200;
@@ -242,6 +262,93 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return json(200, { ...rest, account: a ? { id: a.id, username: a.username, email: a.email } : null });
     }
 
+
+    // ── institutions: affiliations and teacher access ──
+    const isAdmin = (auth?.roles ?? []).includes('ADMIN');
+    const activeInst = (id) => db.institutions.find((i) => i.id === Number(id) && !i.deletedAt);
+    if (path === '/api/v1/institutions/mine' && method === 'GET') {
+      if (isAdmin) return json(200, db.institutions.filter((i) => !i.deletedAt));
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      const ids = new Set(db.institutionTeachers.filter((l) => l.teacherId === t?.id).map((l) => l.institutionId));
+      return json(200, db.institutions.filter((i) => !i.deletedAt && ids.has(i.id)));
+    }
+    if ((m = path.match(/^\/api\/v1\/institutions\/(\d+)\/(subjects|teachers|students)(?:\/(\d+))?$/))) {
+      const inst = activeInst(m[1]);
+      if (!inst) return problem(404, 'Institution not found');
+      const kind = m[2];
+      const table = { subjects: 'institutionSubjects', teachers: 'institutionTeachers', students: 'institutionStudents' }[kind];
+      const idKey = { subjects: 'subjectId', teachers: 'teacherId', students: 'userId' }[kind];
+      const links = () => db[table].filter((l) => l.institutionId === inst.id);
+      if (method === 'GET' && !m[3]) {
+        if (kind === 'subjects') return json(200, links().map((l) => db.subjects.find((x) => x.id === l.subjectId)).filter((x) => x && !x.deletedAt).map((x) => ({ id: x.id, code: x.code, name: x.name, short_name: x.short_name })));
+        if (kind === 'teachers') return json(200, links().map((l) => db.teachers.find((x) => x.id === l.teacherId)).filter((x) => x && !x.deletedAt).map((x) => ({ id: x.id, firstName: x.firstName, lastName: x.lastName, email: x.email, hasAccess: !!x.accountId })));
+        return json(200, links().map((l) => db.users.find((x) => x.id === l.userId)).filter((x) => x && !x.deletedAt).map((x) => ({ userId: x.id, accountId: x.accountId, firstName: x.firstName, lastName: x.lastName })));
+      }
+      const target = Number(m[3]);
+      const source = { subjects: 'subjects', teachers: 'teachers', students: 'users' }[kind];
+      if (method === 'POST' && m[3]) {
+        if (!db[source].find((x) => x.id === target && !x.deletedAt)) return problem(404, `${kind.slice(0, -1)} not found`);
+        if (kind === 'students' && !db.accountRoles.some((r) => r.accountId === db.users.find((u) => u.id === target).accountId && r.roleId === roleId('STUDENT'))) return problem(422, 'User is not a student');
+        if (!links().some((l) => l[idKey] === target)) db[table].push({ institutionId: inst.id, [idKey]: target });
+        return json(204);
+      }
+      if (method === 'DELETE' && m[3]) {
+        db[table] = db[table].filter((l) => !(l.institutionId === inst.id && l[idKey] === target));
+        return json(204);
+      }
+    }
+    if ((m = path.match(/^\/api\/v1\/teachers\/(\d+)\/account$/))) {
+      const t = db.teachers.find((x) => x.id === Number(m[1]) && !x.deletedAt);
+      if (!t) return problem(404, 'Teacher not found');
+      if (method === 'POST') {
+        if (t.accountId) return problem(409, 'Teacher already has access');
+        const b = readBody();
+        const miss = missing(b, ['username', 'email', 'password']);
+        if (miss.length) return problem(400, `${miss.join(', ')} is required`);
+        const username = String(b.username).trim();
+        const email = String(b.email).trim().toLowerCase();
+        if (db.accounts.some((a) => !a.deletedAt && (a.username === username || a.email === email))) return problem(409, 'Username or email already exists');
+        const acc = add('accounts', { username, email, passwordHash: hash(b.password), emailVerified: false, active: true, lastLogin: null });
+        db.accountRoles.push({ accountId: acc.id, roleId: roleId('TEACHER') });
+        t.accountId = acc.id;
+        return json(200, { ...t, hasAccess: true });
+      }
+      if (method === 'DELETE') {
+        const acc = db.accounts.find((a) => a.id === t.accountId);
+        if (acc) acc.deletedAt = now();
+        t.accountId = null;
+        return json(204);
+      }
+    }
+
+    // ── manual statements (exam builder) ──
+    if (path === '/api/v1/statements/manual' && method === 'POST') {
+      const b = readBody();
+      const miss = missing(b, ['institutionId', 'subjectId', 'title', 'examType']);
+      if (miss.length) return problem(400, `${miss.join(', ')} is required`);
+      if (!Array.isArray(b.questions) || !b.questions.length) return problem(400, 'A statement needs at least one question');
+      const inst = activeInst(b.institutionId);
+      if (!inst) return problem(404, 'Institution not found');
+      if (!isAdmin) {
+        const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+        if (!t) return problem(403, 'Only teachers can build statements');
+        if (!db.institutionTeachers.some((l) => l.institutionId === inst.id && l.teacherId === t.id)) return problem(403, 'Teacher is not affiliated with this institution');
+      }
+      if (!db.institutionSubjects.some((l) => l.institutionId === inst.id && l.subjectId === Number(b.subjectId))) return problem(422, 'Subject is not taught by this institution');
+      let qid = 0;
+      const questions = b.questions.map((q, i) => ({
+        id: ++qid + i * 100, number: i + 1, text: q.text, maxScore: q.maxScore ?? null, questionType: q.options?.length ? 'multiple_choice' : 'open',
+        options: (q.options ?? []).map((o, j) => ({ id: j + 1, label: o.label, text: o.text, isCorrect: !!o.correct })),
+      }));
+      const row = add('statements', {
+        title: b.title, examType: b.examType, durationMinutes: b.durationMinutes ?? null, variant: b.variant ?? null, instructions: b.instructions ?? null,
+        totalMaxScore: b.questions.reduce((a, q) => a + Number(q.maxScore ?? 0), 0), visible: !!b.visible, needsReview: false, source: 'manual',
+        ocrConfidence: null, ocrRequestId: null, schoolYearId: b.schoolYearId ?? null, termId: b.termId ?? null, subjectId: Number(b.subjectId),
+        classId: b.classId ?? null, courseId: b.courseId ?? null, institutionId: inst.id, questions,
+      });
+      return json(201, mapStatement(row));
+    }
+
     // ── statements (moderation) ──
     if (path === '/api/v1/statements/stats' && method === 'GET') {
       const act = db.statements.filter((s) => !s.deletedAt);
@@ -336,7 +443,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const rows = db[def.table];
       const seg = m[2];
       const act = m[3];
-      const out = (r) => (def.table === 'accounts' ? strip(r) : r);
+      const out = (r) => (def.table === 'accounts' ? strip(r) : def.table === 'teachers' ? { ...r, hasAccess: !!r.accountId } : r);
       if (!seg && method === 'GET') return json(200, rows.filter((r) => !r.deletedAt).map(out));
       if (seg === 'trash' && method === 'GET') return json(200, rows.filter((r) => r.deletedAt).map(out));
       if (seg === 'active' && def.table === 'accounts' && method === 'GET') return json(200, rows.filter((r) => !r.deletedAt && r.active === (url.searchParams.get('active') !== 'false')).map(out));

@@ -11,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { deleteRow, listRows } from '@/app/actions/crud';
 import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
 import { AccountRoles } from './account-roles';
+import { InstitutionMembers } from './institution-members';
+import { TeacherAccess } from './teacher-access';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
 import { TableRowsSkeleton } from './loading';
@@ -133,6 +135,8 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         {entityKey === 'accounts' ? <AccountRoles account={row} /> : null}
+                        {entityKey === 'institutions' ? <InstitutionMembers institution={row} /> : null}
+                        {entityKey === 'teachers' ? <TeacherAccess teacher={row} onChange={load} /> : null}
                         {entity.canEdit ? (
                           <Button variant="ghost" size="sm" asChild aria-label="Editar">
                             <Link href={`/${entity.path}/${rowId(entity, row)}/edit`}><Edit size={16} /></Link>
