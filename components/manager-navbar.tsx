@@ -18,6 +18,7 @@ import {
   Menu as MenuIcon,
   ChevronRight,
   Quote,
+  FilePen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/app/actions/auth";
@@ -32,6 +33,13 @@ const navLinks = [
     label: "Dashboard",
     description: "Visão geral e métricas",
     icon: LayoutDashboard,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/exam-builder",
+    label: "Montar prova",
+    description: "Prova no modelo da escola, pronta a imprimir",
+    icon: FilePen,
     color: "bg-accent text-primary",
   },
   ...NAV_KEYS.map((k) => {
