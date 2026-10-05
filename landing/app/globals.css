@@ -118,3 +118,14 @@ a { color: inherit; }
 .footer__nav a { text-decoration: none; font-weight: 600; font-size: 14px; color: var(--lp-dim); }
 .footer__nav a:hover { color: var(--paper-3); }
 .footer__copy { margin: 0; font-size: 13px; color: var(--lp-dim); }
+
+/* Loading: blocos de tinta sobre o papel oliva, com cantos em degrau e varrimento em passos (como o resto da página). */
+.lp-sk { position: relative; overflow: hidden; display: block; background: color-mix(in srgb, var(--lp-ink) 14%, transparent); clip-path: var(--kx-clip); }
+.lp-sk::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--paper-3) 70%, transparent), transparent); animation: lp-sweep 1.4s steps(14, end) infinite; }
+@keyframes lp-sweep { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .lp-sk::after { animation: none; } }
+.lp-sk-hero { min-height: calc(100svh - 72px); display: grid; place-items: center; text-align: center; padding-block: 48px; }
+.lp-sk-stack { display: grid; justify-items: center; gap: 18px; width: 100%; }
+.lp-sk-cart { width: min(320px, 70vw); aspect-ratio: 4 / 3; margin-top: 24px; }
+.lp-sk-cols { display: grid; gap: 24px; padding-block: var(--sec-y); }
+@media (min-width: 840px) { .lp-sk-cols { grid-template-columns: 1fr 1fr; } }
