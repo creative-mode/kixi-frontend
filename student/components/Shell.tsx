@@ -32,7 +32,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto grid gap-3">
-          <Button asChild><Link href="/provas"><Camera />Carregar prova</Link></Button>
+          <Button asChild className="bg-highlight text-highlight-foreground hover:bg-highlight/85"><Link href="/provas"><Camera />Carregar prova</Link></Button>
           <Link href="/perfil" className="flex items-center gap-2.5 rounded-md p-2 hover:bg-secondary">
             <UserAvatar name={me.name} size={36} />
             <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{me.name}</span><span className="text-xs text-muted-foreground">{me.escola} · Turma {me.turma}</span></span>

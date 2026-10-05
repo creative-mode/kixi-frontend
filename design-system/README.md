@@ -19,6 +19,7 @@ npm run ds:sync -- --check # falha se alguma cópia estiver desactualizada (CI)
 ## Tokens
 
 - **Base shadcn:** `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `destructive`, `border`, `input`, `ring`, `sidebar-*`, `chart-1..5` (cada um com `-foreground` onde aplicável).
+- **Paleta:** o verde-musgo da landing é dominante, em vários tons (`background`, `card`, `accent`, `muted`, `primary` quase-preto). O amarelo `highlight` (+ `highlight-foreground`) é o toque disruptivo: usa-o em um ou dois elementos por ecrã (a CTA principal, o tiro da nave), nunca em superfícies grandes.
 - **Estado (extensão Kixi):** `success`, `warning`, `info` e os fundos suaves `success-soft`, `warning-soft`, `info-soft`, `danger-soft`.
 - **Raio:** `--radius: .625rem` (`rounded-md` = raio − 2px, `rounded-xl` = raio + 4px).
 - **Tema:** claro por omissão; escuro com `data-theme="dark"` (ou `.dark`) no `<html>`. A preferência vive em `localStorage['kixi-theme']`, partilhada entre as apps porque correm na mesma origem.
@@ -50,4 +51,4 @@ O gestor traz ainda o conjunto completo do shadcn (dialog, sheet, select, sideba
 
 ## Auth
 
-Uma coluna centrada: marca e cartão com o formulário (400px), sem painel lateral. Aluno: `student/components/AuthShell.tsx`; gestor: `app/login/page.tsx`.
+Uma coluna centrada: a nave a disparar um tiro amarelo, cartão com borda de tinta, sombra dura e faixa hachurada (como a landing). Aluno: `student/components/AuthShell.tsx`; gestor: `app/login/page.tsx`.
