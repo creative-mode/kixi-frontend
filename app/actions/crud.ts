@@ -213,3 +213,52 @@ export async function dashboardCounts(): Promise<Result<Record<string, number>>>
     return ok(counts);
   });
 }
+
+// ── institutions: affiliations, teacher access, manual statements ───────────
+export type LinkKind = 'subjects' | 'teachers' | 'students';
+
+export async function institutionLinks(institutionId: number, kind: LinkKind): Promise<Result<Row[]>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/institutions/${safeId(institutionId)}/${kind}`);
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row[]);
+  });
+}
+export async function setInstitutionLink(institutionId: number, kind: LinkKind, targetId: number, linked: boolean): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/institutions/${safeId(institutionId)}/${kind}/${safeId(targetId)}`, { method: linked ? 'POST' : 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    return ok(undefined);
+  });
+}
+/** Schools the current account may build statements for (admin: all; teacher: affiliated ones). */
+export async function myInstitutions(): Promise<Result<Row[]>> {
+  return guard(async () => {
+    const res = await call('/api/v1/institutions/mine');
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row[]);
+  });
+}
+export async function grantTeacherAccess(teacherId: number, values: { username: string; email: string; password: string }): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/teachers/${safeId(teacherId)}/account`, { method: 'POST', body: JSON.stringify(values) });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/teachers');
+    return ok(undefined);
+  });
+}
+export async function revokeTeacherAccess(teacherId: number): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/teachers/${safeId(teacherId)}/account`, { method: 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/teachers');
+    return ok(undefined);
+  });
+}
+export async function createManualStatement(values: Row): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify(values) });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row);
+  });
+}

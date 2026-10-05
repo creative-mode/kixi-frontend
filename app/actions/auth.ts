@@ -56,9 +56,9 @@ export async function loginAction(formData: FormData) {
       return { error: 'Resposta inválida do servidor (token não recebido)' };
     }
 
-    // Verifica se o utilizador tem role ADMIN — só admins podem aceder ao Kixi Manager
-    if (!data.roles || !data.roles.includes('ADMIN')) {
-      return { error: 'Acesso negado. Apenas administradores podem aceder ao Kixi Manager.' };
+    // Só administradores e professores acedem ao Kixi Manager (o professor só vê o exam builder).
+    if (!data.roles || !(data.roles.includes('ADMIN') || data.roles.includes('TEACHER'))) {
+      return { error: 'Acesso negado. Apenas administradores e professores podem aceder ao Kixi Manager.' };
     }
 
     const cookieStore = await cookies();

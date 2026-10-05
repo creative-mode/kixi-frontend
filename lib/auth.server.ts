@@ -5,7 +5,7 @@ import { getJwtSecret } from './jwt';
 
 export { API_BASE } from './constants';
 
-/** Headers for backend calls. Only a valid, unexpired ADMIN session gets a token: server actions are public
+/** Headers for backend calls. Only a valid, unexpired ADMIN or TEACHER session gets a token: server actions are public
  *  POST endpoints, so the proxy is not enough; every call re-checks the session itself. */
 export async function getAuthHeaders() {
   const cookieStore = await cookies();
@@ -19,7 +19,8 @@ export async function getAuthHeaders() {
   } catch {
     throw new Error('Não autenticado');
   }
-  if (!roles.includes('ADMIN')) throw new Error('Não autenticado');
+  // O backend aplica as permissões de cada endpoint: o professor só passa nos que lhe são permitidos.
+  if (!roles.includes('ADMIN') && !roles.includes('TEACHER')) throw new Error('Não autenticado');
 
   return {
     'Authorization': `Bearer ${token}`,
