@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import ForbiddenScene from '@/components/forbidden/forbidden-scene';
 
 export const metadata = {
   title: '403 · Acesso não permitido',
