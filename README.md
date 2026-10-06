@@ -1,39 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kixi — frontend (admin)
 
-## Getting Started
+App de **gestão do Kixi** (admin e professor), em Next.js. Vive na raiz do repo
+juntamente com as apps do aluno (`student/`) e a landing (`landing/`); em dev,
+o `scripts/gateway.mjs` serve as três numa só origem.
 
-First, run the development server:
+| App | Código | Dev | No gateway `:3000` |
+| --- | --- | --- | --- |
+| Admin / professor | `./` (`app/`) | `:3002` | `/manager` |
+| Aluno | `student/` | `:3003` | `/aluno` |
+| Landing | `landing/` | `:3004` | `/` |
+
+## Arrancar em 5 minutos
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install                  # raiz (admin)
+npm --prefix student install # app do aluno
+npm --prefix landing install # landing
+npm run dev:all              # tudo em http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Só o admin, na própria porta:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev                  # http://localhost:3002/manager
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variáveis de ambiente
 
-## Learn More
+| Var | Obrigatória? | Notas |
+| --- | --- | --- |
+| `KIXI_MOCK` | não | `true` (omissão) = backend simulado local |
+| `BACKEND_API_URL` | sim, em prod | ex.: `http://localhost:8080/api/v1` |
+| `JWT_SECRET` | sim, quando `KIXI_MOCK=false` | tem de ser igual à do backend |
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev     # dev (porta 3002, basePath /manager)
+npm run build   # build de produção
+npm run lint    # eslint
+npm run ds:sync # sincroniza o design system para student/ e landing/
+```
 
 ## Docker
 
@@ -42,7 +49,13 @@ cp .env.example .env        # ajuste JWT_SECRET / KIXI_MOCK / BACKEND_API_URL
 docker compose up --build   # http://localhost:3000
 ```
 
-Cada app (landing, aluno, manager) corre no seu contentor e na sua porta interna (3004, 3003, 3002); só o **gateway** (`scripts/gateway.mjs`, porta 3000) é publicado. O browser vê uma origem única: `/` landing, `/aluno` app do aluno, `/manager` gestor. Para abrir cada app na sua porta (depuração): `docker compose -f docker-compose.yml -f docker-compose.debug.yml up`.
+Só o **gateway** (porta 3000) é publicado; cada app corre no seu contentor
+(`manager` :3002, `student` :3003, `landing` :3004). Para depuração com as
+portas expostas: `docker compose -f docker-compose.yml -f docker-compose.debug.yml up`.
 
-- `KIXI_MOCK=true` (por omissão) usa o backend simulado; com `false` é obrigatório `JWT_SECRET` (o mesmo do backend) e `BACKEND_API_URL`.
-- Atrás de um proxy TLS (nginx, Caddy, Traefik) aponte-o para a porta 3000 e envie `X-Forwarded-Proto`/`X-Forwarded-Host`.
+## Auth
+
+A sessão é um cookie `auth_token` (JWT) validado em `proxy.ts`: sem sessão
+válida tudo redireciona para `/manager/login`; só `ADMIN` entra no painel,
+`TEACHER` fica restrito ao exam builder. Atrás de um proxy TLS, envie
+`X-Forwarded-Proto`/`X-Forwarded-Host`.
