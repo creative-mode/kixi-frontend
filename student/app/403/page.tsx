@@ -1,18 +1,29 @@
-import Link from 'next/link';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 
-export default function ForbiddenPage() {
-  return (
-    <main className="grid min-h-dvh place-items-center px-6 py-16">
-      <section className="w-full max-w-lg space-y-5 rounded-xl border bg-card p-8 text-center shadow-xs">
-        <p className="text-sm font-semibold text-muted-foreground">Erro 403</p>
-        <h1 className="text-2xl font-bold tracking-tight">Acesso não permitido</h1>
-        <p className="text-muted-foreground">
-          A tua conta não tem permissão para ver esta área.
-        </p>
-        <Link className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" href="/inicio">
-          Voltar ao início
-        </Link>
-      </section>
-    </main>
-  );
+export const metadata = {
+  title: '403 · Acesso não permitido',
+  description: 'Área restrita do Kixi. A porta não abre para esta conta.',
+};
+
+type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+/**
+ * A página 403 canónica mora no fim do endereço (/403), servida pela landing, para haver
+ * uma só porta no projeto inteiro. Aqui só encaminhamos, com a query original.
+ * O Next prefixa o basePath do aluno aos caminhos, por isso o destino é absoluto.
+ */
+export default async function ForbiddenPage({ searchParams }: PageProps) {
+  const [head, params] = await Promise.all([headers(), searchParams]);
+  const host = head.get('x-forwarded-host') ?? head.get('host') ?? 'localhost:3003';
+  const proto = head.get('x-forwarded-proto') ?? 'http';
+  const search = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) value.forEach((item) => search.append(key, item));
+    else if (value !== undefined) search.set(key, value);
+  }
+
+  const query = search.toString();
+  redirect(`${proto}://${host}/403${query ? `?${query}` : ''}`);
 }

@@ -1,0 +1,421 @@
+/* 403: a porta do Kixi. Papel oliva, tinta única e pixels, como a landing.
+   Todos os valores vêm dos tokens da landing (--paper, --lp-ink, --tiro, --space-*). */
+
+/* grão de papel, o mesmo da landing: a app que serve a página pode ligá-lo em .rx403::after */
+:root {
+  --rx403-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .15  0 0 0 0 .2  0 0 0 0 .1  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.rx403 {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--paper);
+  color: var(--lp-ink);
+  overflow-x: clip;
+}
+
+.rx403__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: calc(var(--page) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: clamp(24px, 5vh, 64px) var(--gutter) 0;
+  text-align: center;
+}
+
+/* ---------- palco em camadas ---------- */
+
+.rx403__stage {
+  --mx: 0;
+  --my: 0;
+  --sy: 0;
+  position: relative;
+  width: 100%;
+  max-width: var(--page);
+  aspect-ratio: 16 / 9;
+  min-height: clamp(300px, 50vw, 560px);
+  perspective: 1200px;
+}
+
+.rx403__layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.rx403__layer--back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font: 400 clamp(112px, 24vw, 320px) / 1 var(--font-pixel);
+  letter-spacing: -0.05em;
+  color: var(--lp-ink);
+  opacity: 0.13;
+  transform: translate3d(calc(var(--mx) * -16px), calc(var(--my) * -12px + var(--sy) * -30px), 0);
+}
+
+.rx403__layer--floor {
+  inset: auto 0 4% 0;
+  height: 30%;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--lp-ink) 20%, transparent) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--lp-ink) 16%, transparent) 0 1px, transparent 1px 44px);
+  opacity: 0.45;
+  transform: translate3d(calc(var(--mx) * 6px), calc(var(--my) * 4px + var(--sy) * 10px), 0) rotateX(64deg) scale(1.7);
+  transform-origin: bottom center;
+  -webkit-mask-image: linear-gradient(to top, #000 15%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 15%, transparent 100%);
+}
+
+.rx403__layer--door {
+  transform: translate3d(calc(var(--mx) * 7px), calc(var(--my) * 5px + var(--sy) * 14px), 0);
+}
+
+.rx403__layer--guard {
+  transform: translate3d(calc(var(--mx) * 15px), calc(var(--my) * 11px + var(--sy) * 24px), 0);
+}
+
+/* ---------- porta ---------- */
+
+.rx403__door {
+  position: absolute;
+  left: 60%;
+  bottom: 7%;
+  width: clamp(150px, 24vw, 264px);
+  aspect-ratio: 14 / 18;
+  transform: translateX(-50%);
+  perspective: 900px;
+}
+
+.rx403__opening {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8% 6%;
+  background:
+    radial-gradient(120% 90% at 50% 65%, color-mix(in srgb, var(--tiro) 55%, transparent), transparent 70%),
+    var(--lp-deep);
+  clip-path: var(--kx-clip);
+  opacity: 0;
+  transition: opacity 0.4s 0.25s ease;
+}
+
+.rx403__door.is-open .rx403__opening {
+  opacity: 1;
+}
+
+.rx403__typed {
+  display: block;
+  font: 400 clamp(9px, 1.15vw, 13px) / 1.9 var(--font-pixel);
+  color: var(--tiro);
+  text-align: center;
+  white-space: pre-wrap;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--tiro) 70%, transparent);
+}
+
+.rx403__caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  animation: rx403-caret 0.9s steps(1, end) infinite;
+}
+
+.rx403__leaf {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: rotateY(0deg);
+  transition: transform 0.85s cubic-bezier(0.3, 0.7, 0.3, 1);
+  will-change: transform;
+}
+
+.rx403__door.is-open .rx403__leaf {
+  transform: rotateY(-74deg);
+}
+
+.rx403__leaf svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.rx403__pix {
+  animation: rx403-pixel-in 0.72s cubic-bezier(0.22, 0.8, 0.28, 1) both;
+}
+
+.rx403__snap {
+  position: absolute;
+  inset: -6%;
+  background: var(--paper-3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rx403__door.is-snap .rx403__snap {
+  animation: rx403-flash 0.34s steps(3, end) both;
+}
+
+.rx403__door.is-snap .rx403__leaf {
+  animation: rx403-shake 0.26s steps(4, end) 1;
+}
+
+/* ---------- guarda ---------- */
+
+.rx403__guard {
+  --guard-body: color-mix(in srgb, #333333 74%, var(--lp-ink));
+  --guard-void: color-mix(in srgb, #000000 72%, var(--lp-ink));
+  --guard-eye: color-mix(in srgb, var(--paper-3) 46%, #ffffff);
+  --guard-eye-ink: color-mix(in srgb, var(--lp-ink) 78%, #000000);
+  position: absolute;
+  left: 39%;
+  bottom: 7%;
+  width: clamp(158px, 23vw, 300px);
+  transform: translateX(-50%);
+}
+
+.rx403__guard svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  overflow: visible;
+}
+
+.rx403__body {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: rx403-breathe 3.6s steps(4, end) infinite;
+}
+
+.rx403__eyes {
+  transition: transform 0.35s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+.rx403__blink {
+  animation: rx403-blink 6.4s steps(1, end) infinite;
+}
+
+.rx403__feet {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+}
+
+.rx403__guard.is-talking .rx403__feet {
+  animation: rx403-talk 0.34s steps(2, end) infinite;
+}
+
+.rx403__shadow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: rx403-shadow 3.6s steps(4, end) infinite;
+}
+
+/* ---------- balão e carimbo ---------- */
+
+.rx403__speech {
+  position: absolute;
+  left: -6%;
+  bottom: calc(100% + 4px);
+  width: max-content;
+  max-width: min(330px, 68vw);
+  text-align: left;
+}
+
+.rx403__bubble {
+  --px-edge: var(--lp-ink);
+  --px-face: var(--paper-3);
+  position: relative;
+  padding: var(--space-4);
+  font: 400 clamp(11px, 1.35vw, 14px) / 1.8 var(--font-pixel);
+  color: var(--lp-ink);
+}
+
+.rx403__tail {
+  position: absolute;
+  left: 26px;
+  top: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.rx403__tail i {
+  display: block;
+  height: 5px;
+  background: var(--lp-ink);
+}
+
+.rx403__tail i:nth-child(1) { width: 22px; }
+.rx403__tail i:nth-child(2) { width: 15px; margin-left: 2px; }
+.rx403__tail i:nth-child(3) { width: 8px; margin-left: 4px; }
+
+.rx403__stamp {
+  position: absolute;
+  right: clamp(0px, 3%, 40px);
+  top: clamp(0px, 6%, 56px);
+  padding: 10px 16px 8px;
+  border: 3px solid var(--alvo-edge);
+  background: color-mix(in srgb, var(--alvo-tint) 60%, transparent);
+  clip-path: var(--kx-clip);
+  color: var(--alvo-ink);
+  font: 400 clamp(13px, 1.8vw, 20px) / 1 var(--font-pixel);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.92;
+  transform: rotate(-11deg);
+  mix-blend-mode: multiply;
+}
+
+/* ---------- partículas, varrimento e rodapé ---------- */
+
+.rx403__dust {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--lp-ink);
+  opacity: 0;
+  animation: rx403-float 7s linear infinite;
+}
+
+.rx403__scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--lp-ink) 7%, transparent) 0 1px, transparent 1px 4px);
+  opacity: 0.5;
+}
+
+.rx403__cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  justify-content: center;
+  margin-top: var(--space-6);
+}
+
+.rx403__hint {
+  margin: var(--space-5) 0 0;
+  max-width: 58ch;
+  font: 400 clamp(15px, 1.6vw, 17px) / 1.6 var(--font-sans);
+  color: var(--lp-ink);
+  text-wrap: balance;
+}
+
+.rx403__foot {
+  width: 100%;
+  max-width: calc(var(--page) + 2 * var(--gutter));
+  margin: auto auto 0;
+  padding: var(--space-7) var(--gutter) var(--space-5);
+  font: 400 10px / 16px var(--font-pixel);
+  letter-spacing: 0.08em;
+  color: var(--lp-dim);
+  text-align: center;
+}
+
+/* ---------- movimento ---------- */
+
+@keyframes rx403-pixel-in {
+  from { opacity: 0.4; transform: translate3d(var(--dx), var(--dy), 0) scale(0.45); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes rx403-flash {
+  0%   { opacity: 0; }
+  25%  { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+@keyframes rx403-shake {
+  0%   { transform: rotateY(0deg) translateX(0); }
+  30%  { transform: rotateY(0deg) translateX(-5px); }
+  60%  { transform: rotateY(0deg) translateX(5px); }
+  100% { transform: rotateY(0deg) translateX(0); }
+}
+
+@keyframes rx403-float {
+  0%   { opacity: 0; transform: translateY(0); }
+  15%  { opacity: 0.65; }
+  85%  { opacity: 0.35; }
+  100% { opacity: 0; transform: translateY(-160px); }
+}
+
+@keyframes rx403-caret {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+@keyframes rx403-breathe {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+@keyframes rx403-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.28; }
+  50%      { transform: scaleX(0.94); opacity: 0.22; }
+}
+
+@keyframes rx403-talk {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+@keyframes rx403-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes rx403-rise-stamp {
+  from { opacity: 0; transform: rotate(-11deg) translateY(16px); }
+  to   { opacity: 0.92; transform: rotate(-11deg); }
+}
+
+.rx403__rise {
+  animation: rx403-rise 0.5s cubic-bezier(0.22, 0.8, 0.28, 1) both;
+}
+
+.rx403__stamp.rx403__rise {
+  animation-name: rx403-rise-stamp;
+}
+
+/* ---------- responsivo ---------- */
+
+@media (max-width: 760px) {
+  .rx403__stage { aspect-ratio: 4 / 5; }
+  .rx403__door { left: 63%; width: clamp(138px, 40vw, 210px); }
+  .rx403__guard { left: 34%; width: clamp(140px, 42vw, 230px); }
+  .rx403__speech { left: -14%; max-width: min(260px, 76vw); }
+  .rx403__layer--back { font-size: clamp(96px, 34vw, 200px); }
+}
+
+@media (min-width: 761px) and (max-width: 1040px) {
+  .rx403__door { left: 61%; }
+  .rx403__guard { left: 37%; }
+}
+
+/* ---------- menos movimento: a porta já está aberta ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .rx403__leaf { transform: rotateY(-74deg); transition: none; animation: none !important; }
+  .rx403__opening { opacity: 1; transition: none; }
+  .rx403__pix { animation: none !important; opacity: 1; transform: none; }
+  .rx403__dust { display: none; }
+  .rx403__rise { animation: none; }
+  .rx403__stamp { opacity: 0.92; transform: rotate(-11deg); }
+  .rx403__caret { animation: none; opacity: 1; }
+  .rx403__body, .rx403__shadow { animation: none; }
+  .rx403__blink { animation: none; }
+  .rx403__guard.is-talking .rx403__feet { animation: none; }
+}
