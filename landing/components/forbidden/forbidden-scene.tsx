@@ -57,10 +57,11 @@ const DOOR_PIXELS: DoorPixel[] = (() => {
 
 const shadowD = `M${GUARD_COLS/2} ${GUARD_ROWS-4}a${GUARD_COLS/2-1} 1 0 0 1 ${-(GUARD_COLS-2)} 0a${GUARD_COLS/2-1} 1 0 0 1 ${GUARD_COLS-2} 0z`;
 
-const GUARD_PATHS = guardSprites.map((s, i) => ({
- ...s,
- id: `guard-${i}`,
-}));
+// Guard paths by region
+const GUARD_BODY_PATHS = GUARD_BODY.paths.map((s, i) => ({ ...s, id: `guard-body-${i}` }));
+const GUARD_EYES_PATHS = GUARD_EYES.paths.map((s, i) => ({ ...s, id: `guard-eyes-${i}` }));
+const GUARD_FEET_L_PATHS = GUARD_FEET_L.paths.map((s, i) => ({ ...s, id: `guard-feet-l-${i}` }));
+const GUARD_FEET_R_PATHS = GUARD_FEET_R.paths.map((s, i) => ({ ...s, id: `guard-feet-r-${i}` }));
 
 const DUST = Array.from({ length: 14 }, (_, i) => ({
  left: `${Math.round(rnd(i, 1) * 86)}%`,
@@ -77,39 +78,138 @@ type SceneProps = {
 };
 
 export default function ForbiddenScene({ header, hint = 'Use suas credenciais do Kixi para acessar.', primary, secondary }: SceneProps) {
- const [talking, setTalking] = useState(false);
+ const [state, setState] = useState<'patrol'|'stop'|'look'|'talk'>('patrol');
+ const [patrolDir, setPatrolDir] = useState(1); // 1 = right, -1 = left
+ const [patrolPos, setPatrolPos] = useState(0); // -100 to 100
+ const [talkText, setTalkText] = useState('');
+ const [talkIndex, setTalkIndex] = useState(0);
  const eyesRef = useRef<SVGGElement>(null);
+ const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+ // Texto do balão
+ const TALK_MESSAGE = 'Isto não é pra ti, baza.';
+
+ useEffect(() => {
+  if (reducedMotion()) {
+   // reduced-motion: guarda parado, olhando para o centro, balão sempre visível
+   setState('look');
+   setPatrolPos(0);
+   setTalkText(TALK_MESSAGE);
+   return;
+  }
+
+  // Guard follows cursor
+  const eyes = eyesRef.current;
+  if (eyes) {
+   let raf = 0;
+   const loop = () => {
+    const rect = eyes.getBoundingClientRect();
+    const cx = rect.left + eyes.clientWidth / 2;
+    const cy = rect.top + eyes.clientHeight / 2;
+    const dx = (window.innerWidth / 2 - cx) / 6;
+    const dy = (window.innerHeight / 2 - cy) / 6;
+    eyes.style.transform = `translate(${clamp(dx, 8)}px, ${clamp(dy, 4)}px)`;
+    raf = requestAnimationFrame(loop);
+   };
+   raf = requestAnimationFrame(loop);
+   return () => cancelAnimationFrame(raf);
+  }
+ }, []);
+
+ // State machine: patrol → stop → look → talk → pause → patrol
  useEffect(() => {
   if (reducedMotion()) return;
-  const eyes = eyesRef.current;
-  if (!eyes) return;
-  let raf = 0;
-  const loop = () => {
-   const rect = eyes.getBoundingClientRect();
-   const cx = rect.left + eyes.clientWidth / 2;
-   const cy = rect.top + eyes.clientHeight / 2;
-   const dx = (window.innerWidth / 2 - cx) / 6;
-   const dy = (window.innerHeight / 2 - cy) / 6;
-   eyes.style.transform = `translate(${clamp(dx, 8)}px, ${clamp(dy, 4)}px)`;
-   raf = requestAnimationFrame(loop);
-  };
-  raf = requestAnimationFrame(loop);
-  return () => cancelAnimationFrame(raf);
- }, []);
 
- useEffect(() => {
-  const el = document.querySelector('.rx403__guard');
-  if (!el) return;
-  const onMouseOver = () => setTalking(true);
-  const onMouseOut = () => setTalking(false);
-  el.addEventListener('mouseenter', onMouseOver);
-  el.addEventListener('mouseleave', onMouseOut);
-  return () => {
-   el.removeEventListener('mouseenter', onMouseOver);
-   el.removeEventListener('mouseleave', onMouseOut);
+  const runState = () => {
+   if (state === 'patrol') {
+    // Movimento lateral: -100 a 100 (centro ~0)
+    // Move 1px por frame, aprox 60px/s
+    const interval = setInterval(() => {
+     setPatrolPos(prev => {
+      const next = prev + patrolDir;
+      if (next >= 100) {
+       setPatrolDir(-1);
+       return 100;
+      } else if (next <= -100) {
+       setPatrolDir(1);
+       return -100;
+      }
+      return next;
+     });
+    }, 16); // ~60fps
+
+    // Parar após ~10-15 segundos
+    const stopDelay = 10000 + Math.random() * 5000;
+    timerRef.current = setTimeout(() => {
+     setState('stop');
+    }, stopDelay);
+
+    return () => {
+     clearInterval(interval);
+     if (timerRef.current) clearTimeout(timerRef.current);
+    };
+   }
+
+   if (state === 'stop') {
+    // Pausa aleatória 2-5 segundos
+    const stopDuration = 2000 + Math.random() * 3000;
+    timerRef.current = setTimeout(() => {
+     setState('look');
+    }, stopDuration);
+    return () => {
+     if (timerRef.current) clearTimeout(timerRef.current);
+    };
+   }
+
+   if (state === 'look') {
+    // Olha para o utilizador 2-4 segundos
+    const lookDuration = 2000 + Math.random() * 2000;
+    timerRef.current = setTimeout(() => {
+     setState('talk');
+     setTalkText('');
+     setTalkIndex(0);
+    }, lookDuration);
+    return () => {
+     if (timerRef.current) clearTimeout(timerRef.current);
+    };
+   }
+
+   if (state === 'talk') {
+    // Máquina de escrever
+    let i = 0;
+    const typeInterval = setInterval(() => {
+     if (i < TALK_MESSAGE.length) {
+      setTalkText(prev => prev + TALK_MESSAGE[i]);
+      setTalkIndex(i + 1);
+      i++;
+     } else {
+      clearInterval(typeInterval);
+      // Manter balão 2.5 segundos
+      timerRef.current = setTimeout(() => {
+       // Pausa aleatória 3-8 segundos antes de voltar à patrulha
+       const pauseDuration = 3000 + Math.random() * 5000;
+       timerRef.current = setTimeout(() => {
+        setState('patrol');
+       }, pauseDuration);
+      }, 2500);
+     }
+    }, 50); // velocidade da máquina de escrever
+
+    return () => {
+     clearInterval(typeInterval);
+     if (timerRef.current) clearTimeout(timerRef.current);
+    };
+   }
+
+   return;
   };
- }, []);
+
+  const cleanup = runState();
+  return () => {
+   if (cleanup) cleanup();
+   if (timerRef.current) clearTimeout(timerRef.current);
+  };
+ }, [state, patrolDir]);
 
  return (
   <div className="rx403" aria-label="ERRO 403 - Acesso restrito">
@@ -144,7 +244,12 @@ export default function ForbiddenScene({ header, hint = 'Use suas credenciais do
     </div>
 
     <div className="rx403__layer rx403__layer--guard">
-     <div className={`rx403__guard${talking ? ' is-talking' : ''}`}>
+     <div
+      className={`rx403__guard${state === 'talk' ? ' is-talking' : ''}`}
+      style={{
+       transform: `translateX(${patrolPos}px)`,
+      }}
+     >
       <svg
        viewBox={`0 0 ${GUARD_COLS} ${GUARD_ROWS}`}
        width={GUARD_COLS}
@@ -152,21 +257,31 @@ export default function ForbiddenScene({ header, hint = 'Use suas credenciais do
        aria-hidden="true"
       >
        <ellipse className="rx403__shadow" cx={GUARD_COLS/2} cy={GUARD_ROWS-4} rx={GUARD_COLS/2-1} ry={1} />
+       {/* Guard body (no feet, no eyes) */}
        <g className="rx403__body">
-        {GUARD_PATHS.map(s => (
+        {GUARD_BODY_PATHS.map(s => (
          <path key={s.id} d={s.d} style={{ fill: s.hex }} />
         ))}
        </g>
-       <g ref={eyesRef} className="rx403__eyes" />
-       <g className="rx403__feet" />
+       {/* Guard eyes - follow cursor */}
+       <g ref={eyesRef} className="rx403__eyes">
+        {GUARD_EYES_PATHS.map(s => (
+         <path key={s.id} d={s.d} style={{ fill: s.hex }} />
+        ))}
+       </g>
+       {/* Guard feet - animated during patrol */}
+       <g className="rx403__feet">
+        {GUARD_FEET_L_PATHS.map(s => (
+         <path key={s.id} d={s.d} style={{ fill: s.hex }} />
+        ))}
+        {GUARD_FEET_R_PATHS.map(s => (
+         <path key={s.id} d={s.d} style={{ fill: s.hex }} />
+        ))}
+       </g>
       </svg>
       <div className="rx403__speech rx403__rise">
        <div className="kx-card rx403__bubble">
-        <p>
-         {talking
-          ? 'Você não tem permissão para acessar esta área. Solicite acesso ao administrador.'
-          : 'Acesso negado.'}
-        </p>
+        <p>{state === 'talk' ? talkText : ''}</p>
        </div>
       </div>
       <span className="rx403__tail" aria-hidden="true" />
