@@ -37,7 +37,7 @@ export default async function ForbiddenPage({ searchParams }: PageProps) {
 
   const hint = wrongRole
     ? 'Esta área é para quem gere o Kixi. O teu acesso chega até aqui.'
-    : 'O teu acesso é do lado dos alunos. A porta do gestor fica fechada.';
+    : 'O teu acesso é do lado dos alunos. Esta porta não abre para ti.';
 
   return (
     <ForbiddenScene header={<Header />} hint={hint} primary={primary} secondary={secondary} />
