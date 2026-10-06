@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ForbiddenScene } from '@/components/forbidden/forbidden-scene';
+import ForbiddenScene from '@/components/forbidden/forbidden-scene';
 import { Header } from '@/components/sections/Header';
 import { LOGIN_URL } from '@/lib/content';
 import '@/components/forbidden/forbidden.css';
