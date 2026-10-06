@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { guardSprites, GUARD_COLS, GUARD_ROWS } from './guard-sprite';
+import { GUARD_BODY, GUARD_EYES, GUARD_FEET_L, GUARD_FEET_R, GUARD_COLS, GUARD_ROWS } from './guard-sprite';
 
 /** 403: porta do Kixi. Cor, espaco e tipografia vem dos tokens da landing;
  * guarda SVG auto-generated via PNG region extraction. */
