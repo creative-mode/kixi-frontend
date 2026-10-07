@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import 'server-only';
 // In-process stand-in for the Spring Boot backend: the manager runs with no network and no database.
@@ -5,8 +6,7 @@ import 'server-only';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from 'node:crypto';
 
-const PORT = 0;
-const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
+const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
 
 
@@ -105,7 +105,8 @@ function json(status: number, body?: unknown) {
 const problem = (status: number, detail: string) => json(status, { type: null, title: null, status, detail, properties: null });
 const strip = (row: any) => {
   if (!row) return row;
-  const { passwordHash, ...rest } = row;
+  const rest = { ...row };
+  delete rest.passwordHash;
   return rest;
 };
 const missing = (body: any, fields: string[]) => fields.filter((f: string) => body[f] === undefined || body[f] === null || body[f] === '');
@@ -175,7 +176,10 @@ function authorize(auth: any, method: string, path: string) {
 }
 
 function mapStatement(s) {
-  const { questions, instructions, ocrRequestId, ...summary } = s;
+  const summary = { ...s };
+  delete summary.questions;
+  delete summary.instructions;
+  delete summary.ocrRequestId;
   return summary;
 }
 function mapSimulation(s) {
@@ -258,7 +262,8 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const u = db.users.find((x) => x.id === Number(m[1]) && !x.deletedAt);
       if (!u) return problem(404, 'User not found');
       const a = db.accounts.find((x) => x.id === u.accountId);
-      const { accountId, ...rest } = u;
+      const rest = { ...u };
+      delete rest.accountId;
       return json(200, { ...rest, account: a ? { id: a.id, username: a.username, email: a.email } : null });
     }
 
@@ -548,7 +553,7 @@ function analytics(path: string, url: URL) {
       { id: 4, code: '13A', grade: 13, course: 'Eletrónica', institution: 'IMIL', students: 26, teachers: 3, statements: 3, finishedSimulations: 52, averageScorePercent: 58.7, averageTimeSeconds: 2880 },
     ]);
   }
-  let m = path.match(/^\/api\/v1\/analytics\/statements\/(\d+)\/questions$/);
+  const m = path.match(/^\/api\/v1\/analytics\/statements\/(\d+)\/questions$/);
   if (m) {
     const st = active.find((s: any) => s.id === Number(m[1]));
     if (!st) return problem(404, 'Statement not found');

@@ -24,7 +24,10 @@ export function QuestionImages({ questionId }: { questionId: number }) {
     const res = await listQuestionImages(questionId);
     if (res.ok) { setImages(res.data); setError(null); } else { setImages([]); setError(res.error); }
   }, [questionId]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const task = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(task);
+  }, [load]);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -61,7 +64,6 @@ export function QuestionImages({ questionId }: { questionId: number }) {
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {images.map((img) => (
             <li key={img.id} className="grid gap-1.5 rounded-lg border bg-card p-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={img.imageUrl} alt={img.caption ?? `Imagem ${img.orderIndex + 1} da questão`} className="aspect-video w-full rounded-md bg-muted object-contain" />
               {editing === img.id ? (
                 <div className="flex gap-1">

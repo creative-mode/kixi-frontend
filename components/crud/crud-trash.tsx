@@ -28,7 +28,8 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
     }
   }, [entityKey]);
   useEffect(() => {
-    load();
+    const task = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(task);
   }, [load]);
 
   async function restore(row: Row) {

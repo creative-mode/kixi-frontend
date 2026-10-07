@@ -38,7 +38,8 @@ export function StatementsManager() {
     }
   }, [filter]);
   useEffect(() => {
-    load();
+    const task = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(task);
   }, [load]);
 
   async function act(p: Promise<{ ok: boolean; error?: string }>, done: string) {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Sincronizador do Projeto — mantém o GitHub Project (org) alinhado com issues e PRs.
 //
 //  issue aberta .............. entra no projeto, estado Backlog

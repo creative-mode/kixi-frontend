@@ -1,20 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { loginAction } from '@/app/actions/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { KixiLogo } from '@/components/kixi-logo';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, CircleAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
-export default function LoginPage() {
+function noticeFor(reason: string | null) {
+  if (reason === 'session-expired') return 'A tua sessão expirou. Entra novamente para continuar.';
+  if (reason === 'logged-out') return 'Sessão terminada com segurança.';
+  return null;
+}
+
+function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [show, setShow] = useState(false);
   const router = useRouter();
+  const notice = noticeFor(useSearchParams().get('reason'));
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,6 +68,12 @@ export default function LoginPage() {
           <h1 className="text-2xl leading-tight font-bold tracking-tight">Bem-vindo de volta</h1>
           <p className="text-sm text-muted-foreground">Inicie sessão para aceder ao painel de gestão.</p>
         </div>
+        {notice ? (
+          <div role="status" className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-foreground">
+            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{notice}</span>
+          </div>
+        ) : null}
         <form onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
             <Label htmlFor="usernameOrEmail">Username ou email</Label>
@@ -79,9 +92,16 @@ export default function LoginPage() {
             {isLoading ? (<><Spinner className="size-4" />A entrar...</>) : 'Entrar'}
           </Button>
         </form>
-
       </div>
       <p className="text-center text-xs text-muted-foreground">Problemas no acesso? Contacte o suporte técnico.</p>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }

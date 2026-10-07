@@ -36,7 +36,8 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   }, [entityKey]);
 
   useEffect(() => {
-    load();
+    const task = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(task);
   }, [load]);
 
   const shown = useMemo(() => {
