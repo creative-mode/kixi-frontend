@@ -4,7 +4,7 @@
 /* Original Game Boy: warm grey shell, dark outline, green A and B buttons (the brand green).
    The four greens only ever live on the LCD. */
 :root {
-  --paper: #f6f8f5; --paper-2: #e3e9df; --paper-3: #ffffff; --lp-ink: #121c15; --lp-dim: #617066;
+  --paper: #ffffff; --paper-2: #e3e9df; --paper-3: #f6f8f5; --lp-ink: #121c15; --lp-dim: #617066;
   --lp-deep: #14301c; --lp-text-on-deep: #e8efe6;
   --shell: #cbc8ba; --bezel: #5b596e; --btn: #1f5a2c; --btn-edge: #0d2a15; --btn-blue: #2f45a3;
   --lcd-0: #9bbc0f; --lcd-1: #8bac0f; --lcd-2: #306230; --lcd-3: #0f380f;
