@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
 import { Cartridge, LAYERS } from './Cartridge';
+import { GameDemo } from './GameDemo';
 import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
 
@@ -159,7 +160,7 @@ export function Presentation() {
         <div className="pres__art">
           {eject < 1 ? (
             <Gameboy eject={eject} center={1} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
-              <Prologue q={Math.min(1, q / 0.84)} />
+              {p < 0.004 ? <GameDemo /> : <Prologue q={Math.min(1, q / 0.84)} />}
             </Gameboy>
           ) : null}
           <div className="pres__block" style={{ opacity: reveal }} aria-hidden="true" />
