@@ -56,6 +56,9 @@ export interface Institution {
 
 export interface Course {
   id: number;
+  /** Opaque reference to the school. The backend deliberately does not nest the
+   *  institution here, so the name has to come from the /institutions list. */
+  institutionId: number;
   code: string;
   name: string;
   description: string | null;
@@ -75,6 +78,8 @@ export interface Class {
   grade: number | null;
   course: Partial<Course> | null;
   schoolYear: Partial<SchoolYear> | null;
+  /** Always the course's school: the backend enforces it with a composite key. */
+  institutionId: number;
 }
 
 export interface Enrollment {

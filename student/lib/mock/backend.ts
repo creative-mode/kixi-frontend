@@ -33,7 +33,17 @@ type Account = {
 };
 /** How a class is stored, as opposed to how ClassResponse exposes it: the rows keep
  *  the foreign keys and the response resolves them into nested objects. */
-type ClassRow = { id: number; code: string; grade: number | null; courseId: number; schoolYearId: number };
+type ClassRow = {
+  id: number;
+  code: string;
+  grade: number | null;
+  courseId: number;
+  schoolYearId: number;
+  /** Always the course's school, the same invariant the backend enforces with a
+   *  composite foreign key. Stored here so the class list can be filtered by school
+   *  without a join, which is what the real /classes?institutionId= does. */
+  institutionId: number;
+};
 
 type Store = {
   accounts: Account[];
@@ -82,24 +92,41 @@ function seed(): Store {
     { id: 1, startYear: 2025, endYear: 2026 },
     { id: 2, startYear: 2024, endYear: 2025 },
   ];
+  const institutions: Institution[] = [
+    { id: 1, code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: null },
+    { id: 2, code: 'ISPTEC', name: 'Instituto Superior Politécnico', short_name: 'ISPTEC', logo: null },
+  ];
+  // A course belongs to one school, and a class always sits in the school of its course.
   const courses: Course[] = [
     {
       id: 1,
       code: 'TISM',
       name: 'Técnico de Informática e Sistemas Multimédia',
       description: 'Curso técnico do ITEL',
+      institutionId: 1,
     },
-    { id: 2, code: 'TLP', name: 'Técnico de Laboratório Philips', description: null },
-  ];
-  const institutions: Institution[] = [
-    { id: 1, code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: null },
+    {
+      id: 2,
+      code: 'TLP',
+      name: 'Técnico de Laboratório Philips',
+      description: null,
+      institutionId: 2,
+    },
+    {
+      id: 3,
+      code: 'TLP-ITEL',
+      name: 'Técnico de Laboratório de Informática',
+      description: 'Curso técnico do ITEL',
+      institutionId: 1,
+    },
   ];
   const classes = [
-    { id: 1, code: '12B', grade: 12, courseId: 1, schoolYearId: 1 },
-    { id: 2, code: '12A', grade: 12, courseId: 1, schoolYearId: 1 },
-    { id: 3, code: '11B', grade: 11, courseId: 1, schoolYearId: 1 },
-    { id: 4, code: '12B', grade: 12, courseId: 1, schoolYearId: 2 },
-    { id: 5, code: '10A', grade: 10, courseId: 2, schoolYearId: 1 },
+    { id: 1, code: '12B', grade: 12, courseId: 1, schoolYearId: 1, institutionId: 1 },
+    { id: 2, code: '12A', grade: 12, courseId: 1, schoolYearId: 1, institutionId: 1 },
+    { id: 3, code: '11B', grade: 11, courseId: 1, schoolYearId: 1, institutionId: 1 },
+    { id: 4, code: '12B', grade: 12, courseId: 1, schoolYearId: 2, institutionId: 1 },
+    { id: 5, code: '11A', grade: 11, courseId: 3, schoolYearId: 1, institutionId: 1 },
+    { id: 6, code: '10A', grade: 10, courseId: 2, schoolYearId: 1, institutionId: 2 },
   ];
 
   const account = (
@@ -138,9 +165,9 @@ function seed(): Store {
       { id: 1, accountId: 3, classId: 1, schoolYearId: 1, status: 'ACTIVE' },
     ],
     nextEnrollment: 2,
-    // The seeded student is already affiliated with ITEL, like an administrator
-    // would have done. Accounts created through /auth/register start with no school,
-    // which is why /me can answer `school: null`.
+    // The seeded student is also explicitly affiliated with ITEL, as an administrator
+    // would have done, so /me can be seen answering with the linked school. An account
+    // created through /auth/register has no link and gets the school of its class.
     institutionByAccount: { 3: 1 },
   };
 }
@@ -203,14 +230,17 @@ function classResponse(db: Store, row: ClassRow) {
     grade: row.grade,
     course: course ?? {},
     schoolYear: schoolYear ?? {},
+    institutionId: row?.institutionId ?? course?.institutionId ?? null,
     createdAt: null,
     updatedAt: null,
     deletedAt: null,
   };
 }
 
-/** Mirrors MeService.getMe: school from the institution link, course and class from
- *  the most recent active enrollment. */
+/** Mirrors MeService.getMe: course and class come from the most recent active
+ *  enrollment, and the school is the institution link when there is one, otherwise the
+ *  school of the enrolled class. The fallback is what makes a student who enrolled
+ *  themselves answer with a school instead of null. */
 function meResponse(db: Store, account: Account): Me {
   const latest = db.enrollments
     .filter((e) => e.accountId === account.id && e.status === 'ACTIVE')
@@ -219,7 +249,11 @@ function meResponse(db: Store, account: Account): Me {
   const row = latest ? db.classes.find((c) => c.id === latest.classId) : undefined;
   const course = row ? db.courses.find((c) => c.id === row.courseId) : undefined;
   const schoolYear = latest ? db.schoolYears.find((y) => y.id === latest.schoolYearId) : undefined;
-  const institution = db.institutions.find((i) => i.id === db.institutionByAccount[account.id]);
+
+  const linked = db.institutions.find((i) => i.id === db.institutionByAccount[account.id]);
+  const fromClass =
+    row?.institutionId ?? course?.institutionId ? db.institutions.find((i) => i.id === (row?.institutionId ?? course?.institutionId)) : undefined;
+  const institution = linked ?? fromClass;
 
   return {
     accountId: account.id,
@@ -253,12 +287,21 @@ export async function mockHandle(
   bodyText: string,
 ): Promise<Response> {
   const db = store();
+  // `path` may carry a query string, exactly as the real request would: the mock has
+  // to filter the same way the backend does, or the screens get exercised against a
+  // contract that does not exist.
+  const [pathname, rawQuery = ''] = path.split('?');
+  const search = new URLSearchParams(rawQuery);
+  const filter = (key: string) => {
+    const value = search.get(key);
+    return value === null || value === '' ? undefined : Number(value);
+  };
   const body = bodyText ? (JSON.parse(bodyText) as Record<string, unknown>) : {};
   const text = (key: string) => String(body[key] ?? '').trim();
   const accountId = accountIdOf(token);
 
   // ── public: the two auth routes ─────────────────────────────────────────────
-  if (path === '/auth/login' && method === 'POST') {
+  if (pathname === '/auth/login' && method === 'POST') {
     const key = text('usernameOrEmail');
     if (!key || !body.password) return problem(400, 'usernameOrEmail, password is required');
     const found = db.accounts.find(
@@ -271,7 +314,7 @@ export async function mockHandle(
     return json(loginResponse(found));
   }
 
-  if (path === '/auth/register' && method === 'POST') {
+  if (pathname === '/auth/register' && method === 'POST') {
     const missing = ['username', 'email', 'password', 'firstName', 'lastName'].filter(
       (key) => !text(key),
     );
@@ -304,9 +347,9 @@ export async function mockHandle(
 
   const staff = account.roles.some((role) => role === 'ADMIN' || role === 'TEACHER');
 
-  if (path === '/me' && method === 'GET') return json(meResponse(db, account));
+  if (pathname === '/me' && method === 'GET') return json(meResponse(db, account));
 
-  if (path === '/me' && method === 'PUT') {
+  if (pathname === '/me' && method === 'PUT') {
     const first = text('first_name');
     const last = text('last_name');
     const photo = text('photo');
@@ -329,25 +372,39 @@ export async function mockHandle(
     return json(meResponse(db, account));
   }
 
-  if (path === '/institutions' && method === 'GET') return json(db.institutions);
+  if (pathname === '/institutions' && method === 'GET') return json(db.institutions);
 
-  if (path === '/courses' && method === 'GET') return json(db.courses);
+  if (pathname === '/courses' && method === 'GET') {
+    const institutionId = filter('institutionId');
+    return json(
+      institutionId === undefined
+        ? db.courses
+        : db.courses.filter((course) => course.institutionId === institutionId),
+    );
+  }
 
-  if (path === '/school-years' && method === 'GET') {
+  if (pathname === '/school-years' && method === 'GET') {
     return json([...db.schoolYears].sort(byStartYearDesc));
   }
 
-  if (path === '/classes' && method === 'GET') {
-    return json(db.classes.map((row) => classResponse(db, row)));
+  if (pathname === '/classes' && method === 'GET') {
+    const institutionId = filter('institutionId');
+    const courseId = filter('courseId');
+    const rows = db.classes.filter((row) => {
+      if (institutionId !== undefined && row.institutionId !== institutionId) return false;
+      if (courseId !== undefined && row.courseId !== courseId) return false;
+      return true;
+    });
+    return json(rows.map((row) => classResponse(db, row)));
   }
 
-  if (path === '/enrollments' && method === 'GET') {
+  if (pathname === '/enrollments' && method === 'GET') {
     const requested = body.accountId;
     const visible = requested ? db.enrollments.filter((e) => e.accountId === Number(requested)) : db.enrollments;
     return json(staff ? visible : visible.filter((e) => e.accountId === account.id));
   }
 
-  if (path === '/enrollments' && method === 'POST') {
+  if (pathname === '/enrollments' && method === 'POST') {
     const target = body.accountId === undefined || body.accountId === null
       ? account.id
       : Number(body.accountId);
@@ -390,7 +447,7 @@ export async function mockHandle(
     return json(enrollment, 201);
   }
 
-  return problem(404, `No route for ${method} ${path}`);
+  return problem(404, `No route for ${method} ${pathname}`);
 }
 
 /** Kept for the auth server actions, which post without a session. */

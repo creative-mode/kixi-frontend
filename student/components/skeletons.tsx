@@ -184,10 +184,13 @@ export function OnboardingSkeleton() {
         <div className="grid gap-6">
           <div className="flex items-center gap-2">
             <Skeleton className="size-6 rounded-full" />
-            <Skeleton className="h-3.5 w-14" />
-            <Skeleton className="h-px w-6" />
+            <Skeleton className="h-3.5 w-12" />
+            <Skeleton className="h-px w-4 md:w-6" />
             <Skeleton className="size-6 rounded-full" />
-            <Skeleton className="h-3.5 w-14" />
+            <Skeleton className="h-3.5 w-12" />
+            <Skeleton className="h-px w-4 md:w-6" />
+            <Skeleton className="size-6 rounded-full" />
+            <Skeleton className="h-3.5 w-10" />
           </div>
           <div className="grid gap-2"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-10 w-full" /><Skeleton className="h-3 w-48" /></div>
           <Skeleton className="h-11 w-full" />

@@ -14,7 +14,7 @@ npm run build
 | Rota | Ecrã |
 | --- | --- |
 | `/entrar`, `/cadastro` | Entrar e criar conta, com painel de apresentação em ecrãs largos |
-| `/onboarding` | Escolha de curso e turma, para a conta que ainda não está matriculada |
+| `/onboarding` | Escolha de escola, curso e turma, para a conta que ainda não está matriculada |
 | `/inicio` | Feed da turma: simulação em curso, publicar, publicações com Útil, comentários e guardar; painel com temas a rever, turma e próximas provas |
 | `/provas` | Lista de provas com pesquisa, filtro por disciplina, estado e carregar prova |
 | `/prova/[id]` | Sala de prova: cronómetro, questão, navegação por questões, marcar para rever |
@@ -39,7 +39,9 @@ O perfil, a matrícula e a edição de nome e foto falam com o backend:
 - `lib/me.ts`: `GET /me`, uma vez por request. Devolve três estados, e a distinção importa: `unauthorized` (401) leva ao login, `unknown` (rede caída, 500) deixa o aluno passar e `ok` é a única resposta que pode mandar para o onboarding. Tratar tudo como "sem perfil" trancava o aluno fora do feed quando o servidor tinha um problema.
 - `lib/guard.ts`: sessão viva e papel de aluno. Partilhado entre o shell e o onboarding.
 - `lib/me-context.tsx`: publica o perfil aos ecrãs cliente, para haver uma só fonte de verdade do nome e da turma.
-- `lib/mock/backend.ts`: com `KIXI_MOCK` ligado (por omissão) responde em processo a `/me`, `/enrollments`, `/courses`, `/classes` e ao resto, com as mesmas regras do backend. É o que permite desenhar sem base de dados.
+- `lib/mock/backend.ts`: com `KIXI_MOCK` ligado (por omissão) responde em processo a `/me`, `/enrollments`, `/institutions`, `/courses`, `/classes` e ao resto, com as mesmas regras do backend, incluindo os filtros por escola. É o que permite desenhar sem base de dados.
 
-Um aluno sem matrícula é levado para `/onboarding` e escolhe curso e turma. Não escolhe escola: `Class` não tem `institutionId` e a ligação aluno↔escola é ADMIN-only, por isso a API ainda não deixa o aluno gravá-la (creative-mode/kixi#100, reaberta).
+Um aluno sem matrícula é levado para `/onboarding` e escolhe escola, curso e turma, com a lista a estreitar a cada passo (`/courses?institutionId=`, `/classes?institutionId=&courseId=`) e só com turmas do ano letivo corrente.
+
+A escola da turma é a do curso, nunca escolhida à parte: `Class` não tem escola própria, e a base de dados garante a igualdade com uma chave estrangeira composta. O `/me` responde com a escola da ligação administrativa quando existe, e com a escola da turma quando não — por isso um aluno que se matriculou sozinho vê a escola preenchida (creative-mode/kixi#100).
 

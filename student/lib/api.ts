@@ -11,6 +11,10 @@ export type Result<T> = { ok: true; data: T } | { ok: false; status: number; mes
 
 const TIMEOUT = 10000;
 
+/** Query parameters for a read. Undefined values are dropped, so a caller can pass a
+ *  filter it does not have without building the string by hand. */
+export type Query = Record<string, string | number | undefined>;
+
 /** Headers for authenticated calls. The session cookie is the only credential here:
  *  the token never reaches the browser, and the backend stays authoritative on
  *  what each role may read or write. */
@@ -47,14 +51,24 @@ export async function problem(res: Response): Promise<{ status: number; message:
   return { status: res.status, message: `Erro ${res.status}` };
 }
 
-async function request<T>(method: string, path: string, body?: object): Promise<Result<T>> {
+async function request<T>(
+  method: string,
+  path: string,
+  body?: object,
+  query?: Query,
+): Promise<Result<T>> {
   const token = (await cookies()).get(COOKIE)?.value ?? null;
   const payload = body === undefined ? '' : JSON.stringify(body);
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined) search.set(key, String(value));
+  }
+  const suffix = search.size > 0 ? `?${search.toString()}` : '';
 
   try {
     const res = MOCK
-      ? await mockHandle(method, path, token, payload)
-      : await fetch(`${BACKEND}${path}`, {
+      ? await mockHandle(method, `${path}${suffix}`, token, payload)
+      : await fetch(`${BACKEND}${path}${suffix}`, {
           method,
           headers: {
             Accept: 'application/json',
@@ -81,6 +95,6 @@ async function request<T>(method: string, path: string, body?: object): Promise<
   }
 }
 
-export const apiGet = <T>(path: string) => request<T>('GET', path);
+export const apiGet = <T>(path: string, query?: Query) => request<T>('GET', path, undefined, query);
 export const apiPost = <T>(path: string, body: object) => request<T>('POST', path, body);
 export const apiPut = <T>(path: string, body: object) => request<T>('PUT', path, body);

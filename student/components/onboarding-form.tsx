@@ -11,9 +11,9 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { EmptyState } from '@/components/states';
 import { matricularAction } from '@/lib/enrollment-actions';
 import { cn } from '@/lib/utils';
-import type { Class, Course } from '@/lib/types';
+import type { Class, Course, Institution } from '@/lib/types';
 
-const STEPS = ['Curso', 'Turma'] as const;
+const STEPS = ['Escola', 'Curso', 'Turma'] as const;
 
 function Submit({ disabled, children }: { disabled: boolean; children: React.ReactNode }) {
   const { pending } = useFormStatus();
@@ -47,7 +47,7 @@ function Steps({ current }: { current: number }) {
             <span className={cn('text-[13px] font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>
               {label}
             </span>
-            {index === 0 && <span className="h-px w-6 bg-border" aria-hidden />}
+            {index < STEPS.length - 1 && <span className="h-px w-4 bg-border md:w-6" aria-hidden />}
           </li>
         );
       })}
@@ -56,25 +56,54 @@ function Steps({ current }: { current: number }) {
 }
 
 export function OnboardingForm({
+  institutions,
   courses,
   classes,
   yearLabel,
 }: {
+  institutions: Institution[];
   courses: Course[];
   classes: Class[];
   yearLabel?: string;
 }) {
   const [state, action] = useActionState(matricularAction, undefined);
   const [step, setStep] = useState(0);
+  const [institutionId, setInstitutionId] = useState('');
   const [courseId, setCourseId] = useState('');
   const [classId, setClassId] = useState('');
 
-  const available = useMemo(
-    () => classes.filter((item) => item.course?.id === Number(courseId)),
-    [classes, courseId],
+  // Narrowed in the browser from the lists the server already filtered, so a choice
+  // made in one step can never leave an impossible one open in the next.
+  const schoolCourses = useMemo(
+    () => courses.filter((c) => c.institutionId === Number(institutionId)),
+    [courses, institutionId],
   );
-  const chosen = available.find((item) => item.id === Number(classId));
-  const courseName = courses.find((course) => course.id === Number(courseId))?.name;
+  const courseClasses = useMemo(
+    () =>
+      classes
+        // The class carries the course nested, not a flat courseId.
+      .filter(
+        (c) => c.institutionId === Number(institutionId) && c.course?.id === Number(courseId),
+      )
+        .sort((a, b) => (a.grade ?? 0) - (b.grade ?? 0) || a.code.localeCompare(b.code, 'pt')),
+    [classes, institutionId, courseId],
+  );
+  const chosen = courseClasses.find((c) => c.id === Number(classId));
+  const schoolName = institutions.find((i) => i.id === Number(institutionId))?.name;
+  const courseName = schoolCourses.find((c) => c.id === Number(courseId))?.name;
+
+  const emptyCourses = (
+    <EmptyState
+      title="Sem cursos nesta escola"
+      message={`${schoolName ?? 'Esta escola'} não tem cursos publicados${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outra escola ou pergunta ao teu professor.`}
+    />
+  );
+  const emptyClasses = (
+    <EmptyState
+      title="Sem turmas neste curso"
+      message={`Não há turmas de ${courseName ?? 'este curso'}${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outro curso ou pergunta ao teu professor.`}
+    />
+  );
 
   return (
     <form action={action} className="grid gap-6">
@@ -96,47 +125,101 @@ export function OnboardingForm({
         </Alert>
       )}
 
-      {step === 0 ? (
+      {step === 0 && (
         <>
           <Field>
-            <FieldLabel htmlFor="courseId">Em que curso estás?</FieldLabel>
+            <FieldLabel htmlFor="institutionId">Em que escola estudas?</FieldLabel>
             <NativeSelect
-              id="courseId"
-              name="courseId"
-              value={courseId}
+              id="institutionId"
+              name="institutionId"
+              value={institutionId}
               onChange={(event) => {
-                setCourseId(event.target.value);
+                setInstitutionId(event.target.value);
+                setCourseId('');
                 setClassId('');
               }}
             >
-              <option value="">Escolhe o teu curso</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
+              <option value="">Escolhe a tua escola</option>
+              {institutions.map((school) => (
+                <option key={school.id} value={school.id}>
+                  {school.name}
                 </option>
               ))}
             </NativeSelect>
-            <FieldDescription>É o curso que frequentas na escola, não a disciplina.</FieldDescription>
+            <FieldDescription>É a escola onde frequentas, não o curso.</FieldDescription>
           </Field>
-          <Button type="button" size="lg" className="w-full" disabled={!courseId} onClick={() => setStep(1)}>
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            disabled={!institutionId}
+            onClick={() => setStep(1)}
+          >
             Continuar
           </Button>
         </>
-      ) : (
+      )}
+
+      {step === 1 && (
+        <>
+          <Field>
+            <FieldLabel htmlFor="courseId">E em que curso?</FieldLabel>
+            {schoolCourses.length === 0 ? (
+              emptyCourses
+            ) : (
+              <NativeSelect
+                id="courseId"
+                name="courseId"
+                value={courseId}
+                onChange={(event) => {
+                  setCourseId(event.target.value);
+                  setClassId('');
+                }}
+              >
+                <option value="">Escolhe o teu curso</option>
+                {schoolCourses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+            <FieldDescription>
+              {schoolCourses.length === 0
+                ? ' '
+                : 'É o curso que frequentas na escola, não a disciplina.'}
+            </FieldDescription>
+          </Field>
+          <div className="grid gap-2">
+            <Button
+              type="button"
+              size="lg"
+              className="w-full"
+              disabled={!courseId}
+              onClick={() => setStep(2)}
+            >
+              Continuar
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setStep(0)}>
+              <ArrowLeft aria-hidden />
+              Voltar à escola
+            </Button>
+          </div>
+        </>
+      )}
+
+      {step === 2 && (
         <>
           {/* The class carries its own school year, so the pair sent to /enrollments
               always matches and the backend's consistency check never fires. */}
           <input type="hidden" name="classId" value={classId} />
           <input type="hidden" name="schoolYearId" value={chosen?.schoolYear?.id ?? ''} />
 
-          {available.length === 0 ? (
-            <EmptyState
-              title="Sem turmas para este curso"
-              message={`Não há turmas de ${courseName ?? 'este curso'}${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outro curso ou pergunta ao teu professor.`}
-            />
-          ) : (
-            <Field>
-              <FieldLabel htmlFor="classId">E em que turma?</FieldLabel>
+          <Field>
+            <FieldLabel htmlFor="classId">E em que turma?</FieldLabel>
+            {courseClasses.length === 0 ? (
+              emptyClasses
+            ) : (
               <NativeSelect
                 id="classId"
                 name="classId"
@@ -144,22 +227,26 @@ export function OnboardingForm({
                 onChange={(event) => setClassId(event.target.value)}
               >
                 <option value="">Escolhe a tua turma</option>
-                {available.map((item) => (
+                {courseClasses.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.grade ? `${item.grade}ª · ` : ''}
                     {item.code}
                   </option>
                 ))}
               </NativeSelect>
-              <FieldDescription>
-                {yearLabel ? `Ano letivo ${yearLabel}.` : 'A turma onde estás matriculado.'}
-              </FieldDescription>
-            </Field>
-          )}
+            )}
+            <FieldDescription>
+              {courseClasses.length === 0
+                ? ' '
+                : yearLabel
+                  ? `Ano letivo ${yearLabel}.`
+                  : 'A turma onde estás matriculado.'}
+            </FieldDescription>
+          </Field>
 
           <div className="grid gap-2">
             <Submit disabled={!classId}>Entrar na turma</Submit>
-            <Button type="button" variant="ghost" onClick={() => setStep(0)}>
+            <Button type="button" variant="ghost" onClick={() => setStep(1)}>
               <ArrowLeft aria-hidden />
               Voltar ao curso
             </Button>
