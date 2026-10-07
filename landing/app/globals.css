@@ -63,7 +63,7 @@ a { color: inherit; }
 .site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--btn); }
 .site-header__logo .kx-logo__word, .site-header__logo .kx-logo__pixelword { color: var(--btn); }
 .pres__hero { position: absolute; z-index: 3; left: var(--gutter); right: var(--gutter); top: 96px; text-align: center; pointer-events: none; }
-.pres__hero-title { margin: 0; font: 700 clamp(30px, min(6vw, 8svh), 68px)/1.02 var(--font-sans); letter-spacing: -0.045em; color: var(--lp-ink); }
+.pres__hero-title { margin: 0 auto; max-width: 20ch; font: 700 clamp(28px, min(4.8vw, 7.5svh), 60px)/1.05 var(--font-sans); letter-spacing: -0.04em; color: var(--lp-ink); text-wrap: balance; }
 .pres__hero-sub { margin: 12px auto 0; max-width: 40ch; font: 400 clamp(15px, 1.6vw, 19px)/1.45 var(--font-sans); color: var(--lp-dim); text-wrap: balance; }
 .site-header__cta { justify-self: end; }
 .site-header__nav { display: none; gap: 32px; }
