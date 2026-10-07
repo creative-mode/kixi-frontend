@@ -147,7 +147,7 @@ export function Presentation() {
       <div className="pres__stick">
         <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
           <h1 id="hero-title" className="pres__hero-title">Estuda, dispara, domina.</h1>
-          <p className="pres__hero-sub">Provas, correcções e progresso num só lugar. Feito por alunos, para alunos.</p>
+          <p className="pres__hero-sub">Resolve provas, descobre onde erras e melhora a cada tentativa.</p>
         </div>
         <div className="pres__text">
                     <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
