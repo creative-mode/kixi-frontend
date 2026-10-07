@@ -2,7 +2,7 @@ name: Qualidade do código
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -34,5 +34,21 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: student/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  landing:
+    name: Typecheck da landing
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
       - run: npm ci
       - run: npm run lint
