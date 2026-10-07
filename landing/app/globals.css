@@ -91,6 +91,13 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .pres__hint { animation: none; } }
 .pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100vw - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
 .pres__rail span { display: block; height: 100%; background: var(--lp-ink); transform-origin: top; }
+/* narrow screens: the console owns the whole stage (centred), the cartridge scene keeps the lower part under its text */
+@media (max-width: 959px) {
+  .pres__art { grid-row: 1 / -1; grid-column: 1; height: calc(100svh - 72px); }
+  .pres__art .pres__cart { top: 44%; height: 56%; }
+  .pres__art .pres__block { top: 46%; }
+  .pres__art .gb { height: 92%; }
+}
 @media (min-width: 960px) {
   .pres__stick { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: var(--gutter); }
   .pres__text { align-self: center; text-align: left; padding: 0; }
