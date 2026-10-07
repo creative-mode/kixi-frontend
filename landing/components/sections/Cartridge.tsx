@@ -111,7 +111,7 @@ const SPREAD = 150;
 
 function Layer({ i, bars, a, yaw, on }: { i: number; bars: number; a: number; yaw: number; on: boolean }) {
   const t = TH[i];
-  const hot = on ? 'var(--c1)' : 'var(--paper-3)'; // only the layer in focus takes the spot colour
+  const hot = on ? 'var(--hot, #a31f5c)' : 'var(--paper-3)'; // only the layer in focus takes the spot colour
   const ship = spritePath('ship');
   switch (i) {
     case 0:
@@ -238,15 +238,15 @@ export function Cartridge({
             <g key={i} className="cart__layer" strokeWidth={active === i ? 2.6 : 1.6} style={{ transform: `translateY(${-offset(i)}px)` }}>
               <Layer i={i} bars={clamp((explode - 0.4) / 0.5)} a={a} yaw={yaw} on={active === i} />
               {callAmt > 0.02 && (
-                <g style={{ opacity: callAmt }} stroke="var(--paper-3)">
+                <g style={{ opacity: callAmt }}>
                   <line x1={ax + 4} y1={ay} x2={bx} y2={ay} />
                   <line x1={ax + 4} y1={by} x2={bx} y2={by} />
                   <line x1={bx} y1={ay} x2={bx} y2={by} />
-                  <circle cx={bx} cy={ay} r={3.2} fill="var(--paper-3)" />
-                  <circle cx={bx} cy={by} r={3.2} fill="var(--paper-3)" />
+                  <circle cx={bx} cy={ay} r={3.2} fill="var(--lp-ink)" />
+                  <circle cx={bx} cy={by} r={3.2} fill="var(--lp-ink)" />
                   <line x1={bx} y1={my} x2={bx + 34} y2={my} />
-                  <circle cx={bx + 34} cy={my} r={3.2} fill="var(--paper-3)" />
-                  <text x={bx + 46} y={my + 4} fontFamily="'Press Start 2P', monospace" fontSize="12" fill="var(--paper-3)" stroke="none">{LAYERS[i].label}</text>
+                  <circle cx={bx + 34} cy={my} r={3.2} fill="var(--lp-ink)" />
+                  <text x={bx + 46} y={my + 4} fontFamily="'Press Start 2P', monospace" fontSize="12" fill="var(--lp-ink)" stroke="none">{LAYERS[i].label}</text>
                 </g>
               )}
             </g>
