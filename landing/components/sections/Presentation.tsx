@@ -98,6 +98,26 @@ export function Presentation() {
     };
   }, []);
 
+  // ↑ / ↓ (and PageUp/PageDown, Space) walk the story in steps you can feel; the browser's own 40px arrow step is invisible on a page this long
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (r.top > 1 || r.bottom < window.innerHeight * 0.5) return; // only while the presentation is on screen
+      const h = window.innerHeight;
+      const step = e.key === 'ArrowDown' ? h * 0.5 : e.key === 'ArrowUp' ? -h * 0.5 : 0;
+      if (!step) return;
+      e.preventDefault();
+      window.scrollBy({ top: step });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   if (still) {
     return (
       <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
