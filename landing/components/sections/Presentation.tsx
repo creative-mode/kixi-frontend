@@ -14,7 +14,6 @@ const SCENES = [
   { head: 'Acompanha o teu progresso.', line: 'Alunos e professores veem tudo num só lugar.' },
 ] as const;
 
-const SPOTS = ['var(--c0)', 'var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
@@ -182,7 +181,7 @@ export function Presentation() {
           <div className="pres__scene" style={layerText(vis.outro)} aria-hidden={vis.outro < 0.5}><Outro /></div>
         </div>
         <div className="pres__art">
-          <div className="pres__block" style={{ opacity: open, ['--accent' as string]: open > 0.9 ? SPOTS[sj] : 'var(--c0)' }} aria-hidden="true" />
+          <div className="pres__block" style={{ opacity: open }} aria-hidden="true" />
           <div className="pres__cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>

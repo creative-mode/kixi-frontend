@@ -5,7 +5,7 @@
    --mood runs 0 -> 1 while you scroll the prologue: 0 is the night before the exam, 1 is the day the Kixi turns on. */
 :root {
   --mood: 1;
-  --day-paper: #a6ea6a; --day-paper-2: #c4f59a; --day-paper-3: #e9fdd2; --day-ink: #0e2a14; --day-dim: #3f7a2e;
+  --day-paper: #b3e27d; --day-paper-2: #cdeea6; --day-paper-3: #ecf9db; --day-ink: #0e2a14; --day-dim: #3f7a2e;
   --night-paper: #0a1f12; --night-paper-2: #12301c; --night-paper-3: #1b4228; --night-ink: #c8f2a8; --night-dim: #5f9a58;
   --paper: color-mix(in srgb, var(--day-paper) calc(var(--mood) * 100%), var(--night-paper));
   --paper-2: color-mix(in srgb, var(--day-paper-2) calc(var(--mood) * 100%), var(--night-paper-2));
@@ -13,8 +13,8 @@
   --lp-ink: color-mix(in srgb, var(--day-ink) calc(var(--mood) * 100%), var(--night-ink));
   --lp-dim: color-mix(in srgb, var(--day-dim) calc(var(--mood) * 100%), var(--night-dim));
   --lp-deep: #0a1f12; --lp-text-on-deep: #d6f5c4;
-  /* spot colours: one per layer of the cartridge */
-  --c0: #4fc3f7; --c1: #ffd23f; --c2: #ff5fb0; --c3: #a98bff; --c4: #ff6b7a;
+  /* one spot colour (the shot: yellow) for what is active; coral only for the failed grade */
+  --c1: #ffd23f; --c4: #ff6b7a;
   --sec-y: clamp(96px, 13vw, 168px);
   --head-gap: clamp(48px, 6vw, 80px);
   /* one lateral rule for the whole page */
@@ -120,7 +120,7 @@ a { color: inherit; }
 /* audiences: three colour plates, each with its own spot colour */
 .aud { display: grid; grid-template-columns: 1fr; gap: 24px; text-align: left; }
 @media (min-width: 900px) { .aud { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
-.aud__col { --step: 8px; position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 56px; min-height: 280px; padding: 32px 28px 36px; background: var(--spot); color: #0e2a14; clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
+.aud__col { --step: 8px; position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 56px; min-height: 280px; padding: 32px 28px 36px; background: var(--day-paper-3); color: #0e2a14; clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
 .aud__col::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(60deg, rgba(14,42,20,.16) 0 1px, transparent 1px 6px); -webkit-mask-image: linear-gradient(160deg, transparent 45%, #000); mask-image: linear-gradient(160deg, transparent 45%, #000); }
 .aud__title { margin: 0; font: 400 13px/18px var(--font-pixel); color: #0e2a14; }
 .aud__line { position: relative; z-index: 1; margin: 0; font: 800 clamp(26px, 2.8vw, 34px)/1.08 var(--font-sans); letter-spacing: -0.03em; max-width: 12ch; text-wrap: balance; }
@@ -144,7 +144,7 @@ a { color: inherit; }
 @media (min-width: 840px) { .lp-sk-cols { grid-template-columns: 1fr 1fr; } }
 
 /* the spot-colour plate behind the cartridge: it changes colour in steps, like a palette swap, at each layer */
-.pres__block { --step: 16px; position: absolute; inset: 4% 0 4% 6%; background: var(--accent, transparent); transition: background-color .5s steps(6, end); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
-.pres__block::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(60deg, rgba(14,42,20,.14) 0 1px, transparent 1px 7px); }
+.pres__block { --step: 16px; position: absolute; inset: 4% 0 4% 6%; background: var(--lp-deep); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
+.pres__block::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(60deg, rgba(200,242,168,.09) 0 1px, transparent 1px 7px); }
 .pres__art .pres__cart { z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .pres__block { transition: none; } }
