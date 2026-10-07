@@ -21,9 +21,18 @@ out to npm (`scripts/dev-all.mjs` uses `npm --prefix … run dev`).
 Pain points observed (see issue #77):
 
 - three full `node_modules` trees (~3x disk, ~3x install time, three lockfiles
-  that can drift apart, e.g. `@radix-ui/*` present at root but missing in `student/`);
+  that can drift apart);
+- real drift, checked 07/10 on DEV (not the radix sets — each app genuinely
+  uses different radix components, so that split is normal): `lucide-react`
+  is `^0.468.0` at root against `^1.52.0` in `student/` — a **major** apart,
+  so any package manager installs two copies. (`next` is `^16.0.10` in all
+  three apps, and `react` is pinned to `19.2.1` everywhere — those are fine.)
 - `npm run dev:all` and the Dockerfiles assume npm;
 - contributor onboarding is `npm install` x3.
+
+Workspaces alone do not align versions: with `lucide-react` on two majors,
+npm, pnpm or Bun all install two copies. So step zero of any migration —
+with Bun or without — is aligning these versions by hand first.
 
 Bun 1.4.x is available on team machines and offers workspaces with a single
 `bun.lock`, much faster installs (global module cache), and a drop-in
@@ -44,10 +53,13 @@ question is tracked separately.
 
 ## Options considered
 
-### A. Stay on npm (status quo)
+### A. Stay on npm, optionally with npm workspaces
 
-Keep three `package-lock.json` files. Optionally soften the pain with npm
-workspaces (single root lockfile) without changing toolchain.
+npm workspaces already give a single root lockfile and a single install
+without asking anyone to install another toolchain. Said plainly: if the
+goal is "one lockfile, one command", npm workspaces get us there. What
+would still be left on the table for Bun is install speed (measured below)
+and the shared global cache — that is the honest comparison for the team.
 
 ### B. Migrate to Bun workspaces (proposed for discussion)
 
@@ -68,8 +80,19 @@ to npm semantics. Listed for completeness; nobody on the team proposed it.
 ### Positive
 
 - one command setup (`bun install`), one lockfile, no drift between apps;
-- 10–30x faster installs; shared global cache across the three apps;
+- faster reinstalls on warm cache (measured below); shared global cache
+  across the three apps;
 - `dev-all`, gateway and scripts runnable with `bun` directly.
+
+Measured 07/10 on this machine, root app, same network (bun 1.4.0, npm 10):
+
+| | `npm ci --no-audit --no-fund` | `bun install` |
+| --- | --- | --- |
+| cold cache | 1m50s | 2m46s (slower cold — honest) |
+| warm cache | 9s | 0.4s (~20x) |
+
+So the "10–30x" claim only holds for warm-cache reinstalls — the everyday
+case, but not the first clone.
 
 ### Negative
 
@@ -81,6 +104,16 @@ to npm semantics. Listed for completeness; nobody on the team proposed it.
   differently under Bun (must be verified per dependency);
 - Vercel: Bun support exists but the Node runtime remains the safer default
   for deploys — needs an explicit decision per app.
+
+## Migration surface (if B is accepted)
+
+Files that mention npm today and would change:
+
+- `vercel.json` — `installCommand: npm install` (plus `buildCommand`/`devCommand`);
+- `docker/app.Dockerfile` — `RUN npm ci`, `RUN npm run build`;
+- `scripts/dev-all.mjs` — spawns `npm --prefix … run dev`;
+- the three `package-lock.json` → one `bun.lock` (fresh resolve, versions may
+  shift — needs a lockfile review PR).
 
 ## Open questions for the team
 
