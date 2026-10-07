@@ -2,10 +2,10 @@
  * The original Game Boy (DMG-01), drawn as flat shapes with the same dark outline as the rest of the drawings.
  * Everything that is not the screen is SVG; the screen is an HTML box laid over the bezel so the story can play on it.
  */
-const INK = '#1d1b2a';
+const INK = '#121c15';
 const SHELL = '#cbc8ba';
 const BEZEL = '#5b596e';
-const BUTTON = '#a31f5c';
+const BUTTON = '#1f5a2c';
 
 export function Gameboy({ children, eject = 0, off = 0, center = 0, label }: { children: React.ReactNode; eject?: number; off?: number; center?: number; label: string }) {
   return (

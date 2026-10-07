@@ -1,12 +1,12 @@
 @import '../styles/tokens.css';
 @import '../styles/kixi.css';
 
-/* Original Game Boy: warm grey shell, purple-black outline, one magenta (the A and B buttons).
+/* Original Game Boy: warm grey shell, dark outline, green A and B buttons (the brand green).
    The four greens only ever live on the LCD. */
 :root {
-  --paper: #ebe8dc; --paper-2: #dedbcd; --paper-3: #f6f4ec; --lp-ink: #1d1b2a; --lp-dim: #6b6880;
-  --lp-deep: #2a2838; --lp-text-on-deep: #e6e3d6;
-  --shell: #cbc8ba; --bezel: #5b596e; --btn: #a31f5c; --btn-edge: #4d0f2c; --btn-blue: #2f45a3;
+  --paper: #ffffff; --paper-2: #e3e9df; --paper-3: #f6f8f5; --lp-ink: #121c15; --lp-dim: #617066;
+  --lp-deep: #14301c; --lp-text-on-deep: #e8efe6;
+  --shell: #cbc8ba; --bezel: #5b596e; --btn: #1f5a2c; --btn-edge: #0d2a15; --btn-blue: #2f45a3;
   --lcd-0: #9bbc0f; --lcd-1: #8bac0f; --lcd-2: #306230; --lcd-3: #0f380f;
   --sec-y: clamp(96px, 13vw, 168px);
   --head-gap: clamp(48px, 6vw, 80px);
@@ -60,7 +60,7 @@ a { color: inherit; }
 /* header */
 .site-header { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); }
 .site-header__in { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: 72px; }
-.site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--lp-ink); }
+.site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--btn); }
 .site-header__cta { justify-self: end; }
 .site-header__nav { display: none; gap: 32px; }
 .site-header__nav a { text-decoration: none; font: 600 14px/1 var(--font-sans); padding: 12px 0; }
@@ -146,8 +146,8 @@ a { color: inherit; }
 /* the big screen the cartridge scenes play on: LCD green with the pixel grid */
 .pres__block { --step: 16px; position: absolute; inset: 4% 0 4% 6%; background: var(--lcd-0); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
 .pres__block::after, .gb__lcd::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 100% 4px, linear-gradient(90deg, rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 4px 100%; }
-/* the cartridge itself: shell grey, with the A-button magenta on the layer in focus */
-.pres__art--cart, .still-plate { --lp-ink: #1d1b2a; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; }
+/* the cartridge itself: shell grey, with the brand green on the layer in focus */
+.pres__art--cart, .still-plate { --lp-ink: #121c15; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; }
 .still-plate { position: relative; width: 100%; max-width: 560px; padding: 24px; background: var(--lcd-0); }
 .pres__art .pres__cart { z-index: 1; }
 
@@ -165,7 +165,7 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .gb { transform: none !important; } }
 
 .kx-btn--a { --face: var(--btn); --edge: var(--btn-edge); --txt: #fff; }
-.kx-btn--a:hover:not(:disabled) { --face: #bd2a6e; }
+.kx-btn--a:hover:not(:disabled) { --face: #2a7a3c; }
 
 /* first screen: just a short line and one button, so the console is what you look at */
 .pres__scene--hero .pres__title { font-size: clamp(26px, min(3.3vw, 6svh), 48px); max-width: 16ch; }
