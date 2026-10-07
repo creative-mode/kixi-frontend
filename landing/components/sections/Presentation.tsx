@@ -35,10 +35,8 @@ function Intro() {
         A prova não é o fim.
         <span>É onde o estudo começa.</span>
       </h1>
-      <p className="pres__sub">Treina com provas a sério, tira dúvidas e vê como os outros resolveram.</p>
       <div className="actions">
         <Cta href={SIGNUP_URL}>Começar a estudar</Cta>
-        <Cta href="#para-quem" secondary>Sou professor</Cta>
       </div>
     </>
   );
@@ -160,7 +158,7 @@ export function Presentation() {
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
         <div className="pres__text">
-          <div className="pres__scene" style={layerText(vis.hero)} aria-hidden={vis.hero < 0.5}><Intro /></div>
+          <div className="pres__scene pres__scene--hero" style={layerText(vis.hero)} aria-hidden={vis.hero < 0.5}><Intro /></div>
           <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
           <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
           {SCENES.map((s, i) => {
@@ -187,7 +185,6 @@ export function Presentation() {
         <div className="pres__hint" style={{ opacity: 0.72 * (1 - clamp((q - 0.01) / 0.05)) }} aria-hidden="true">
           <svg viewBox="0 0 11 7" width="32" height="20" shapeRendering="crispEdges" fill="currentColor"><path d="M0 0h3v1h1v1h1v1h1V2h1V1h1V0h3v1h-1v1h-1v1h-1v1h-1v1h-1v1H5V6H4V5H3V4H2V3H1V2H0z" /></svg>
         </div>
-        <div className="pres__rail" aria-hidden="true"><span style={{ transform: `scaleY(${p})` }} /></div>
       </div>
     </section>
   );
