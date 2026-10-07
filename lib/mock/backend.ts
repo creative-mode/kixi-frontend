@@ -38,7 +38,7 @@ G.__kixiMock.db ??= {
   roles: [], accounts: [], users: [], accountRoles: [], 'school-years': [], terms: [], subjects: [], courses: [],
   classes: [], statements: [], simulations: [], 'simulation-answers': [], sessions: [], 'question-images': [],
   institutions: [], teachers: [], institutionSubjects: [], institutionTeachers: [], institutionStudents: [],
-  schools: [], enrollments: [], 'teaching-assignments': [],
+  enrollments: [], 'teaching-assignments': [],
 };
 const db: any = G.__kixiMock.db;
 function add(table, data) {
@@ -88,8 +88,6 @@ add('statements', {
 });
 
   const itel = add('institutions', { code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: '/manager/exam/itel.png' });
-  add('schools', { code: 'ITEL', name: 'Instituto de Telecomunicações', address: 'Luanda, Angola', phone: null });
-  add('schools', { code: 'ISPTEC', name: 'Instituto Superior Politécnico de Tecnologias e Ciências', address: 'Luanda, Angola', phone: null });
   for (const sub of db.subjects) db.institutionSubjects.push({ institutionId: itel.id, subjectId: sub.id });
   const helena = add('teachers', { accountId: teacherAcc.id, firstName: 'Helena', lastName: 'Gomes', email: 'professor@kixi.ao', photo: null, specialty: 'Redes', employeeNumber: 'P-001' });
   db.institutionTeachers.push({ institutionId: itel.id, teacherId: helena.id });
@@ -129,15 +127,15 @@ const RES = {
   'school-years': { table: 'school-years', req: ['startYear', 'endYear'], pick: (b) => ({ startYear: b.startYear, endYear: b.endYear }) },
   terms: { table: 'terms', req: ['name', 'number'], pick: (b) => ({ name: b.name, number: b.number }) },
   courses: {
-    table: 'courses', req: ['code', 'name'],
-    pick: (b) => ({ code: b.code, name: b.name, description: b.description ?? null, institutionId: b.institutionId ? Number(b.institutionId) : null, institution: b.institutionId ? db.schools.find((s) => s.id === Number(b.institutionId)) ?? null : null }),
-    validate: (b) => (b.institutionId && !db.schools.find((s) => s.id === Number(b.institutionId) && !s.deletedAt) ? 'school not found' : null),
+    table: 'courses', req: ['code', 'name', 'institutionId'],
+    pick: (b) => ({ code: b.code, name: b.name, description: b.description ?? null, institutionId: Number(b.institutionId) }),
+    validate: (b) => (!b.institutionId ? 'school is required' : !db.institutions.find((s) => s.id === Number(b.institutionId) && !s.deletedAt) ? 'school not found' : null),
   },
   subjects: { table: 'subjects', key: 'code', req: ['code', 'name'], pick: (b) => ({ code: b.code, name: b.name, short_name: b.short_name ?? null }) },
   classes: {
     table: 'classes', req: ['code', 'grade', 'courseId', 'schoolYearId'], noUpdate: true,
-    pick: (b) => ({ code: b.code, grade: b.grade, course: db.courses.find((c) => c.id === b.courseId), schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId), institutionId: b.institutionId ? Number(b.institutionId) : null, institution: b.institutionId ? db.schools.find((s) => s.id === Number(b.institutionId)) ?? null : null }),
-    validate: (b) => (!db.courses.find((c) => c.id === b.courseId) ? 'course not found' : !db['school-years'].find((s) => s.id === b.schoolYearId) ? 'school year not found' : b.institutionId && !db.schools.find((s) => s.id === Number(b.institutionId) && !s.deletedAt) ? 'school not found' : null),
+    pick: (b) => ({ code: b.code, grade: b.grade, course: db.courses.find((c) => c.id === b.courseId), schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId) }),
+    validate: (b) => (!db.courses.find((c) => c.id === b.courseId) ? 'course not found' : !db['school-years'].find((s) => s.id === b.schoolYearId) ? 'school year not found' : null),
   },
   sessions: {
     table: 'sessions', admin: true, req: ['accountId', 'token', 'ipAddress'],
@@ -164,28 +162,26 @@ const RES = {
     pick: (b) => ({ firstName: b.firstName, lastName: b.lastName, email: b.email ?? null, photo: b.photo ?? null, specialty: b.specialty ?? null, employeeNumber: b.employeeNumber ?? null }),
     defaults: { accountId: null },
   },
-  schools: {
-    table: 'schools', req: ['code', 'name'],
-    pick: (b) => ({ code: b.code, name: b.name, address: b.address ?? null, phone: b.phone ?? null }),
-    unique: (b, id) => (db.schools.some((s) => !s.deletedAt && s.id !== id && s.code === b.code) ? 'School code already exists' : null),
-  },
   enrollments: {
-    table: 'enrollments', req: ['userId', 'classId', 'schoolYearId'],
-    pick: (b) => ({
-      userId: Number(b.userId), classId: Number(b.classId), schoolYearId: Number(b.schoolYearId),
-      user: (() => { const u = db.users.find((x) => x.id === Number(b.userId)); return u ? { id: u.id, firstName: u.firstName, lastName: u.lastName } : null; })(),
-      class: (() => { const c = db.classes.find((x) => x.id === Number(b.classId)); return c ? { id: c.id, code: c.code } : null; })(),
-      schoolYear: db['school-years'].find((s) => s.id === Number(b.schoolYearId)) ?? null,
-    }),
+    table: 'enrollments', req: ['userId', 'classId'],
+    pick: (b) => {
+      const cls = db.classes.find((x) => x.id === Number(b.classId));
+      return {
+        userId: Number(b.userId), classId: Number(b.classId), schoolYearId: cls?.schoolYear?.id ?? null,
+        user: (() => { const u = db.users.find((x) => x.id === Number(b.userId)); return u ? { id: u.id, firstName: u.firstName, lastName: u.lastName } : null; })(),
+        class: cls ? { id: cls.id, code: cls.code } : null,
+        schoolYear: cls?.schoolYear ?? null,
+      };
+    },
     validate: (b) => {
       const u = db.users.find((x) => x.id === Number(b.userId) && !x.deletedAt);
       if (!u) return 'student not found';
       const roles = db.accountRoles.filter((r) => r.accountId === u.accountId).map((r) => db.roles.find((x) => x.id === r.roleId)?.name);
       if (!roles.includes('STUDENT')) return 'enrollment needs a user with the STUDENT role';
       if (!db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt)) return 'class not found';
-      if (!db['school-years'].find((s) => s.id === Number(b.schoolYearId))) return 'school year not found';
       return null;
     },
+    unique: (b, id) => (db.enrollments.some((e) => !e.deletedAt && e.id !== id && e.userId === Number(b.userId) && e.classId === Number(b.classId)) ? 'Student is already enrolled in this class' : null),
   },
   'teaching-assignments': {
     table: 'teaching-assignments', req: ['teacherId', 'classId', 'subjectId'],
@@ -195,7 +191,8 @@ const RES = {
       class: (() => { const c = db.classes.find((x) => x.id === Number(b.classId)); return c ? { id: c.id, code: c.code } : null; })(),
       subject: (() => { const s = db.subjects.find((x) => x.id === Number(b.subjectId)); return s ? { id: s.id, name: s.name } : null; })(),
     }),
-    validate: (b) => (!db.teachers.find((x) => x.id === Number(b.teacherId) && !x.deletedAt) ? 'teacher not found' : !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt) ? 'class not found' : !db.subjects.find((x) => x.id === Number(b.subjectId)) ? 'subject not found' : null),
+    validate: (b) => (!db.teachers.find((x) => x.id === Number(b.teacherId) && !x.deletedAt) ? 'teacher not found' : !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt) ? 'class not found' : !db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt) ? 'subject not found' : null),
+    unique: (b, id) => (db['teaching-assignments'].some((a) => !a.deletedAt && a.id !== id && a.teacherId === Number(b.teacherId) && a.classId === Number(b.classId) && a.subjectId === Number(b.subjectId)) ? 'Assignment already exists' : null),
   },
   roles: { table: 'roles', admin: true, req: ['name'], pick: (b) => ({ name: b.name, description: b.description ?? null }) },
   users: { table: 'users', admin: true, req: ['accountId', 'firstName', 'lastName'], pick: (b) => ({ accountId: b.accountId, firstName: b.firstName, lastName: b.lastName, photo: b.photo ?? null }) },
