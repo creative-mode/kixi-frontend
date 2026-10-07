@@ -70,7 +70,7 @@ export default function LoginPage() {
             <Label htmlFor="password">Palavra-passe</Label>
             <div className="relative">
               <Input id="password" name="password" type={show ? 'text' : 'password'} placeholder="••••••••" required disabled={isLoading} autoComplete="current-password" className="pr-10" />
-              <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'} className="absolute inset-y-0 right-0 grid w-10 place-items-center text-muted-foreground hover:text-foreground">
+              <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'} className="absolute inset-y-0 right-0 grid w-10 place-items-center rounded-md text-muted-foreground hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30">
                 {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
