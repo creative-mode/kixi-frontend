@@ -111,7 +111,7 @@ const SPREAD = 150;
 
 function Layer({ i, bars, a, yaw, on }: { i: number; bars: number; a: number; yaw: number; on: boolean }) {
   const t = TH[i];
-  const hot = on ? 'var(--hot, #a31f5c)' : 'var(--paper-3)'; // only the layer in focus takes the spot colour
+  const hot = on ? 'var(--paper-2)' : 'var(--paper-3)'; // the layer in focus is a shade darker, no spot colour
   const ship = spritePath('ship');
   switch (i) {
     case 0:

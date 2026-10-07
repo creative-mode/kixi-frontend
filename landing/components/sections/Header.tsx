@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Logo } from '@/components/kixi';
-import { LOGIN_URL, NAV } from '@/lib/content';
+import { LOGIN_URL } from '@/lib/content';
 
 export function Header() {
   return (
@@ -9,9 +9,6 @@ export function Header() {
         <Link href="/" aria-label="Kixi, início" className="site-header__logo">
           <Logo size={28} wordmark />
         </Link>
-        <nav aria-label="Principal" className="site-header__nav">
-          {NAV.map((n) => <a key={n.href} href={n.href}>{n.label}</a>)}
-        </nav>
         <span className="kx-btn-wrap kx-scope site-header__cta">
           <a href={LOGIN_URL} className="kx-btn kx-btn--a kx-btn--sm" style={{ textDecoration: 'none' }}>
             <span className="kx-btn__label">Entrar</span>
