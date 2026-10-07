@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+// Corredores a partir da location deste ficheiro, para o script correr de qualquer sítio.
+const path = require('path');
+const LANDING = path.resolve(__dirname, '..', '..');
 const zlib = require('zlib');
 const fs = require('fs');
 

@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+// Corredores a partir da location deste ficheiro, para o script correr de qualquer sítio.
+const path = require('path');
+const LANDING = path.resolve(__dirname, '..', '..');
 const zlib = require('zlib');
 const fs = require('fs');
 
-const buf = fs.readFileSync('landing/public/guard-source.png.png');
+const buf = fs.readFileSync(path.join(LANDING, 'public', 'guard-source.png'));
 const sig = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]);
 if (!buf.slice(0,8).equals(sig)) throw new Error('Not PNG');
 
@@ -98,5 +101,5 @@ for (const { color, d } of palette) {
 }
 out += `];\n`;
 
-fs.writeFileSync('landing/components/forbidden/guard-sprite.ts', out);
+fs.writeFileSync(path.join(LANDING, 'components', 'forbidden', 'guard-sprite.ts'), out);
 console.log('Generated guard-sprite.ts with', palette.length, 'colors');
