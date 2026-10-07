@@ -19,9 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@/components/kixi": ["./landing/components/kixi.tsx"],
-      "@/lib/content": ["./landing/lib/content.ts"]
+      "@/*": ["./*"]
     }
   },
   "include": [

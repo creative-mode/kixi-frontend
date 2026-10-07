@@ -1,54 +1,30 @@
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import ForbiddenScene from "../../landing/components/forbidden/forbidden-scene";
-import { Header } from '../../landing/components/sections/Header';
-import { LOGIN_URL } from '../../landing/lib/content';
-import './landing.css';
-import '../../landing/components/forbidden/forbidden.css';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { appOrigin, originFromRequest } from '@/lib/origin';
 
-export const metadata: Metadata = {
+export const metadata = {
   title: '403 · Acesso não permitido',
   description: 'Área restrita do Kixi. A porta não abre para esta conta.',
 };
 
-type PageProps = { searchParams: Promise<{ reason?: string | string[] }> };
+type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-function button(href: string, label: string, outside = false) {
-  const cls = 'kx-btn kx-btn--lg';
-  const inner = <span className="kx-btn__label">{label}</span>;
-  return (
-    <span className="kx-btn-wrap kx-scope">
-      {outside ? (
-        <a href={href} className={cls} style={{ textDecoration: 'none' }}>
-          {inner}
-        </a>
-      ) : (
-        <Link href={href} className={cls} style={{ textDecoration: 'none' }}>
-          {inner}
-        </Link>
-      )}
-    </span>
-  );
-}
-
+/**
+ * The canonical 403 lives at the end of the address (`/403`), served by the landing, so
+ * the project has a single door. The student app already forwards here; this does the
+ * same, keeping the query intact, instead of importing the landing's scene into the
+ * manager — which made one app able to break the other's build.
+ */
 export default async function ForbiddenPage({ searchParams }: PageProps) {
-  const raw = (await searchParams).reason;
-  const reason = Array.isArray(raw) ? raw[0] : raw;
-  const wrongRole = reason === 'role';
+  const [head, params] = await Promise.all([headers(), searchParams]);
+  const search = new URLSearchParams();
 
-  const primary = wrongRole
-    ? button('/exam-builder', 'Voltar ao meu painel')
-    : button('/aluno/inicio', 'Ir para o caminho certo', true);
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) value.forEach((item) => search.append(key, item));
+    else if (value !== undefined) search.set(key, value);
+  }
 
-  const secondary = wrongRole
-    ? button('/', 'Ver o painel')
-    : button(LOGIN_URL, 'Entrar noutra conta', true);
-
-  const hint = wrongRole
-    ? 'Esta área é para quem gere o Kixi. O teu acesso chega até aqui.'
-    : 'O teu acesso é do lado dos alunos. A porta do gestor fica fechada.';
-
-  return (
-    <ForbiddenScene header={<Header />} hint={hint} primary={primary} secondary={secondary} />
-  );
+  const origin = appOrigin() ?? originFromRequest(head, 'http') ?? 'http://localhost:3000';
+  const query = search.toString();
+  redirect(`${origin}/403${query ? `?${query}` : ''}`);
 }
