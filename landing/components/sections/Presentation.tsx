@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
 import { Cartridge, LAYERS } from './Cartridge';
+import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
 
 /** Everything the landing has to say, one scene per layer of the cartridge. */
@@ -20,7 +21,7 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
 function Cta({ href, children, secondary }: { href: string; children: React.ReactNode; secondary?: boolean }) {
   return (
     <span className="kx-btn-wrap kx-scope">
-      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ''}`} style={{ textDecoration: 'none' }}>
+      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ' kx-btn--a'}`} style={{ textDecoration: 'none' }}>
         <span className="kx-btn__label">{children}</span>
       </a>
     </span>
@@ -117,7 +118,7 @@ export function Presentation() {
       <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
         <div className="wrap">
           <Intro />
-          <Cartridge explode={1} callouts className="pres__svg" />
+          <div className="still-plate"><Cartridge explode={1} callouts className="pres__svg" /></div>
           <ol className="pres__list">
             {SCENES.map((s, i) => (
               <li key={s.head}>
@@ -145,7 +146,9 @@ export function Presentation() {
   const yaws = [0, 1, 2, 3, 4].map((j) => ((smooth(clamp((sc - j - 0.1) / 0.5)) * 360 + turn) * Math.PI) / 180);
   const acts = [0, 1, 2, 3, 4].map((j) => smooth(clamp((sc - j - 0.3) / 0.4)) * clamp((j + 1.1 - sc) / 0.2) * (open > 0.9 ? 1 : 0));
   const reveal = smooth(clamp((q - 0.92) / 0.08)); // the cartridge appears out of the debris
+  const eject = smooth(clamp((q - 0.9) / 0.1));
   const vis = {
+    hero: 1 - clamp((q - 0.015) / 0.05),
     bridge: clamp((q - 0.94) / 0.06) * (1 - clamp((p2 - 0.03) / 0.03)),
     inside: clamp((p2 - 0.07) / 0.04) * clamp((0.205 - p2) / 0.03),
     outro: clamp((p2 - 0.85) / 0.05),
@@ -156,11 +159,8 @@ export function Presentation() {
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
-        <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
-        <div className="pres__prolog" style={{ ['--px' as string]: smooth(clamp((q - 0.92) / 0.08)) }} aria-hidden="true">
-          {q < 1 || p2 < 0.001 ? <Prologue q={q / 0.84} /> : null}
-        </div>
         <div className="pres__text">
+          <div className="pres__scene" style={layerText(vis.hero)} aria-hidden={vis.hero < 0.5}><Intro /></div>
           <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
           <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
           {SCENES.map((s, i) => {
@@ -174,7 +174,13 @@ export function Presentation() {
           <div className="pres__scene" style={layerText(vis.outro)} aria-hidden={vis.outro < 0.5}><Outro /></div>
         </div>
         <div className="pres__art">
-          <div className="pres__cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
+          {eject < 1 ? (
+            <Gameboy eject={eject} center={smooth(clamp((q - 0.02) / 0.06))} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
+              <Prologue q={Math.min(1, q / 0.84)} />
+            </Gameboy>
+          ) : null}
+          <div className="pres__block" style={{ opacity: reveal }} aria-hidden="true" />
+          <div className="pres__cart pres__art--cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>
         </div>

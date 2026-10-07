@@ -44,7 +44,7 @@ export const LAYERS = [
   { id: 'dash', label: 'Acompanha' },
 ] as const;
 
-type SlabProps = { x?: number; y?: number; w: number; d: number; h: number; z: number; rx?: number; yaw: number; children?: React.ReactNode };
+type SlabProps = { x?: number; y?: number; w: number; d: number; h: number; z: number; rx?: number; yaw: number; top?: string; children?: React.ReactNode };
 
 const FACES = [
   { n: [1, 0], p: (x: number, y: number, w: number, d: number) => [[x + w, y], [x + w, y + d]] },
@@ -53,7 +53,7 @@ const FACES = [
   { n: [0, -1], p: (x: number, y: number, w: number) => [[x, y], [x + w, y]] },
 ];
 
-function Slab({ x = 0, y = 0, w, d, h, z, rx = 6, yaw, children }: SlabProps) {
+function Slab({ x = 0, y = 0, w, d, h, z, rx = 6, yaw, top = 'var(--paper-3)', children }: SlabProps) {
   const zt = z + h;
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
@@ -74,7 +74,7 @@ function Slab({ x = 0, y = 0, w, d, h, z, rx = 6, yaw, children }: SlabProps) {
         );
       })}
       <g transform={plan(zt, yaw)}>
-        <rect x={x} y={y} width={w} height={d} rx={rx} fill="var(--paper-3)" />
+        <rect x={x} y={y} width={w} height={d} rx={rx} fill={top} />
         {children}
       </g>
     </g>
@@ -109,13 +109,14 @@ const TH = [
 const GAP = 108;
 const SPREAD = 150;
 
-function Layer({ i, bars, a, yaw }: { i: number; bars: number; a: number; yaw: number }) {
+function Layer({ i, bars, a, yaw, on }: { i: number; bars: number; a: number; yaw: number; on: boolean }) {
   const t = TH[i];
+  const hot = on ? 'var(--hot, #a31f5c)' : 'var(--paper-3)'; // only the layer in focus takes the spot colour
   const ship = spritePath('ship');
   switch (i) {
     case 0:
       return (
-        <Slab w={W} d={D} h={t.h} z={t.z} rx={10} yaw={yaw}>
+        <Slab w={W} d={D} h={t.h} z={t.z} rx={10} yaw={yaw} top={hot}>
           <rect x={22} y={22} width={256} height={166} rx={8} fill="none" />
           <polygon points="22,188 150,188 278,110 278,188" fill="url(#kx-dots)" opacity=".9" />
           <g transform="translate(108 60) scale(7)"><path d={ship.d} fill="var(--lp-ink)" /></g>
@@ -131,7 +132,7 @@ function Layer({ i, bars, a, yaw }: { i: number; bars: number; a: number; yaw: n
       );
     case 1:
       return (
-        <Slab x={10} y={10} w={280} d={190} h={t.h} z={t.z} yaw={yaw}>
+        <Slab x={10} y={10} w={280} d={190} h={t.h} z={t.z} yaw={yaw} top={hot}>
           {Array.from({ length: 12 }).map((_, k) => {
             const cx = 34 + (k % 6) * 40;
             const cy = 36 + Math.floor(k / 6) * 40;
@@ -147,7 +148,7 @@ function Layer({ i, bars, a, yaw }: { i: number; bars: number; a: number; yaw: n
       const domes = [{ cx: 100, cy: 105 }, { cx: 190, cy: 105 }].sort((p, q) => depth(p.cx, p.cy, yaw) - depth(q.cx, q.cy, yaw));
       return (
         <g>
-          <Slab x={10} y={10} w={280} d={190} h={t.h} z={t.z} yaw={yaw}>
+          <Slab x={10} y={10} w={280} d={190} h={t.h} z={t.z} yaw={yaw} top={hot}>
             <rect x={28} y={28} width={64} height={22} rx={3} fill="none" />
             {[0, 1, 2, 3].map((k) => <line key={k} x1={38 + k * 14} y1={28} x2={38 + k * 14} y2={50} />)}
             <path d="M220 170 C 250 170 250 130 250 110" fill="none" strokeDasharray="1 5" strokeDashoffset={-a * 60} strokeLinecap="round" />
@@ -159,7 +160,7 @@ function Layer({ i, bars, a, yaw }: { i: number; bars: number; a: number; yaw: n
     case 3:
       return (
         <g>
-          <Slab x={10} y={10} w={280} d={190} h={t.h} z={t.z} yaw={yaw}>
+          <Slab x={10} y={10} w={280} d={190} h={t.h} z={t.z} yaw={yaw} top={hot}>
             <path d="M150 105 H60 V40 H30 M150 105 V170 H40 M150 105 H260 V150 M180 80 L240 40 H270" fill="none" />
             {[[30, 40], [40, 170], [270, 40], [260, 150]].map(([cx, cy], k) => <circle key={k} cx={cx} cy={cy} r={4} fill="var(--paper-3)" />)}
             <polygon points="20,190 160,190 290,125 290,190" fill="url(#kx-dots)" opacity=".7" />
@@ -176,11 +177,11 @@ function Layer({ i, bars, a, yaw }: { i: number; bars: number; a: number; yaw: n
       bs.sort((p, q) => depth(p.x + 21, p.y + 21, yaw) - depth(q.x + 21, q.y + 21, yaw));
       return (
         <g>
-          <Slab w={W} d={D} h={t.h} z={t.z} rx={10} yaw={yaw}>
-            <rect x={20} y={20} width={260} height={170} rx={8} fill="var(--paper-2)" />
+          <Slab w={W} d={D} h={t.h} z={t.z} rx={10} yaw={yaw} top={hot}>
+            <rect x={20} y={20} width={260} height={170} rx={8} fill="var(--paper-3)" />
             <rect x={20} y={20} width={260} height={170} rx={8} fill="url(#kx-dots)" />
           </Slab>
-          {bs.map((b) => (b.hh > 1 ? <Slab key={b.k} x={b.x} y={b.y} w={42} d={42} h={b.hh} z={t.z + t.h} rx={2} yaw={yaw} /> : null))}
+          {bs.map((b) => (b.hh > 1 ? <Slab key={b.k} x={b.x} y={b.y} w={42} d={42} h={b.hh} z={t.z + t.h} rx={2} yaw={yaw}  /> : null))}
         </g>
       );
     }
@@ -235,7 +236,7 @@ export function Cartridge({
           const my = (ay + by) / 2;
           return (
             <g key={i} className="cart__layer" strokeWidth={active === i ? 2.6 : 1.6} style={{ transform: `translateY(${-offset(i)}px)` }}>
-              <Layer i={i} bars={clamp((explode - 0.4) / 0.5)} a={a} yaw={yaw} />
+              <Layer i={i} bars={clamp((explode - 0.4) / 0.5)} a={a} yaw={yaw} on={active === i} />
               {callAmt > 0.02 && (
                 <g style={{ opacity: callAmt }}>
                   <line x1={ax + 4} y1={ay} x2={bx} y2={ay} />

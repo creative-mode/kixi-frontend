@@ -1,17 +1,21 @@
 @import '../styles/tokens.css';
 @import '../styles/kixi.css';
 
-/* A technical manual: olive paper, one ink, line-and-stipple drawing. */
+/* Original Game Boy: warm grey shell, purple-black outline, one magenta (the A and B buttons).
+   The four greens only ever live on the LCD. */
 :root {
-  --paper: #a8b389; --paper-2: #b7c198; --paper-3: #c8d0ab; --lp-ink: #27311b; --lp-deep: #1b2413; --lp-dim: #8e9c70; --lp-text-on-deep: #d3dab6;
+  --paper: #ebe8dc; --paper-2: #dedbcd; --paper-3: #f6f4ec; --lp-ink: #1d1b2a; --lp-dim: #6b6880;
+  --lp-deep: #2a2838; --lp-text-on-deep: #e6e3d6;
+  --shell: #cbc8ba; --bezel: #5b596e; --btn: #a31f5c; --btn-edge: #4d0f2c; --btn-blue: #2f45a3;
+  --lcd-0: #9bbc0f; --lcd-1: #8bac0f; --lcd-2: #306230; --lcd-3: #0f380f;
   --sec-y: clamp(96px, 13vw, 168px);
   --head-gap: clamp(48px, 6vw, 80px);
   /* one lateral rule for the whole page */
   --gutter: clamp(24px, 6vw, 96px);
   --page: 1200px;
   /* remap the design-system tokens the buttons use */
-  --brand: #27311b; --brand-edge: #0e1408; --brand-hover: #3a4a28; --on-brand: #dfe6c6;
-  --surface-raised: #c8d0ab; --surface-high: #d4dbb8; --line-strong: #27311b; --ink: #27311b; --focus: #27311b;
+  --brand: var(--lp-ink); --brand-edge: #04120a; --brand-hover: var(--lp-ink); --on-brand: var(--paper);
+  --surface-raised: var(--paper-3); --surface-high: var(--paper-2); --line-strong: var(--lp-ink); --ink: var(--lp-ink); --focus: var(--lp-ink);
 }
 .phone[data-theme="dark"] {
   --surface: #1f2917; --surface-raised: #2a361f; --surface-high: #34432a; --surface-sunken: #161d10; --ink: #d6dcb8; --ink-muted: #a2ad82; --line: #3d4d2c; --line-strong: #8a9a68;
@@ -21,7 +25,7 @@
 html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 body { margin: 0; background: var(--paper); color: var(--lp-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; line-height: 1.5; overflow-x: clip; }
 /* paper grain */
-body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none; opacity: .22; mix-blend-mode: multiply;
+body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none; opacity: .07; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .15  0 0 0 0 .2  0 0 0 0 .1  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 a { color: inherit; }
 :focus-visible { outline: 3px solid var(--lp-ink); outline-offset: 3px; }
@@ -38,6 +42,7 @@ a { color: inherit; }
 .sec { padding-block: var(--sec-y); }
 .sec--paper { background: var(--paper); }
 .sec--deep { background: var(--lp-deep); color: var(--lp-text-on-deep); }
+.sec--deep .h2 { color: var(--paper); }
 /* every block fills one screen below the header and is centred in it */
 #para-quem { min-height: 100svh; display: flex; align-items: center; justify-content: center; padding-block: calc(72px + clamp(24px, 6svh, 72px)) clamp(24px, 6svh, 72px); }
 #para-quem .wrap { margin-block: auto; }
@@ -54,7 +59,7 @@ a { color: inherit; }
 /* header */
 .site-header { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--paper) 90%, transparent); backdrop-filter: blur(8px); border-bottom: 1.6px solid var(--lp-ink); }
 .site-header__in { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: 72px; }
-.site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--lp-text-on-deep); }
+.site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--lp-ink); }
 .site-header__cta { justify-self: end; }
 .site-header__nav { display: none; gap: 32px; }
 .site-header__nav a { text-decoration: none; font: 600 14px/1 var(--font-sans); padding: 12px 0; }
@@ -105,19 +110,20 @@ a { color: inherit; }
 .cart text { text-rendering: geometricPrecision; }
 .cart * { vector-effect: non-scaling-stroke; }
 
-/* audiences */
-.aud { display: grid; grid-template-columns: 1fr; gap: 56px; }
-@media (min-width: 900px) { .aud { grid-template-columns: repeat(3, 1fr); gap: 0; } .aud__col + .aud__col { border-left: 1.6px solid var(--lp-dim); } }
-.aud__col { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 0 32px; }
-.aud__title { margin: 0; font: 400 13px/18px var(--font-pixel); color: var(--lp-dim); }
-.aud__line { margin: 0; font: 700 clamp(24px, 2.6vw, 30px)/1.15 var(--font-sans); letter-spacing: -0.025em; color: var(--paper-3); max-width: 14ch; text-wrap: balance; }
+/* audiences: three colour plates, each with its own spot colour */
+.aud { display: grid; grid-template-columns: 1fr; gap: 24px; text-align: left; }
+@media (min-width: 900px) { .aud { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
+.aud__col { --step: 8px; position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 56px; min-height: 280px; padding: 32px 28px 36px; background: var(--lcd-0); color: var(--lcd-3); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
+.aud__col::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(60deg, rgba(15,56,15,.22) 0 1px, transparent 1px 6px); -webkit-mask-image: linear-gradient(160deg, transparent 45%, #000); mask-image: linear-gradient(160deg, transparent 45%, #000); }
+.aud__title { margin: 0; font: 400 13px/18px var(--font-pixel); color: var(--lcd-2); }
+.aud__line { position: relative; z-index: 1; margin: 0; font: 800 clamp(26px, 2.8vw, 34px)/1.08 var(--font-sans); letter-spacing: -0.03em; max-width: 12ch; text-wrap: balance; }
 
 .footer { background: var(--lp-deep); color: var(--lp-text-on-deep); padding: 56px 0; text-align: center; }
 .footer__in { display: flex; flex-direction: column; align-items: center; gap: 24px; }
 .footer__nav { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; }
-.footer__nav a { text-decoration: none; font-weight: 600; font-size: 14px; color: var(--lp-dim); }
-.footer__nav a:hover { color: var(--paper-3); }
-.footer__copy { margin: 0; font-size: 13px; color: var(--lp-dim); }
+.footer__nav a { text-decoration: none; font-weight: 600; font-size: 14px; color: #b9b6c8; }
+.footer__nav a:hover { color: #fff; }
+.footer__copy { margin: 0; font-size: 13px; color: #8d8aa3; }
 
 /* Loading: blocos de tinta sobre o papel oliva, com cantos em degrau e varrimento em passos (como o resto da página). */
 .lp-sk { position: relative; overflow: hidden; display: block; background: color-mix(in srgb, var(--lp-ink) 14%, transparent); clip-path: var(--kx-clip); }
@@ -129,3 +135,24 @@ a { color: inherit; }
 .lp-sk-cart { width: min(320px, 70vw); aspect-ratio: 4 / 3; margin-top: 24px; }
 .lp-sk-cols { display: grid; gap: 24px; padding-block: var(--sec-y); }
 @media (min-width: 840px) { .lp-sk-cols { grid-template-columns: 1fr 1fr; } }
+
+/* the big screen the cartridge scenes play on: LCD green with the pixel grid */
+.pres__block { --step: 16px; position: absolute; inset: 4% 0 4% 6%; background: var(--lcd-0); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
+.pres__block::after, .gb__lcd::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 100% 4px, linear-gradient(90deg, rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 4px 100%; }
+/* the cartridge itself: shell grey, with the A-button magenta on the layer in focus */
+.pres__art--cart, .still-plate { --lp-ink: #1d1b2a; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; --hot: var(--btn); }
+.still-plate { position: relative; width: 100%; max-width: 560px; padding: 24px; background: var(--lcd-0); }
+.pres__art .pres__cart { z-index: 1; }
+
+/* the console */
+.gb { transform: translateY(calc(var(--ej, 0) * 108%)) rotate(calc(var(--ej, 0) * 7deg)); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
+.gb__body { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-2); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
+  position: absolute; left: 20.67%; top: 10.57%; width: 58.67%; height: 32.19%; overflow: hidden; background: var(--lcd-0); box-shadow: inset 4px 4px 0 rgba(15,56,15,.4); }
+.gb__lcd .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* wide screens: the console takes the middle of the stage while the story plays, then the text comes back beside it */
+@media (min-width: 960px) { .gb { transform: translateX(calc(var(--ctr, 0) * -56%)) translateY(calc(var(--ej, 0) * 108%)) rotate(calc(var(--ej, 0) * 7deg)); } }
+@media (prefers-reduced-motion: reduce) { .gb { transform: none !important; } }
+
+.kx-btn--a { --face: var(--btn); --edge: var(--btn-edge); --txt: #fff; }
+.kx-btn--a:hover:not(:disabled) { --face: #bd2a6e; }
