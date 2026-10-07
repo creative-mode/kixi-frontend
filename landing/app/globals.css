@@ -140,7 +140,7 @@ a { color: inherit; }
 .pres__block { --step: 16px; position: absolute; inset: 4% 0 4% 6%; background: var(--lcd-0); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
 .pres__block::after, .gb__lcd::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 100% 4px, linear-gradient(90deg, rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 4px 100%; }
 /* the cartridge itself: shell grey, with the A-button magenta on the layer in focus */
-.pres__art--cart, .still-plate { --lp-ink: #1d1b2a; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; --hot: var(--btn); }
+.pres__art--cart, .still-plate { --lp-ink: #1d1b2a; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; }
 .still-plate { position: relative; width: 100%; max-width: 560px; padding: 24px; background: var(--lcd-0); }
 .pres__art .pres__cart { z-index: 1; }
 

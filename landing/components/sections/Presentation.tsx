@@ -29,17 +29,8 @@ function Cta({ href, children, secondary }: { href: string; children: React.Reac
 }
 
 function Intro() {
-  return (
-    <>
-      <h1 id="hero-title" className="pres__title">
-        A prova não é o fim.
-        <span>É onde o estudo começa.</span>
-      </h1>
-      <div className="actions">
-        <Cta href={SIGNUP_URL}>Começar a estudar</Cta>
-      </div>
-    </>
-  );
+  // The first screen is the console alone; the title stays for screen readers.
+  return <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>;
 }
 
 function Bridge() {
@@ -173,7 +164,7 @@ export function Presentation() {
         </div>
         <div className="pres__art">
           {eject < 1 ? (
-            <Gameboy eject={eject} center={smooth(clamp((q - 0.02) / 0.06))} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
+            <Gameboy eject={eject} center={1} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
               <Prologue q={Math.min(1, q / 0.84)} />
             </Gameboy>
           ) : null}
@@ -181,9 +172,6 @@ export function Presentation() {
           <div className="pres__cart pres__art--cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>
-        </div>
-        <div className="pres__hint" style={{ opacity: 0.72 * (1 - clamp((q - 0.01) / 0.05)) }} aria-hidden="true">
-          <svg viewBox="0 0 11 7" width="32" height="20" shapeRendering="crispEdges" fill="currentColor"><path d="M0 0h3v1h1v1h1v1h1V2h1V1h1V0h3v1h-1v1h-1v1h-1v1h-1v1h-1v1H5V6H4V5H3V4H2V3H1V2H0z" /></svg>
         </div>
       </div>
     </section>
