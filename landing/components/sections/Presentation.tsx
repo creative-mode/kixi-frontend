@@ -166,8 +166,7 @@ export function Presentation() {
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
         <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
-          <h1 id="hero-title" className="pres__hero-title">Estuda, dispara, domina.</h1>
-          <p className="pres__hero-sub">Tu não és carneiro, só não estudas do jeito certo.</p>
+          <h1 id="hero-title" className="pres__hero-title">Tu não és carneiro, só estudas do jeito errado.</h1>
         </div>
         <div className="pres__text">
                     <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
