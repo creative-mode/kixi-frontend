@@ -1,15 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { managerUrl as configuredManagerUrl, resolveOrigin } from '@/lib/origin';
 
 /** Public: the two entrance screens. Everything else needs a live session. */
 const PUBLIC = ['/entrar', '/cadastro'];
 /** O manager vive no mesmo endereço, em /manager (fora do basePath deste app). */
-/** Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público (cabeçalhos do gateway). */
+/** Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público
+ *  (configuração primeiro, cabeçalhos do gateway como recurso). */
 function publicOrigin(req: NextRequest) {
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.host;
-  const proto = req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '');
-  return `${proto}://${host}`;
+  const configured = resolveOrigin(req.headers, req.nextUrl.protocol);
+  return configured ?? new URL(req.nextUrl.href).origin;
 }
-const managerUrl = (req: NextRequest) => process.env.NEXT_PUBLIC_MANAGER_URL ?? new URL('/manager', publicOrigin(req)).toString();
+const managerUrl = (req: NextRequest) => configuredManagerUrl() ?? new URL('/manager', publicOrigin(req)).toString();
 /** Redireciona dentro deste app (mantém o basePath /aluno). */
 function go(req: NextRequest, pathname: string) {
   const url = req.nextUrl.clone();

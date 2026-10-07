@@ -2,24 +2,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
+import { resolveOrigin } from '@/lib/origin';
 import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/lib/roles';
 
 const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
 function publicOrigin(request: NextRequest) {
-  const configured = process.env.NEXT_PUBLIC_MANAGER_URL;
-  if (configured) {
-    const url = new URL(configured);
-    return `${url.protocol}//${url.host}`;
-  }
-  // Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público
-  // (paridade com student/proxy.ts). Só cai no origin do request como último recurso.
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
-  if (host) {
-    const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '');
-    return `${proto}://${host}`;
-  }
-  return new URL(request.url).origin;
+  // Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem
+  // faz o pedido, e um redireccionamento construído a partir deles é um open redirect.
+  // Ver lib/origin.ts.
+  return resolveOrigin(request.headers, request.nextUrl.protocol) ?? new URL(request.url).origin;
 }
 
 function redirectTo(path: string, request: NextRequest, query?: Record<string, string>) {

@@ -12,6 +12,10 @@ x-app: &app
     # true = backend simulado dentro do próprio app (demo). false = backend real em BACKEND_API_URL.
     KIXI_MOCK: ${KIXI_MOCK:-true}
     BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:8080/api/v1}
+    # Endereço público do gateway. É com ele que o gestor e o aluno constroem os
+    # redireccionamentos para a landing e para a /403 canónica; os cabeçalhos Host e
+    # x-forwarded-host vêm do cliente e não são de confiança.
+    APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
   extra_hosts:
     - host.docker.internal:host-gateway
 
@@ -22,6 +26,7 @@ services:
     ports:
       - "${PORT:-3000}:3000"
     environment:
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
       MANAGER_HOST: manager
       MANAGER_PORT: 3002
       STUDENT_HOST: student

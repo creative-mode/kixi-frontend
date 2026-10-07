@@ -1,14 +1,18 @@
 import 'server-only';
 import { cookies, headers } from 'next/headers';
+import { managerUrl as configuredManagerUrl, originFromRequest } from './origin';
 
 export const COOKIE = 'auth_token';
 export const BACKEND = (process.env.BACKEND_API_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
-/** Where ADMIN accounts are sent: the manager app (same cookie, so no second sign-in). */
+
+/** Where ADMIN accounts are sent: the manager app (same cookie, so no second sign-in).
+ *  Configured origin first; the request headers are only trusted outside production. */
 export async function managerUrl(): Promise<string> {
-  if (process.env.NEXT_PUBLIC_MANAGER_URL) return process.env.NEXT_PUBLIC_MANAGER_URL;
+  const configured = configuredManagerUrl();
+  if (configured) return configured;
   const h = await headers();
-  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
-  return `${h.get('x-forwarded-proto') ?? 'http'}://${host}/manager`;
+  const origin = originFromRequest(h, 'http') ?? 'http://localhost:3000';
+  return `${origin}/manager`;
 }
 
 export type Session = { accountId: number | null; roles: string[]; exp: number };
