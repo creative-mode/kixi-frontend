@@ -122,12 +122,12 @@ export function Prologue({ q }: { q: number }) {
           {QMARKS.map((m, i) => {
             const k = smooth(win(q, m.t, m.t + 0.05));
             if (k <= 0) return null;
-            return <text key={i} x={m.x - 300} y={m.y - 215} fontSize={m.s * (0.4 + 0.6 * k)} textAnchor="middle" fill="var(--lp-ink)" opacity={k} transform={`rotate(${m.a} ${m.x - 300} ${m.y - 215})`} style={PIX}>?</text>;
+            return <text key={i} x={m.x - 300} y={m.y - 215} fontSize={m.s * (0.4 + 0.6 * k)} textAnchor="middle" fill="var(--c4)" opacity={k} transform={`rotate(${m.a} ${m.x - 300} ${m.y - 215})`} style={PIX}>?</text>;
           })}
           {stamp > 0 && (
             <g transform={`translate(34 62) rotate(-14) scale(${1 + (1 - stamp) * 1.6})`} opacity={stamp}>
-              <circle r="46" fill="var(--paper-3)" stroke="var(--lp-ink)" strokeWidth="4" strokeDasharray="10 5" vectorEffect="non-scaling-stroke" />
-              <text textAnchor="middle" y="9" fontSize="26" fill="var(--lp-ink)" style={PIX}>4/20</text>
+              <circle r="46" fill="var(--c4)" stroke="var(--lp-ink)" strokeWidth="4" strokeDasharray="10 5" vectorEffect="non-scaling-stroke" />
+              <text textAnchor="middle" y="9" fontSize="26" fill="#0e2a14" style={PIX}>4/20</text>
             </g>
           )}
         </g>

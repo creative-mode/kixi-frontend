@@ -14,13 +14,14 @@ const SCENES = [
   { head: 'Acompanha o teu progresso.', line: 'Alunos e professores veem tudo num só lugar.' },
 ] as const;
 
+const SPOTS = ['var(--c0)', 'var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 function Cta({ href, children, secondary }: { href: string; children: React.ReactNode; secondary?: boolean }) {
   return (
     <span className="kx-btn-wrap kx-scope">
-      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ''}`} style={{ textDecoration: 'none' }}>
+      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ' kx-btn--gold'}`} style={{ textDecoration: 'none' }}>
         <span className="kx-btn__label">{children}</span>
       </a>
     </span>
@@ -112,6 +113,13 @@ export function Presentation() {
     };
   }, []);
 
+  // The page runs from night to day while the prologue plays; everything coloured with --mood follows.
+  const moodNow = still ? 1 : smooth(clamp((clamp(p / 0.35) - 0.9) / 0.08));
+  useEffect(() => {
+    document.documentElement.style.setProperty('--mood', String(moodNow));
+  }, [moodNow]);
+  useEffect(() => () => { document.documentElement.style.removeProperty('--mood'); }, []);
+
   if (still) {
     return (
       <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
@@ -174,6 +182,7 @@ export function Presentation() {
           <div className="pres__scene" style={layerText(vis.outro)} aria-hidden={vis.outro < 0.5}><Outro /></div>
         </div>
         <div className="pres__art">
+          <div className="pres__block" style={{ opacity: open, ['--accent' as string]: open > 0.9 ? SPOTS[sj] : 'var(--c0)' }} aria-hidden="true" />
           <div className="pres__cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>
