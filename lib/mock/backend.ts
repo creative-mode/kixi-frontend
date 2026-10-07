@@ -177,7 +177,15 @@ const RES = {
       class: (() => { const c = db.classes.find((x) => x.id === Number(b.classId)); return c ? { id: c.id, code: c.code } : null; })(),
       schoolYear: db['school-years'].find((s) => s.id === Number(b.schoolYearId)) ?? null,
     }),
-    validate: (b) => (!db.users.find((x) => x.id === Number(b.userId) && !x.deletedAt) ? 'student not found' : !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt) ? 'class not found' : !db['school-years'].find((s) => s.id === Number(b.schoolYearId)) ? 'school year not found' : null),
+    validate: (b) => {
+      const u = db.users.find((x) => x.id === Number(b.userId) && !x.deletedAt);
+      if (!u) return 'student not found';
+      const roles = db.accountRoles.filter((r) => r.accountId === u.accountId).map((r) => db.roles.find((x) => x.id === r.roleId)?.name);
+      if (!roles.includes('STUDENT')) return 'enrollment needs a user with the STUDENT role';
+      if (!db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt)) return 'class not found';
+      if (!db['school-years'].find((s) => s.id === Number(b.schoolYearId))) return 'school year not found';
+      return null;
+    },
   },
   'teaching-assignments': {
     table: 'teaching-assignments', req: ['teacherId', 'classId', 'subjectId'],
