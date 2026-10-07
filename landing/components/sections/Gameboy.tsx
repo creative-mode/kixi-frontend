@@ -7,9 +7,9 @@ const SHELL = '#cbc8ba';
 const BEZEL = '#5b596e';
 const BUTTON = '#a31f5c';
 
-export function Gameboy({ children, eject = 0, center = 0, label }: { children: React.ReactNode; eject?: number; center?: number; label: string }) {
+export function Gameboy({ children, eject = 0, off = 0, center = 0, label }: { children: React.ReactNode; eject?: number; off?: number; center?: number; label: string }) {
   return (
-    <div className="gb" style={{ ['--ej' as string]: eject, ['--ctr' as string]: center, opacity: 1 - eject * 0.25 }}>
+    <div className="gb" style={{ ['--ej' as string]: eject, ['--ctr' as string]: center, ['--off' as string]: off, opacity: 1 - eject }}>
       <svg className="gb__body" viewBox="0 0 300 492" aria-hidden="true" focusable="false">
         {/* hard shadow, like the pixel buttons */}
         <path d="M18 14H292Q304 14 304 26V440A62 62 0 0 1 242 502H18Q6 502 6 490V26Q6 14 18 14Z" fill={INK} />

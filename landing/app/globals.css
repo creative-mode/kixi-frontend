@@ -145,13 +145,16 @@ a { color: inherit; }
 .pres__art .pres__cart { z-index: 1; }
 
 /* the console */
-.gb { transform: translateY(calc(var(--ej, 0) * 108%)) rotate(calc(var(--ej, 0) * 7deg)); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
+.gb { transform: translateY(calc(var(--ej, 0) * 40%)) scale(calc(1 - var(--ej, 0) * 0.12)); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
 .gb__body { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-2); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
   position: absolute; left: 20.67%; top: 10.57%; width: 58.67%; height: 32.19%; overflow: hidden; background: var(--lcd-0); box-shadow: inset 4px 4px 0 rgba(15,56,15,.4); }
+/* power-off: the picture squeezes into a bright line, then the glass goes dark */
+.gb__lcd > svg { transform-origin: 50% 50%; transform: scaleY(calc(1 - var(--off, 0) * 0.97)); filter: brightness(calc(1 + var(--off, 0) * 0.6)); }
+.gb__lcd::before { content: ''; position: absolute; inset: 0; background: var(--lcd-3); opacity: clamp(0, calc((var(--off, 0) - 0.55) * 2.2), 1); z-index: 1; pointer-events: none; }
 .gb__lcd .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* wide screens: the console takes the middle of the stage while the story plays, then the text comes back beside it */
-@media (min-width: 960px) { .gb { transform: translateX(calc(var(--ctr, 0) * -56%)) translateY(calc(var(--ej, 0) * 108%)) rotate(calc(var(--ej, 0) * 7deg)); } }
+@media (min-width: 960px) { .gb { transform: translateX(calc(var(--ctr, 0) * -56%)) translateY(calc(var(--ej, 0) * 40%)) scale(calc(1 - var(--ej, 0) * 0.12)); } }
 @media (prefers-reduced-motion: reduce) { .gb { transform: none !important; } }
 
 .kx-btn--a { --face: var(--btn); --edge: var(--btn-edge); --txt: #fff; }
