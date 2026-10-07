@@ -16,9 +16,9 @@ const eslintConfig = defineConfig([
       'react/react-in-jsx-scope': 'off',
     },
   },
-  // Override default ignores of eslint-config-next.
+  // Ignorados à volta do código que não é lintado pela config da raiz
+  // (student/ e landing/ têm os seus próprios scripts de verificação).
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "student/**",
     "landing/**",

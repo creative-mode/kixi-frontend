@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const zlib = require('zlib');
 const fs = require('fs');
 

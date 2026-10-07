@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const zlib = require('zlib');
 const fs = require('fs');
 
@@ -11,7 +12,6 @@ while (idx < buf.length) {
  const len = buf.readUInt32BE(idx);
  const type = buf.toString('ascii', idx+4, idx+8);
  const data = buf.slice(idx+8, idx+8+len);
- const crc = buf.readUInt32BE(idx+8+len);
  chunks.push({type, data});
  idx += 12 + len;
  if (type === 'IEND') break;

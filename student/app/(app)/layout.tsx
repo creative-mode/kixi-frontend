@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect(await managerUrl());
   }
   if (roles.length !== 1 || !roles.includes('STUDENT')) {
-    redirect('/403');
+    redirect('/403?reason=role');
   }
 
   return <Shell>{children}</Shell>;

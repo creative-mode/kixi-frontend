@@ -12,6 +12,13 @@ function publicOrigin(request: NextRequest) {
     const url = new URL(configured);
     return `${url.protocol}//${url.host}`;
   }
+  // Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público
+  // (paridade com student/proxy.ts). Só cai no origin do request como último recurso.
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
+  if (host) {
+    const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '');
+    return `${proto}://${host}`;
+  }
   return new URL(request.url).origin;
 }
 
@@ -96,12 +103,13 @@ export async function proxy(request: NextRequest) {
     }
 
     const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN');
+    // O professor não entra na gestão (contas, papéis, utilizadores, sessões): 403 com motivo.
+    // Tem de vir antes do encaminhamento para o exam-builder, senão a 403 nunca é vista.
+    if (isTeacher && isManagerOnlyRoute(pathname)) {
+      return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
+    }
     if (isTeacher && !pathname.startsWith('/exam-builder')) {
       return NextResponse.redirect(redirectTo('/exam-builder', request));
-    }
-
-    if (roles.includes('TEACHER') && isManagerOnlyRoute(pathname)) {
-      return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
     }
 
     const response = NextResponse.next();

@@ -1,0 +1,38 @@
+name: Qualidade do código
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint e build do manager
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  student:
+    name: Typecheck do student
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: student
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: student/package-lock.json
+      - run: npm ci
+      - run: npm run lint

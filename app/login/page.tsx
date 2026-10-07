@@ -14,6 +14,8 @@ import { Spinner } from '@/components/ui/spinner';
 function noticeFor(reason: string | null) {
   if (reason === 'session-expired') return 'A tua sessão expirou. Entra novamente para continuar.';
   if (reason === 'logged-out') return 'Sessão terminada com segurança.';
+  if (reason === 'invalid-session') return 'Esta sessão não dá acesso ao Kixi Manager. Entra com outra conta.';
+  if (reason === 'required') return 'Precisas de iniciar sessão para continuar.';
   return null;
 }
 

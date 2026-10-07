@@ -27,28 +27,30 @@ export function ExamBuilder() {
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
-    setDraft(loadDraft());
+    const task = window.setTimeout(() => setDraft(loadDraft()), 0);
     myInstitutions().then((res) => {
       if (!res.ok) toast.error(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
       setReady(true);
     });
+    return () => window.clearTimeout(task);
   }, []);
   useEffect(() => { if (ready) saveDraft(draft); }, [draft, ready]);
 
   const school = useMemo(() => schools.find((s) => s.id === draft.schoolId) ?? schools[0], [schools, draft.schoolId]);
+  const schoolId = school?.id;
   const set = <K extends keyof ExamDraft>(k: K, v: ExamDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
   // As disciplinas são as da escola escolhida.
   useEffect(() => {
-    if (!school) return;
-    institutionLinks(Number(school.id), 'subjects').then((res) => {
+    if (!schoolId) return;
+    institutionLinks(Number(schoolId), 'subjects').then((res) => {
       if (!res.ok) return toast.error(res.error);
       setSubjectIds(Object.fromEntries(res.data.map((x) => [x.name, x.id])));
-      setSchools((all) => all.map((x) => (x.id === school.id ? { ...x, subjects: res.data.map((y) => y.name) } : x)));
+      setSchools((all) => all.map((x) => (x.id === schoolId ? { ...x, subjects: res.data.map((y) => y.name) } : x)));
       setDraft((d) => (d.subject && !res.data.some((y) => y.name === d.subject) ? { ...d, subject: '' } : d));
     });
-  }, [school?.id]);
+  }, [schoolId]);
 
   async function save() {
     if (!school || !draft.subject) return;
