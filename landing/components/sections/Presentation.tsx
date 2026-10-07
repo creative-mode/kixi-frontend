@@ -28,11 +28,6 @@ function Cta({ href, children, secondary }: { href: string; children: React.Reac
   );
 }
 
-function Intro() {
-  // The first screen is the console alone; the title stays for screen readers.
-  return <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>;
-}
-
 function Bridge() {
   return (
     <>
@@ -106,7 +101,7 @@ export function Presentation() {
     return (
       <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
         <div className="wrap">
-          <Intro />
+          <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
           <div className="still-plate"><Cartridge explode={1} callouts className="pres__svg" /></div>
           <ol className="pres__list">
             {SCENES.map((s, i) => (
@@ -137,7 +132,6 @@ export function Presentation() {
   const reveal = smooth(clamp((q - 0.92) / 0.08)); // the cartridge appears out of the debris
   const eject = smooth(clamp((q - 0.9) / 0.1));
   const vis = {
-    hero: 1 - clamp((q - 0.015) / 0.05),
     bridge: clamp((q - 0.94) / 0.06) * (1 - clamp((p2 - 0.03) / 0.03)),
     inside: clamp((p2 - 0.07) / 0.04) * clamp((0.205 - p2) / 0.03),
     outro: clamp((p2 - 0.85) / 0.05),
@@ -148,9 +142,9 @@ export function Presentation() {
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
+        <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
         <div className="pres__text">
-          <div className="pres__scene pres__scene--hero" style={layerText(vis.hero)} aria-hidden={vis.hero < 0.5}><Intro /></div>
-          <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
+                    <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
           <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
           {SCENES.map((s, i) => {
             const v = vis.scene(i);
