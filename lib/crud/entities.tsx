@@ -10,8 +10,10 @@ import {
   Layers,
   ListChecks,
   PlayCircle,
+  School,
   Shield,
   User,
+  UserCheck,
   UserSquare,
   Users,
 } from 'lucide-react';
@@ -61,6 +63,9 @@ export type EntityKey =
   | 'users'
   | 'institutions'
   | 'teachers'
+  | 'schools'
+  | 'enrollments'
+  | 'teaching-assignments'
   | 'statements'
   | 'simulations'
   | 'sessions'
@@ -195,11 +200,13 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     fields: [
       { name: 'code', label: 'Código', type: 'text', required: true, min: 2, max: 50, placeholder: 'TISM' },
       { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 255, placeholder: 'Técnico de Informática e Sistemas Multimédia' },
+      { name: 'institutionId', label: 'Escola', type: 'select', optionsFrom: 'schools', hint: 'A escola onde o curso é leccionado.' },
       { name: 'description', label: 'Descrição', type: 'textarea', max: 5000 },
     ],
     columns: [
       { label: 'Código', value: (r) => <code className="font-mono text-xs">{r.code}</code>, className: 'w-28' },
       { label: 'Nome', value: (r) => <strong>{r.name}</strong> },
+      { label: 'Escola', value: (r) => dim(r.institution?.name ?? r.school?.name ?? null) },
       { label: 'Descrição', value: (r) => dim(r.description ? String(r.description).slice(0, 70) : null) },
     ],
     titleOf: (r) => r.name,
@@ -207,7 +214,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     canEdit: true,
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
-    toForm: (r) => ({ code: r.code, name: r.name, description: r.description ?? '' }),
+    toForm: (r) => ({ code: r.code, name: r.name, institutionId: r.institutionId ?? '', description: r.description ?? '' }),
   },
   classes: {
     key: 'classes',
@@ -224,12 +231,14 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { name: 'code', label: 'Código', type: 'text', required: true, max: 50, placeholder: '12B' },
       { name: 'grade', label: 'Classe', type: 'number', required: true, min: 1, max: 13, placeholder: '12' },
       { name: 'courseId', label: 'Curso', type: 'select', required: true, optionsFrom: 'courses' },
+      { name: 'institutionId', label: 'Escola', type: 'select', optionsFrom: 'schools', hint: 'A escola da turma.' },
       { name: 'schoolYearId', label: 'Ano letivo', type: 'select', required: true, optionsFrom: 'school-years' },
     ],
     columns: [
       { label: 'Turma', value: (r) => <strong>{r.code}</strong>, className: 'w-24' },
       { label: 'Classe', value: (r) => `${r.grade}.ª`, className: 'w-24' },
       { label: 'Curso', value: (r) => r.course?.name ?? '—' },
+      { label: 'Escola', value: (r) => dim(r.institution?.name ?? null) },
       { label: 'Ano letivo', value: (r) => (r.schoolYear ? `${r.schoolYear.startYear}–${r.schoolYear.endYear}` : '—') },
     ],
     titleOf: (r) => `${r.code}`,
@@ -381,6 +390,91 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     purge: { suffix: '/purge' },
     toForm: (r) => ({ firstName: r.firstName, lastName: r.lastName, email: r.email ?? '', specialty: r.specialty ?? '', employeeNumber: r.employeeNumber ?? '', photo: r.photo ?? '' }),
   },
+  schools: {
+    key: 'schools',
+    fem: true,
+    path: 'schools',
+    api: '/api/v1/schools',
+    idKey: 'id',
+    singular: 'Escola',
+    plural: 'Escolas',
+    description: 'Escolas onde correm os cursos e turmas',
+    icon: School,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'code', label: 'Código', type: 'text', required: true, max: 20, placeholder: 'ITEL' },
+      { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 200, placeholder: 'Instituto de Telecomunicações' },
+      { name: 'address', label: 'Endereço', type: 'text', max: 255, placeholder: 'Luanda, Angola' },
+      { name: 'phone', label: 'Telefone', type: 'text', max: 50, placeholder: '+244 …' },
+    ],
+    columns: [
+      { label: 'Código', value: (r) => <span className="font-mono text-xs font-bold">{r.code}</span>, className: 'w-28' },
+      { label: 'Nome', value: (r) => <strong>{r.name}</strong> },
+      { label: 'Endereço', value: (r) => dim(r.address) },
+    ],
+    titleOf: (r) => r.name,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toForm: (r) => ({ code: r.code, name: r.name, address: r.address ?? '', phone: r.phone ?? '' }),
+  },
+  enrollments: {
+    key: 'enrollments',
+    fem: true,
+    path: 'enrollments',
+    api: '/api/v1/enrollments',
+    idKey: 'id',
+    singular: 'Matrícula',
+    plural: 'Matrículas',
+    description: 'Alunos inscritos em cada turma',
+    icon: UserCheck,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'userId', label: 'Aluno', type: 'select', required: true, optionsFrom: 'users' },
+      { name: 'classId', label: 'Turma', type: 'select', required: true, optionsFrom: 'classes' },
+      { name: 'schoolYearId', label: 'Ano letivo', type: 'select', required: true, optionsFrom: 'school-years' },
+    ],
+    columns: [
+      { label: 'Aluno', value: (r) => <strong>{r.user ? `${r.user.firstName} ${r.user.lastName}` : `#${r.userId}`}</strong> },
+      { label: 'Turma', value: (r) => r.class?.code ?? `#${r.classId}`, className: 'w-28' },
+      { label: 'Ano letivo', value: (r) => (r.schoolYear ? `${r.schoolYear.startYear}–${r.schoolYear.endYear}` : '—'), className: 'w-32' },
+    ],
+    titleOf: (r) => (r.user ? `${r.user.firstName} ${r.user.lastName} · ${r.class?.code ?? ''}` : `Matrícula #${r.id}`),
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toForm: (r) => ({ userId: r.userId, classId: r.classId, schoolYearId: r.schoolYearId ?? '' }),
+  },
+  'teaching-assignments': {
+    key: 'teaching-assignments',
+    fem: true,
+    path: 'teaching-assignments',
+    api: '/api/v1/teaching-assignments',
+    idKey: 'id',
+    singular: 'Atribuição',
+    plural: 'Atribuições',
+    description: 'Professores com turmas e disciplinas',
+    icon: ListChecks,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'teacherId', label: 'Professor', type: 'select', required: true, optionsFrom: 'teachers' },
+      { name: 'classId', label: 'Turma', type: 'select', required: true, optionsFrom: 'classes' },
+      { name: 'subjectId', label: 'Disciplina', type: 'select', required: true, optionsFrom: 'subjects' },
+    ],
+    columns: [
+      { label: 'Professor', value: (r) => <strong>{r.teacher ? `${r.teacher.firstName} ${r.teacher.lastName}` : `#${r.teacherId}`}</strong> },
+      { label: 'Turma', value: (r) => r.class?.code ?? `#${r.classId}`, className: 'w-28' },
+      { label: 'Disciplina', value: (r) => dim(r.subject?.name ?? null) },
+    ],
+    titleOf: (r) => (r.teacher ? `${r.teacher.firstName} ${r.teacher.lastName} · ${r.class?.code ?? ''}` : `Atribuição #${r.id}`),
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toForm: (r) => ({ teacherId: r.teacherId, classId: r.classId, subjectId: r.subjectId ?? '' }),
+  },
   sessions: {
     key: 'sessions',
     fem: true,
@@ -503,7 +597,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
 };
 
 /** Entities with a plain create/edit form (statements and simulations have their own screens). */
-export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'institutions', 'teachers', 'roles', 'accounts', 'users', 'sessions', 'simulation-answers'];
+export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'institutions', 'schools', 'teachers', 'teaching-assignments', 'enrollments', 'roles', 'accounts', 'users', 'sessions', 'simulation-answers'];
 export const NAV_KEYS: EntityKey[] = [...CRUD_KEYS, 'statements', 'simulations'];
 
 export function entityByPath(path: string): Entity | undefined {
