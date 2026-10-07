@@ -130,6 +130,7 @@ export function Presentation() {
   const turn = smooth(clamp((p2 - 0.78) / 0.12)) * 360; // the whole cartridge spins once as it closes
   const yaws = [0, 1, 2, 3, 4].map((j) => ((smooth(clamp((sc - j - 0.1) / 0.5)) * 360 + turn) * Math.PI) / 180);
   const acts = [0, 1, 2, 3, 4].map((j) => smooth(clamp((sc - j - 0.3) / 0.4)) * clamp((j + 1.1 - sc) / 0.2) * (open > 0.9 ? 1 : 0));
+  const hero = 1 - smooth(clamp(p / 0.03)); // first screen: the console is big and half out of frame, then rises into place
   const off = smooth(clamp((q - 0.87) / 0.06)); // the console powers off first…
   const reveal = smooth(clamp((q - 0.95) / 0.05)); // the cartridge appears out of the debris
   const eject = smooth(clamp((q - 0.93) / 0.07)); // …then slips away downwards
@@ -144,7 +145,10 @@ export function Presentation() {
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
-        <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
+        <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
+          <h1 id="hero-title" className="pres__hero-title">Estuda, dispara, domina.</h1>
+          <p className="pres__hero-sub">Provas, correcções e progresso num só lugar. Feito por alunos, para alunos.</p>
+        </div>
         <div className="pres__text">
                     <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
           <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
@@ -160,7 +164,7 @@ export function Presentation() {
         </div>
         <div className="pres__art">
           {eject < 1 ? (
-            <Gameboy eject={eject} off={off} center={1} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
+            <Gameboy eject={eject} off={off} hero={hero} center={1} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
               {p < 0.004 ? <GameDemo /> : <Prologue q={Math.min(1, q / 0.84)} />}
             </Gameboy>
           ) : null}

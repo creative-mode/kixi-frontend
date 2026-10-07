@@ -61,6 +61,10 @@ a { color: inherit; }
 .site-header { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); }
 .site-header__in { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: 72px; }
 .site-header__logo { display: inline-flex; text-decoration: none; justify-self: start; color: var(--btn); }
+.site-header__logo .kx-logo__word, .site-header__logo .kx-logo__pixelword { color: var(--btn); }
+.pres__hero { position: absolute; z-index: 3; left: var(--gutter); right: var(--gutter); top: 96px; text-align: center; pointer-events: none; }
+.pres__hero-title { margin: 0; font: 700 clamp(30px, min(6vw, 8svh), 68px)/1.02 var(--font-sans); letter-spacing: -0.045em; color: var(--lp-ink); }
+.pres__hero-sub { margin: 12px auto 0; max-width: 40ch; font: 400 clamp(15px, 1.6vw, 19px)/1.45 var(--font-sans); color: var(--lp-dim); text-wrap: balance; }
 .site-header__cta { justify-self: end; }
 .site-header__nav { display: none; gap: 32px; }
 .site-header__nav a { text-decoration: none; font: 600 14px/1 var(--font-sans); padding: 12px 0; }
@@ -152,7 +156,7 @@ a { color: inherit; }
 .pres__art .pres__cart { z-index: 1; }
 
 /* the console */
-.gb { transform: translateY(calc(var(--ej, 0) * 40%)) scale(calc(1 - var(--ej, 0) * 0.12)); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
+.gb { --hs: .1; --ht: 50svh; transform-origin: 50% 0; transform: translateY(calc(var(--hero, 0) * (var(--ht) - 72px))) translateY(calc(var(--ej, 0) * 40%)) scale(calc((1 + var(--hero, 0) * var(--hs)) * (1 - var(--ej, 0) * 0.12))); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
 .gb__body { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-2); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
   position: absolute; left: 20.67%; top: 10.57%; width: 58.67%; height: 32.19%; overflow: hidden; background: var(--lcd-0); box-shadow: inset 4px 4px 0 rgba(15,56,15,.4); }
@@ -161,7 +165,7 @@ a { color: inherit; }
 .gb__lcd::before { content: ''; position: absolute; inset: 0; background: var(--lcd-3); opacity: clamp(0, calc((var(--off, 0) - 0.55) * 2.2), 1); z-index: 1; pointer-events: none; }
 .gb__lcd .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* wide screens: the console takes the middle of the stage while the story plays, then the text comes back beside it */
-@media (min-width: 960px) { .gb { transform: translateX(calc(var(--ctr, 0) * -56%)) translateY(calc(var(--ej, 0) * 40%)) scale(calc(1 - var(--ej, 0) * 0.12)); } }
+@media (min-width: 960px) { .gb { --hs: .5; --ht: 40svh; transform: translateX(calc(var(--ctr, 0) * -56% + var(--hero, 0) * -12%)) translateY(calc(var(--hero, 0) * (var(--ht) - 92px))) translateY(calc(var(--ej, 0) * 40%)) scale(calc((1 + var(--hero, 0) * var(--hs)) * (1 - var(--ej, 0) * 0.12))); } }
 @media (prefers-reduced-motion: reduce) { .gb { transform: none !important; } }
 
 .kx-btn--a { --face: var(--btn); --edge: var(--btn-edge); --txt: #fff; }
@@ -170,3 +174,6 @@ a { color: inherit; }
 /* first screen: just a short line and one button, so the console is what you look at */
 .pres__scene--hero .pres__title { font-size: clamp(26px, min(3.3vw, 6svh), 48px); max-width: 16ch; }
 .pres__scene--hero .actions { margin-top: 32px; }
+
+/* short screens (phones on their side): title only, console lower */
+@media (max-height: 520px) { .pres__hero-sub { display: none; } .pres__hero { top: 80px; } .pres__art .gb { --ht: 56svh; --hs: .05; } }
