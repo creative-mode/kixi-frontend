@@ -39,9 +39,31 @@ O perfil, a matrícula e a edição de nome e foto falam com o backend:
 - `lib/me.ts`: `GET /me`, uma vez por request. Devolve três estados, e a distinção importa: `unauthorized` (401) leva ao login, `unknown` (rede caída, 500) deixa o aluno passar e `ok` é a única resposta que pode mandar para o onboarding. Tratar tudo como "sem perfil" trancava o aluno fora do feed quando o servidor tinha um problema.
 - `lib/guard.ts`: sessão viva e papel de aluno. Partilhado entre o shell e o onboarding.
 - `lib/me-context.tsx`: publica o perfil aos ecrãs cliente, para haver uma só fonte de verdade do nome e da turma.
-- `lib/mock/backend.ts`: com `KIXI_MOCK` ligado (por omissão) responde em processo a `/me`, `/enrollments`, `/institutions`, `/courses`, `/classes` e ao resto, com as mesmas regras do backend, incluindo os filtros por escola. É o que permite desenhar sem base de dados.
+- `lib/mock/backend.ts`: com `KIXI_MOCK` ligado (por omissão) responde em processo a `/me`, `/enrollments`, `/institutions`, `/courses`, `/classes` e ao resto, com as mesmas regras do backend, incluindo os filtros por escola. É o que permite desenhar sem base de dados. `KIXI_MOCK_FAULT=500` ou `=timeout` injecta uma falha de propósito, para o estado `unknown` de `lib/me.ts` deixar de ser código morto: sem isso, uma regressão que mandasse o aluno para o login quando o servidor cai passava todos os testes.
 
 Um aluno sem matrícula é levado para `/onboarding` e escolhe escola, curso e turma, com a lista a estreitar a cada passo (`/courses?institutionId=`, `/classes?institutionId=&courseId=`) e só com turmas do ano letivo corrente.
 
-A escola da turma é a do curso, nunca escolhida à parte: `Class` não tem escola própria, e a base de dados garante a igualdade com uma chave estrangeira composta. O `/me` responde com a escola da ligação administrativa quando existe, e com a escola da turma quando não — por isso um aluno que se matriculou sozinho vê a escola preenchida (creative-mode/kixi#100).
+A escola da turma é a do curso, nunca escolhida à parte: `Class` não tem escola própria, e a base de dados garante a igualdade com uma chave estrangeira composta. O `/me` responde com a escola da turma quando há matrícula, e com a escola da ligação administrativa quando não há — por isso um aluno que se matriculou sozinho vê a escola preenchida (creative-mode/kixi#100).
+
+
+## basePath
+
+A app é servida em `/aluno`, e o Next não aplica esse prefixo de forma uniforme. Duas regras
+que já custaram um 404:
+
+- **`redirect()` numa server action quer o caminho cru.** O Next escreve o valor no cabeçalho
+  `x-action-redirect` e é o cliente que lhe acrescenta o basePath. `redirect('/inicio')` chega
+  a `/aluno/inicio`; `redirect('/aluno/inicio')` chega a `/aluno/aluno/inicio`, que não existe.
+  Vale para `lib/auth-actions.ts` e `lib/enrollment-actions.ts`.
+- **`redirect()` num Server Component quer o caminho com o prefixo.** Aí o Next aplica-o
+  durante o render. Vale para `lib/guard.ts` e para as páginas.
+
+`<Link>`, `router.push()` e `<form>` sem `action` tratam do prefixo sozinhos. Um `action`
+escrito à mão num `<form>` não trata, que é porque os dois passos GET do onboarding não o
+têm: sem `action` o formulário submete para o URL actual, que já traz `/aluno`.
+
+Consequência aceite: sem JavaScript, o `Location` da server action vem sem o prefixo e o login
+termina em 404. Os formulários de sessão são submitidos por JavaScript de qualquer maneira
+(`useActionState`), e corrigir isto exigiria um URL absoluto montado a partir de um cabeçalho
+do pedido, que é uma superfície de open redirect que não vale um 404 sem JavaScript.
 

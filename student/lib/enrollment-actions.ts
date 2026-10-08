@@ -1,7 +1,6 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { appPath } from '@/lib/paths';
 import { apiPost } from './api';
 import type { Enrollment } from './types';
 
@@ -34,5 +33,8 @@ export async function matricularAction(
     return { error: result.message };
   }
 
-  redirect(appPath('/inicio'));
+  // Caminho cru, de propósito: numa server action o Next escreve este valor no
+  // cabecalho `x-action-redirect` e o cliente acrescenta o basePath. Escrever
+  // `/aluno/inicio` aqui dava `/aluno/aluno/inicio`. Ver `README.md`, "basePath".
+  redirect('/inicio');
 }

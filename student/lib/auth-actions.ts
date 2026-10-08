@@ -2,7 +2,6 @@
 
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { appPath } from '@/lib/paths';
 import { BACKEND, COOKIE, managerUrl } from './session';
 import { MOCK, mockPost } from './mock/backend';
 import { problem } from './api';
@@ -18,6 +17,16 @@ type LoginResponse = {
   roles: string[];
 };
 
+/**
+ * Onde a sessão leva depois de entrar ou registar: a URL do gestor, que tem origem
+ * própria, ou um caminho desta app.
+ *
+ * O caminho vai cru, de propósito. Numa server action o Next escreve o valor do
+ * `redirect()` tal e qual no cabeçalho `x-action-redirect`, e é o cliente que lhe
+ * acrescenta o basePath; escrever `/aluno/inicio` aqui chegaria a `/aluno/aluno/inicio`.
+ * O `redirect()` de um Server Component é diferente: esse já traz o prefixo. Daí dois
+ * trechos parecidos terem de ser escritos de forma diferente. Ver `README.md`, "basePath".
+ */
 async function startSession(data: LoginResponse): Promise<string | null> {
   const expiresAt = Date.parse(data.expiresAt);
   const roles = normalizeRoles(data.roles);
@@ -27,7 +36,10 @@ async function startSession(data: LoginResponse): Promise<string | null> {
   }
 
   const jar = await cookies();
-  const secure = (await headers()).get('x-forwarded-proto') === 'https';
+  // `Secure` em produção mesmo que o proxy não mande o cabeçalho: sem isto, um TLS que
+  // termina antes do Next emite o token sem `Secure` e ele passa a poder trafegar em claro.
+  const secure =
+    (await headers()).get('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production';
 
   jar.set(COOKIE, data.accessToken, {
     httpOnly: true,
@@ -39,12 +51,6 @@ async function startSession(data: LoginResponse): Promise<string | null> {
   });
 
   return canAccessManager(roles) ? await managerUrl() : '/inicio';
-}
-
-/** A destination that may already be an absolute URL to the manager, which keeps its own
- *  origin and must not be prefixed. Only the paths of this app need the basePath. */
-function toAppPath(destination: string): string {
-  return /^https?:\/\//.test(destination) ? destination : appPath(destination);
 }
 
 async function post(
@@ -98,7 +104,7 @@ export async function entrarAction(_: FormState, form: FormData): Promise<FormSt
     return { error: 'Resposta de sessão inválida. Tenta novamente.', fields: { usernameOrEmail } };
   }
 
-  redirect(toAppPath(destination));
+  redirect(destination);
 }
 
 export async function cadastroAction(_: FormState, form: FormData): Promise<FormState> {
@@ -130,12 +136,12 @@ export async function cadastroAction(_: FormState, form: FormData): Promise<Form
   const destination = await startSession(data);
   if (!destination) return { error: 'Resposta de sessão inválida. Tenta novamente.', fields };
 
-  redirect(toAppPath(destination));
+  redirect(destination);
 }
 
 export async function sairAction() {
   const jar = await cookies();
   jar.delete(COOKIE);
   jar.delete('user_info');
-  redirect(appPath('/entrar?reason=logged-out'));
+  redirect('/entrar?reason=logged-out');
 }

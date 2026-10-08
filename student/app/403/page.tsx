@@ -12,9 +12,10 @@ type PageProps = { searchParams: Promise<Record<string, string | string[] | unde
 /**
  * A página 403 canónica mora no fim do endereço (/403), servida pela landing, para haver
  * uma só porta no projecto inteiro. Aqui só encaminhamos, com a query original.
- * O destino é uma origem completa porque a página vive noutra app, não porque o Next
- * acrescente o basePath: `redirect()` não o faz, ao contrário de <Link> e router.push().
- * Ver `lib/paths.ts`, que é o que cobre essa diferença nos redirects daqui.
+ *
+ * O destino é uma origem completa porque a página vive noutra app — a landing — e não por
+ * causa do basePath. Não leva `/aluno` porque não é uma rota desta app, e o Next também
+ * não mexeria: um URL absoluto com outra origem passa intacto. Ver `README.md`, "basePath".
  */
 export default async function ForbiddenPage({ searchParams }: PageProps) {
   const [head, params] = await Promise.all([headers(), searchParams]);

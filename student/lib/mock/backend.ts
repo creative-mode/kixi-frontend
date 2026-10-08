@@ -1,4 +1,5 @@
 import 'server-only';
+import { resolveSchoolId } from './school';
 
 import crypto from 'node:crypto';
 import type {
@@ -15,6 +16,13 @@ import type {
  *  The secret matches the manager's, so the same cookie works on both apps.
  *  Set KIXI_MOCK=false to talk to the real API instead. */
 export const MOCK = process.env.KIXI_MOCK !== 'false';
+
+/** Inject a backend failure, so the client's resilience can be exercised for real:
+ *  `KIXI_MOCK_FAULT=500` makes every route answer 500 and `=timeout` makes them fail the
+ *  way a dead network does. Without this the `unknown` state of `lib/me.ts` — the one that
+ *  keeps a student in the feed when the server is down instead of logging them out — is
+ *  unreachable while designing, and a regression there would pass every test. */
+export const FAULT = (process.env.KIXI_MOCK_FAULT ?? '').toLowerCase();
 
 const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -216,7 +224,6 @@ function loginResponse(account: Account) {
   };
 }
 
-const byStartYearDesc = (a: SchoolYear, b: SchoolYear) => b.startYear - a.startYear;
 const yearLabel = (year: SchoolYear) => `${year.startYear}/${year.endYear}`;
 
 /** Resolves the class list the way ClassService.toResponse does: the nested course and
@@ -237,10 +244,6 @@ function classResponse(db: Store, row: ClassRow) {
   };
 }
 
-/** Mirrors MeService.getMe: course and class come from the most recent active
- *  enrollment, and the school is the institution link when there is one, otherwise the
- *  school of the enrolled class. The fallback is what makes a student who enrolled
- *  themselves answer with a school instead of null. */
 function meResponse(db: Store, account: Account): Me {
   const latest = db.enrollments
     .filter((e) => e.accountId === account.id && e.status === 'ACTIVE')
@@ -253,7 +256,7 @@ function meResponse(db: Store, account: Account): Me {
   const linked = db.institutions.find((i) => i.id === db.institutionByAccount[account.id]);
   const fromClass =
     row?.institutionId ?? course?.institutionId ? db.institutions.find((i) => i.id === (row?.institutionId ?? course?.institutionId)) : undefined;
-  const institution = linked ?? fromClass;
+  const institution = resolveSchoolId(fromClass, linked);
 
   return {
     accountId: account.id,
@@ -286,6 +289,10 @@ export async function mockHandle(
   token: string | null,
   bodyText: string,
 ): Promise<Response> {
+  if (FAULT === 'timeout') throw new TypeError('fetch failed');
+  if (FAULT === '500') {
+    return problem(500, 'Injected failure');
+  }
   const db = store();
   // `path` may carry a query string, exactly as the real request would: the mock has
   // to filter the same way the backend does, or the screens get exercised against a
@@ -308,9 +315,9 @@ export async function mockHandle(
       (a) => a.username === key || a.email === key.toLowerCase(),
     );
     if (!found || found.passwordHash !== hash(String(body.password))) {
-      return problem(400, 'Invalid username or password');
+      return problem(401, 'Invalid username or password');
     }
-    if (!found.active) return problem(400, 'Account is inactive');
+    if (!found.active) return problem(401, 'Account is inactive');
     return json(loginResponse(found));
   }
 
@@ -342,8 +349,10 @@ export async function mockHandle(
 
   // ── everything else needs a live session ───────────────────────────────────
   if (accountId === null) return unauthorized();
-  const account = db.accounts.find((a) => a.id === accountId);
-  if (!account) return unauthorized();
+  // O backend filtra `active` e `deletedAt` e devolve 404, nao 401: sao estados
+  // diferentes para o cliente, que manda para o login num e deixa passar no outro.
+  const account = db.accounts.find((a) => a.id === accountId && a.active);
+  if (!account) return problem(404, 'Account not found');
 
   const staff = account.roles.some((role) => role === 'ADMIN' || role === 'TEACHER');
 
@@ -384,7 +393,9 @@ export async function mockHandle(
   }
 
   if (pathname === '/school-years' && method === 'GET') {
-    return json([...db.schoolYears].sort(byStartYearDesc));
+    // Sem ordem: o backend devolve o que a base de dados der, e `lib/school-year.ts`
+    // ordena do lado do cliente. Ordenar aqui esconderia isso.
+    return json(db.schoolYears);
   }
 
   if (pathname === '/classes' && method === 'GET') {
@@ -399,7 +410,7 @@ export async function mockHandle(
   }
 
   if (pathname === '/enrollments' && method === 'GET') {
-    const requested = body.accountId;
+    const requested = search.get('accountId');
     const visible = requested ? db.enrollments.filter((e) => e.accountId === Number(requested)) : db.enrollments;
     return json(staff ? visible : visible.filter((e) => e.accountId === account.id));
   }
