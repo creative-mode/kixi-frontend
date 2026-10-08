@@ -97,6 +97,7 @@ a { color: inherit; }
 .pres__rail span { display: block; height: 100%; background: var(--lp-ink); transform-origin: top; }
 /* narrow screens: the console owns the whole stage (centred), the cartridge scene keeps the lower part under its text */
 @media (max-width: 959px) {
+  .pres__text { grid-row: 1; grid-column: 1; position: relative; z-index: 2; }
   .pres__art { grid-row: 1 / -1; grid-column: 1; height: calc(100svh - 72px); }
   .pres__art .pres__cart { top: 44%; height: 56%; }
   .pres__art .pres__block { top: 46%; }
