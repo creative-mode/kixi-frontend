@@ -22,7 +22,7 @@ jobs:
       - run: npm run build
 
   student:
-    name: Typecheck do student
+    name: "Aluno: tipos, testes e fluxo"
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,6 +37,10 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # O fluxo do aluno contra a app a correr. O lint, o build e os testes unitários não
+      # exercem um único redirect, e foi um redirect que partiu o login no PR #98.
+      - run: npm run build
+      - run: npm run test:flow
 
   landing:
     name: Typecheck da landing
