@@ -3,7 +3,8 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { BACKEND, COOKIE, managerUrl } from './session';
-import { MOCK, mockPost } from './mock/auth';
+import { MOCK, mockPost } from './mock/backend';
+import { problem } from './api';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
@@ -16,15 +17,16 @@ type LoginResponse = {
   roles: string[];
 };
 
-async function detail(res: Response): Promise<string> {
-  const j = await res.json().catch(() => ({}));
-  const props =
-    j.properties && typeof j.properties === 'object'
-      ? Object.values(j.properties).filter((v) => typeof v === 'string')
-      : [];
-  return [j.detail, ...props].filter(Boolean).join(' · ') || j.title || `Erro ${res.status}`;
-}
-
+/**
+ * Onde a sessão leva depois de entrar ou registar: a URL do gestor, que tem origem
+ * própria, ou um caminho desta app.
+ *
+ * O caminho vai cru, de propósito. Numa server action o Next escreve o valor do
+ * `redirect()` tal e qual no cabeçalho `x-action-redirect`, e é o cliente que lhe
+ * acrescenta o basePath; escrever `/aluno/inicio` aqui chegaria a `/aluno/aluno/inicio`.
+ * O `redirect()` de um Server Component é diferente: esse já traz o prefixo. Daí dois
+ * trechos parecidos terem de ser escritos de forma diferente. Ver `README.md`, "basePath".
+ */
 async function startSession(data: LoginResponse): Promise<string | null> {
   const expiresAt = Date.parse(data.expiresAt);
   const roles = normalizeRoles(data.roles);
@@ -34,7 +36,10 @@ async function startSession(data: LoginResponse): Promise<string | null> {
   }
 
   const jar = await cookies();
-  const secure = (await headers()).get('x-forwarded-proto') === 'https';
+  // `Secure` em produção mesmo que o proxy não mande o cabeçalho: sem isto, um TLS que
+  // termina antes do Next emite o token sem `Secure` e ele passa a poder trafegar em claro.
+  const secure =
+    (await headers()).get('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production';
 
   jar.set(COOKIE, data.accessToken, {
     httpOnly: true,
@@ -67,7 +72,7 @@ async function post(
       if (path === '/auth/login' && (res.status === 400 || res.status === 401)) {
         return { error: 'Utilizador ou palavra-passe incorretos.' };
       }
-      return { error: await detail(res) };
+      return { error: (await problem(res)).message };
     }
 
     const data = (await res.json()) as LoginResponse;
