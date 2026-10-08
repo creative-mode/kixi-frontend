@@ -121,8 +121,9 @@ Files that mention npm today and would change:
   own `npm ci`. With workspaces there is no per-app lockfile — the single
   root lockfile plus every workspace's `package.json` have to enter the
   build context, and the `args` change with them.
-- CI: if PR #97 (`quality.yml`) lands first, it joins this list — it runs
-  `npm ci` in three folders, each with its own `cache-dependency-path`.
+- CI: `quality.yml` (merged as #97) also joins this list — it runs `npm ci`
+  in three folders (root, `student/`, `landing/`), each with its own
+  `cache-dependency-path`.
 
 ## Open questions for the team
 
