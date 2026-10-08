@@ -101,6 +101,10 @@ export interface Entity {
   /**
    * Build the request body when it differs from the form (derived fields).
    * Runs in the form with the rows of `deriveFrom` keyed by id.
+   * Contrast with `toRequest` (below): `toPayload` assembles the payload
+   * from form values + related rows (e.g. schoolYearId taken from the
+   * chosen class); `toRequest` then only normalizes types for the wire
+   * (strings from inputs/selects become numbers, '' becomes null).
    */
   toPayload?: (values: Row, rows: Record<string, Map<number, Row>>) => Row;
   /** how the backend restores / purges (absent when the API has no such endpoints) */
