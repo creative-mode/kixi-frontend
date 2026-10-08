@@ -2,6 +2,7 @@
 
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { appPath } from '@/lib/paths';
 import { BACKEND, COOKIE, managerUrl } from './session';
 import { MOCK, mockPost } from './mock/backend';
 import { problem } from './api';
@@ -38,6 +39,12 @@ async function startSession(data: LoginResponse): Promise<string | null> {
   });
 
   return canAccessManager(roles) ? await managerUrl() : '/inicio';
+}
+
+/** A destination that may already be an absolute URL to the manager, which keeps its own
+ *  origin and must not be prefixed. Only the paths of this app need the basePath. */
+function toAppPath(destination: string): string {
+  return /^https?:\/\//.test(destination) ? destination : appPath(destination);
 }
 
 async function post(
@@ -91,7 +98,7 @@ export async function entrarAction(_: FormState, form: FormData): Promise<FormSt
     return { error: 'Resposta de sessão inválida. Tenta novamente.', fields: { usernameOrEmail } };
   }
 
-  redirect(destination);
+  redirect(toAppPath(destination));
 }
 
 export async function cadastroAction(_: FormState, form: FormData): Promise<FormState> {
@@ -123,12 +130,12 @@ export async function cadastroAction(_: FormState, form: FormData): Promise<Form
   const destination = await startSession(data);
   if (!destination) return { error: 'Resposta de sessão inválida. Tenta novamente.', fields };
 
-  redirect(destination);
+  redirect(toAppPath(destination));
 }
 
 export async function sairAction() {
   const jar = await cookies();
   jar.delete(COOKIE);
   jar.delete('user_info');
-  redirect('/entrar?reason=logged-out');
+  redirect(appPath('/entrar?reason=logged-out'));
 }

@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { appPath } from '@/lib/paths';
 import { apiPost } from './api';
 import type { Enrollment } from './types';
 
@@ -33,5 +34,5 @@ export async function matricularAction(
     return { error: result.message };
   }
 
-  redirect('/inicio');
+  redirect(appPath('/inicio'));
 }

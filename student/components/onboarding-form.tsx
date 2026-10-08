@@ -103,7 +103,11 @@ export function OnboardingForm({
       )}
 
       {step === 0 && (
-        <form method="get" action="/onboarding" className="grid gap-6">
+        /* Sem `action`: um <form> submete para o URL actual, que já traz o basePath
+           `/aluno`. Escrever `action="/onboarding"` à mão dá 404, porque um atributo
+           action escrito à mão não recebe o prefixo. E para um GET os campos do
+           formulário substituem a query, que é o que queremos. */
+        <form method="get" className="grid gap-6">
           <Field>
             <FieldLabel htmlFor="escola">Em que escola estudas?</FieldLabel>
             <NativeSelect id="escola" name="escola" defaultValue="">
@@ -123,7 +127,8 @@ export function OnboardingForm({
       )}
 
       {step === 1 && (
-        <form method="get" action="/onboarding" className="grid gap-6">
+        /* Mesmo truque, e o `escola` viaja escondido para não se perder. */
+        <form method="get" className="grid gap-6">
           <input type="hidden" name="escola" value={institutionId ?? ''} />
           <Field>
             <FieldLabel htmlFor="curso">E em que curso?</FieldLabel>
