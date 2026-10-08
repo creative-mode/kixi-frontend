@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { deleteRow, listRows } from '@/app/actions/crud';
+import { deleteRow, listOptions, listRows } from '@/app/actions/crud';
 import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
 import { AccountRoles } from './account-roles';
 import { InstitutionMembers } from './institution-members';
@@ -24,6 +24,8 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  // id -> display name per FK field (entity.lookups), for flat API responses
+  const [labels, setLabels] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setError(null);
@@ -40,6 +42,24 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
     return () => window.clearTimeout(task);
   }, [load]);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!entity.lookups) return;
+      const maps: Record<string, string> = {};
+      await Promise.all(
+        Object.entries(entity.lookups).map(async ([field, from]) => {
+          const r = await listOptions(from);
+          if (r.ok && alive) for (const o of r.data) maps[`${field}:${o.value}`] = o.label;
+        }),
+      );
+      if (alive) setLabels(maps);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [entityKey, entity]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q || !rows) return rows;
@@ -47,15 +67,17 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   }, [rows, query]);
 
   function askDelete(row: Row) {
+    const copy = entity.deleteCopy;
+    const title = entity.titleOf(row);
     setConfirm({
-      title: `Mover para a lixeira?`,
-      description: `${entity.singular} «${entity.titleOf(row)}» sai da lista mas pode ser ${gender(entity, 'restaurado')} na lixeira.`,
-      action: 'Mover para a lixeira',
+      title: copy?.title ?? `Mover para a lixeira?`,
+      description: copy ? copy.description(`«${title}»`) : `${entity.singular} «${title}» sai da lista mas pode ser ${gender(entity, 'restaurado')} na lixeira.`,
+      action: copy?.action ?? 'Mover para a lixeira',
       destructive: true,
       run: async () => {
         const res = await deleteRow(entityKey, rowId(entity, row));
         if (res.ok) {
-          toast.success(`${entity.singular} ${gender(entity, 'movido')} para a lixeira`);
+          toast.success(copy?.done ?? `${entity.singular} ${gender(entity, 'movido')} para a lixeira`);
           load();
         } else toast.error(res.error);
       },
@@ -70,11 +92,13 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
         entity={entity}
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link href={`/${entity.path}/trash`}>
-                <Archive size={16} className="mr-2" /> Lixeira
-              </Link>
-            </Button>
+            {entity.trashable !== false ? (
+              <Button asChild variant="outline">
+                <Link href={`/${entity.path}/trash`}>
+                  <Archive size={16} className="mr-2" /> Lixeira
+                </Link>
+              </Button>
+            ) : null}
             {entity.canCreate ? (
               <Button asChild>
                 <Link href={`/${entity.path}/new`}>
@@ -131,7 +155,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                 shown?.map((row) => (
                   <TableRow key={rowId(entity, row)} className="border-border transition-colors hover:bg-accent/50">
                     {entity.columns.map((c) => (
-                      <TableCell key={c.label} className={c.className}>{c.value(row)}</TableCell>
+                      <TableCell key={c.label} className={c.className}>{c.value(row, labels)}</TableCell>
                     ))}
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
