@@ -7,7 +7,7 @@ export default async function OnboardingLayout({ children }: { children: React.R
   await requireStudent();
 
   return (
-    <AuthShell title="Vamos começar" lead="Diz-nos em que curso e turma estás, para o teu feed e as tuas provas fazerem sentido.">
+    <AuthShell title="Vamos começar" lead="Diz-nos em que escola, curso e turma estás, para o teu feed e as tuas provas fazerem sentido.">
       {children}
     </AuthShell>
   );

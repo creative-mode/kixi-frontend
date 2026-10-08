@@ -2,27 +2,43 @@ import { EmptyState } from '@/components/states';
 import { OnboardingForm } from '@/components/onboarding-form';
 import { RefreshError } from '@/components/refresh-error';
 import { apiGet } from '@/lib/api';
+import { currentSchoolYear, schoolYearLabel } from '@/lib/school-year';
 import type { Class, Course, Institution, SchoolYear } from '@/lib/types';
 
-/** Three choices, no free text: school, then course, then class, so a new student is
- *  enrolled in well under a minute.
+type Params = Promise<Record<string, string | string[] | undefined>>;
+
+function one(raw: string | string[] | undefined): number | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/** The step lives in the URL, so each one asks the backend only for what it shows.
  *
- *  The list narrows as the student goes: /courses?institutionId= and
- *  /classes?institutionId=&courseId= return only that school's (or that course's), so
- *  each step shows what is actually possible rather than everything to be filtered in
- *  the browser.
- *
- *  The school year is not chosen: it is the current one, and each class carries its own,
- *  so the pair sent to POST /enrollments always matches. */
-export default async function OnboardingPage() {
-  const [institutions, courses, classes, years] = await Promise.all([
+ *  That is what the review asked for and it also removes the reason the wizard needed
+ *  JavaScript: the school and the course are chosen with plain GET forms, and the server
+ *  narrows the list, so nothing is filtered in the browser and no class from another
+ *  school is ever sent to the client. */
+export default async function OnboardingPage({ searchParams }: { searchParams: Params }) {
+  const params = await searchParams;
+  const institutionId = one(params.escola);
+  const courseId = one(params.curso);
+
+  const [institutions, years, courses, classes] = await Promise.all([
     apiGet<Institution[]>('/institutions'),
-    apiGet<Course[]>('/courses'),
-    apiGet<Class[]>('/classes'),
     apiGet<SchoolYear[]>('/school-years'),
+    // Asked for as soon as a school is chosen, and never before.
+    institutionId === null
+      ? Promise.resolve({ ok: true as const, data: [] as Course[] })
+      : apiGet<Course[]>('/courses', { institutionId }),
+    // Asked for only once there is a school and a course to narrow by.
+    institutionId === null || courseId === null
+      ? Promise.resolve({ ok: true as const, data: [] as Class[] })
+      : apiGet<Class[]>('/classes', { institutionId, courseId }),
   ]);
 
-  const failed = [institutions, courses, classes, years].find((r) => !r.ok);
+  const failed = [institutions, years, courses, classes].find((r) => !r.ok);
   if (failed && !failed.ok) {
     return (
       <RefreshError
@@ -32,14 +48,11 @@ export default async function OnboardingPage() {
     );
   }
 
-  const allInstitutions = institutions.ok
+  const schools = institutions.ok
     ? [...institutions.data].sort((a, b) => a.name.localeCompare(b.name, 'pt'))
     : [];
-  const allCourses = courses.ok ? courses.data : [];
-  const allClasses = classes.ok ? classes.data : [];
-  const allYears = years.ok ? years.data : [];
 
-  if (allInstitutions.length === 0) {
+  if (schools.length === 0) {
     return (
       <EmptyState
         title="Ainda não há escolas"
@@ -48,21 +61,22 @@ export default async function OnboardingPage() {
     );
   }
 
-  const current = [...allYears].sort((a, b) => b.startYear - a.startYear)[0];
+  const year = currentSchoolYear(years.ok ? years.data : []);
+  const yearText = year ? schoolYearLabel(year) : undefined;
 
-  // Only the current school year. Without this, a class from a previous year is
-  // offered, the student enrolls in it, and POST /enrollments creates an enrollment
-  // for a year that has already ended.
-  const forYear = current
-    ? allClasses.filter((c) => c.schoolYear?.id === current.id)
-    : allClasses;
+  // The backend has no school-year filter, so the year is applied here, on the server.
+  // The browser never receives a class from a year that has already ended, which is the
+  // whole point of narrowing on the server.
+  const forYear = year ? (classes.ok ? classes.data : []).filter((c) => c.schoolYear?.id === year.id) : [];
 
   return (
     <OnboardingForm
-      institutions={allInstitutions}
-      courses={allCourses}
+      schools={schools}
+      courses={courses.ok ? courses.data : []}
       classes={forYear}
-      yearLabel={current ? `${current.startYear}/${current.endYear}` : undefined}
+      institutionId={institutionId}
+      courseId={courseId}
+      yearLabel={yearText}
     />
   );
 }

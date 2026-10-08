@@ -8,8 +8,9 @@ export function fullName(me: Me | null): string {
 }
 
 /** The academic context line: "Escola · Curso · Turma 12B", skipping what is unknown.
- *  A student who just enrolled has no school yet — that link is set by an
- *  administrator — so the school is omitted rather than faked. */
+ *  A student who just enrolled has no school yet: the explicit institution link is set
+ *  by an administrator, and until then the school comes from the class they enrolled in
+ *  (kixi#100). Anything genuinely unknown is left out rather than faked. */
 export function contextLine(me: Me | null): string {
   if (!me) return '';
   const parts: string[] = [];

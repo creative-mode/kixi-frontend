@@ -1,9 +1,9 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
-import { ArrowLeft, Check, CircleAlert, Loader2 } from 'lucide-react';
+import { Check, CircleAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
@@ -15,10 +15,10 @@ import type { Class, Course, Institution } from '@/lib/types';
 
 const STEPS = ['Escola', 'Curso', 'Turma'] as const;
 
-function Submit({ disabled, children }: { disabled: boolean; children: React.ReactNode }) {
+function Submit({ children }: { children: React.ReactNode }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" className="w-full" disabled={disabled || pending} aria-busy={pending}>
+    <Button type="submit" size="lg" className="w-full" disabled={pending} aria-busy={pending}>
       {pending && <Loader2 className="animate-spin" />}
       {pending ? 'A matricular…' : children}
     </Button>
@@ -42,7 +42,7 @@ function Steps({ current }: { current: number }) {
                 !done && !active && 'border-border text-muted-foreground',
               )}
             >
-              {done ? <Check className="size-3.5" aria-hidden /> : index + 1}
+              {done ? <Check aria-hidden /> : index + 1}
             </span>
             <span className={cn('text-[13px] font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>
               {label}
@@ -55,62 +55,39 @@ function Steps({ current }: { current: number }) {
   );
 }
 
+/** The school and the course are chosen with plain GET forms, so each step is a real
+ * navigation: the server reloads with the choice in the URL and asks the backend only for
+ * the schools, courses or classes that step shows. That is why there is no filtering in
+ * the browser, and why the wizard also works with JavaScript turned off. */
 export function OnboardingForm({
-  institutions,
+  schools,
   courses,
   classes,
+  institutionId,
+  courseId,
   yearLabel,
 }: {
-  institutions: Institution[];
+  schools: Institution[];
   courses: Course[];
   classes: Class[];
+  institutionId: number | null;
+  courseId: number | null;
   yearLabel?: string;
 }) {
   const [state, action] = useActionState(matricularAction, undefined);
-  const [step, setStep] = useState(0);
-  const [institutionId, setInstitutionId] = useState('');
-  const [courseId, setCourseId] = useState('');
   const [classId, setClassId] = useState('');
 
-  // Narrowed in the browser from the lists the server already filtered, so a choice
-  // made in one step can never leave an impossible one open in the next.
-  const schoolCourses = useMemo(
-    () => courses.filter((c) => c.institutionId === Number(institutionId)),
-    [courses, institutionId],
-  );
-  const courseClasses = useMemo(
-    () =>
-      classes
-        // The class carries the course nested, not a flat courseId.
-      .filter(
-        (c) => c.institutionId === Number(institutionId) && c.course?.id === Number(courseId),
-      )
-        .sort((a, b) => (a.grade ?? 0) - (b.grade ?? 0) || a.code.localeCompare(b.code, 'pt')),
-    [classes, institutionId, courseId],
-  );
-  const chosen = courseClasses.find((c) => c.id === Number(classId));
-  const schoolName = institutions.find((i) => i.id === Number(institutionId))?.name;
-  const courseName = schoolCourses.find((c) => c.id === Number(courseId))?.name;
-
-  const emptyCourses = (
-    <EmptyState
-      title="Sem cursos nesta escola"
-      message={`${schoolName ?? 'Esta escola'} não tem cursos publicados${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outra escola ou pergunta ao teu professor.`}
-    />
-  );
-  const emptyClasses = (
-    <EmptyState
-      title="Sem turmas neste curso"
-      message={`Não há turmas de ${courseName ?? 'este curso'}${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outro curso ou pergunta ao teu professor.`}
-    />
-  );
+  const step = institutionId === null ? 0 : courseId === null ? 1 : 2;
+  const schoolName = schools.find((s) => s.id === institutionId)?.name;
+  const courseName = courses.find((c) => c.id === courseId)?.name;
+  const chosen = classes.find((c) => c.id === Number(classId));
 
   return (
-    <form action={action} className="grid gap-6">
+    <div className="grid gap-6">
       <Steps current={step} />
 
-      {/* Kept outside the steps: without JavaScript the form posts and re-renders at
-          step one, and the answer still has to be readable. */}
+      {/* Kept outside the steps: without JavaScript the form posts and re-renders on the
+          same URL, and the answer still has to be readable. */}
       {state?.error && (
         <Alert variant="info">
           <CircleAlert />
@@ -126,21 +103,12 @@ export function OnboardingForm({
       )}
 
       {step === 0 && (
-        <>
+        <form method="get" action="/onboarding" className="grid gap-6">
           <Field>
-            <FieldLabel htmlFor="institutionId">Em que escola estudas?</FieldLabel>
-            <NativeSelect
-              id="institutionId"
-              name="institutionId"
-              value={institutionId}
-              onChange={(event) => {
-                setInstitutionId(event.target.value);
-                setCourseId('');
-                setClassId('');
-              }}
-            >
+            <FieldLabel htmlFor="escola">Em que escola estudas?</FieldLabel>
+            <NativeSelect id="escola" name="escola" defaultValue="">
               <option value="">Escolhe a tua escola</option>
-              {institutions.map((school) => (
+              {schools.map((school) => (
                 <option key={school.id} value={school.id}>
                   {school.name}
                 </option>
@@ -148,68 +116,54 @@ export function OnboardingForm({
             </NativeSelect>
             <FieldDescription>É a escola onde frequentas, não o curso.</FieldDescription>
           </Field>
-          <Button
-            type="button"
-            size="lg"
-            className="w-full"
-            disabled={!institutionId}
-            onClick={() => setStep(1)}
-          >
+          <Button type="submit" size="lg" className="w-full">
             Continuar
           </Button>
-        </>
+        </form>
       )}
 
       {step === 1 && (
-        <>
+        <form method="get" action="/onboarding" className="grid gap-6">
+          <input type="hidden" name="escola" value={institutionId ?? ''} />
           <Field>
-            <FieldLabel htmlFor="courseId">E em que curso?</FieldLabel>
-            {schoolCourses.length === 0 ? (
-              emptyCourses
+            <FieldLabel htmlFor="curso">E em que curso?</FieldLabel>
+            {courses.length === 0 ? (
+              <EmptyState
+                title="Sem cursos nesta escola"
+                message={`${schoolName ?? 'Esta escola'} não tem cursos publicados${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outra escola ou pergunta ao teu professor.`}
+                action={
+                  <Button asChild variant="outline">
+                    <Link href="/onboarding">Voltar à escola</Link>
+                  </Button>
+                }
+              />
             ) : (
-              <NativeSelect
-                id="courseId"
-                name="courseId"
-                value={courseId}
-                onChange={(event) => {
-                  setCourseId(event.target.value);
-                  setClassId('');
-                }}
-              >
+              <NativeSelect id="curso" name="curso" defaultValue="">
                 <option value="">Escolhe o teu curso</option>
-                {schoolCourses.map((course) => (
+                {courses.map((course) => (
                   <option key={course.id} value={course.id}>
                     {course.name}
                   </option>
                 ))}
               </NativeSelect>
             )}
-            <FieldDescription>
-              {schoolCourses.length === 0
-                ? ' '
-                : 'É o curso que frequentas na escola, não a disciplina.'}
-            </FieldDescription>
+            {courses.length > 0 && (
+              <FieldDescription>É o curso que frequentas na escola, não a disciplina.</FieldDescription>
+            )}
           </Field>
           <div className="grid gap-2">
-            <Button
-              type="button"
-              size="lg"
-              className="w-full"
-              disabled={!courseId}
-              onClick={() => setStep(2)}
-            >
+            <Button type="submit" size="lg" className="w-full">
               Continuar
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setStep(0)}>
-              <ArrowLeft aria-hidden />
-              Voltar à escola
+            <Button asChild variant="ghost">
+              <Link href="/onboarding">Voltar à escola</Link>
             </Button>
           </div>
-        </>
+        </form>
       )}
 
       {step === 2 && (
-        <>
+        <form action={action} className="grid gap-6">
           {/* The class carries its own school year, so the pair sent to /enrollments
               always matches and the backend's consistency check never fires. */}
           <input type="hidden" name="classId" value={classId} />
@@ -217,42 +171,46 @@ export function OnboardingForm({
 
           <Field>
             <FieldLabel htmlFor="classId">E em que turma?</FieldLabel>
-            {courseClasses.length === 0 ? (
-              emptyClasses
+            {classes.length === 0 ? (
+              <EmptyState
+                title="Sem turmas neste curso"
+                message={`Não há turmas de ${courseName ?? 'este curso'}${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outro curso ou pergunta ao teu professor.`}
+                action={
+                  <Button asChild variant="outline">
+                    <Link href={`/onboarding?escola=${institutionId}`}>Voltar ao curso</Link>
+                  </Button>
+                }
+              />
             ) : (
-              <NativeSelect
-                id="classId"
-                name="classId"
-                value={classId}
-                onChange={(event) => setClassId(event.target.value)}
-              >
-                <option value="">Escolhe a tua turma</option>
-                {courseClasses.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.grade ? `${item.grade}ª · ` : ''}
-                    {item.code}
-                  </option>
-                ))}
-              </NativeSelect>
+              <>
+                <NativeSelect
+                  id="classId"
+                  value={classId}
+                  onChange={(event) => setClassId(event.target.value)}
+                >
+                  <option value="">Escolhe a tua turma</option>
+                  {classes.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.grade ? `${item.grade}ª · ` : ''}
+                      {item.code}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <FieldDescription>
+                  {yearLabel ? `Ano letivo ${yearLabel}.` : 'A turma onde estás matriculado.'}
+                </FieldDescription>
+              </>
             )}
-            <FieldDescription>
-              {courseClasses.length === 0
-                ? ' '
-                : yearLabel
-                  ? `Ano letivo ${yearLabel}.`
-                  : 'A turma onde estás matriculado.'}
-            </FieldDescription>
           </Field>
 
           <div className="grid gap-2">
-            <Submit disabled={!classId}>Entrar na turma</Submit>
-            <Button type="button" variant="ghost" onClick={() => setStep(1)}>
-              <ArrowLeft aria-hidden />
-              Voltar ao curso
+            {classes.length > 0 && <Submit>Entrar na turma</Submit>}
+            <Button asChild variant="ghost">
+              <Link href={`/onboarding?escola=${institutionId}`}>Voltar ao curso</Link>
             </Button>
           </div>
-        </>
+        </form>
       )}
-    </form>
+    </div>
   );
 }
