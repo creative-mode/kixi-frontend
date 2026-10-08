@@ -21,6 +21,22 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  auto-revisao:
+    name: "Auto-revisão: as regras que já custaram um bug"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # O gate compara com a branch de integração, por isso precisa da história.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Os testes do próprio gate primeiro: um verificador que ninguém testa volta a
+      # deixar passar aquilo que existe para apanhar.
+      - run: node --test '.github/scripts/*.test.js'
+      - run: node .github/scripts/self-review.js ${{ github.base_ref }}
+
   student:
     name: "Aluno: tipos, testes e fluxo"
     runs-on: ubuntu-latest

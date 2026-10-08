@@ -50,7 +50,25 @@ redireccionamentos saem construídos a partir do pedido e a app avisa no log.
 npm run build && npm run lint   # raiz (gestor)
 npm run ds:sync                 # sincroniza o design system para student/ e landing/
 docker compose up --build           # tudo em contentores, http://localhost:3000
+node .github/scripts/self-review.js DEV   # a auto-revisão, antes de abrir o PR
 ```
+
+### Auto-revisão
+
+`self-review.js` lê as linhas novas do diff contra `DEV` e aponta o que já custou um bug a
+este repositório: o `basePath` written à mão num `redirect()` de server action (que é o que o
+cliente do Next aplica, não o servidor), o `action` de um `<form>`, texto com caracteres de
+outra escrita, `__html` que não é literal, segredos em literal, e lógica do mock que muda sem
+um teste que a fixe. Corre no CI como check.
+
+O que ela **não** apanha está escrito nos testes: letra dobrada numa palavra — o erro que eu
+de facto commito — passa, porque letra dobrada é normal em português e a regra passaria a
+gritar em texto correcto. E um problema que já estava no ficheiro não é blame da mudança; o
+que está em falta no código de hoje é assunto de outra mudança, e `student/scripts/flow.mjs`
+apanha o que estiver a correr mal.
+
+Antes de mexer numa regra, lee `self-review.test.js`: cada uma tem um caso em que **não**
+dispara, e é aí que um gate ganha ou perde a credibilidade.
 
 ## Docker
 
