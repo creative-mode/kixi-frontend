@@ -1,39 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kixi — frontend
 
-## Getting Started
+Três apps Next.js no mesmo repo (gestão, aluno e landing), servidas por um gateway único.
 
-First, run the development server:
+| App | Pasta | Porta (dev) | No gateway `:3000` |
+| --- | --- | --- | --- |
+| Gestor (admin/professor) | `./` (raiz, `app/`) | 3002 | `/manager` |
+| Aluno | `student/` | 3003 | `/aluno` |
+| Landing | `landing/` | 3004 | `/` |
+
+## Arranque rápido (5 min)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm --prefix student install
+npm --prefix landing install
+npm run dev:all   # landing + aluno + gestor + gateway em http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ou cada app na sua porta:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev            # gestor :3002
+npm --prefix student run dev   # aluno :3003
+npm --prefix landing run dev   # landing :3004
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variáveis de ambiente
 
-## Learn More
+| Var | Onde | Obrigatória? |
+| --- | --- | --- |
+| `BACKEND_API_URL` | raiz, student | sim em prod (ex.: `http://localhost:8080/api/v1`) |
+| `JWT_SECRET` | raiz, student | sim quando `KIXI_MOCK=false` (igual à do backend) |
+| `KIXI_MOCK` | raiz | não (`true` = backend simulado local) |
+| `APP_ORIGIN` | raiz, student | sim em prod (ex.: `https://kixi.ao`) — endereço público do gateway |
+| `NEXT_PUBLIC_MANAGER_URL` | student | não (fallback: `${APP_ORIGIN}/manager`) |
+| `NEXT_PUBLIC_APP_URL` | landing | não |
+| `PORT`, `*_HOST`, `*_PORT` | gateway | não (defeitos: 3000/3002/3003/3004) |
 
-To learn more about Next.js, take a look at the following resources:
+`APP_ORIGIN` é o que o gestor e o aluno usam para montar redireccionamentos para fora da
+sua app — a landing e a `/403` canónica. Não se pode confiar em `Host` nem em
+`x-forwarded-host` para isso: ambos vêm de quem fez o pedido, e um redireccionamento
+construído a partir deles deixa o utilizador seguir para um domínio à escolha do atacante.
+Atrás do gateway define `APP_ORIGIN` com o endereço público; sem isso, em produção, os
+redireccionamentos saem construídos a partir do pedido e a app avisa no log.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts úteis
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build && npm run lint   # raiz (gestor)
+npm run ds:sync                 # sincroniza o design system para student/ e landing/
+docker compose up --build           # tudo em contentores, http://localhost:3000
+```
 
 ## Docker
 

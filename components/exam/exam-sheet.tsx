@@ -1,5 +1,6 @@
 import type { ExamDraft, School } from '@/lib/exam/schools';
 
+
 /**
  * Folha de prova no modelo oficial. O molde é fixo: só o logótipo, o nome da escola e a disciplina mudam
  * de uma escola/disciplina para outra; o resto (classe, fase, questões, regras, rodapé) é conteúdo da prova.

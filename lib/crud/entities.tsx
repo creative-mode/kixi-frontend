@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Building2,
   BookOpen,
   Calendar,
   CalendarRange,
@@ -11,6 +12,8 @@ import {
   PlayCircle,
   Shield,
   User,
+  UserCheck,
+  UserSquare,
   Users,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -39,11 +42,14 @@ export interface Field {
 
 export interface Column {
   label: string;
-  /** read the value from a row */
-  value: (row: Row) => ReactNode;
+  /** read the value from a row; `labels` resolves FK ids to names (see Entity.lookups) */
+  value: (row: Row, labels?: Record<string, string>) => ReactNode;
   className?: string;
 }
 
+// CRUD rows are intentionally open because the registry mirrors multiple backend DTOs.
+// Keep the dynamic boundary explicit while preserving typed DTOs everywhere else.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Row = Record<string, any>;
 export type EntityKey =
   | 'school-years'
@@ -54,6 +60,10 @@ export type EntityKey =
   | 'roles'
   | 'accounts'
   | 'users'
+  | 'institutions'
+  | 'teachers'
+  | 'enrollments'
+  | 'teaching-assignments'
   | 'statements'
   | 'simulations'
   | 'sessions'
@@ -80,9 +90,26 @@ export interface Entity {
   titleOf: (row: Row) => string;
   canCreate: boolean;
   canEdit: boolean;
-  /** how the backend restores / purges (simulations differ) */
-  restore: { method: 'POST' | 'PUT'; suffix: string };
-  purge: { suffix: string };
+  /** hide the trash link (entity has no /trash endpoint, e.g. cancel-only flows) */
+  trashable?: boolean;
+  /** copy for the delete confirm when it is not "move to trash" */
+  deleteCopy?: { title: string; description: (title: string) => string; action: string; done: string };
+  /** FK field -> source entity, to resolve ids to names in list columns */
+  lookups?: Record<string, EntityKey>;
+  /** full rows this entity needs to build its request (e.g. derive schoolYearId from the class) */
+  deriveFrom?: EntityKey[];
+  /**
+   * Build the request body when it differs from the form (derived fields).
+   * Runs in the form with the rows of `deriveFrom` keyed by id.
+   * Contrast with `toRequest` (below): `toPayload` assembles the payload
+   * from form values + related rows (e.g. schoolYearId taken from the
+   * chosen class); `toRequest` then only normalizes types for the wire
+   * (strings from inputs/selects become numbers, '' becomes null).
+   */
+  toPayload?: (values: Row, rows: Record<string, Map<number, Row>>) => Row;
+  /** how the backend restores / purges (absent when the API has no such endpoints) */
+  restore?: { method: 'POST' | 'PUT'; suffix: string };
+  purge?: { suffix: string };
   /** form values -> request body */
   toRequest?: (values: Row) => Row;
   /** response row -> form values */
@@ -188,6 +215,9 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     fields: [
       { name: 'code', label: 'Código', type: 'text', required: true, min: 2, max: 50, placeholder: 'TISM' },
       { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 255, placeholder: 'Técnico de Informática e Sistemas Multimédia' },
+      // A turma herda a escola do curso: a escola escolhe-se aqui, não na turma.
+      // O backend (kixi#145) exige institutionId e devolve-o sem o nome (evita ciclo academic→institutions).
+      { name: 'institutionId', label: 'Escola', type: 'select', required: true, optionsFrom: 'institutions' },
       { name: 'description', label: 'Descrição', type: 'textarea', max: 5000 },
     ],
     columns: [
@@ -200,7 +230,8 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     canEdit: true,
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
-    toForm: (r) => ({ code: r.code, name: r.name, description: r.description ?? '' }),
+    // O id chega como string do <select>; o backend converte.
+    toForm: (r) => ({ code: r.code, name: r.name, institutionId: r.institutionId ?? '', description: r.description ?? '' }),
   },
   classes: {
     key: 'classes',
@@ -314,6 +345,163 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
     toForm: (r) => ({ accountId: r.accountId, firstName: r.firstName, lastName: r.lastName, photo: r.photo ?? '' }),
+  },
+  institutions: {
+    key: 'institutions',
+    fem: true,
+    path: 'institutions',
+    api: '/api/v1/institutions',
+    idKey: 'id',
+    singular: 'Instituição',
+    plural: 'Instituições',
+    description: 'Escolas, com disciplinas, professores e alunos afiliados',
+    icon: Building2,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'code', label: 'Código', type: 'text', required: true, max: 20, placeholder: 'ITEL' },
+      { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 200, placeholder: 'Instituto de Telecomunicações' },
+      { name: 'short_name', label: 'Sigla', type: 'text', max: 50, placeholder: 'ITEL' },
+      { name: 'logo', label: 'Logótipo (URL)', type: 'text', placeholder: 'https://…', hint: 'Aparece no cabeçalho das provas.' },
+    ],
+    columns: [
+      { label: 'Código', value: (r) => <span className="font-mono text-xs font-bold">{r.code}</span>, className: 'w-28' },
+      { label: 'Nome', value: (r) => <strong>{r.name}</strong> },
+      { label: 'Sigla', value: (r) => dim(r.short_name) },
+    ],
+    titleOf: (r) => r.name,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toForm: (r) => ({ code: r.code, name: r.name, short_name: r.short_name ?? '', logo: r.logo ?? '' }),
+  },
+  teachers: {
+    key: 'teachers',
+    path: 'teachers',
+    api: '/api/v1/teachers',
+    idKey: 'id',
+    singular: 'Professor',
+    plural: 'Professores',
+    description: 'Docentes; podem ter acesso à plataforma',
+    icon: UserSquare,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'firstName', label: 'Nome', type: 'text', required: true, min: 2, max: 100 },
+      { name: 'lastName', label: 'Apelido', type: 'text', required: true, min: 2, max: 100 },
+      { name: 'email', label: 'Email', type: 'email', max: 255 },
+      { name: 'specialty', label: 'Especialidade', type: 'text', max: 150 },
+      { name: 'employeeNumber', label: 'N.º de funcionário', type: 'text', max: 50 },
+      { name: 'photo', label: 'Foto (URL)', type: 'text', max: 500, placeholder: 'https://…' },
+    ],
+    columns: [
+      { label: 'Nome', value: (r) => <strong>{r.firstName} {r.lastName}</strong> },
+      { label: 'Especialidade', value: (r) => dim(r.specialty) },
+      { label: 'Acesso', value: (r) => (r.hasAccess ? <span className="text-xs font-semibold text-primary">Com acesso</span> : dim('Sem acesso')), className: 'w-32' },
+    ],
+    titleOf: (r) => `${r.firstName} ${r.lastName}`,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    toForm: (r) => ({ firstName: r.firstName, lastName: r.lastName, email: r.email ?? '', specialty: r.specialty ?? '', employeeNumber: r.employeeNumber ?? '', photo: r.photo ?? '' }),
+  },
+  enrollments: {
+    key: 'enrollments',
+    fem: true,
+    path: 'enrollments',
+    api: '/api/v1/enrollments',
+    idKey: 'id',
+    singular: 'Matrícula',
+    plural: 'Matrículas',
+    description: 'Alunos inscritos em cada turma',
+    icon: UserCheck,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'accountId', label: 'Aluno (conta)', type: 'select', required: true, optionsFrom: 'accounts', hint: 'Só contas com papel STUDENT. O ano letivo vem da turma.' },
+      { name: 'classId', label: 'Turma', type: 'select', required: true, optionsFrom: 'classes' },
+    ],
+    columns: [
+      { label: 'Aluno', value: (r, l) => <strong>{l?.[`accountId:${r.accountId}`] ?? `#${r.accountId}`}</strong> },
+      { label: 'Turma', value: (r, l) => l?.[`classId:${r.classId}`] ?? `#${r.classId}`, className: 'w-28' },
+      { label: 'Ano letivo', value: (r, l) => l?.[`schoolYearId:${r.schoolYearId}`] ?? `#${r.schoolYearId}`, className: 'w-32' },
+      { label: 'Estado', value: (r) => dim(r.status), className: 'w-28' },
+    ],
+    titleOf: (r) => `Matrícula #${r.id ?? ''}`,
+    canCreate: true,
+    // O backend não tem PUT nem lixeira: apagar é cancelar.
+    canEdit: false,
+    trashable: false,
+    deleteCopy: {
+      title: 'Cancelar matrícula?',
+      description: (t) => `${t} deixa de valer. Esta ação não pode ser anulada.`,
+      action: 'Cancelar matrícula',
+      done: 'Matrícula cancelada',
+    },
+    lookups: { accountId: 'accounts', classId: 'classes', schoolYearId: 'school-years' },
+    deriveFrom: ['classes'],
+    toPayload: (v, rows) => {
+      const cls = rows.classes?.get(Number(v.classId));
+      return {
+        accountId: Number(v.accountId),
+        classId: Number(v.classId),
+        schoolYearId: cls?.schoolYear?.id ?? cls?.schoolYearId ?? null,
+      };
+    },
+    toRequest: (v) => ({
+      accountId: Number(v.accountId),
+      classId: Number(v.classId),
+      schoolYearId: v.schoolYearId == null || v.schoolYearId === '' ? null : Number(v.schoolYearId),
+    }),
+    toForm: (r) => ({ accountId: r.accountId, classId: r.classId }),
+  },
+  'teaching-assignments': {
+    key: 'teaching-assignments',
+    fem: true,
+    path: 'teaching-assignments',
+    api: '/api/v1/teaching-assignments',
+    idKey: 'id',
+    singular: 'Atribuição',
+    plural: 'Atribuições',
+    description: 'Professores com turmas e disciplinas',
+    icon: ListChecks,
+    tone: 'bg-accent text-primary',
+    fields: [
+      { name: 'teacherId', label: 'Professor', type: 'select', required: true, optionsFrom: 'teachers' },
+      { name: 'classId', label: 'Turma', type: 'select', required: true, optionsFrom: 'classes' },
+      { name: 'subjectId', label: 'Disciplina', type: 'select', required: true, optionsFrom: 'subjects' },
+      { name: 'tutorStyle', label: 'Estilo do tutor (opcional)', type: 'text', max: 100, placeholder: 'Explica com exemplos do dia a dia' },
+    ],
+    columns: [
+      { label: 'Professor', value: (r, l) => <strong>{l?.[`teacherId:${r.teacherId}`] ?? `#${r.teacherId}`}</strong> },
+      { label: 'Turma', value: (r, l) => l?.[`classId:${r.classId}`] ?? `#${r.classId}`, className: 'w-28' },
+      { label: 'Disciplina', value: (r, l) => dim(l?.[`subjectId:${r.subjectId}`] ?? null) },
+      { label: 'Ano letivo', value: (r, l) => l?.[`schoolYearId:${r.schoolYearId}`] ?? `#${r.schoolYearId}`, className: 'w-32' },
+    ],
+    titleOf: (r) => `Atribuição #${r.id ?? ''}`,
+    canCreate: true,
+    canEdit: true,
+    restore: { method: 'POST', suffix: '/restore' },
+    purge: { suffix: '/purge' },
+    lookups: { teacherId: 'teachers', classId: 'classes', subjectId: 'subjects', schoolYearId: 'school-years' },
+    deriveFrom: ['classes'],
+    toPayload: (v, rows) => {
+      const cls = rows.classes?.get(Number(v.classId));
+      return {
+        teacherId: Number(v.teacherId),
+        classId: Number(v.classId),
+        subjectId: Number(v.subjectId),
+        schoolYearId: cls?.schoolYear?.id ?? cls?.schoolYearId ?? null,
+        tutorStyle: v.tutorStyle || null,
+      };
+    },
+    toRequest: (v) => ({
+      teacherId: Number(v.teacherId),
+      classId: Number(v.classId),
+      subjectId: Number(v.subjectId),
+      schoolYearId: v.schoolYearId == null || v.schoolYearId === '' ? null : Number(v.schoolYearId),
+      tutorStyle: v.tutorStyle || null,
+    }),
+    toForm: (r) => ({ teacherId: r.teacherId, classId: r.classId, subjectId: r.subjectId ?? '', tutorStyle: r.tutorStyle ?? '' }),
   },
   sessions: {
     key: 'sessions',
@@ -437,7 +625,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
 };
 
 /** Entities with a plain create/edit form (statements and simulations have their own screens). */
-export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'roles', 'accounts', 'users', 'sessions', 'simulation-answers'];
+export const CRUD_KEYS: EntityKey[] = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'institutions', 'teachers', 'teaching-assignments', 'enrollments', 'roles', 'accounts', 'users', 'sessions', 'simulation-answers'];
 export const NAV_KEYS: EntityKey[] = [...CRUD_KEYS, 'statements', 'simulations'];
 
 export function entityByPath(path: string): Entity | undefined {

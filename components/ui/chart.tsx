@@ -104,6 +104,23 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
+type ChartValue = string | number | Array<string | number>
+type ChartName = string | number
+type ChartPayload = {
+  color?: string
+  dataKey?: string | number
+  name?: ChartName
+  value?: ChartValue
+  payload?: Record<string, unknown>
+}
+type ChartFormatter = (
+  value: ChartValue,
+  name: ChartName,
+  item: ChartPayload,
+  index: number,
+  payload: ChartPayload[],
+) => React.ReactNode
+
 function ChartTooltipContent({
   active,
   payload,
@@ -125,10 +142,10 @@ function ChartTooltipContent({
     indicator?: 'line' | 'dot' | 'dashed'
     nameKey?: string
     labelKey?: string
-    payload?: any[]
-    label?: any
-    labelFormatter?: any
-    formatter?: any
+    payload?: ChartPayload[]
+    label?: ChartName
+    labelFormatter?: (label: ChartName, payload: ChartPayload[]) => React.ReactNode
+    formatter?: ChartFormatter
     color?: string
   }) {
   const { config } = useChart()
@@ -187,7 +204,8 @@ function ChartTooltipContent({
         {payload.map((item, index) => {
           const key = `${nameKey || item.name || item.dataKey || 'value'}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
-          const indicatorColor = color || item.payload.fill || item.color
+          const fill = typeof item.payload?.fill === 'string' ? item.payload.fill : undefined
+          const indicatorColor = color || fill || item.color
 
           return (
             <div
@@ -264,7 +282,7 @@ function ChartLegendContent({
 }: React.ComponentProps<'div'> & {
     hideIcon?: boolean
     nameKey?: string
-    payload?: any
+    payload?: ChartPayload[]
     verticalAlign?: string
   }) {
   const { config } = useChart()
@@ -281,13 +299,13 @@ function ChartLegendContent({
         className,
       )}
     >
-      {payload.map((item: any) => {
+      {payload.map((item) => {
         const key = `${nameKey || item.dataKey || 'value'}`
         const itemConfig = getPayloadConfigFromPayload(config, item, key)
 
         return (
           <div
-            key={item.value}
+            key={String(item.value)}
             className={
               '[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3'
             }

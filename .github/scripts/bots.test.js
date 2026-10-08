@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Testes dos bots:  node --test .github/scripts/bots.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
