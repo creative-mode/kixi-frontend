@@ -21,8 +21,24 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  auto-revisao:
+    name: "Auto-revisão: as regras que já custaram um bug"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # O gate compara com a branch de integração, por isso precisa da história.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Os testes do próprio gate primeiro: um verificador que ninguém testa volta a
+      # deixar passar aquilo que existe para apanhar.
+      - run: node --test '.github/scripts/*.test.js'
+      - run: node .github/scripts/self-review.js ${{ github.base_ref }}
+
   student:
-    name: Typecheck do student
+    name: "Aluno: tipos, testes e fluxo"
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,6 +53,10 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # O fluxo do aluno contra a app a correr. O lint, o build e os testes unitários não
+      # exercem um único redirect, e foi um redirect que partiu o login no PR #98.
+      - run: npm run build
+      - run: npm run test:flow
 
   landing:
     name: Typecheck da landing
