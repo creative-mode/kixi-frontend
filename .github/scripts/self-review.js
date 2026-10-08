@@ -162,6 +162,25 @@ function git(raiz, args) {
   return execFileSync('git', args, { cwd: raiz, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
 
+/**
+ * A base pode ser `DEV` ou `origin/DEV`. Localmente existe como branch; no CI o
+ * `actions/checkout` só cria a referência remota, e `git diff DEV...HEAD` falha com
+ * "unknown revision". Em vez de o workflow ter de saber disso, tentamos os dois.
+ */
+function resolverBase(raiz, base) {
+  for (const candidato of [base, `origin/${base}`]) {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', `${candidato}^{commit}`], {
+        cwd: raiz, stdio: 'ignore',
+      });
+      return candidato;
+    } catch {
+      // tenta o seguinte
+    }
+  }
+  return base;
+}
+
 /** As linhas novas de um diff unificado, com o número que o editor mostra. */
 function linhasDe(bruto, caminho) {
   const linhas = [];
@@ -187,12 +206,13 @@ function linhasDe(bruto, caminho) {
 function recolher(raiz, base) {
   const linhas = [];
   const lista = (saida) => saida.split('\n').filter(Boolean);
+  const ref = resolverBase(raiz, base);
 
-  for (const caminho of lista(git(raiz, ['diff', '--name-only', `${base}...HEAD`]))) {
+  for (const caminho of lista(git(raiz, ['diff', '--name-only', `${ref}...HEAD`]))) {
     if (EXCLUIDOS.has(caminho)) continue;
     let bruto = '';
     try {
-      bruto = git(raiz, ['diff', '--unified=0', `${base}...HEAD`, '--', caminho]);
+      bruto = git(raiz, ['diff', '--unified=0', `${ref}...HEAD`, '--', caminho]);
     } catch {
       continue;
     }
@@ -226,7 +246,7 @@ function avaliar({ raiz, base }) {
 }
 
 module.exports = {
-  avaliar, recolher, REGRAS, BASE_POR_OMISSAO, EXCLUIDOS,
+  avaliar, recolher, resolverBase, REGRAS, BASE_POR_OMISSAO, EXCLUIDOS,
   checarBasePath, checarTexto, checarXss, checarSegredos, checarParidadeMock,
 };
 
