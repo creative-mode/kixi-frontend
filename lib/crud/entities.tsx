@@ -42,8 +42,8 @@ export interface Field {
 
 export interface Column {
   label: string;
-  /** read the value from a row */
-  value: (row: Row) => ReactNode;
+  /** read the value from a row; `labels` resolves FK ids to names (see Entity.lookups) */
+  value: (row: Row, labels?: Record<string, string>) => ReactNode;
   className?: string;
 }
 
@@ -90,9 +90,22 @@ export interface Entity {
   titleOf: (row: Row) => string;
   canCreate: boolean;
   canEdit: boolean;
-  /** how the backend restores / purges (simulations differ) */
-  restore: { method: 'POST' | 'PUT'; suffix: string };
-  purge: { suffix: string };
+  /** hide the trash link (entity has no /trash endpoint, e.g. cancel-only flows) */
+  trashable?: boolean;
+  /** copy for the delete confirm when it is not "move to trash" */
+  deleteCopy?: { title: string; description: (title: string) => string; action: string; done: string };
+  /** FK field -> source entity, to resolve ids to names in list columns */
+  lookups?: Record<string, EntityKey>;
+  /** full rows this entity needs to build its request (e.g. derive schoolYearId from the class) */
+  deriveFrom?: EntityKey[];
+  /**
+   * Build the request body when it differs from the form (derived fields).
+   * Runs in the form with the rows of `deriveFrom` keyed by id.
+   */
+  toPayload?: (values: Row, rows: Record<string, Map<number, Row>>) => Row;
+  /** how the backend restores / purges (absent when the API has no such endpoints) */
+  restore?: { method: 'POST' | 'PUT'; suffix: string };
+  purge?: { suffix: string };
   /** form values -> request body */
   toRequest?: (values: Row) => Row;
   /** response row -> form values */
@@ -400,20 +413,42 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     icon: UserCheck,
     tone: 'bg-accent text-primary',
     fields: [
-      { name: 'userId', label: 'Aluno', type: 'select', required: true, optionsFrom: 'users' },
+      { name: 'accountId', label: 'Aluno (conta)', type: 'select', required: true, optionsFrom: 'accounts', hint: 'Só contas com papel STUDENT. O ano letivo vem da turma.' },
       { name: 'classId', label: 'Turma', type: 'select', required: true, optionsFrom: 'classes' },
     ],
     columns: [
-      { label: 'Aluno', value: (r) => <strong>{r.user ? `${r.user.firstName} ${r.user.lastName}` : `#${r.userId}`}</strong> },
-      { label: 'Turma', value: (r) => r.class?.code ?? `#${r.classId}`, className: 'w-28' },
-      { label: 'Ano letivo', value: (r) => (r.schoolYear ? `${r.schoolYear.startYear}–${r.schoolYear.endYear}` : '—'), className: 'w-32' },
+      { label: 'Aluno', value: (r, l) => <strong>{l?.[`accountId:${r.accountId}`] ?? `#${r.accountId}`}</strong> },
+      { label: 'Turma', value: (r, l) => l?.[`classId:${r.classId}`] ?? `#${r.classId}`, className: 'w-28' },
+      { label: 'Ano letivo', value: (r, l) => l?.[`schoolYearId:${r.schoolYearId}`] ?? `#${r.schoolYearId}`, className: 'w-32' },
+      { label: 'Estado', value: (r) => dim(r.status), className: 'w-28' },
     ],
-    titleOf: (r) => (r.user ? `${r.user.firstName} ${r.user.lastName} · ${r.class?.code ?? ''}` : `Matrícula #${r.id}`),
+    titleOf: (r) => `Matrícula #${r.id ?? ''}`,
     canCreate: true,
-    canEdit: true,
-    restore: { method: 'POST', suffix: '/restore' },
-    purge: { suffix: '/purge' },
-    toForm: (r) => ({ userId: r.userId, classId: r.classId }),
+    // O backend não tem PUT nem lixeira: apagar é cancelar.
+    canEdit: false,
+    trashable: false,
+    deleteCopy: {
+      title: 'Cancelar matrícula?',
+      description: (t) => `${t} deixa de valer. Esta ação não pode ser anulada.`,
+      action: 'Cancelar matrícula',
+      done: 'Matrícula cancelada',
+    },
+    lookups: { accountId: 'accounts', classId: 'classes', schoolYearId: 'school-years' },
+    deriveFrom: ['classes'],
+    toPayload: (v, rows) => {
+      const cls = rows.classes?.get(Number(v.classId));
+      return {
+        accountId: Number(v.accountId),
+        classId: Number(v.classId),
+        schoolYearId: cls?.schoolYear?.id ?? cls?.schoolYearId ?? null,
+      };
+    },
+    toRequest: (v) => ({
+      accountId: Number(v.accountId),
+      classId: Number(v.classId),
+      schoolYearId: v.schoolYearId == null || v.schoolYearId === '' ? null : Number(v.schoolYearId),
+    }),
+    toForm: (r) => ({ accountId: r.accountId, classId: r.classId }),
   },
   'teaching-assignments': {
     key: 'teaching-assignments',
@@ -430,18 +465,39 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { name: 'teacherId', label: 'Professor', type: 'select', required: true, optionsFrom: 'teachers' },
       { name: 'classId', label: 'Turma', type: 'select', required: true, optionsFrom: 'classes' },
       { name: 'subjectId', label: 'Disciplina', type: 'select', required: true, optionsFrom: 'subjects' },
+      { name: 'tutorStyle', label: 'Estilo do tutor (opcional)', type: 'text', max: 100, placeholder: 'Explica com exemplos do dia a dia' },
     ],
     columns: [
-      { label: 'Professor', value: (r) => <strong>{r.teacher ? `${r.teacher.firstName} ${r.teacher.lastName}` : `#${r.teacherId}`}</strong> },
-      { label: 'Turma', value: (r) => r.class?.code ?? `#${r.classId}`, className: 'w-28' },
-      { label: 'Disciplina', value: (r) => dim(r.subject?.name ?? null) },
+      { label: 'Professor', value: (r, l) => <strong>{l?.[`teacherId:${r.teacherId}`] ?? `#${r.teacherId}`}</strong> },
+      { label: 'Turma', value: (r, l) => l?.[`classId:${r.classId}`] ?? `#${r.classId}`, className: 'w-28' },
+      { label: 'Disciplina', value: (r, l) => dim(l?.[`subjectId:${r.subjectId}`] ?? null) },
+      { label: 'Ano letivo', value: (r, l) => l?.[`schoolYearId:${r.schoolYearId}`] ?? `#${r.schoolYearId}`, className: 'w-32' },
     ],
-    titleOf: (r) => (r.teacher ? `${r.teacher.firstName} ${r.teacher.lastName} · ${r.class?.code ?? ''}` : `Atribuição #${r.id}`),
+    titleOf: (r) => `Atribuição #${r.id ?? ''}`,
     canCreate: true,
     canEdit: true,
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
-    toForm: (r) => ({ teacherId: r.teacherId, classId: r.classId, subjectId: r.subjectId ?? '' }),
+    lookups: { teacherId: 'teachers', classId: 'classes', subjectId: 'subjects', schoolYearId: 'school-years' },
+    deriveFrom: ['classes'],
+    toPayload: (v, rows) => {
+      const cls = rows.classes?.get(Number(v.classId));
+      return {
+        teacherId: Number(v.teacherId),
+        classId: Number(v.classId),
+        subjectId: Number(v.subjectId),
+        schoolYearId: cls?.schoolYear?.id ?? cls?.schoolYearId ?? null,
+        tutorStyle: v.tutorStyle || null,
+      };
+    },
+    toRequest: (v) => ({
+      teacherId: Number(v.teacherId),
+      classId: Number(v.classId),
+      subjectId: Number(v.subjectId),
+      schoolYearId: v.schoolYearId == null || v.schoolYearId === '' ? null : Number(v.schoolYearId),
+      tutorStyle: v.tutorStyle || null,
+    }),
+    toForm: (r) => ({ teacherId: r.teacherId, classId: r.classId, subjectId: r.subjectId ?? '', tutorStyle: r.tutorStyle ?? '' }),
   },
   sessions: {
     key: 'sessions',

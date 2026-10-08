@@ -94,16 +94,8 @@ add('statements', {
   add('teachers', { accountId: null, firstName: 'Carlos', lastName: 'Mendes', email: 'carlos@itel.ao', photo: null, specialty: 'Sistemas Operativos', employeeNumber: 'P-002' });
   const stUser = db.users.find((u) => u.accountId === student.id);
   if (stUser) db.institutionStudents.push({ institutionId: itel.id, userId: stUser.id });
-  if (stUser) add('enrollments', {
-    userId: stUser.id, classId: cls.id, schoolYearId: sy.id,
-    user: { id: stUser.id, firstName: stUser.firstName, lastName: stUser.lastName },
-    class: { id: cls.id, code: cls.code }, schoolYear: sy,
-  });
-  add('teaching-assignments', {
-    teacherId: helena.id, classId: cls.id, subjectId: redes.id,
-    teacher: { id: helena.id, firstName: helena.firstName, lastName: helena.lastName },
-    class: { id: cls.id, code: cls.code }, subject: { id: redes.id, name: redes.name },
-  });
+  add('enrollments', { accountId: student.id, classId: cls.id, schoolYearId: sy.id, status: 'ACTIVE' });
+  add('teaching-assignments', { teacherId: helena.id, classId: cls.id, subjectId: redes.id, schoolYearId: sy.id, tutorStyle: null });
 
   seedExtras();
 }
@@ -163,36 +155,25 @@ const RES = {
     defaults: { accountId: null },
   },
   enrollments: {
-    table: 'enrollments', req: ['userId', 'classId'],
-    pick: (b) => {
-      const cls = db.classes.find((x) => x.id === Number(b.classId));
-      return {
-        userId: Number(b.userId), classId: Number(b.classId), schoolYearId: cls?.schoolYear?.id ?? null,
-        user: (() => { const u = db.users.find((x) => x.id === Number(b.userId)); return u ? { id: u.id, firstName: u.firstName, lastName: u.lastName } : null; })(),
-        class: cls ? { id: cls.id, code: cls.code } : null,
-        schoolYear: cls?.schoolYear ?? null,
-      };
-    },
+    table: 'enrollments', req: ['accountId', 'classId', 'schoolYearId'],
+    pick: (b) => ({ accountId: Number(b.accountId), classId: Number(b.classId), schoolYearId: Number(b.schoolYearId), status: 'ACTIVE' }),
     validate: (b) => {
-      const u = db.users.find((x) => x.id === Number(b.userId) && !x.deletedAt);
-      if (!u) return 'student not found';
-      const roles = db.accountRoles.filter((r) => r.accountId === u.accountId).map((r) => db.roles.find((x) => x.id === r.roleId)?.name);
-      if (!roles.includes('STUDENT')) return 'enrollment needs a user with the STUDENT role';
+      const acc = db.accounts.find((x) => x.id === Number(b.accountId) && !x.deletedAt);
+      if (!acc) return 'account not found';
+      const roles = db.accountRoles.filter((r) => r.accountId === acc.id).map((r) => db.roles.find((x) => x.id === r.roleId)?.name);
+      if (!roles.includes('STUDENT')) return 'enrollment needs an account with the STUDENT role';
       if (!db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt)) return 'class not found';
+      if (!db['school-years'].find((s) => s.id === Number(b.schoolYearId))) return 'school year not found';
       return null;
     },
-    unique: (b, id) => (db.enrollments.some((e) => !e.deletedAt && e.id !== id && e.userId === Number(b.userId) && e.classId === Number(b.classId)) ? 'Student is already enrolled in this class' : null),
+    // backend: uq_enrollments_account_school_year_active — uma ativa por conta e ano.
+    unique: (b, id) => (db.enrollments.some((e) => !e.deletedAt && e.status !== 'CANCELLED' && e.id !== id && e.accountId === Number(b.accountId) && e.schoolYearId === Number(b.schoolYearId)) ? 'Account already has an active enrollment for this school year' : null),
   },
   'teaching-assignments': {
-    table: 'teaching-assignments', req: ['teacherId', 'classId', 'subjectId'],
-    pick: (b) => ({
-      teacherId: Number(b.teacherId), classId: Number(b.classId), subjectId: Number(b.subjectId),
-      teacher: (() => { const t = db.teachers.find((x) => x.id === Number(b.teacherId)); return t ? { id: t.id, firstName: t.firstName, lastName: t.lastName } : null; })(),
-      class: (() => { const c = db.classes.find((x) => x.id === Number(b.classId)); return c ? { id: c.id, code: c.code } : null; })(),
-      subject: (() => { const s = db.subjects.find((x) => x.id === Number(b.subjectId)); return s ? { id: s.id, name: s.name } : null; })(),
-    }),
-    validate: (b) => (!db.teachers.find((x) => x.id === Number(b.teacherId) && !x.deletedAt) ? 'teacher not found' : !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt) ? 'class not found' : !db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt) ? 'subject not found' : null),
-    unique: (b, id) => (db['teaching-assignments'].some((a) => !a.deletedAt && a.id !== id && a.teacherId === Number(b.teacherId) && a.classId === Number(b.classId) && a.subjectId === Number(b.subjectId)) ? 'Assignment already exists' : null),
+    table: 'teaching-assignments', req: ['teacherId', 'classId', 'subjectId', 'schoolYearId'],
+    pick: (b) => ({ teacherId: Number(b.teacherId), classId: Number(b.classId), subjectId: Number(b.subjectId), schoolYearId: Number(b.schoolYearId), tutorStyle: b.tutorStyle || null }),
+    validate: (b) => (!db.teachers.find((x) => x.id === Number(b.teacherId) && !x.deletedAt) ? 'teacher not found' : !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt) ? 'class not found' : !db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt) ? 'subject not found' : !db['school-years'].find((s) => s.id === Number(b.schoolYearId)) ? 'school year not found' : null),
+    unique: (b, id) => (db['teaching-assignments'].some((a) => !a.deletedAt && a.id !== id && a.teacherId === Number(b.teacherId) && a.classId === Number(b.classId) && a.subjectId === Number(b.subjectId) && a.schoolYearId === Number(b.schoolYearId)) ? 'Assignment already exists' : null),
   },
   roles: { table: 'roles', admin: true, req: ['name'], pick: (b) => ({ name: b.name, description: b.description ?? null }) },
   users: { table: 'users', admin: true, req: ['accountId', 'firstName', 'lastName'], pick: (b) => ({ accountId: b.accountId, firstName: b.firstName, lastName: b.lastName, photo: b.photo ?? null }) },
@@ -504,8 +485,11 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         const b = readBody();
         const miss = missing(b, def.req);
         if (miss.length) return problem(400, `${miss.join(', ')} is required`);
-        const err = def.validate?.(b) ?? def.unique?.(b, null);
-        if (err) return problem(def.unique ? 409 : 400, err);
+        // validação (400) e conflito de unicidade (409) têm estados próprios.
+        const verr = def.validate?.(b);
+        if (verr) return problem(400, verr);
+        const uerr = def.unique?.(b, null);
+        if (uerr) return problem(409, uerr);
         if (def.key && rows.some((r) => !r.deletedAt && r[def.key] === b[def.key])) return problem(409, `${def.key} already exists`);
         return json(201, out(add(def.table, { ...(def.defaults ?? {}), ...def.pick(b) })));
       }
@@ -517,8 +501,10 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         const b = readBody();
         const miss = missing(b, def.req);
         if (miss.length) return problem(400, `${miss.join(', ')} is required`);
-        const err = def.validate?.(b) ?? def.unique?.(b, row.id);
-        if (err) return problem(def.unique ? 409 : 400, err);
+        const verr2 = def.validate?.(b);
+        if (verr2) return problem(400, verr2);
+        const uerr2 = def.unique?.(b, row.id);
+        if (uerr2) return problem(409, uerr2);
         Object.assign(row, def.pick(b), { updatedAt: now() });
         return json(200, out(row));
       }

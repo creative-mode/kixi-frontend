@@ -139,10 +139,12 @@ export async function deleteRow(key: string, id: string | number) {
 }
 export async function restoreRow(key: string, id: string | number) {
   const e = entity(key);
+  if (!e.restore) return fail('Esta entidade não pode ser restaurada.');
   return simple(key, id, e.restore.method, e.restore.suffix, 'Não foi possível restaurar.');
 }
 export async function purgeRow(key: string, id: string | number) {
   const e = entity(key);
+  if (!e.purge) return fail('Esta entidade não pode ser eliminada definitivamente.');
   return simple(key, id, 'DELETE', e.purge.suffix, 'Não foi possível eliminar definitivamente.');
 }
 
