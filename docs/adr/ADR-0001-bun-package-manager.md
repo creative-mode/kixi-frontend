@@ -22,11 +22,12 @@ Pain points observed (see issue #77):
 
 - three full `node_modules` trees (~3x disk, ~3x install time, three lockfiles
   that can drift apart);
-- real drift, checked 07/10 on DEV (not the radix sets — each app genuinely
-  uses different radix components, so that split is normal): `lucide-react`
-  is `^0.468.0` at root against `^1.52.0` in `student/` — a **major** apart,
-  so any package manager installs two copies. (`next` is `^16.0.10` in all
-  three apps, and `react` is pinned to `19.2.1` everywhere — those are fine.)
+- real drift, checked 08/10 on DEV: `lucide-react` is `^0.468.0` at root
+  against `^1.52.0` in `student/` — a **major** apart, so any package manager
+  installs two copies — and `next` is `^16.3.8` at root against `^16.0.10`
+  in `student/` and `landing/`. (The radix sets differ per app because each
+  app genuinely uses different components — that split is normal, not drift.
+  `react` is pinned to `19.2.1` everywhere — fine.)
 - `npm run dev:all` and the Dockerfiles assume npm;
 - contributor onboarding is `npm install` x3.
 
@@ -34,10 +35,10 @@ Workspaces alone do not align versions: with `lucide-react` on two majors,
 npm, pnpm or Bun all install two copies. So step zero of any migration —
 with Bun or without — is aligning these versions by hand first.
 
-Bun 1.4.x is available on team machines and offers workspaces with a single
-`bun.lock`, much faster installs (global module cache), and a drop-in
-`bun run` / `bun install` CLI. Bun can also run the gateway and scripts
-directly (`bun scripts/gateway.mjs`).
+Bun 1.4.0 was verified on the author's machine (measured 07/10, see table
+below) and offers workspaces with a single `bun.lock`, a drop-in `bun run` /
+`bun install` CLI, and can run the gateway and scripts directly
+(`bun scripts/gateway.mjs`).
 
 Out of scope honesty: switching package managers does **not** fix the native
 `Bus error` seen on `next build` in this sandbox (issue #77) — that crash
@@ -79,7 +80,7 @@ to npm semantics. Listed for completeness; nobody on the team proposed it.
 
 ### Positive
 
-- one command setup (`bun install`), one lockfile, no drift between apps;
+- one command setup (`bun install`), one lockfile;
 - faster reinstalls on warm cache (measured below); shared global cache
   across the three apps;
 - `dev-all`, gateway and scripts runnable with `bun` directly.
@@ -114,6 +115,14 @@ Files that mention npm today and would change:
 - `scripts/dev-all.mjs` — spawns `npm --prefix … run dev`;
 - the three `package-lock.json` → one `bun.lock` (fresh resolve, versions may
   shift — needs a lockfile review PR).
+- `docker/app.Dockerfile` + `docker-compose.yml` — this is probably the most
+  laborious part, and it applies to option A too: today each image copies
+  `${APP_DIR}/package.json` + `${APP_DIR}/package-lock.json` and runs its
+  own `npm ci`. With workspaces there is no per-app lockfile — the single
+  root lockfile plus every workspace's `package.json` have to enter the
+  build context, and the `args` change with them.
+- CI: if PR #97 (`quality.yml`) lands first, it joins this list — it runs
+  `npm ci` in three folders, each with its own `cache-dependency-path`.
 
 ## Open questions for the team
 
@@ -125,6 +134,7 @@ Files that mention npm today and would change:
 
 ## Decision summary
 
-No decision yet. This ADR proposes discussing a Bun workspaces migration to
-fix the 3-lockfile drift and slow setup, with the migration PR owned by
-whoever the team assigns after the discussion.
+No decision yet. The version drift is fixed by aligning versions by hand,
+with or without workspaces — so the real choice before the team is npm
+workspaces versus Bun, judged on setup speed and toolchain cost, with the
+migration PR owned by whoever the team assigns after the discussion.
