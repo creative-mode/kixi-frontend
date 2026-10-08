@@ -53,7 +53,7 @@ export function ManagerNavbar() {
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)
-  const isPublicPage = pathname === '/login';
+  const isPublicPage = pathname === '/login' || pathname === '/403';
 
   // Close menu when route changes
   useEffect(() => {

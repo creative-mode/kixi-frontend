@@ -1,3 +1,5 @@
+// ⚠️ Espelho de lib/roles.ts (apps Next separadas, sem import partilhado).
+// Se alterares a regra de papéis aqui, altera lá também.
 export const ROLES = ['ADMIN', 'TEACHER', 'STUDENT'] as const;
 
 export type Role = (typeof ROLES)[number];

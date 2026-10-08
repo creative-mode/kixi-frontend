@@ -32,9 +32,17 @@ npm --prefix landing run dev   # landing :3004
 | `BACKEND_API_URL` | raiz, student | sim em prod (ex.: `http://localhost:8080/api/v1`) |
 | `JWT_SECRET` | raiz, student | sim quando `KIXI_MOCK=false` (igual à do backend) |
 | `KIXI_MOCK` | raiz | não (`true` = backend simulado local) |
-| `NEXT_PUBLIC_MANAGER_URL` | student | não (fallback: `/manager` na mesma origem) |
+| `APP_ORIGIN` | raiz, student | sim em prod (ex.: `https://kixi.ao`) — endereço público do gateway |
+| `NEXT_PUBLIC_MANAGER_URL` | student | não (fallback: `${APP_ORIGIN}/manager`) |
 | `NEXT_PUBLIC_APP_URL` | landing | não |
 | `PORT`, `*_HOST`, `*_PORT` | gateway | não (defeitos: 3000/3002/3003/3004) |
+
+`APP_ORIGIN` é o que o gestor e o aluno usam para montar redireccionamentos para fora da
+sua app — a landing e a `/403` canónica. Não se pode confiar em `Host` nem em
+`x-forwarded-host` para isso: ambos vêm de quem fez o pedido, e um redireccionamento
+construído a partir deles deixa o utilizador seguir para um domínio à escolha do atacante.
+Atrás do gateway define `APP_ORIGIN` com o endereço público; sem isso, em produção, os
+redireccionamentos saem construídos a partir do pedido e a app avisa no log.
 
 ## Scripts úteis
 

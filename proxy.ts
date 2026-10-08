@@ -2,17 +2,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
+import { resolveOrigin } from '@/lib/origin';
 import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/lib/roles';
 
 const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
 function publicOrigin(request: NextRequest) {
-  const configured = process.env.NEXT_PUBLIC_MANAGER_URL;
-  if (configured) {
-    const url = new URL(configured);
-    return `${url.protocol}//${url.host}`;
-  }
-  return new URL(request.url).origin;
+  // Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem
+  // faz o pedido, e um redireccionamento construído a partir deles é um open redirect.
+  // Ver lib/origin.ts.
+  return resolveOrigin(request.headers, request.nextUrl.protocol) ?? new URL(request.url).origin;
 }
 
 function redirectTo(path: string, request: NextRequest, query?: Record<string, string>) {
@@ -96,12 +95,13 @@ export async function proxy(request: NextRequest) {
     }
 
     const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN');
+    // O professor não entra na gestão (contas, papéis, utilizadores, sessões): 403 com motivo.
+    // Tem de vir antes do encaminhamento para o exam-builder, senão a 403 nunca é vista.
+    if (isTeacher && isManagerOnlyRoute(pathname)) {
+      return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
+    }
     if (isTeacher && !pathname.startsWith('/exam-builder')) {
       return NextResponse.redirect(redirectTo('/exam-builder', request));
-    }
-
-    if (roles.includes('TEACHER') && isManagerOnlyRoute(pathname)) {
-      return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
     }
 
     const response = NextResponse.next();

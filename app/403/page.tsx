@@ -1,18 +1,30 @@
-import Link from 'next/link';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { appOrigin, originFromRequest } from '@/lib/origin';
 
-export default function ForbiddenPage() {
-  return (
-    <main className="grid min-h-dvh place-items-center px-6 py-16">
-      <section className="w-full max-w-lg space-y-5 rounded-xl border bg-card p-8 text-center shadow-xs">
-        <p className="text-sm font-semibold text-muted-foreground">Erro 403</p>
-        <h1 className="text-2xl font-bold tracking-tight">Acesso não permitido</h1>
-        <p className="text-muted-foreground">
-          A tua conta não tem permissão para ver esta área.
-        </p>
-        <Link className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" href="/">
-          Voltar ao início
-        </Link>
-      </section>
-    </main>
-  );
+export const metadata = {
+  title: '403 · Acesso não permitido',
+  description: 'Área restrita do Kixi. A porta não abre para esta conta.',
+};
+
+type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+/**
+ * The canonical 403 lives at the end of the address (`/403`), served by the landing, so
+ * the project has a single door. The student app already forwards here; this does the
+ * same, keeping the query intact, instead of importing the landing's scene into the
+ * manager — which made one app able to break the other's build.
+ */
+export default async function ForbiddenPage({ searchParams }: PageProps) {
+  const [head, params] = await Promise.all([headers(), searchParams]);
+  const search = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) value.forEach((item) => search.append(key, item));
+    else if (value !== undefined) search.set(key, value);
+  }
+
+  const origin = appOrigin() ?? originFromRequest(head, 'http') ?? 'http://localhost:3000';
+  const query = search.toString();
+  redirect(`${origin}/403${query ? `?${query}` : ''}`);
 }
