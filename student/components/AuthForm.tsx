@@ -97,7 +97,7 @@ function strength(pw: string) {
 const LEVELS = [
   { label: 'Muito fraca', tone: 'bg-destructive' },
   { label: 'Fraca', tone: 'bg-destructive' },
-  { label: 'Razoável', tone: 'bg-[#d49a00]' },
+  { label: 'Razoável', tone: 'bg-chart-2' },
   { label: 'Boa', tone: 'bg-primary' },
   { label: 'Forte', tone: 'bg-primary' },
 ];

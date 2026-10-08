@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
-import { createRow, getRow, listOptions, updateRow } from '@/app/actions/crud';
+import { createRow, getRow, listOptions, listRows, updateRow } from '@/app/actions/crud';
 import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
 import { FormSkeleton } from './loading';
@@ -51,6 +51,8 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
 
   const [values, setValues] = useState<Row>({});
   const [options, setOptions] = useState<Record<string, { value: number; label: string }[]>>({});
+  // full rows of deriveFrom entities (to build derived payloads, e.g. year from class)
+  const [lookups, setLookups] = useState<Record<string, Map<number, Row>>>({});
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -67,6 +69,17 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       for (const [k, r] of loaded) {
         if (r.ok) opts[k] = r.data;
         else if (alive) setLoadError(r.error);
+      }
+      if (entity.deriveFrom?.length && alive) {
+        const maps: Record<string, Map<number, Row>> = {};
+        await Promise.all(
+          entity.deriveFrom.map(async (k) => {
+            const r = await listRows(k);
+            if (r.ok) maps[k] = new Map(r.data.map((row: Row) => [Number(row.id), row]));
+            else if (alive) setLoadError(r.error);
+          }),
+        );
+        if (alive) setLookups(maps);
       }
       let initial: Row = {};
       if (editing) {
@@ -99,7 +112,8 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
     setErrors(errs);
     if (Object.values(errs).some(Boolean)) return;
     setSaving(true);
-    const res = editing ? await updateRow(entityKey, id!, values) : await createRow(entityKey, values);
+    const payload = entity.toPayload ? entity.toPayload(values, lookups) : values;
+    const res = editing ? await updateRow(entityKey, id!, payload) : await createRow(entityKey, payload);
     setSaving(false);
     if (res.ok) {
       toast.success(editing ? `${entity.singular} ${gender(entity, 'atualizado')}` : `${entity.singular} ${gender(entity, 'criado')}`);

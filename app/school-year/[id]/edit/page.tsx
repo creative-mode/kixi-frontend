@@ -7,11 +7,12 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, Edit } from 'lucide-react';
 import Link from 'next/link';
 import { FormSkeleton } from '@/components/crud/loading';
+import type { SchoolYearResponse } from '@/types/school-year';
 
 export default function EditSchoolYearPage() {
   const params = useParams();
   const id = Number(params.id);
-  const [schoolYear, setSchoolYear] = useState<any>(null);
+  const [schoolYear, setSchoolYear] = useState<SchoolYearResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

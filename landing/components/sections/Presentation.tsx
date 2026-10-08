@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
 import { Cartridge, LAYERS } from './Cartridge';
+import { GameDemo } from './GameDemo';
+import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
 
 /** Everything the landing has to say, one scene per layer of the cartridge. */
@@ -20,26 +22,10 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
 function Cta({ href, children, secondary }: { href: string; children: React.ReactNode; secondary?: boolean }) {
   return (
     <span className="kx-btn-wrap kx-scope">
-      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ''}`} style={{ textDecoration: 'none' }}>
+      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ' kx-btn--a'}`} style={{ textDecoration: 'none' }}>
         <span className="kx-btn__label">{children}</span>
       </a>
     </span>
-  );
-}
-
-function Intro() {
-  return (
-    <>
-      <h1 id="hero-title" className="pres__title">
-        A prova não é o fim.
-        <span>É onde o estudo começa.</span>
-      </h1>
-      <p className="pres__sub">Treina com provas a sério, tira dúvidas e vê como os outros resolveram.</p>
-      <div className="actions">
-        <Cta href={SIGNUP_URL}>Começar a estudar</Cta>
-        <Cta href="#para-quem" secondary>Sou professor</Cta>
-      </div>
-    </>
   );
 }
 
@@ -112,12 +98,32 @@ export function Presentation() {
     };
   }, []);
 
+  // ↑ / ↓ (and PageUp/PageDown, Space) walk the story in steps you can feel; the browser's own 40px arrow step is invisible on a page this long
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (r.top > 1 || r.bottom < window.innerHeight * 0.5) return; // only while the presentation is on screen
+      const h = window.innerHeight;
+      const step = e.key === 'ArrowDown' ? h * 0.5 : e.key === 'ArrowUp' ? -h * 0.5 : 0;
+      if (!step) return;
+      e.preventDefault();
+      window.scrollBy({ top: step });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   if (still) {
     return (
       <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
         <div className="wrap">
-          <Intro />
-          <Cartridge explode={1} callouts className="pres__svg" />
+          <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
+          <div className="still-plate"><Cartridge explode={1} callouts className="pres__svg" /></div>
           <ol className="pres__list">
             {SCENES.map((s, i) => (
               <li key={s.head}>
@@ -144,7 +150,10 @@ export function Presentation() {
   const turn = smooth(clamp((p2 - 0.78) / 0.12)) * 360; // the whole cartridge spins once as it closes
   const yaws = [0, 1, 2, 3, 4].map((j) => ((smooth(clamp((sc - j - 0.1) / 0.5)) * 360 + turn) * Math.PI) / 180);
   const acts = [0, 1, 2, 3, 4].map((j) => smooth(clamp((sc - j - 0.3) / 0.4)) * clamp((j + 1.1 - sc) / 0.2) * (open > 0.9 ? 1 : 0));
-  const reveal = smooth(clamp((q - 0.92) / 0.08)); // the cartridge appears out of the debris
+  const hero = 1 - smooth(clamp(p / 0.03)); // first screen: the console is big and half out of frame, then rises into place
+  const off = smooth(clamp((q - 0.87) / 0.06)); // the console powers off first…
+  const reveal = smooth(clamp((q - 0.95) / 0.05)); // the cartridge appears out of the debris
+  const eject = smooth(clamp((q - 0.93) / 0.07)); // …then slips away downwards
   const vis = {
     bridge: clamp((q - 0.94) / 0.06) * (1 - clamp((p2 - 0.03) / 0.03)),
     inside: clamp((p2 - 0.07) / 0.04) * clamp((0.205 - p2) / 0.03),
@@ -156,12 +165,11 @@ export function Presentation() {
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
-        <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
-        <div className="pres__prolog" style={{ ['--px' as string]: smooth(clamp((q - 0.92) / 0.08)) }} aria-hidden="true">
-          {q < 1 || p2 < 0.001 ? <Prologue q={q / 0.84} /> : null}
+        <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
+          <h1 id="hero-title" className="pres__hero-title">Tu não és carneiro, só estudas do jeito errado.</h1>
         </div>
         <div className="pres__text">
-          <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
+                    <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
           <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
           {SCENES.map((s, i) => {
             const v = vis.scene(i);
@@ -174,14 +182,16 @@ export function Presentation() {
           <div className="pres__scene" style={layerText(vis.outro)} aria-hidden={vis.outro < 0.5}><Outro /></div>
         </div>
         <div className="pres__art">
-          <div className="pres__cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
+          {eject < 1 ? (
+            <Gameboy eject={eject} off={off} hero={hero} center={1} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
+              {p < 0.004 ? <GameDemo /> : <Prologue q={Math.min(1, q / 0.84)} />}
+            </Gameboy>
+          ) : null}
+          <div className="pres__block" style={{ opacity: reveal }} aria-hidden="true" />
+          <div className="pres__cart pres__art--cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
           </div>
         </div>
-        <div className="pres__hint" style={{ opacity: 0.72 * (1 - clamp((q - 0.01) / 0.05)) }} aria-hidden="true">
-          <svg viewBox="0 0 11 7" width="32" height="20" shapeRendering="crispEdges" fill="currentColor"><path d="M0 0h3v1h1v1h1v1h1V2h1V1h1V0h3v1h-1v1h-1v1h-1v1h-1v1h-1v1H5V6H4V5H3V4H2V3H1V2H0z" /></svg>
-        </div>
-        <div className="pres__rail" aria-hidden="true"><span style={{ transform: `scaleY(${p})` }} /></div>
       </div>
     </section>
   );

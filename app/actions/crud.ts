@@ -47,8 +47,8 @@ const safeId = (id: string | number) => {
 async function guard<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
   try {
     return await fn();
-  } catch (e: any) {
-    const msg = String(e?.message ?? '');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '';
     return fail(msg.includes('Não autenticado') ? 'Sessão expirada. Inicie sessão novamente.' : msg || 'Não foi possível contactar o servidor.');
   }
 }
@@ -139,10 +139,12 @@ export async function deleteRow(key: string, id: string | number) {
 }
 export async function restoreRow(key: string, id: string | number) {
   const e = entity(key);
+  if (!e.restore) return fail('Esta entidade não pode ser restaurada.');
   return simple(key, id, e.restore.method, e.restore.suffix, 'Não foi possível restaurar.');
 }
 export async function purgeRow(key: string, id: string | number) {
   const e = entity(key);
+  if (!e.purge) return fail('Esta entidade não pode ser eliminada definitivamente.');
   return simple(key, id, 'DELETE', e.purge.suffix, 'Não foi possível eliminar definitivamente.');
 }
 
@@ -211,5 +213,54 @@ export async function dashboardCounts(): Promise<Result<Record<string, number>>>
     const review = await call('/api/v1/statements/review').catch(() => null);
     counts.review = review?.ok ? ((await review.json()) as Row[]).length : -1;
     return ok(counts);
+  });
+}
+
+// ── institutions: affiliations, teacher access, manual statements ───────────
+export type LinkKind = 'subjects' | 'teachers' | 'students';
+
+export async function institutionLinks(institutionId: number, kind: LinkKind): Promise<Result<Row[]>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/institutions/${safeId(institutionId)}/${kind}`);
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row[]);
+  });
+}
+export async function setInstitutionLink(institutionId: number, kind: LinkKind, targetId: number, linked: boolean): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/institutions/${safeId(institutionId)}/${kind}/${safeId(targetId)}`, { method: linked ? 'POST' : 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    return ok(undefined);
+  });
+}
+/** Schools the current account may build statements for (admin: all; teacher: affiliated ones). */
+export async function myInstitutions(): Promise<Result<Row[]>> {
+  return guard(async () => {
+    const res = await call('/api/v1/institutions/mine');
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row[]);
+  });
+}
+export async function grantTeacherAccess(teacherId: number, values: { username: string; email: string; password: string }): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/teachers/${safeId(teacherId)}/account`, { method: 'POST', body: JSON.stringify(values) });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/teachers');
+    return ok(undefined);
+  });
+}
+export async function revokeTeacherAccess(teacherId: number): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/teachers/${safeId(teacherId)}/account`, { method: 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/teachers');
+    return ok(undefined);
+  });
+}
+export async function createManualStatement(values: Row): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify(values) });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row);
   });
 }

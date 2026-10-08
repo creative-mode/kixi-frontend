@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Alerta de bloqueio — quando uma issue fecha (ou o PR dela faz merge), avisa as issues que dependiam dela.
 // As dependências vêm da secção "## 🔗 Depende de" do corpo da issue, ex.:
 //   #104 (BE-08), creative-mode/kixi#110 (BE-14)
@@ -68,7 +69,7 @@ async function alertFor({ github, context, core }, closed) {
 }
 
 module.exports = async (ctx) => {
-  const { github, context, core } = ctx;
+  const { github, context } = ctx;
   const { owner, repo } = context.repo;
 
   // 1) Issue fechada (manualmente ou pelo GitHub)

@@ -6,29 +6,22 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
-  FileText,
-  Calendar,
-  Image,
-  UserCheck,
-  Layers,
-  Briefcase,
-  Newspaper,
   LogOut,
   X,
   Menu as MenuIcon,
   ChevronRight,
-  Quote,
   FilePen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
 import { UserDisplay } from "./user-display";
+import { fetchCurrentUser } from "@/lib/auth";
 import { KixiLogo } from "./kixi-logo";
 
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 
-const navLinks = [
+const allNavLinks = [
   {
     href: "/",
     label: "Dashboard",
@@ -51,14 +44,21 @@ const navLinks = [
 
 export function ManagerNavbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [teacherOnly, setTeacherOnly] = useState(false);
+  useEffect(() => {
+    fetchCurrentUser().then((u) => setTeacherOnly(!!u && !u.roles.includes('ADMIN') && u.roles.includes('TEACHER')));
+  }, []);
+  // O professor só vê o exam builder.
+  const navLinks = teacherOnly ? allNavLinks.filter((l) => l.href === '/exam-builder') : allNavLinks;
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)
-  const isPublicPage = pathname === '/login';
+  const isPublicPage = pathname === '/login' || pathname === '/403';
 
   // Close menu when route changes
   useEffect(() => {
-    setIsOpen(false);
+    const task = window.setTimeout(() => setIsOpen(false), 0);
+    return () => window.clearTimeout(task);
   }, [pathname]);
 
   // Lock body scroll when menu is open

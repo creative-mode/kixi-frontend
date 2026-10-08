@@ -3,18 +3,19 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { apiFetch } from '@/lib/mock/fetch';
+import { canAccessManager, normalizeRoles } from '@/lib/roles';
 
 interface LoginResponse {
   accessToken: string;
-  tokenType: string;     // "Bearer"
-  expiresAt: string;     // ISO instant (ex: "2026-02-17T15:30:00Z")
+  tokenType: string;
+  expiresAt: string;
   accountId: number;
   roles: string[];
 }
 
 export async function loginAction(formData: FormData) {
-  const usernameOrEmail = formData.get('usernameOrEmail') as string;
-  const password = formData.get('password') as string;
+  const usernameOrEmail = String(formData.get('usernameOrEmail') ?? '').trim();
+  const password = String(formData.get('password') ?? '');
 
   if (!usernameOrEmail || !password) {
     return { error: 'Username ou email e password são obrigatórios' };
@@ -26,12 +27,9 @@ export async function loginAction(formData: FormData) {
 
     const response = await apiFetch(backendUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usernameOrEmail, password }),
-      // Timeout para evitar ficar pendurado
-      signal: AbortSignal.timeout(10000), // 10 segundos
+      signal: AbortSignal.timeout(10000),
     });
 
     if (response.status === 400 || response.status === 401) {
@@ -39,7 +37,6 @@ export async function loginAction(formData: FormData) {
     }
 
     if (!response.ok) {
-      // Tenta ler mensagem de erro do backend se existir
       const errorData = await response.json().catch(() => ({}));
       return {
         error:
@@ -51,68 +48,57 @@ export async function loginAction(formData: FormData) {
     }
 
     const data = (await response.json()) as LoginResponse;
+    const roles = normalizeRoles(data.roles);
+    const expiresAt = Date.parse(data.expiresAt);
 
     if (!data.accessToken || !data.tokenType?.toLowerCase().includes('bearer')) {
       return { error: 'Resposta inválida do servidor (token não recebido)' };
     }
 
-    // Verifica se o utilizador tem role ADMIN — só admins podem aceder ao Kixi Manager
-    if (!data.roles || !data.roles.includes('ADMIN')) {
-      return { error: 'Acesso negado. Apenas administradores podem aceder ao Kixi Manager.' };
+    if (!canAccessManager(roles)) {
+      return {
+        error:
+          'Acesso negado. Apenas administradores e professores podem aceder ao Kixi Manager.',
+      };
     }
 
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      return { error: 'Esta conta não tem acesso válido ao Kixi Manager.' };
+    }
+
+    const maxAgeSeconds = Math.max(1, Math.floor((expiresAt - Date.now()) / 1000));
     const cookieStore = await cookies();
     // Cookie Secure só em HTTPS (direto ou atrás de um proxy TLS); em HTTP o browser descartaria o cookie e o login não ficaria guardado.
     const secure = (await headers()).get('x-forwarded-proto') === 'https';
-
-    // Calcula maxAge aproximado em segundos a partir de expiresAt
-    let maxAgeSeconds: number | undefined;
-    try {
-      const expires = new Date(data.expiresAt);
-      const now = new Date();
-      const diffMs = expires.getTime() - now.getTime();
-      if (diffMs > 0) {
-        maxAgeSeconds = Math.floor(diffMs / 1000);
-      }
-    } catch (e) {
-      console.warn('Não foi possível parsear expiresAt:', data.expiresAt);
-      // fallback: 24h se não conseguir calcular
-      maxAgeSeconds = 60 * 60 * 24;
-    }
 
     cookieStore.set('auth_token', data.accessToken, {
       httpOnly: true,
       secure,
       sameSite: 'lax',
       path: '/',
-      maxAge: maxAgeSeconds,           // ideal: usa o tempo real de expiração
-      // expires: new Date(data.expiresAt)  ← alternativa (mais precisa em alguns casos)
+      expires: new Date(expiresAt),
+      maxAge: maxAgeSeconds,
     });
 
-    // Opcional: guardar informação mínima não-sensível (útil para UI rápida)
-    // Não guarda password nem token aqui
     cookieStore.set(
       'user_info',
-      JSON.stringify({
-        accountId: data.accountId,
-        roles: data.roles,
-        // name / email / etc... só se o backend retornar
-      }),
+      JSON.stringify({ accountId: data.accountId, roles }),
       {
-        httpOnly: false,           // ← permite ler no client se quiseres
+        httpOnly: false,
         secure,
         sameSite: 'lax',
         path: '/',
+        expires: new Date(expiresAt),
         maxAge: maxAgeSeconds,
-      }
+      },
     );
 
     return { success: true };
-  } catch (err: any) {
-    console.error('Erro durante login:', err);
+  } catch (error: unknown) {
+    console.error('Erro durante login:', error);
     return {
       error:
-        err.name === 'TimeoutError'
+        error instanceof Error && error.name === 'TimeoutError'
           ? 'O servidor demorou muito a responder. Tente novamente.'
           : 'Erro ao conectar com o servidor de autenticação',
     };
@@ -122,6 +108,6 @@ export async function loginAction(formData: FormData) {
 export async function logoutAction() {
   const cookieStore = await cookies();
   cookieStore.delete('auth_token');
-  cookieStore.delete('user_info'); // se estiver usando
-  redirect('/login');
+  cookieStore.delete('user_info');
+  redirect('/login?reason=logged-out');
 }

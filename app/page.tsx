@@ -27,7 +27,6 @@ import {
   isAuthError,
 } from "@/components/dashboard/section-state";
 import {
-  KpiSkeleton,
   TileSkeleton,
 } from "@/components/dashboard/dashboard-skeleton";
 import { StatementsTable } from "@/components/dashboard/statements-table";
