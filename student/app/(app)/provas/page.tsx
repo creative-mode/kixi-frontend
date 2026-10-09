@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Camera, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, Search } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -91,7 +91,7 @@ function Filters({
   );
 
   return (
-    <form method="get" action="/provas" className="grid gap-3">
+    <form method="get" className="grid gap-3">
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -211,11 +211,11 @@ export default async function Provas({ searchParams }: { searchParams: Params })
         {pages > 1 ? (
           <nav className="flex items-center justify-between text-sm" aria-label="Paginação">
             {current > 1 ? (
-              <Button asChild variant="outline" size="sm"><Link href={href(current - 1)}>← Anteriores</Link></Button>
+              <Button asChild variant="outline" size="sm"><Link href={href(current - 1)}><ArrowLeft aria-hidden /> Anteriores</Link></Button>
             ) : <span />}
             <span className="text-muted-foreground">Página {current} de {pages} · {total} provas</span>
             {current < pages ? (
-              <Button asChild variant="outline" size="sm"><Link href={href(current + 1)}>Seguintes →</Link></Button>
+              <Button asChild variant="outline" size="sm"><Link href={href(current + 1)}>Seguintes <ArrowRight aria-hidden /></Link></Button>
             ) : <span />}
           </nav>
         ) : null}
