@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getAuthHeaders } from '@/lib/auth.server';
+import { getAuthHeaders, getCurrentUser } from '@/lib/auth.server';
 import { API_HOST } from '@/lib/constants';
 import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
 import { apiFetch } from '@/lib/mock/fetch';
@@ -194,6 +194,50 @@ export async function getStatementFull(id: number): Promise<Result<Row>> {
     const res = await call(`/api/v1/statements/${safeId(id)}/full`);
     if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as Row);
+  });
+}
+
+// ── teacher scope ───────────────────────────────────────────────────────────
+// The CRUD endpoints return every record, so a plain teacher (never an admin)
+// narrows the lists on the client to their own classes/subjects. Admins, or a
+// teacher with no teacher record, get `restricted: false` and see everything.
+export interface TeachingScope {
+  restricted: boolean;
+  classIds: number[];
+  subjectIds: number[];
+  /** Ids of the statements that fall inside the teacher's classes/subjects. */
+  statementIds: number[];
+}
+
+const openScope = (): TeachingScope => ({ restricted: false, classIds: [], subjectIds: [], statementIds: [] });
+
+const numericIds = (rows: Row[], field: string) => [
+  ...new Set(rows.map((r) => Number(r[field])).filter((n) => Number.isFinite(n))),
+];
+
+export async function myTeachingScope(): Promise<Result<TeachingScope>> {
+  return guard(async () => {
+    const user = await getCurrentUser();
+    const roles = user?.roles ?? [];
+    if (!user || roles.includes('ADMIN') || !roles.includes('TEACHER')) return ok(openScope());
+
+    const meRes = await call('/api/v1/teachers/me');
+    if (!meRes.ok) return ok(openScope());
+    const me = (await meRes.json()) as Row;
+
+    const assignRes = await call('/api/v1/teaching-assignments');
+    if (!assignRes.ok) return fail(await message(assignRes));
+    const mine = ((await assignRes.json()) as Row[]).filter((a) => Number(a.teacherId) === Number(me.id));
+    const classIds = numericIds(mine, 'classId');
+    const subjectIds = numericIds(mine, 'subjectId');
+
+    const statementsRes = await call('/api/v1/statements');
+    const statements = statementsRes.ok ? ((await statementsRes.json()) as Row[]) : [];
+    const statementIds = statements
+      .filter((s) => classIds.includes(Number(s.classId)) || subjectIds.includes(Number(s.subjectId)))
+      .map((s) => Number(s.id));
+
+    return ok({ restricted: true, classIds, subjectIds, statementIds });
   });
 }
 

@@ -11,12 +11,12 @@ import {
   Menu as MenuIcon,
   ChevronRight,
   FilePen,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
 import { UserDisplay } from "./user-display";
-import { fetchCurrentUser } from "@/lib/auth";
 import { KixiLogo } from "./kixi-logo";
 
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
@@ -42,14 +42,23 @@ const allNavLinks = [
   }),
 ];
 
-export function ManagerNavbar() {
+const TEACHER_HREFS = ["/statements", "/simulations", "/simulation-answers", "/classes"];
+
+const teacherHomeLink = {
+  href: "/professor",
+  label: "Início",
+  description: "Atalhos e resumo da sua atividade",
+  icon: Home,
+  color: "bg-accent text-primary",
+};
+
+export function ManagerNavbar({ roles }: { roles: string[] }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [teacherOnly, setTeacherOnly] = useState(false);
-  useEffect(() => {
-    fetchCurrentUser().then((u) => setTeacherOnly(!!u && !u.roles.includes('ADMIN') && u.roles.includes('TEACHER')));
-  }, []);
-  // O professor só vê o exam builder.
-  const navLinks = teacherOnly ? allNavLinks.filter((l) => l.href === '/exam-builder') : allNavLinks;
+  const isAdmin = roles.includes("ADMIN");
+  const isTeacher = roles.includes("TEACHER");
+  const navLinks = isTeacher && !isAdmin
+    ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href))]
+    : allNavLinks;
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)
