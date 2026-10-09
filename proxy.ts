@@ -7,18 +7,22 @@ import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/li
 
 const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
-function publicOrigin(request: NextRequest) {
+function publicOrigin(request: NextRequest): string | null {
   // Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem
   // faz o pedido, e um redireccionamento construído a partir deles é um open redirect.
+  // Sem configuração não há origem pública: o chamador degrada para relativo.
   // Ver lib/origin.ts.
-  return resolveOrigin(request.headers, request.nextUrl.protocol) ?? new URL(request.url).origin;
+  return resolveOrigin(request.headers, request.nextUrl.protocol);
 }
 
 function redirectTo(path: string, request: NextRequest, query?: Record<string, string>) {
   const url = request.nextUrl.clone();
-  const origin = new URL(publicOrigin(request));
-  url.protocol = origin.protocol;
-  url.host = origin.host;
+  const origin = publicOrigin(request);
+  if (origin) {
+    const parsed = new URL(origin);
+    url.protocol = parsed.protocol;
+    url.host = parsed.host;
+  }
   url.pathname = path;
   url.search = '';
   for (const [key, value] of Object.entries(query ?? {})) {

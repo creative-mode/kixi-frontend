@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { appOrigin, originFromRequest } from '@/lib/origin';
+import { resolveOrigin } from '@/lib/origin';
 
 export const metadata = {
   title: '403 · Acesso não permitido',
@@ -26,7 +26,10 @@ export default async function ForbiddenPage({ searchParams }: PageProps) {
     else if (value !== undefined) search.set(key, value);
   }
 
-  const origin = appOrigin() ?? originFromRequest(head, 'http') ?? 'http://localhost:3000';
+  // Sem origem configurada em produção, o destino relativo mantém o utilizador
+  // na mesma origem — um redirect relativo nunca é um open redirect.
+  const origin = resolveOrigin(head, 'http');
   const query = search.toString();
-  redirect(`${origin}/403${query ? `?${query}` : ''}`);
+  const target = `/403${query ? `?${query}` : ''}`;
+  redirect(origin ? `${origin}${target}` : target);
 }

@@ -5,17 +5,21 @@ import { managerUrl as configuredManagerUrl, resolveOrigin } from '@/lib/origin'
 const PUBLIC = ['/entrar', '/cadastro'];
 /** O manager vive no mesmo endereço, em /manager (fora do basePath deste app). */
 /** Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público
- *  (configuração primeiro, cabeçalhos do gateway como recurso). */
-function publicOrigin(req: NextRequest) {
-  const configured = resolveOrigin(req.headers, req.nextUrl.protocol);
-  return configured ?? new URL(req.nextUrl.href).origin;
+ *  (configuração primeiro). Sem configuração, não há para onde ir a não ser o próprio
+ *  endereço — nunca os cabeçalhos do pedido, que o atacante escolhe. */
+function publicOrigin(req: NextRequest): string | null {
+  return resolveOrigin(req.headers, req.nextUrl.protocol);
 }
-const managerUrl = (req: NextRequest) => configuredManagerUrl() ?? new URL('/manager', publicOrigin(req)).toString();
-/** Redireciona dentro deste app (mantém o basePath /aluno). */
+const managerUrl = (req: NextRequest) => configuredManagerUrl() ?? '/manager';
+/** Redireciona dentro deste app (mantém o basePath /aluno). Sem origem configurada,
+ *  só muda o caminho no endereço actual — um redirect relativo nunca sai da origem. */
 function go(req: NextRequest, pathname: string) {
   const url = req.nextUrl.clone();
-  url.host = new URL(publicOrigin(req)).host;
-  url.protocol = new URL(publicOrigin(req)).protocol;
+  const origin = publicOrigin(req);
+  if (origin) {
+    url.host = new URL(origin).host;
+    url.protocol = new URL(origin).protocol;
+  }
   url.pathname = pathname;
   return NextResponse.redirect(url);
 }

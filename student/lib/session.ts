@@ -1,18 +1,18 @@
 import 'server-only';
 import { cookies, headers } from 'next/headers';
-import { managerUrl as configuredManagerUrl, originFromRequest } from './origin';
+import { managerUrl as configuredManagerUrl, resolveOrigin } from './origin';
 
 export const COOKIE = 'auth_token';
 export const BACKEND = (process.env.BACKEND_API_URL ?? 'http://localhost:8080/api/v1').replace(/\/$/, '');
 
 /** Where ADMIN accounts are sent: the manager app (same cookie, so no second sign-in).
- *  Configured origin first; the request headers are only trusted outside production. */
+ *  Configured origin first; without configuration it degrades to the same-origin
+ *  `/manager` path (the gateway routes it), never to the request headers. */
 export async function managerUrl(): Promise<string> {
   const configured = configuredManagerUrl();
   if (configured) return configured;
-  const h = await headers();
-  const origin = originFromRequest(h, 'http') ?? 'http://localhost:3000';
-  return `${origin}/manager`;
+  const origin = resolveOrigin(await headers(), 'http');
+  return origin ? `${origin}/manager` : '/manager';
 }
 
 export type Session = { accountId: number | null; roles: string[]; exp: number };

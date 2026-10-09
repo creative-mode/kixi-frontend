@@ -41,7 +41,8 @@ export function managerUrl(): string | null {
   return base ? `${base}/manager` : null;
 }
 
-/** Last resort, development only: believe the request. */
+/** Last resort, development only: believe the request. Never call this in
+ *  production — `resolveOrigin` already refuses to. */
 export function originFromRequest(headers: Headers, fallbackProtocol: string): string | null {
   const host = headers.get('x-forwarded-host') ?? headers.get('host');
   if (!host) return null;
@@ -53,9 +54,14 @@ export function originFromRequest(headers: Headers, fallbackProtocol: string): s
   }
 }
 
-/** The origin to build redirects from, or null when nothing is configured. */
+/** The origin to build redirects from, or null when nothing is configured.
+ *  In production this is configuration only: without `APP_ORIGIN` (or
+ *  `NEXT_PUBLIC_MANAGER_URL` for the manager address) there is no redirect
+ *  target, and callers must degrade to a same-origin relative redirect —
+ *  never to the request headers, which the attacker chooses. */
 export function resolveOrigin(headers: Headers, fallbackProtocol: string): string | null {
-  const configured = appOrigin() ?? originFromRequest(headers, fallbackProtocol);
+  const configured = appOrigin();
   if (configured) return configured;
-  return null;
+  if (process.env.NODE_ENV === 'production') return null;
+  return originFromRequest(headers, fallbackProtocol);
 }

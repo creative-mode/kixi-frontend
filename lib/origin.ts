@@ -48,18 +48,13 @@ export function originFromRequest(headers: Headers, fallbackProtocol: string): s
 }
 
 /**
- * The origin to build redirects from. In production this is configuration only; if it
- * is missing we fall back to the request so a misconfigured deployment still redirects
- * (with a warning) instead of hard-failing every login.
+ * The origin to build redirects from. In production this is configuration only;
+ * when it is missing there is no target: callers degrade to a same-origin
+ * relative redirect instead of trusting the request headers.
  */
 export function resolveOrigin(headers: Headers, fallbackProtocol: string): string | null {
   const configured = managerOrigin() ?? appOrigin();
   if (configured) return configured;
-  if (process.env.NODE_ENV === 'production') {
-    console.warn(
-      '[kixi] APP_ORIGIN não está definido: a construir redireccionamentos a partir do pedido. ' +
-        'Define APP_ORIGIN com o endereço público do gateway.',
-    );
-  }
+  if (process.env.NODE_ENV === 'production') return null;
   return originFromRequest(headers, fallbackProtocol);
 }
