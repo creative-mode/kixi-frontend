@@ -13,7 +13,11 @@ import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
 const PAGE_SIZE = 10;
-const EXAM_TYPES = ['P1', 'P2', 'Exame'];
+/** Copied from the manager's KINDS (lib/exam/schools.ts): examType is free text
+ *  in the backend and the catalog matches case-insensitively, so the filter
+ *  must offer exactly what the manager writes. Kept as a copy because the apps
+ *  do not share imports. */
+const EXAM_TYPES = ['Trabalho prático', 'Teste', 'Prova', 'Exame'];
 
 function one(raw: string | string[] | undefined): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
