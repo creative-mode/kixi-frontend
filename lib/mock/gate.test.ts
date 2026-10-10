@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { approvalProblem, type GateStatement } from './gate';
+import { approvalProblem, type GateStatement } from './gate.ts';
 
 const choice = (number: number, maxScore: number, isCorrect: boolean[], extra: Partial<GateStatement['questions'][number]> = {}) => ({
   number,
