@@ -41,8 +41,16 @@ export function managerUrl(): string | null {
   return base ? `${base}/manager` : null;
 }
 
-/** Last resort, development only: believe the request. */
+/**
+ * Last resort, outside production only: believe the request.
+ *
+ * In production this returns null whatever the request says. `x-forwarded-host` and `Host`
+ * are chosen by whoever made the request, so a redirect built from either is an open
+ * redirect. The guard is here as well as in `resolveOrigin`: this function is exported, and
+ * an export that is only correct by convention is one a future import breaks silently.
+ */
 export function originFromRequest(headers: Headers, fallbackProtocol: string): string | null {
+  if (process.env.NODE_ENV === 'production') return null;
   const host = headers.get('x-forwarded-host') ?? headers.get('host');
   if (!host) return null;
   const proto = headers.get('x-forwarded-proto') ?? fallbackProtocol.replace(':', '');
@@ -53,9 +61,26 @@ export function originFromRequest(headers: Headers, fallbackProtocol: string): s
   }
 }
 
-/** The origin to build redirects from, or null when nothing is configured. */
+/**
+ * The origin to build redirects from, or null when nothing is configured.
+ *
+ * In production this is configuration or nothing. Degrading to a same-origin redirect would
+ * turn one missing variable into a broken page for the first person who opens the app, so
+ * we refuse instead, with the same philosophy as the backend's ProdJwtSecretGuard: a missing
+ * APP_ORIGIN fails at deploy time, not at runtime. The docker-compose sets APP_ORIGIN by
+ * default, so containers are unaffected; this catches the hosting where it is forgotten.
+ *
+ * Outside production the request is believed, so `npm run dev` works with no environment.
+ */
 export function resolveOrigin(headers: Headers, fallbackProtocol: string): string | null {
-  const configured = appOrigin() ?? originFromRequest(headers, fallbackProtocol);
+  const configured = appOrigin();
   if (configured) return configured;
-  return null;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'APP_ORIGIN não está definido: em produção os redirects entre apps não podem ser ' +
+        'construídos a partir dos cabeçalhos do pedido. Define APP_ORIGIN com o endereço ' +
+        'público do gateway.',
+    );
+  }
+  return originFromRequest(headers, fallbackProtocol);
 }

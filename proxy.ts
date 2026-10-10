@@ -7,18 +7,33 @@ import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/li
 
 const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
-function publicOrigin(request: NextRequest) {
-  // Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem
-  // faz o pedido, e um redireccionamento construído a partir deles é um open redirect.
-  // Ver lib/origin.ts.
-  return resolveOrigin(request.headers, request.nextUrl.protocol) ?? new URL(request.url).origin;
+/**
+ * A origem de confiança, ou null quando não há nenhuma.
+ *
+ * Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem faz o
+ * pedido, e um redireccionamento construído a partir deles é um open redirect. Em produção
+ * `resolveOrigin` recusa sem `APP_ORIGIN`, por isso este null só acontece em desenvolvimento.
+ */
+function publicOrigin(request: NextRequest): string | null {
+  return resolveOrigin(request.headers, request.nextUrl.protocol);
 }
 
+/**
+ * A porta vai também, e não só o nome: `url.host` deixa a porta que o Next já tinha, que
+ * por trás do gateway é a interna da app. Com `APP_ORIGIN=https://kixi.ao`, sem porta, isso
+ * dava `https://kixi.ao:3002/...` e nenhuma visita sem sessão chegava ao gestor.
+ * `URL.port` é uma string vazia quando a origem não tem porta, e atribuí-la limpa a que
+ * lá estava.
+ */
 function redirectTo(path: string, request: NextRequest, query?: Record<string, string>) {
   const url = request.nextUrl.clone();
-  const origin = new URL(publicOrigin(request));
-  url.protocol = origin.protocol;
-  url.host = origin.host;
+  const origin = publicOrigin(request);
+  if (origin) {
+    const alvo = new URL(origin);
+    url.protocol = alvo.protocol;
+    url.host = alvo.host;
+    url.port = alvo.port;
+  }
   url.pathname = path;
   url.search = '';
   for (const [key, value] of Object.entries(query ?? {})) {
