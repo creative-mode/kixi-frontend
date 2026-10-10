@@ -57,6 +57,13 @@ export function QuickAssign() {
           if (ids.length === 1) {
             setTeacherId(String(ids[0]));
             setLockedTeacher(`Professor #${ids[0]} (o teu registo)`);
+          } else if (ids.length === 0) {
+            // Sem atribuições ainda não há como descobrir o registo de professor:
+            // o backend não expõe /teachers/me (ver kixi#176). Em vez de um erro
+            // críptico, diz-se o que fazer: a primeira atribuição é do ADMIN.
+            setLoadError(
+              'Ainda não tens atribuições: pede ao administrador a primeira, e depois este ecrã fica disponível.',
+            );
           } else {
             setLoadError(t.error);
           }
