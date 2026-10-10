@@ -14,7 +14,7 @@
  * environment configured.
  */
 
-/** The gateway root, where the landing and the canonical /403 live. Empty string when unset. */
+/** The gateway root, where the landing and the canonical /403 live. */
 export function appOrigin(): string | null {
   return origin(process.env.APP_ORIGIN);
 }
@@ -28,37 +28,46 @@ function origin(value: string | undefined): string | null {
   const raw = value?.trim();
   if (!raw) return null;
   try {
-    const url = new URL(raw);
-    return url.origin;
+    return new URL(raw).origin;
   } catch {
     return null;
   }
+}
+/**
+ * Last resort, outside production only: believe the request.
+ *
+ * In production this returns null whatever the request says. That is the whole fix: every
+ * caller already goes through here or through `resolveOrigin`, so one guard covers the
+ * `/403` forwarding, the proxy redirects and the manager handoff at the same time.
+ */
+export function originFromRequest(headers: Headers, fallbackProtocol: string): string | null {
+  if (!emProducao()) {
+    const host = headers.get('x-forwarded-host') ?? headers.get('host');
+    if (host) {
+      const proto = headers.get('x-forwarded-proto') ?? fallbackProtocol.replace(':', '');
+      try {
+        return new URL(`${proto}://${host}`).origin;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
-/** Last resort, development only: believe the request. */
-export function originFromRequest(headers: Headers, fallbackProtocol: string): string | null {
-  const host = headers.get('x-forwarded-host') ?? headers.get('host');
-  if (!host) return null;
-  const proto = headers.get('x-forwarded-proto') ?? fallbackProtocol.replace(':', '');
-  try {
-    return new URL(`${proto}://${host}`).origin;
-  } catch {
-    return null;
-  }
-}
+const emProducao = () => process.env.NODE_ENV === 'production';
 
 /**
- * The origin to build redirects from. In production this is configuration only; if it
- * is missing we fall back to the request so a misconfigured deployment still redirects
- * (with a warning) instead of hard-failing every login.
+ * The origin to build redirects from, or null when nothing is configured.
  */
 export function resolveOrigin(headers: Headers, fallbackProtocol: string): string | null {
   const configured = managerOrigin() ?? appOrigin();
   if (configured) return configured;
-  if (process.env.NODE_ENV === 'production') {
-    console.warn(
-      '[kixi] APP_ORIGIN não está definido: a construir redireccionamentos a partir do pedido. ' +
-        'Define APP_ORIGIN com o endereço público do gateway.',
+  if (emProducao()) {
+    throw new Error(
+      'APP_ORIGIN não está definido: em produção os redirects entre apps não podem ser ' +
+        'construídos a partir dos cabeçalhos do pedido. Define APP_ORIGIN com o endereço ' +
+        'público do gateway.',
     );
   }
   return originFromRequest(headers, fallbackProtocol);
