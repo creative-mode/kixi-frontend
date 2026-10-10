@@ -11,6 +11,7 @@ import {
   Menu as MenuIcon,
   ChevronRight,
   FilePen,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,13 @@ const allNavLinks = [
     icon: FilePen,
     color: "bg-accent text-primary",
   },
+  {
+    href: "/assign",
+    label: "Atribuir",
+    description: "Professor, turma e disciplina numa só tela",
+    icon: UserCheck,
+    color: "bg-accent text-primary",
+  },
   ...NAV_KEYS.map((k) => {
     const e = ENTITIES[k];
     return { href: `/${e.path}`, label: e.plural, description: e.description, icon: e.icon, color: e.tone };
@@ -48,8 +56,8 @@ export function ManagerNavbar() {
   useEffect(() => {
     fetchCurrentUser().then((u) => setTeacherOnly(!!u && !u.roles.includes('ADMIN') && u.roles.includes('TEACHER')));
   }, []);
-  // O professor só vê o exam builder.
-  const navLinks = teacherOnly ? allNavLinks.filter((l) => l.href === '/exam-builder') : allNavLinks;
+  // O professor só vê o exam builder e a atribuição rápida.
+  const navLinks = teacherOnly ? allNavLinks.filter((l) => l.href === '/exam-builder' || l.href === '/assign') : allNavLinks;
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)

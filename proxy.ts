@@ -115,7 +115,7 @@ export async function proxy(request: NextRequest) {
     if (isTeacher && isManagerOnlyRoute(pathname)) {
       return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
     }
-    if (isTeacher && !pathname.startsWith('/exam-builder')) {
+    if (isTeacher && !pathname.startsWith('/exam-builder') && !pathname.startsWith('/assign')) {
       return NextResponse.redirect(redirectTo('/exam-builder', request));
     }
 
