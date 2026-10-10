@@ -41,8 +41,15 @@ npm --prefix landing run dev   # landing :3004
 sua app — a landing e a `/403` canónica. Não se pode confiar em `Host` nem em
 `x-forwarded-host` para isso: ambos vêm de quem fez o pedido, e um redireccionamento
 construído a partir deles deixa o utilizador seguir para um domínio à escolha do atacante.
-Atrás do gateway define `APP_ORIGIN` com o endereço público; sem isso, em produção, os
-redireccionamentos saem construídos a partir do pedido e a app avisa no log.
+Atrás do gateway define `APP_ORIGIN` com o endereço público.
+
+**`APP_ORIGIN` é obrigatório em produção.** Sem ele, `resolveOrigin` recusa, e o erro diz o
+nome da variável: uma configuração em falta aparece no deploy, e não como um login que não
+funciona. Fora de produção o pedido é acreditado, para o `npm run dev` funcionar sem `.env`.
+
+A origem tem de trazer a porta quando a traz. Atrás do gateway o Next vê o host interno, com
+a porta interna da app; se a origem não a trouxer, o redirect saía em
+`https://kixi.ao:3002/...` e nenhuma visita sem sessão chegava ao gestor.
 
 ## Scripts úteis
 

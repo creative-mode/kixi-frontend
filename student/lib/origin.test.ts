@@ -84,3 +84,21 @@ test('originFromRequest recusa em produção mesmo quando é chamado à mão', (
     assert.equal(originFromRequest(pedido(), 'http:'), null);
   }, 'https://kixi.ao');
 });
+
+test('uma APP_ORIGIN sem porta limpa a porta interna da app', () => {
+  // Atrás do gateway o Next vê o host interno, com a porta interna. `url.host` muda o nome
+  // mas deixa a porta, e o redirect saía em `https://kixi.ao:3002/...`. Um teste só do
+  // cabeçalho não via isto: é no URL montado que a porta fica visível.
+  comAmbiente('production', () => {
+    const pedido = new Headers({ host: 'gestor:3002', 'x-forwarded-host': 'kixi.ao', 'x-forwarded-proto': 'https' });
+    const origem = resolveOrigin(pedido, 'http:');
+    assert.equal(origem, 'https://kixi.ao');
+    assert.equal(new URL(origem as string).port, '', 'a origem não traz porta, e é isso que tem de chegar ao redirect');
+  }, 'https://kixi.ao');
+});
+
+test('uma APP_ORIGIN com porta é respeitada', () => {
+  comAmbiente('production', () => {
+    assert.equal(new URL(resolveOrigin(pedido(), 'http:') as string).port, '4000');
+  }, 'http://127.0.0.1:4000');
+});
