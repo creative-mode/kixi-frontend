@@ -42,6 +42,18 @@ const SHORTCUTS = [
   },
 ] as const;
 
+/** A listagem de simulações não vem ordenada (`findByDeletedAtIsNull` não tem
+ * ORDER BY), por isso "últimas" tem de ser uma ordenação nossa — e tem de
+ * acontecer antes do `slice`, senão os cinco primeiros são cinco quaisquer. */
+function byMostRecent(rows: Row[]): Row[] {
+  const time = (r: Row) => {
+    const raw = r.createdAt ?? r.startedAt;
+    const value = raw ? Date.parse(String(raw)) : Number.NaN;
+    return Number.isFinite(value) ? value : 0;
+  };
+  return [...rows].sort((a, b) => time(b) - time(a) || Number(b.id) - Number(a.id));
+}
+
 export default function TeacherHome() {
   const [rooms, setRooms] = useState<Row[] | null>(null);
   const [pending, setPending] = useState<Row[] | null>(null);
@@ -64,8 +76,17 @@ export default function TeacherHome() {
     return () => window.clearTimeout(task);
   }, [load]);
 
-  const latestRooms = rooms?.filter((r) => simulationInScope(scope, r)).slice(0, 5) ?? null;
-  const toReview = pending?.filter((r) => statementInScope(scope, r)).slice(0, 5) ?? null;
+  // O scope tem de estar resolvido antes de filtrar: enquanto não está, o
+  // filtro esconde tudo e as listas ficariam vazias num piscar.
+  const latestRooms =
+    rooms && scope
+      ? byMostRecent(rooms.filter((r) => simulationInScope(scope, r))).slice(0, 5)
+      : null;
+  const toReview =
+    pending && scope
+      ? byMostRecent(pending.filter((r) => statementInScope(scope, r))).slice(0, 5)
+      : null;
+  const scopeError = scope?.error ?? null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 p-6 md:p-8 lg:p-10">
@@ -95,6 +116,15 @@ export default function TeacherHome() {
           </Link>
         ))}
       </section>
+
+      {scopeError ? (
+        <p
+          role="status"
+          className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          Não foi possível determinar as suas turmas, por isso as listas abaixo ficam vazias: {scopeError}
+        </p>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="flex flex-col">

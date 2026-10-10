@@ -64,7 +64,9 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   }, [entityKey, entity]);
 
   const scoped = useMemo(() => {
-    if (!rows) return rows;
+    // Sem scope resolvido, `rows` continua null e a lista mostra o esqueleto:
+    // filtrar aqui daria uma lista vazida antes de a resposta do scope chegar.
+    if (!rows || !scope) return rows;
     if (entityKey === 'classes') return rows.filter((r) => classInScope(scope, r));
     if (entityKey === 'simulations') return rows.filter((r) => simulationInScope(scope, r));
     return rows;
@@ -146,6 +148,14 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                   <TableCell colSpan={cols} className="py-12 text-center">
                     <p className="mb-3 text-sm text-destructive">{error}</p>
                     <Button size="sm" variant="outline" onClick={load}>Tentar de novo</Button>
+                  </TableCell>
+                </TableRow>
+              ) : scope?.error ? (
+                <TableRow>
+                  <TableCell colSpan={cols} className="py-12 text-center">
+                    <p className="text-sm text-destructive">
+                      Não foi possível determinar as suas turmas, por isso a lista fica vazia: {scope.error}
+                    </p>
                   </TableCell>
                 </TableRow>
               ) : shown && shown.length === 0 ? (

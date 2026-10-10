@@ -29,7 +29,10 @@ export function StatementsManager() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   // Teachers only see statements of their own classes/subjects (admins see all).
   const scope = useTeacherScope();
-  const shown = useMemo(() => (rows ? rows.filter((r) => statementInScope(scope, r)) : rows), [rows, scope]);
+  const shown = useMemo(
+    () => (rows && scope ? rows.filter((r) => statementInScope(scope, r)) : rows),
+    [rows, scope],
+  );
 
   const load = useCallback(async () => {
     setError(null);
@@ -93,6 +96,8 @@ export function StatementsManager() {
                 <TableRowsSkeleton cols={6} />
               ) : error ? (
                 <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
+              ) : scope?.error ? (
+                <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">Não foi possível determinar as suas turmas, por isso a lista fica vazia: {scope.error}</TableCell></TableRow>
               ) : !shown || shown.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="py-16 text-center text-sm text-muted-foreground">Nenhum enunciado neste filtro.</TableCell></TableRow>
               ) : (

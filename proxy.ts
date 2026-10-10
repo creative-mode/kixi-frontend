@@ -22,7 +22,12 @@ const ADMIN_ONLY_ROUTES = [
 ];
 
 /** Rotas que o professor pode abrir; tudo o resto da gestão é-lhe vedado. */
-const TEACHER_ROUTES = ['/professor', '/statements', '/simulations', '/simulation-answers', '/classes'];
+const TEACHER_ROUTES = ['/professor', '/statements', '/simulations', '/simulation-answers'];
+
+/** O professor consulta turmas, não as altera: `/classes` abre a lista, mas
+ * `/classes/new` e `/classes/{id}/edit` continuam só para ADMIN. Sem esta
+ * distinção ele abre o formulário e só descobre o bloqueio ao gravar. */
+const TEACHER_EXACT_ROUTES = ['/classes'];
 
 function publicOrigin(request: NextRequest) {
   // Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem
@@ -53,7 +58,10 @@ function isAdminOnlyRoute(pathname: string) {
 }
 
 function isTeacherRoute(pathname: string) {
-  return TEACHER_ROUTES.some((route) => isRoute(pathname, route));
+  return (
+    TEACHER_EXACT_ROUTES.includes(pathname) ||
+    TEACHER_ROUTES.some((route) => isRoute(pathname, route))
+  );
 }
 
 function rolesFromPayload(value: unknown): Role[] {
