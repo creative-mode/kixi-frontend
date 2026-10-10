@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
-import { createRow, getRow, listOptions } from '@/app/actions/crud';
+import { createRow, getRow, listMine, listOptions } from '@/app/actions/crud';
 import type { Row } from '@/lib/crud/entities';
 import { PageHead } from '@/components/crud/page-head';
 import { ENTITIES } from '@/lib/crud/entities';
@@ -24,6 +24,7 @@ type Options = { value: number; label: string }[];
 export function QuickAssign() {
   const entity = ENTITIES['teaching-assignments'];
   const [teachers, setTeachers] = useState<Options>([]);
+  const [lockedTeacher, setLockedTeacher] = useState<string | null>(null);
   const [classes, setClasses] = useState<Options>([]);
   const [subjects, setSubjects] = useState<Options>([]);
   const [teacherId, setTeacherId] = useState('');
@@ -43,8 +44,26 @@ export function QuickAssign() {
         listOptions('subjects'),
       ]);
       if (!alive) return;
-      if (!t.ok) setLoadError(t.error);
-      else setTeachers(t.data);
+      if (t.ok) {
+        setTeachers(t.data);
+      } else {
+        // A lista de professores é só de ADMIN no backend real: um professor
+        // cai aqui e resolve o seu próprio registo via /me. Com um só
+        // registo, o professor fica fixo em vez de mostrar erro.
+        const mine = await listMine('teaching-assignments');
+        if (!alive) return;
+        if (mine.ok) {
+          const ids = [...new Set(mine.data.map((a) => Number(a.teacherId)).filter((n) => Number.isInteger(n)))];
+          if (ids.length === 1) {
+            setTeacherId(String(ids[0]));
+            setLockedTeacher(`Professor #${ids[0]} (o teu registo)`);
+          } else {
+            setLoadError(t.error);
+          }
+        } else {
+          setLoadError(t.error);
+        }
+      }
       if (!c.ok) setLoadError(c.error);
       else setClasses(c.data);
       if (!s.ok) setLoadError(s.error);
@@ -126,7 +145,13 @@ export function QuickAssign() {
             <p className="py-8 text-center text-sm text-destructive">{loadError}</p>
           ) : (
             <form onSubmit={onSubmit} className="grid gap-5">
-              {select('teacher', 'Professor', teacherId, setTeacherId, teachers)}
+              {lockedTeacher ? (
+                <p className="rounded-md border bg-accent px-3 py-2 text-sm text-accent-foreground" role="note">
+                  A atribuir como {lockedTeacher}.
+                </p>
+              ) : (
+                select('teacher', 'Professor', teacherId, setTeacherId, teachers)
+              )}
               {select('class', 'Turma', classId, setClassId, classes)}
               {select('subject', 'Disciplina', subjectId, setSubjectId, subjects)}
               <div className="flex items-center justify-between gap-3 pt-2">
