@@ -1,4 +1,5 @@
 import 'server-only';
+import { catalogPage } from './catalog-page';
 import { resolveSchoolId } from './school';
 
 import crypto from 'node:crypto';
@@ -53,6 +54,25 @@ type ClassRow = {
   institutionId: number;
 };
 
+/** Flat statement row, the shape StatementSummary exposes: ids only, no names. */
+type CatalogRow = {
+  id: number;
+  title: string;
+  examType: string;
+  subjectId: number | null;
+  schoolYearId: number | null;
+  institutionId: number | null;
+  classId: number | null;
+};
+
+type SimulationRow = {
+  id: number;
+  accountId: number;
+  statementId: number;
+  status: 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
+  finalScore: number | null;
+};
+
 type Store = {
   accounts: Account[];
   nextAccount: number;
@@ -62,6 +82,9 @@ type Store = {
   classes: ClassRow[];
   enrollments: Enrollment[];
   nextEnrollment: number;
+  subjects: { id: number; code: string; name: string }[];
+  statements: CatalogRow[];
+  simulations: SimulationRow[];
   /** The institution each student profile belongs to; an administrator sets this. */
   institutionByAccount: Record<number, number>;
 };
@@ -173,6 +196,21 @@ function seed(): Store {
       { id: 1, accountId: 3, classId: 1, schoolYearId: 1, status: 'ACTIVE' },
     ],
     nextEnrollment: 2,
+    subjects: [
+      { id: 1, code: 'RED', name: 'Redes de Computadores' },
+      { id: 2, code: 'SO', name: 'Sistemas Operativos' },
+      { id: 3, code: 'MD', name: 'Matemática Discreta' },
+    ],
+    // One finished, one in progress, one untouched: the three card states.
+    statements: [
+      { id: 1, title: 'Redes de Computadores', examType: 'Teste', subjectId: 1, schoolYearId: 1, institutionId: 1, classId: 1 },
+      { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, institutionId: 1, classId: 2 },
+      { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, institutionId: 2, classId: 6 },
+    ],
+    simulations: [
+      { id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4 },
+      { id: 2, accountId: 3, statementId: 2, status: 'IN_PROGRESS', finalScore: null },
+    ],
     // The seeded student is also explicitly affiliated with ITEL, as an administrator
     // would have done, so /me can be seen answering with the linked school. An account
     // created through /auth/register has no link and gets the school of its class.
@@ -382,6 +420,42 @@ export async function mockHandle(
   }
 
   if (pathname === '/institutions' && method === 'GET') return json(db.institutions);
+
+  if (pathname === '/subjects' && method === 'GET') return json(db.subjects);
+
+  // Catalog, the StatementCatalogController shape: flat rows, paged. Filters mirror
+  // the backend's @RequestParam names, including the 0-based page. Paging itself
+  // lives in ./catalog-page so node --test can cover it (this file imports
+  // server-only and cannot run outside Next).
+  if (pathname === '/statements/catalog' && method === 'GET') {
+    const num = (key: string) => {
+      const value = search.get(key);
+      return value === null || value === '' ? undefined : Number(value);
+    };
+    return json(
+      catalogPage(db.statements, {
+        q: search.get('q')?.trim() || undefined,
+        subjectId: num('subjectId'),
+        schoolYearId: num('schoolYearId'),
+        institutionId: num('institutionId'),
+        examType: search.get('examType')?.trim() || undefined,
+        page: num('page'),
+        size: num('size'),
+      }),
+    );
+  }
+
+  if (pathname === '/simulations' && method === 'GET') {
+    const mine = db.simulations.filter((s) => s.accountId === account.id);
+    return json(
+      mine.map((s) => ({
+        id: s.id,
+        statement: { id: s.statementId },
+        status: s.status,
+        finalScore: s.finalScore,
+      })),
+    );
+  }
 
   if (pathname === '/courses' && method === 'GET') {
     const institutionId = filter('institutionId');
