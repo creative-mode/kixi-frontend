@@ -170,7 +170,10 @@ async function main() {
   // `next start` directamente, e não `npm start`: o script fixa a porta 3003.
   const servidor = spawn('node_modules/.bin/next', ['start', '-p', String(PORT)], {
     cwd: APP,
-    env: { ...process.env, KIXI_MOCK: 'true' },
+    // `next start` corre em produção, e lá `APP_ORIGIN` é obrigatório: sem esta variável a
+    // app recusa servir. Defini-lo aqui é também o cenário real, em que o redireccionamento
+    // do `/403` e a passagem ao gestor têm um destino de confiança.
+    env: { ...process.env, KIXI_MOCK: 'true', APP_ORIGIN: BASE },
     stdio: ['ignore', 'ignore', 'pipe'],
     detached: true,
   });
