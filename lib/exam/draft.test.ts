@@ -5,6 +5,7 @@ import {
   isChoice,
   labelAt,
   labelsFor,
+  missingLabels,
   move,
   nextLabel,
   optionsFor,
@@ -120,9 +121,29 @@ test('um rascunho inteiro não reporta problemas quando está correcto', () => {
   assert.equal(totalScore([open('a', 2), choice('b', 3), choice('c', 15)]), 20);
 });
 
-test('as opções são enviadas com o texto aparado e o rótulo preenchido', () => {
-  const q = { text: 'q', points: 1, options: [{ label: '', text: '  texto  ', correct: false }] };
-  assert.deepEqual(optionsFor(q), [{ label: 'A', text: 'texto', correct: false }]);
+test('as opções são enviadas com o texto aparado e o rótulo intacto', () => {
+  const q = { text: 'q', points: 1, options: [{ label: 'C', text: '  texto  ', correct: false }] };
+  assert.deepEqual(optionsFor(q), [{ label: 'C', text: 'texto', correct: false }]);
+});
+
+test('optionsFor não inventa um rótulo que não existe', () => {
+  // O fallback que aqui estava renumerava por índice: ["",""] saía ["A","B"], que é
+  // a colisão que o `UNIQUE (question_id, option_label)` proíbe. Sem fallback, o
+  // vazio sai vazio e quem tem de dizer isso é o `problems`, onde o professor lê.
+  const semRotulos = { text: 'q', points: 1, options: [
+    { label: '', text: 'a', correct: true },
+    { label: '', text: 'b', correct: false },
+  ] };
+  assert.deepEqual(optionsFor(semRotulos).map((o) => o.label), ['', '']);
+  assert.deepEqual(missingLabels(semRotulos), 2);
+  assert.equal(missingLabels(choice('q')), 0);
+});
+
+test('uma opção sem rótulo é um problema antes de publicar', () => {
+  const semRotulos = { text: 'q', points: 2, options: [{ label: '', text: 'a', correct: true }] };
+  assert.match(problems([semRotulos]).join(' '), /sem rótulo/);
+  // E some assim que o rótulo volta: o aviso é sobre o estado, não sobre a pergunta.
+  assert.equal(problems([choice('q', 2)]).length, 0);
 });
 test('mover troca o item com a vizinha e não mexe no resto', () => {
   const lista = ['a', 'b', 'c', 'd'];

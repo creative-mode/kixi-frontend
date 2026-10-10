@@ -91,17 +91,26 @@ export function isChoice(question: DraftQuestion): boolean {
  * Empty text is dropped rather than sent: `optionText` is `@NotBlank`, so an option
  * nobody filled in is a 400 that names the field, not a question the teacher can save.
  *
- * The labels travel as they are. Reassigning them here by index would renumber any
- * option that already has an identity — [A,C] sent as [A,B] — and the option that
- * carried the answer would keep `correct`, so the key would sit on an option the
- * teacher no longer recognises. Labels are assigned once, when the option is created.
+ * The labels travel exactly as they are. There is deliberately no fallback here —
+ * renumbering by index is what this function used to do, and it is the one thing that
+ * breaks the invariant: [A,C] went out as [A,B], and reassigning a label an option
+ * already owns is a `UNIQUE (question_id, option_label)` violation on write.
+ *
+ * So a label that arrives empty goes out empty, and `problems()` says so before the
+ * teacher ever presses Publish. Inventing one here would be a lie about state the
+ * caller is about to persist.
  */
 export function optionsFor(question: DraftQuestion): DraftOption[] {
-  return question.options.map((option, i) => ({
-    label: option.label || labelAt(i),
+  return question.options.map((option) => ({
+    label: option.label,
     text: option.text.trim(),
     correct: option.correct,
   }));
+}
+
+/** Options whose label never got assigned — see the invariant `nextLabel` upholds. */
+export function missingLabels(question: DraftQuestion): number {
+  return question.options.filter((o) => !o.label).length;
 }
 
 export function optionsReady(question: DraftQuestion): boolean {
@@ -147,6 +156,15 @@ export function problems(questions: DraftQuestion[]): string[] {
   }
   if (filled.some((q) => isChoice(q) && !optionsReady(q))) {
     out.push('Há opções por escrever. Cada opção precisa de texto.');
+  }
+  // O rótulo em falta é o outro invariante, e `optionsFor` já não o inventa: se
+  // chegasse vazio, ia sair vazio e o `UNIQUE (question_id, option_label)` rebentava
+  // a meio do POST. Dizer aqui é mais barato do que apanhar essa excepção depois.
+  const unlabelled = filled.filter((q) => missingLabels(q) > 0);
+  if (unlabelled.length > 0) {
+    out.push(
+      `Há opções sem rótulo na questão ${unlabelled.map(numberOf).join(', ')}. Apaga-as e escreve-as de novo.`,
+    );
   }
   const missing = unscored(questions);
   if (missing > 0) {
