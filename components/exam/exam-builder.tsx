@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Printer, Save, Trash2 } from 'lucide-react';
+import { Check, Plus, Printer, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
+import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
-import { createManualStatement, institutionLinks, myInstitutions } from '@/app/actions/crud';
+import { createManualStatement, institutionLinks, myInstitutions, publishManualStatement } from '@/app/actions/crud';
 import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { ExamSheet } from './exam-sheet';
@@ -53,23 +54,31 @@ export function ExamBuilder() {
     });
   }, [schoolId]);
 
-  async function save() {
+  /**
+   * `true` publica a prova, `false` deixa-a guardada à espera.
+   *
+   * Publicar é create → approve → visible, e a ordem não é um detalhe: o passo do
+   * meio é o gate, e publicar só por visibility punha a prova à vista dos alunos
+   * sem nunca o ter corrido. Se o gate chumbar a prova fica criada e oculta, e a
+   * mensagem do servidor — que nomeia as questões em falta — aparece no ecrã.
+   */
+  async function save(publish: boolean) {
     if (!school || !draft.subject) return;
     setSaving(true);
-    const res = await createManualStatement({
+    const payload = {
       institutionId: Number(school.id),
       subjectId: subjectIds[draft.subject],
       title: `${draft.kind} – ${draft.subject}`,
       examType: draft.kind,
       instructions: draft.rules.filter(Boolean).join('\n') || null,
-      visible: false,
       // O gabarito viaja no próprio pedido: `ManualStatementRequest.Option.correct` é
       // honrado na criação, por isso marcar a resposta certa não custa um segundo pedido.
       questions: toRequest(draft.items),
-    });
+    };
+    const res = publish ? await publishManualStatement(payload) : await createManualStatement({ ...payload, visible: false });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
-    toast.success('Prova guardada. Fica oculta até a publicar no enunciado.');
+    toast.success(publish ? 'Prova publicada. Os alunos já a podem simular.' : 'Prova guardada. Fica oculta até a publicar.');
   }
 
   const setItem = (i: number, patch: Partial<ExamDraft['items'][number]>) => set('items', draft.items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -93,10 +102,14 @@ export function ExamBuilder() {
           <p className="mt-1 text-muted-foreground">A prova segue o modelo oficial. Só o logótipo, o nome da escola e a disciplina mudam.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={save} disabled={!ready2print || saving} title={ready2print ? undefined : 'Escolha a disciplina e escreva pelo menos uma questão'}>
-            <Save aria-hidden /> Guardar prova
+          <Button variant="outline" onClick={() => save(false)} disabled={!ready2print || saving} title={ready2print ? undefined : 'Escolha a disciplina e escreva pelo menos uma questão'}>
+            <Save aria-hidden /> Guardar
           </Button>
-          <Button onClick={() => window.print()} disabled={!ready2print}>
+          <Button onClick={() => save(true)} disabled={!ready2print || saving || problemas.length > 0} title={problemas.length > 0 ? 'A prova ainda não pode ser publicada' : ready2print ? undefined : 'Escolha a disciplina e escreva pelo menos uma questão'}>
+            {saving ? <Spinner className="size-4" /> : <Check aria-hidden />}
+            Publicar
+          </Button>
+          <Button variant="outline" onClick={() => window.print()} disabled={!ready2print}>
             <Printer aria-hidden /> Imprimir / guardar PDF
           </Button>
         </div>
