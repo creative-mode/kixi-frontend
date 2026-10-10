@@ -261,6 +261,54 @@ export async function createManualStatement(values: Row): Promise<Result<Row>> {
   return guard(async () => {
     const res = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify(values) });
     if (!res.ok) return fail(await message(res));
+    revalidatePath('/statements');
+    return ok((await res.json()) as Row);
+  });
+}
+
+/**
+ * Cria a prova, aprova-a e publica-a, nesta ordem.
+ *
+ * O `/approve` não é um formality: é ele que corre o gate do servidor, e o passo
+ * tem de estar **entre** a criação e a publicação. Publicar só por `/visibility`
+ * punha a prova à vista dos alunos sem nunca o ter aprovado — e o gate é
+ * precisamente o que impede uma prova sem gabarito, ou com as cotações a não
+ * bater com o total, de chegar a um aluno.
+ *
+ * Se a aprovação chumbar, a prova fica criada e oculta, e a mensagem do 422
+ * volta tal e qual: é ela que diz *que questões* é que estão a faltar, e
+ * traduzi-la para uma frase genérica deixaria o professor a procurar sem saber
+ * onde.
+ */
+export async function publishManualStatement(values: Row): Promise<Result<Row>> {
+  return guard(async () => {
+    const created = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify({ ...values, visible: false }) });
+    if (!created.ok) return fail(await message(created));
+    const statement = (await created.json()) as Row;
+
+    const approved = await call(`/api/v1/statements/${safeId(statement.id)}/approve`, { method: 'POST' });
+    if (!approved.ok) return fail(await message(approved));
+
+    const visible = await call(`/api/v1/statements/${safeId(statement.id)}/visibility?visible=true`, { method: 'PATCH' });
+    if (!visible.ok) return fail(await message(visible));
+
+    revalidatePath('/statements');
+    return ok((await visible.json()) as Row);
+  });
+}
+
+/**
+ * Marca a opção correcta de uma pergunta.
+ *
+ * O corpo é só o `optionId`: o servidor reescreve `is_correct` em todas as opções da
+ * pergunta para a resposta se manter singular, e recusa um id que seja de outra
+ * pergunta — sem isso, um id estrangeiro deixaria a pergunta sem resposta nenhuma em
+ * vez de falhar. Por isso não se manda o enunciado nem o texto.
+ */
+export async function setCorrectOption(questionId: number, optionId: number): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/questions/${safeId(questionId)}/correct-option`, { method: 'PUT', body: JSON.stringify({ optionId: Number(optionId) }) });
+    if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as Row);
   });
 }

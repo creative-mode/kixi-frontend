@@ -1,3 +1,5 @@
+import { labelsFor, type DraftQuestion } from './draft';
+
 export interface School {
   id: string;
   name: string;
@@ -6,7 +8,8 @@ export interface School {
   subjects: string[];
 }
 
-export interface ExamItem { text: string; points: number | '' }
+/** Uma pergunta do rascunho. Reexportado de `lib/exam/draft.ts`, que é onde vivem as regras. */
+export type ExamItem = DraftQuestion;
 
 export interface ExamDraft {
   schoolId: string;
@@ -39,7 +42,7 @@ export const EMPTY_DRAFT: ExamDraft = {
   kind: 'Trabalho prático',
   grade: '12ª Classe',
   phase: '1ª Fase',
-  items: [{ text: '', points: '' }],
+  items: [{ text: '', points: '', options: [] }],
   rules: ['O trabalho deve ser realizado em grupo.', 'Cotação: de 0 a 20 valores.'],
   note: '',
   place: 'Luanda',
@@ -68,7 +71,43 @@ export const loadSchools = () => {
   return [...SEED_SCHOOLS.filter((s) => !ids.has(s.id)), ...saved];
 };
 export const saveSchools = (s: School[]) => write(SCHOOLS_KEY, s);
-export const loadDraft = () => ({ ...EMPTY_DRAFT, ...read<Partial<ExamDraft>>(DRAFT_KEY, {}) });
+
+/**
+ * A pergunta como o app a guarda, seja ela de que versão do rascunho veio.
+ *
+ * O rascunho vive em localStorage e a forma mudou quando as opções entraram: um
+ * `items` guardado antes disso traz `{ text, points }` e não tem `options`. Um merge
+ * ingénuo deixa esse campo a `undefined` e o editor rebenta com `undefined.map` —
+ * com a folha de rascunho de um professor a perder-se no primeiro clique depois da
+ * actualização. Cada campo é normalizado aqui, e o que não se reconhece perde-se.
+ */
+function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
+  const rawOptions = Array.isArray(raw?.options) ? raw.options : [];
+  // Só as opções sem rótulo recebem um, e `labelsFor` salta os que já estão
+  // tomados: um rascunho meio etiquetado não pode dar duas opções com o mesmo
+  // rótulo, que é uma violação do `UNIQUE (question_id, option_label)`.
+  const labels = labelsFor(rawOptions);
+  const options = rawOptions.map((o, i) => ({
+    label: labels[i],
+    text: typeof o?.text === 'string' ? o.text : '',
+    correct: o?.correct === true,
+  }));
+  return {
+    text: typeof raw?.text === 'string' ? raw.text : '',
+    points: typeof raw?.points === 'number' ? raw.points : '',
+    options,
+  };
+}
+
+export const loadDraft = (): ExamDraft => {
+  const saved = read<Partial<ExamDraft>>(DRAFT_KEY, {});
+  return {
+    ...EMPTY_DRAFT,
+    ...saved,
+    items: Array.isArray(saved.items) && saved.items.length > 0 ? saved.items.map(normalizeItem) : EMPTY_DRAFT.items.map(normalizeItem),
+    rules: Array.isArray(saved.rules) ? saved.rules.map((r) => (typeof r === 'string' ? r : '')) : EMPTY_DRAFT.rules,
+  };
+};
 export const saveDraft = (d: ExamDraft) => write(DRAFT_KEY, d);
 
 /** Lê uma imagem e reduz-a (máx. 320px) para caber no armazenamento local. */
