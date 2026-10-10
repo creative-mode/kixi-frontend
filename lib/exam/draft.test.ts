@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   isChoice,
-  labelFor,
+  labelAt,
+  labelsFor,
   move,
+  nextLabel,
   optionsFor,
   optionsReady,
   problems,
@@ -12,10 +14,12 @@ import {
   toRequest,
   totalScore,
   unscored,
+  type DraftOption,
   type DraftQuestion,
 } from './draft.ts';
 
 const open = (text: string, points: number | '' = 2): DraftQuestion => ({ text, points, options: [] });
+const opt = (label: string, correct = false): DraftOption => ({ label, text: `texto ${label}`, correct });
 const choice = (text: string, points: number | '' = 2, correct = 0): DraftQuestion => ({
   text,
   points,
@@ -32,11 +36,11 @@ test('uma pergunta é de escolha múltipla exatamente quando tem opções', () =
 });
 
 test('os rótulos das opções seguem A, B, C e não se reciclam', () => {
-  assert.deepEqual([0, 1, 2, 3].map(labelFor), ['A', 'B', 'C', 'D']);
+  assert.deepEqual([0, 1, 2, 3].map(labelAt), ['A', 'B', 'C', 'D']);
   // O rótulo é a identidade única da opção dentro da pergunta: um rótigo deixado
   // livre continua tomado depois de a opção ser removida.
-  assert.equal(labelFor(25), 'Z');
-  assert.equal(labelFor(26), '27');
+  assert.equal(labelAt(25), 'Z');
+  assert.equal(labelAt(26), '27');
 });
 
 test('uma opção sem texto impede a pergunta de estar pronta', () => {
@@ -141,4 +145,58 @@ test('mover uma lista curta não deita fora o resto', () => {
   // `slice` a mais partia a lista em vez de trocar dois vizinhos.
   assert.deepEqual(move(['a', 'b', 'c', 'd'], 0, 1), ['b', 'a', 'c', 'd']);
   assert.deepEqual(move(['a', 'b', 'c', 'd'], 2, 1), ['a', 'b', 'd', 'c']);
+});
+
+// ── rótulos ───────────────────────────────────────────────────────────────────
+// Um `UNIQUE (question_id, option_label)` no backend que não conhece as linhas
+// removidas: uma etiqueta deixada livre continua tomada para sempre. Reciclar
+// rótulos dá uma violação de integridade na base de dados, não um erro simpático.
+
+test('o rótulo novo nunca é um rótulo já em uso', () => {
+  // Com [A,B,C], apagar o B e adicionar não pode dar C: contar as opções dá
+  // exactamente isso, e C está tomado.
+  const semB = [{ label: 'A', text: 'a', correct: true }, { label: 'C', text: 'c', correct: false }];
+  assert.equal(nextLabel(semB), 'D');
+  assert.notEqual(nextLabel(semB), 'C');
+});
+
+test('o próximo rótulo é o maior em uso mais um, mesmo com lacunas', () => {
+  assert.equal(nextLabel([]), 'A');
+  assert.equal(nextLabel([opt('A')]), 'B');
+  assert.equal(nextLabel([opt('A'), opt('D')]), 'E');
+  // Com o C em falta, o próximo rótulo é o C: as lacunas não se reatribuem.
+  assert.equal(nextLabel([opt('A'), opt('B')]), 'C');
+});
+
+test('o gabarito fica preso à opção que o carrega', () => {
+  // A opção correcta é a que tem `correct`, não a que está numa posição. Reatribuir
+  // rótulos não pode trocar a resposta de uma opção para outra.
+  const opcoes = [
+    { label: 'A', text: 'certa', correct: true },
+    { label: 'B', text: 'errada', correct: false },
+    { label: 'C', text: 'errada', correct: false },
+  ];
+  const enviadas = optionsFor({ text: 'q', points: 2, options: opcoes });
+  assert.deepEqual(enviadas.map((o) => o.label), ['A', 'B', 'C']);
+  assert.equal(enviadas.filter((o) => o.correct).length, 1);
+  assert.equal(enviadas[0].correct, true);
+});
+
+test('apagar uma opção não renumera as que ficam', () => {
+  // Este é o caso em que o remapeamento por índice mentia: [A,C] tem de sair [A,C].
+  const restantes = { text: 'q', points: 2, options: [{ label: 'A', text: 'a', correct: false }, { label: 'C', text: 'c', correct: true }] };
+  assert.deepEqual(optionsFor(restantes).map((o) => o.label), ['A', 'C']);
+});
+
+test('um rascunho antigo sem rótulos recebe rótulos que não colidem entre si', () => {
+  // O `normalizeItem` é o outro sítio onde se atribui. Com um rascunho guardado de
+  // antes das opções, os rótulos têm de sair distintos e pela ordem das letras.
+  const normalizado = [{ label: '', text: 'a', correct: false }, { label: '', text: 'b', correct: false }, { label: '', text: 'c', correct: false }];
+  assert.deepEqual(labelsFor(normalizado), ['A', 'B', 'C']);
+});
+
+test('normalizar só preenche os rótulos que faltam e não toca nos que existem', () => {
+  const normalizado = [{ label: 'A', text: 'a', correct: false }, { label: '', text: 'b', correct: false }];
+  // A já está taken; a lacuna não pode ser reatribuída a A.
+  assert.deepEqual(labelsFor(normalizado), ['A', 'B']);
 });

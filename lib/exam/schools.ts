@@ -1,4 +1,4 @@
-import { labelFor, type DraftQuestion } from './draft';
+import { labelsFor, type DraftQuestion } from './draft';
 
 export interface School {
   id: string;
@@ -82,13 +82,16 @@ export const saveSchools = (s: School[]) => write(SCHOOLS_KEY, s);
  * actualização. Cada campo é normalizado aqui, e o que não se reconhece perde-se.
  */
 function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
-  const options = Array.isArray(raw?.options)
-    ? raw.options.map((o, i) => ({
-        label: typeof o?.label === 'string' && o.label ? o.label : labelFor(i),
-        text: typeof o?.text === 'string' ? o.text : '',
-        correct: o?.correct === true,
-      }))
-    : [];
+  const rawOptions = Array.isArray(raw?.options) ? raw.options : [];
+  // Só as opções sem rótulo recebem um, e `labelsFor` salta os que já estão
+  // tomados: um rascunho meio etiquetado não pode dar duas opções com o mesmo
+  // rótulo, que é uma violação do `UNIQUE (question_id, option_label)`.
+  const labels = labelsFor(rawOptions);
+  const options = rawOptions.map((o, i) => ({
+    label: labels[i],
+    text: typeof o?.text === 'string' ? o.text : '',
+    correct: o?.correct === true,
+  }));
   return {
     text: typeof raw?.text === 'string' ? raw.text : '',
     points: typeof raw?.points === 'number' ? raw.points : '',

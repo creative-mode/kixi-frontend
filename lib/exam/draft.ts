@@ -28,8 +28,54 @@ export interface DraftQuestion {
 /** The letters the backend will accept as an option label: at most 10 characters, one per question. */
 const LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-export function labelFor(index: number): string {
+/** The label at a position. For displaying an option that has none — assigning one
+ *  goes through `nextLabel`, which looks at what is already taken. */
+export function labelAt(index: number): string {
   return LABELS[index] ?? String(index + 1);
+}
+
+/**
+ * The label a new option gets: one past the highest already in use.
+ *
+ * Not the count of options. `labelFor(options.length)` looks right until the first
+ * deletion: with [A,B,C], deleting B leaves [A,C], and adding then hands out
+ * `labelFor(2)` = C — a label already taken. The backend has
+ * `UNIQUE (question_id, option_label)` and the index does not know about deleted
+ * rows, so that is a constraint violation on write, not a tidy 409.
+ *
+ * Gaps stay gaps on purpose. Reusing B after B was deleted would be ambiguous the
+ * next time somebody looked at two revisions of the same question.
+ */
+export function nextLabel(options: readonly { label?: string }[]): string {
+  const highest = options.reduce((max, o) => {
+    const i = o.label ? LABELS.indexOf(o.label) : -1;
+    return i >= 0 && i > max ? i : max;
+  }, -1);
+  return labelAt(highest + 1);
+}
+
+/**
+ * Labels for a draft being read back, one per option.
+ *
+ * Only options *without* a label get one: a draft saved before labels existed, or
+ * one written by an older version. Labels already present are kept verbatim, because
+ * reassigning by index would renumber an option that already has an identity —
+ * [A,C] would be sent as [A,B], and the teacher who wrote "C" would see "B".
+ *
+ * The ones being filled in skip the ones already taken, so an old draft that is
+ * half-labelled cannot produce two options with the same label.
+ */
+export function labelsFor(options: readonly { label?: string }[]): string[] {
+  const taken = new Set(options.map((o) => o.label).filter((l): l is string => !!l));
+  let next = 0;
+  return options.map((o) => {
+    if (o.label) return o.label;
+    while (taken.has(labelAt(next))) next += 1;
+    const label = labelAt(next);
+    next += 1;
+    taken.add(label);
+    return label;
+  });
 }
 
 /** A question is multiple-choice exactly when it has options: `ManualStatementService`
@@ -44,9 +90,18 @@ export function isChoice(question: DraftQuestion): boolean {
  *
  * Empty text is dropped rather than sent: `optionText` is `@NotBlank`, so an option
  * nobody filled in is a 400 that names the field, not a question the teacher can save.
+ *
+ * The labels travel as they are. Reassigning them here by index would renumber any
+ * option that already has an identity — [A,C] sent as [A,B] — and the option that
+ * carried the answer would keep `correct`, so the key would sit on an option the
+ * teacher no longer recognises. Labels are assigned once, when the option is created.
  */
 export function optionsFor(question: DraftQuestion): DraftOption[] {
-  return question.options.map((option, i) => ({ label: option.label || labelFor(i), text: option.text.trim(), correct: option.correct }));
+  return question.options.map((option, i) => ({
+    label: option.label || labelAt(i),
+    text: option.text.trim(),
+    correct: option.correct,
+  }));
 }
 
 export function optionsReady(question: DraftQuestion): boolean {

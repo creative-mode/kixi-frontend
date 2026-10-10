@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Check, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { labelFor, move, type DraftOption } from '@/lib/exam/draft';
+import { labelAt, move, nextLabel, type DraftOption } from '@/lib/exam/draft';
 import type { ExamItem } from '@/lib/exam/schools';
 
 /**
@@ -69,13 +69,16 @@ export function QuestionEditor({
 
       <div className="grid gap-2 pl-8">
         {item.options.map((option, i) => (
+          // O rótulo é único dentro da pergunta e atribuído uma vez — `normalizeItem`
+          // garante que nenhum vem vazio — por isso serve de key. O `|| i` ficava só
+          // para o caso de duas opções sem rótulo, que já não existe.
           <div key={option.label || i} className="flex items-center gap-2">
-            <span className="grid size-7 shrink-0 place-items-center rounded-md border text-[12px] font-bold text-muted-foreground">{option.label || labelFor(i)}</span>
+            <span className="grid size-7 shrink-0 place-items-center rounded-md border text-[12px] font-bold text-muted-foreground">{option.label || labelAt(i)}</span>
             <Input
               value={option.text}
               onChange={(e) => setOption(i, { text: e.target.value })}
-              placeholder={`Opção ${option.label || labelFor(i)}`}
-              aria-label={`Opção ${option.label || labelFor(i)} da questão ${n}`}
+              placeholder={`Opção ${option.label || labelAt(i)}`}
+              aria-label={`Opção ${option.label || labelAt(i)} da questão ${n}`}
               className="flex-1"
             />
             <Button
@@ -130,7 +133,7 @@ export function QuestionEditor({
           variant="outline"
           size="sm"
           className="justify-self-start"
-          onClick={() => onChange({ options: [...item.options, { label: labelFor(item.options.length), text: '', correct: false }] })}
+          onClick={() => onChange({ options: [...item.options, { label: nextLabel(item.options), text: '', correct: false }] })}
         >
           <Plus />Opção
         </Button>
