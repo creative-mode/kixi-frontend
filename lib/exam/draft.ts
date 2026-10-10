@@ -100,6 +100,24 @@ export function problems(questions: DraftQuestion[]): string[] {
   return out;
 }
 
+/**
+ * Move an item one place up or down, returning a new list.
+ *
+ * Two slices either side of the two indices, because that is the only way to swap
+ * neighbours without disturbing the rest. The version written first sliced at
+ * `i + direction` and `max(i, to) + 1`, and it scrambled the list rather than
+ * swapping two entries — `down(0)` on `a b c d` gave `a a _ c d`. Reordering was
+ * the one thing in this module with no test, which is why it survived the lint,
+ * the build and a manual read: nothing failed, the questions just moved wrong.
+ */
+export function move<T>(list: readonly T[], from: number, direction: -1 | 1): T[] {
+  const to = from + direction;
+  if (to < 0 || to >= list.length) return [...list];
+  const next = [...list];
+  [next[from], next[to]] = [next[to], next[from]];
+  return next;
+}
+
 /** `0.1 + 0.2` is not `0.3` here, and `StatementService.scaled` compares at scale 2 for
  *  exactly this reason: the scores come back through R2DBC as doubles. */
 export function round2(value: number): number {

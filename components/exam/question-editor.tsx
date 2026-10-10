@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Check, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { labelFor, type DraftOption } from '@/lib/exam/draft';
+import { labelFor, move, type DraftOption } from '@/lib/exam/draft';
 import type { ExamItem } from '@/lib/exam/schools';
 
 /**
@@ -97,7 +97,7 @@ export function QuestionEditor({
               className="size-9 shrink-0"
               aria-label={`Mover a opção ${option.label} para cima`}
               disabled={i === 0}
-              onClick={() => onChange({ options: [...item.options.slice(0, i - 1), item.options[i], item.options[i - 1], ...item.options.slice(i + 1)] })}
+              onClick={() => onChange({ options: move(item.options, i, -1) })}
             >
               <ArrowUp />
             </Button>
@@ -108,7 +108,7 @@ export function QuestionEditor({
               className="size-9 shrink-0"
               aria-label={`Mover a opção ${option.label} para baixo`}
               disabled={i === item.options.length - 1}
-              onClick={() => onChange({ options: [...item.options.slice(0, i + 1), item.options[i + 1], item.options[i], ...item.options.slice(i + 2)] })}
+              onClick={() => onChange({ options: move(item.options, i, 1) })}
             >
               <ArrowDown />
             </Button>

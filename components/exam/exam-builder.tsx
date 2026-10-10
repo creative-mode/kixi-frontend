@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
 import { createManualStatement, institutionLinks, myInstitutions, publishManualStatement } from '@/app/actions/crud';
 import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
-import { problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
 
@@ -84,11 +84,7 @@ export function ExamBuilder() {
   const setItem = (i: number, patch: Partial<ExamDraft['items'][number]>) => set('items', draft.items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const setRule = (i: number, v: string) => set('rules', draft.rules.map((x, j) => (j === i ? v : x)));
   /** Reordena no rascunho; a ordem vai no pedido de criação, que é quem a guarda. */
-  const moveItem = (i: number, direction: -1 | 1) => {
-    const to = i + direction;
-    if (to < 0 || to >= draft.items.length) return;
-    set('items', [...draft.items.slice(0, i + direction), draft.items[i], draft.items[i - direction], ...draft.items.slice(Math.max(i, to) + 1)]);
-  };
+  const moveItem = (i: number, direction: -1 | 1) => set('items', move(draft.items, i, direction));
   const total = totalScore(draft.items);
   const problemas = problems(draft.items);
   const ready2print = !!school && !!draft.subject && draft.items.some((i) => i.text.trim());

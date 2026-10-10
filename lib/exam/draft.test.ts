@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   isChoice,
   labelFor,
+  move,
   optionsFor,
   optionsReady,
   problems,
@@ -118,4 +119,26 @@ test('um rascunho inteiro não reporta problemas quando está correcto', () => {
 test('as opções são enviadas com o texto aparado e o rótulo preenchido', () => {
   const q = { text: 'q', points: 1, options: [{ label: '', text: '  texto  ', correct: false }] };
   assert.deepEqual(optionsFor(q), [{ label: 'A', text: 'texto', correct: false }]);
+});
+test('mover troca o item com a vizinha e não mexe no resto', () => {
+  const lista = ['a', 'b', 'c', 'd'];
+  assert.deepEqual(move(lista, 1, -1), ['b', 'a', 'c', 'd']);
+  assert.deepEqual(move(lista, 1, 1), ['a', 'c', 'b', 'd']);
+  assert.deepEqual(move(lista, 0, 1), ['b', 'a', 'c', 'd']);
+  assert.deepEqual(move(lista, 3, -1), ['a', 'b', 'd', 'c']);
+});
+
+test('mover nas pontas não faz nada, e a lista original fica intacta', () => {
+  const lista = ['a', 'b', 'c'];
+  assert.deepEqual(move(lista, 0, -1), lista);
+  assert.deepEqual(move(lista, 2, 1), lista);
+  move(lista, 0, 1);
+  assert.deepEqual(lista, ['a', 'b', 'c']);
+});
+
+test('mover uma lista curta não deita fora o resto', () => {
+  // A versão que primeiro escrevi devolvia `a a _ c d` ao descer da primeira: um
+  // `slice` a mais partia a lista em vez de trocar dois vizinhos.
+  assert.deepEqual(move(['a', 'b', 'c', 'd'], 0, 1), ['b', 'a', 'c', 'd']);
+  assert.deepEqual(move(['a', 'b', 'c', 'd'], 2, 1), ['a', 'b', 'd', 'c']);
 });
