@@ -838,6 +838,13 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return json(200, a);
     }
 
+    // ── teaching-assignments/me: como no backend, só as atribuições da conta.
+    if (path === '/api/v1/teaching-assignments/me' && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      if (!t) return json(200, []);
+      return json(200, db['teaching-assignments'].filter((a) => !a.deletedAt && a.teacherId === t.id));
+    }
+
     // ── generic CRUD (/api/v1/<resource>) ──
     m = path.match(/^\/api\/v1\/([a-z-]+)(?:\/(trash|active|[^/]+?))?(?:\/(restore|purge|login))?$/);
     const def = m && RES[m[1]];
