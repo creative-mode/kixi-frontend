@@ -5,6 +5,7 @@ import 'server-only';
 // Same contracts as scripts/mock-api.mjs (paths, DTOs, soft delete, HS256 JWT). State lives in memory per server process.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from 'node:crypto';
+import { approvalProblem } from './gate';
 
 const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -199,8 +200,35 @@ function authorize(auth: any, method: string, path: string) {
     if (/^\/api\/v1\/statements\/(review|from-ocr|trash|stats)$/.test(path) || /\/trash$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
     return 200;
   }
+  // Escrever num enunciado é do ADMIN ou de um professor affiliated à instituição
+  // dona dele (`StatementWriteAccessService`). Só o papel não chega: um professor
+  // de outra escola não mexe no enunciado de uma que não é sua. O mesmo vale para
+  // as perguntas e opções, que são filhas do enunciado.
+  if (/^\/api\/v1\/questions\/\d+\/correct-option$/.test(path) || /^\/api\/v1\/statements\/\d+\/questions(\/|$)/.test(path)) {
+    if (!has('ADMIN', 'TEACHER')) return 403;
+    if (has('ADMIN')) return 200;
+    // `Number(undefined)` é NaN e não undefined, por isso o ?? não serviria aqui.
+    const fromPath = path.match(/^\/api\/v1\/statements\/(\d+)/);
+    const questionId = Number(path.match(/questions\/(\d+)/)?.[1]);
+    const statementId = fromPath
+      ? Number(fromPath[1])
+      : db.statements.find((s: any) => s.questions.some((q: any) => q.id === questionId))?.id;
+    const teacher = db.teachers.find((t: any) => t.accountId === Number(auth.sub) && !t.deletedAt);
+    const statement = db.statements.find((s: any) => s.id === statementId);
+    if (!statement) return 403;
+    const affiliated = db.institutionTeachers.some((l: any) => l.institutionId === statement.institutionId && l.teacherId === teacher?.id);
+    return affiliated ? 200 : 403;
+  }
   if (/^\/api\/(v1\/)?simulations/.test(path) && method !== 'DELETE' && !/restore/.test(path)) return has('ADMIN', 'TEACHER', 'STUDENT') ? 200 : 403;
   return has('ADMIN', 'TEACHER') ? 200 : 403;
+}
+
+/** Reescreve `is_correct` em todas as opções da pergunta, como
+ *  `QuestionOptionRepository.setCorrectOption`, para a resposta se manter singular.
+ *  Ignora linhas removidas: um `isCorrect` numa opção apagada não é resposta nenhuma. */
+function markCorrect(q, optionId) {
+  for (const o of q.options ?? []) if (!o.deletedAt) o.isCorrect = o.id === Number(optionId);
+  return { ...(q.options ?? []).find((o) => o.id === Number(optionId)) };
 }
 
 function mapStatement(s) {
@@ -368,10 +396,14 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         if (!db.institutionTeachers.some((l) => l.institutionId === inst.id && l.teacherId === t.id)) return problem(403, 'Teacher is not affiliated with this institution');
       }
       if (!db.institutionSubjects.some((l) => l.institutionId === inst.id && l.subjectId === Number(b.subjectId))) return problem(422, 'Subject is not taught by this institution');
-      let qid = 0;
+      // Ids vêm da sequência global, como no backend. A versão anterior reiniciava a
+      // contagem em cada enunciado, o que fazia dois enunciados diferentes terem
+      // perguntas com o mesmo id — e `PUT /questions/{id}/correct-option`, que só leva
+      // o id da pergunta, passava a resolver a pergunta do enunciado errado.
       const questions = b.questions.map((q, i) => ({
-        id: ++qid + i * 100, number: i + 1, text: q.text, maxScore: q.maxScore ?? null, questionType: q.options?.length ? 'multiple_choice' : 'open',
-        options: (q.options ?? []).map((o, j) => ({ id: j + 1, label: o.label, text: o.text, isCorrect: !!o.correct })),
+        id: nextId('questions'), statementId: null, number: i + 1, orderIndex: i, text: q.text, maxScore: q.maxScore ?? null,
+        questionType: q.options?.length ? 'multiple_choice' : 'open', pageIndex: null, modelAnswer: q.modelAnswer ?? null, needsReview: false,
+        options: (q.options ?? []).map((o, j) => ({ id: nextId('options'), questionId: null, optionLabel: o.label, optionText: o.text, isCorrect: !!o.correct, orderIndex: j, deletedAt: null })),
       }));
       const row = add('statements', {
         title: b.title, examType: b.examType, durationMinutes: b.durationMinutes ?? null, variant: b.variant ?? null, instructions: b.instructions ?? null,
@@ -379,6 +411,10 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         ocrConfidence: null, ocrRequestId: null, schoolYearId: b.schoolYearId ?? null, termId: b.termId ?? null, subjectId: Number(b.subjectId),
         classId: b.classId ?? null, courseId: b.courseId ?? null, institutionId: inst.id, questions,
       });
+      for (const q of questions) {
+        q.statementId = row.id;
+        for (const o of q.options) o.questionId = q.id;
+      }
       return json(201, mapStatement(row));
     }
 
@@ -405,14 +441,10 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       if (sub === '/restore' && method === 'POST') { s.deletedAt = null; return json(204); }
       if (sub === '/purge' && method === 'DELETE') { db.statements = db.statements.filter((x) => x.id !== id); return json(204); }
       if (sub === '/approve' && method === 'POST') {
-        // Os dois 422 do StatementService.approveReview: opções sem correta, e cotações que não somam ao total.
-        const unanswered = s.questions.filter((q) => q.options?.length && !q.options.some((o) => o.isCorrect)).map((q) => q.number);
-        if (unanswered.length) return problem(422, `These questions have options but no correct option marked: question ${unanswered.join(', ')}`);
-        if (s.totalMaxScore != null) {
-          const cents = (n) => Math.round(Number(n ?? 0) * 100);
-          const sum = s.questions.reduce((a, q) => a + cents(q.maxScore), 0);
-          if (sum !== cents(s.totalMaxScore)) return problem(422, `The question scores add up to ${(sum / 100).toFixed(2)} but the statement is worth ${(cents(s.totalMaxScore) / 100).toFixed(2)}`);
-        }
+        // O gate do BE-08, nas mesmas duas regras de `StatementService`: uma pergunta
+        // com opções e sem resposta marcada, e um total que não bate com a soma.
+        const blocked = approvalProblem(s);
+        if (blocked) return problem(422, blocked);
         s.needsReview = false;
         return json(200, mapStatement(s));
       }
@@ -444,36 +476,148 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       }
     }
 
-    // ── questions and options of a statement (QuestionController / QuestionOptionController) ──
-    if ((m = path.match(/^\/api\/v1\/statements\/(\d+)\/questions\/(\d+)(\/correct-option|\/options\/(\d+))?$/)) && method === 'PUT') {
-      const st = db.statements.find((x) => x.id === Number(m[1]) && !x.deletedAt);
-      const q = st?.questions.find((x) => x.id === Number(m[2]));
-      if (!q) return problem(404, 'Question not found');
+    // ── questions (BE-08) ──
+    if ((m = path.match(/^\/api\/v1\/statements\/(\d+)\/questions(?:\/(trash|reorder|\d+(?:\/(restore|purge))?))?$/))) {
+      const s = db.statements.find((x) => x.id === Number(m[1]));
+      if (!s) return problem(404, 'Statement not found');
+      const sub = m[2];
+      const live = () => s.questions.filter((q) => !q.deletedAt).sort((a, b) => a.number - b.number);
+      const nextNumber = () => Math.max(0, ...s.questions.map((q) => q.number)) + 1;
+
+      if (!sub && method === 'GET') return json(200, live().map((q) => ({ ...q, options: q.options })));
+      if (sub === 'trash' && method === 'GET') return json(200, s.questions.filter((q) => q.deletedAt).map((q) => ({ ...q })));
+
+      if (sub === 'reorder' && method === 'PUT') {
+        // `QuestionReorderRequest` tem de nomear todas as perguntas activas, uma vez
+        // cada: mais curto deixa perguntas numa ordem que ninguém escolheu, mais longo
+        // nomeia uma que não lá está. Ambos são recusados em vez de adivinhados.
+        const b = readBody();
+        const ids = b.questionIds;
+        if (!Array.isArray(ids) || ids.length === 0) return problem(400, 'The list of question ids is required');
+        const current = live();
+        if (ids.length !== current.length || new Set(ids).size !== ids.length || ids.some((id) => !current.some((q) => q.id === Number(id)))) {
+          return problem(422, 'The reorder must name every active question of the statement exactly once');
+        }
+        ids.forEach((id, i) => { const q = current.find((x) => x.id === Number(id)); q.orderIndex = i; });
+        current.forEach((q, i) => { q.number = i + 1; });
+        return json(200, live().map((q) => ({ ...q })));
+      }
+
+      if (sub && /^\d+$/.test(sub) && method === 'GET') {
+        const q = s.questions.find((x) => x.id === Number(sub));
+        if (!q || q.deletedAt) return problem(404, 'Question not found');
+        return json(200, { ...q });
+      }
+
+      if (!sub && method === 'POST') {
+        const b = readBody();
+        if (!b.text || !String(b.text).trim()) return problem(400, 'The question text is required');
+        // `QuestionRequest.maxScore` é @NotNull, e a razão está escrita no DTO: uma
+        // edição que o omita guardaria NULL, encolheria a soma em silêncio e deixaria
+        // o enunciado impossível de aprovar — devolvendo 200 à edição que o fez.
+        if (b.maxScore == null) return problem(400, 'The question score is required');
+        const q = { id: nextId('questions'), statementId: s.id, number: nextNumber(), text: String(b.text).trim(), questionType: b.questionType ?? 'open', maxScore: Number(b.maxScore), orderIndex: live().length, pageIndex: b.pageIndex ?? null, modelAnswer: b.modelAnswer ?? null, needsReview: false, options: [] };
+        s.questions.push(q);
+        return json(201, { ...q });
+      }
+
+      if (sub && /^\d+$/.test(sub)) {
+        const q = s.questions.find((x) => x.id === Number(sub));
+        if (!q || q.deletedAt) return problem(404, 'Question not found');
+        if (method === 'DELETE') { q.deletedAt = now(); return json(204); }
+        if (method === 'PUT') {
+          const b = readBody();
+          if (b.text != null && !String(b.text).trim()) return problem(400, 'The question text is required');
+          // Omitir a cotação também viola o @NotNull: um PUT que a omita guardaria
+          // NULL, encolheria a soma em silêncio e deixaria o enunciado impossível de
+          // aprovar para sempre — com a edição que o fez a devolver 200.
+          if (!Object.keys(b).includes('maxScore')) return problem(400, 'The question score is required');
+          if (b.maxScore === null) return problem(400, 'The question score is required');
+          if (b.text != null) q.text = String(b.text).trim();
+          if (b.maxScore != null) q.maxScore = Number(b.maxScore);
+          if (b.questionType != null) q.questionType = b.questionType;
+          if (b.pageIndex != null) q.pageIndex = Number(b.pageIndex);
+          // Como o setModelAnswer(blankToNull(...)) do servidor: vazio ou null apaga.
+          if ('modelAnswer' in b) q.modelAnswer = b.modelAnswer && String(b.modelAnswer).trim() ? String(b.modelAnswer) : null;
+          return json(200, { ...q });
+        }
+      }
+    }
+
+    // ── question options (BE-08) ──
+    if ((m = path.match(/^\/api\/v1\/statements\/(\d+)\/questions\/(\d+)\/options(?:\/(trash|reorder|\d+(?:\/(restore|purge))?))?$/))) {
+      const s = db.statements.find((x) => x.id === Number(m[1]));
+      const q = s?.questions.find((x) => x.id === Number(m[2]) && !x.deletedAt);
+      if (!s || !q) return problem(404, 'Question not found');
+      const sub = m[3];
+      q.options ??= [];
+      const liveOpts = () => q.options.filter((o) => !o.deletedAt).sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+      const nextOrder = () => liveOpts().length;
+
+      if (!sub && method === 'GET') return json(200, liveOpts().map((o) => ({ ...o })));
+      if (sub === 'trash' && method === 'GET') return json(200, q.options.filter((o) => o.deletedAt).map((o) => ({ ...o })));
+
+      if (sub === 'reorder' && method === 'PUT') {
+        const b = readBody();
+        const ids = b.optionIds;
+        if (!Array.isArray(ids) || ids.length === 0) return problem(400, 'The list of option ids is required');
+        const current = liveOpts();
+        if (ids.length !== current.length || new Set(ids).size !== ids.length || ids.some((id) => !current.some((o) => o.id === Number(id)))) {
+          return problem(422, 'The reorder must name every active option of the question exactly once');
+        }
+        ids.forEach((id, i) => { const o = current.find((x) => x.id === Number(id)); o.orderIndex = i; });
+        return json(200, liveOpts().map((o) => ({ ...o })));
+      }
+
+      if (sub && /^\d+$/.test(sub) && method === 'GET') {
+        const o = q.options.find((x) => x.id === Number(sub));
+        if (!o || o.deletedAt) return problem(404, 'Option not found');
+        return json(200, { ...o });
+      }
+
+      if (!sub && method === 'POST') {
+        const b = readBody();
+        if (!b.optionLabel || !String(b.optionLabel).trim()) return problem(400, 'The option label is required');
+        if (!b.optionText || !String(b.optionText).trim()) return problem(400, 'The option text is required');
+        // `optionLabel` é identidade única por pergunta e o índice não conhece as linhas
+        // removidas: uma etiqueta fica tomada para sempre. `isCorrect` passa pelo mesmo
+        // rewrite na criação e na edição, para a resposta se manter singular.
+        const label = String(b.optionLabel).trim();
+        if (q.options.some((o) => o.optionLabel === label && !o.deletedAt)) return problem(409, `The option label ${label} is already used in this question`);
+        const o = { id: nextId('options'), questionId: q.id, optionLabel: label, optionText: String(b.optionText).trim(), isCorrect: false, orderIndex: nextOrder() };
+        q.options.push(o);
+        return json(201, b.isCorrect ? markCorrect(q, o.id) : { ...o });
+      }
+
+      if (sub && /^\d+$/.test(sub)) {
+        const o = q.options.find((x) => x.id === Number(sub));
+        if (!o || o.deletedAt) return problem(404, 'Option not found');
+        if (method === 'PUT') {
+          const b = readBody();
+          if (!b.optionText || !String(b.optionText).trim()) return problem(400, 'The option text is required');
+          o.optionText = String(b.optionText).trim();
+          // `isCorrect` é honrado na edição também. Já só era honrado na criação e
+          // descartado em silêncio no PUT: o corpo pedia a opção correcta, recebia
+          // um 200, e nada mudava.
+          if (b.isCorrect) markCorrect(q, o.id);
+          return json(200, { ...o });
+        }
+        if (method === 'DELETE') { o.deletedAt = now(); return json(204); }
+      }
+    }
+
+    // ── correct option (BE-08) ──
+    if ((m = path.match(/^\/api\/v1\/questions\/(\d+)\/correct-option$/)) && method === 'PUT') {
       const b = readBody();
-      if (m[3] === '/correct-option') {
-        if (b.optionId == null) return problem(400, 'The option id is required');
-        if (!q.options.some((o) => o.id === Number(b.optionId))) return problem(404, 'Option not found');
-        q.options.forEach((o) => { o.isCorrect = o.id === Number(b.optionId); });
-        return json(200, q.options.find((o) => o.isCorrect));
-      }
-      if (m[4]) {
-        const o = q.options.find((x) => x.id === Number(m[4]));
-        if (!o) return problem(404, 'Option not found');
-        if (!String(b.optionLabel ?? '').trim()) return problem(400, 'The option label is required');
-        if (!String(b.optionText ?? '').trim()) return problem(400, 'The option text is required');
-        // A etiqueta é a identidade e não muda; isCorrect=true reescreve as outras.
-        o.optionText = String(b.optionText).trim();
-        if (b.isCorrect === true) q.options.forEach((x) => { x.isCorrect = x.id === o.id; });
-        return json(200, o);
-      }
-      if (!String(b.text ?? '').trim()) return problem(400, 'The question text is required');
-      if (b.maxScore == null) return problem(400, 'The question score is required');
-      if (!(Number(b.maxScore) >= 0)) return problem(400, 'The score cannot be negative');
-      q.text = String(b.text).trim();
-      if (b.questionType) q.questionType = String(b.questionType).trim();
-      q.maxScore = Number(b.maxScore);
-      q.modelAnswer = b.modelAnswer && String(b.modelAnswer).trim() ? String(b.modelAnswer) : null;
-      return json(200, q);
+      if (!b.optionId) return problem(400, 'The option id is required');
+      const q = db.statements.flatMap((s) => s.questions).find((x) => x.id === Number(m[1]) && !x.deletedAt);
+      if (!q) return problem(404, 'Question not found');
+      const o = (q.options ?? []).find((x) => x.id === Number(b.optionId) && !x.deletedAt);
+      // A opção tem de pertencer à pergunta do path: o query que a marca reescreve
+      // is_correct em todas as opções dessa pergunta, e um id estrangeiro deixaria a
+      // pergunta sem resposta nenhuma em vez de falhar.
+      if (!o) return problem(404, 'Option not found');
+      return json(200, markCorrect(q, o.id));
     }
 
     // ── question images (multipart upload) ──
@@ -596,7 +740,11 @@ function seedExtras() {
   const student = db.accounts.find((a: any) => a.username === '12345');
   const sy = db['school-years'][0];
   add('simulations', { accountId: student.id, statementId: 1, schoolYearId: sy.id, startedAt: now(), finishedAt: now(), timeSpentSeconds: 3120, finalScore: 15.5, status: 'COMPLETED' });
-  const opts = (labels: string[], correct: number) => labels.map((t, i) => ({ id: i + 1, optionLabel: 'ABCD'[i], optionText: t, isCorrect: i === correct }));
+  // Ids pela mesma sequência global que o resto do mock. Antes eram `si * 10 + i + 1`
+  // e `i + 1`, que reiniciavam por enunciado: um enunciado criado depois vinha com
+  // perguntas de id 1 e colidia com as da semente, e `PUT /questions/{id}/correct-option`
+  // — que só recebe o id da pergunta — resolvia a do enunciado errado.
+  const opts = (labels: string[], correct: number) => labels.map((t, i) => ({ id: nextId('options'), questionId: null, optionLabel: 'ABCD'[i], optionText: t, isCorrect: i === correct, orderIndex: i, deletedAt: null }));
   const qs = [
     ['Qual é o endereço de broadcast da rede 192.168.10.0/26?', ['192.168.10.31', '192.168.10.63', '192.168.10.64', '192.168.10.127'], 1],
     ['Quantos hosts úteis tem uma sub-rede /27?', ['30', '32', '62', '14'], 0],
@@ -605,13 +753,15 @@ function seedExtras() {
     ['Para que serve uma VLAN?', ['Aumentar a banda', 'Segmentar a rede logicamente', 'Cifrar tráfego', 'Balancear carga'], 1],
     ['Qual é a máscara de um /24?', ['255.255.0.0', '255.255.255.0', '255.255.255.128', '255.0.0.0'], 1],
   ];
-  db.statements.forEach((st: any, si: number) => {
-    st.questions = qs.map(([text, o, c]: any, i: number) => ({ id: si * 10 + i + 1, number: i + 1, text, questionType: 'MULTIPLE_CHOICE', maxScore: 20 / qs.length, needsReview: st.needsReview && i === 2, options: opts(o, c) }));
+  db.statements.forEach((st: any) => {
+    st.institutionId = st.institutionId ?? 1;
+    st.questions = qs.map(([text, o, c]: any, i: number) => ({ id: nextId('questions'), statementId: st.id, number: i + 1, orderIndex: i, text, questionType: 'MULTIPLE_CHOICE', maxScore: 20 / qs.length, needsReview: st.needsReview && i === 2, options: opts(o, c) }));
+    st.questions.forEach((q: any) => q.options.forEach((opt: any) => { opt.questionId = q.id; }));
   });
   for (const [qid, opt] of [[1, 2], [2, 1], [3, 2]]) {
-    const q = db.statements[0].questions.find((x: any) => x.id === qid);
-    const o = q.options.find((x: any) => x.id === opt);
-    add('simulation-answers', { simulationId: 1, questionId: qid, selectedOptionId: opt, answerText: null, answeredAt: now(), isCorrect: o.isCorrect, scoreObtained: o.isCorrect ? q.maxScore : 0 });
+    const q = db.statements[0].questions.find((x: any, i: number) => i + 1 === qid);
+    const o = q.options.find((x: any) => x.optionLabel === 'ABCD'[opt - 1]);
+    add('simulation-answers', { simulationId: 1, questionId: q.id, selectedOptionId: o.id, answerText: null, answeredAt: now(), isCorrect: o.isCorrect, scoreObtained: o.isCorrect ? q.maxScore : 0 });
   }
   for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
 }

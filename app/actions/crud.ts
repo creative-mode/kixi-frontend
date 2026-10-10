@@ -220,7 +220,7 @@ export type QuestionEdit = {
   question?: { text: string; questionType: string | null; maxScore: number; modelAnswer: string | null };
   /** `PUT .../options/{id}`, uma por opção cujo texto mudou. A etiqueta é a identidade e não muda. */
   options?: { id: number; optionLabel: string; optionText: string }[];
-  /** `PUT .../questions/{id}/correct-option`, quando a resposta correta mudou. */
+  /** `PUT /questions/{id}/correct-option` (a mesma rota de `setCorrectOption`), quando a resposta correta mudou. */
   correctOptionId?: number;
 };
 
@@ -233,16 +233,16 @@ export type QuestionEdit = {
 export async function saveStatementReview(id: number, statement: StatementInput, questions: QuestionEdit[]): Promise<Result<{ failed: string[] }>> {
   return guard(async () => {
     const sid = safeId(id);
-    const put = (path: string, body: unknown) => call(`/api/v1/statements/${sid}${path}`, { method: 'PUT', body: JSON.stringify(body) });
-    const res = await put('', statement);
+    const put = (path: string, body: unknown) => call(`/api/v1${path}`, { method: 'PUT', body: JSON.stringify(body) });
+    const res = await put(`/statements/${sid}`, statement);
     if (!res.ok) return fail(await message(res));
     const failed: string[] = [];
     for (const q of questions) {
       const qid = safeId(q.id);
       // Em sequência: o correct-option reescreve as opções que o PUT de texto acabou de gravar.
       const steps: [string, unknown][] = [];
-      if (q.question) steps.push([`/questions/${qid}`, q.question]);
-      for (const o of q.options ?? []) steps.push([`/questions/${qid}/options/${safeId(o.id)}`, { optionLabel: o.optionLabel, optionText: o.optionText }]);
+      if (q.question) steps.push([`/statements/${sid}/questions/${qid}`, q.question]);
+      for (const o of q.options ?? []) steps.push([`/statements/${sid}/questions/${qid}/options/${safeId(o.id)}`, { optionLabel: o.optionLabel, optionText: o.optionText }]);
       if (q.correctOptionId != null) steps.push([`/questions/${qid}/correct-option`, { optionId: q.correctOptionId }]);
       for (const [path, body] of steps) {
         const r = await put(path, body).catch(() => null);
@@ -320,6 +320,54 @@ export async function revokeTeacherAccess(teacherId: number): Promise<Result> {
 export async function createManualStatement(values: Row): Promise<Result<Row>> {
   return guard(async () => {
     const res = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify(values) });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/statements');
+    return ok((await res.json()) as Row);
+  });
+}
+
+/**
+ * Cria a prova, aprova-a e publica-a, nesta ordem.
+ *
+ * O `/approve` não é um formality: é ele que corre o gate do servidor, e o passo
+ * tem de estar **entre** a criação e a publicação. Publicar só por `/visibility`
+ * punha a prova à vista dos alunos sem nunca o ter aprovado — e o gate é
+ * precisamente o que impede uma prova sem gabarito, ou com as cotações a não
+ * bater com o total, de chegar a um aluno.
+ *
+ * Se a aprovação chumbar, a prova fica criada e oculta, e a mensagem do 422
+ * volta tal e qual: é ela que diz *que questões* é que estão a faltar, e
+ * traduzi-la para uma frase genérica deixaria o professor a procurar sem saber
+ * onde.
+ */
+export async function publishManualStatement(values: Row): Promise<Result<Row>> {
+  return guard(async () => {
+    const created = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify({ ...values, visible: false }) });
+    if (!created.ok) return fail(await message(created));
+    const statement = (await created.json()) as Row;
+
+    const approved = await call(`/api/v1/statements/${safeId(statement.id)}/approve`, { method: 'POST' });
+    if (!approved.ok) return fail(await message(approved));
+
+    const visible = await call(`/api/v1/statements/${safeId(statement.id)}/visibility?visible=true`, { method: 'PATCH' });
+    if (!visible.ok) return fail(await message(visible));
+
+    revalidatePath('/statements');
+    return ok((await visible.json()) as Row);
+  });
+}
+
+/**
+ * Marca a opção correcta de uma pergunta.
+ *
+ * O corpo é só o `optionId`: o servidor reescreve `is_correct` em todas as opções da
+ * pergunta para a resposta se manter singular, e recusa um id que seja de outra
+ * pergunta — sem isso, um id estrangeiro deixaria a pergunta sem resposta nenhuma em
+ * vez de falhar. Por isso não se manda o enunciado nem o texto.
+ */
+export async function setCorrectOption(questionId: number, optionId: number): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/questions/${safeId(questionId)}/correct-option`, { method: 'PUT', body: JSON.stringify({ optionId: Number(optionId) }) });
     if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as Row);
   });
