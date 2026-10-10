@@ -21,13 +21,17 @@ export function OcrImport() {
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function add(list: FileList | File[]) {
     const incoming = Array.from(list).filter((f) => /^image\/|^application\/pdf$/.test(f.type));
     if (incoming.length < Array.from(list).length) toast.error('Só são aceites imagens e PDF.');
-    setFiles((cur) => [...cur, ...incoming].slice(0, 20));
+    const tooBig = incoming.find((f) => f.size > 15 * 1024 * 1024);
+    if (tooBig) toast.error(`«${tooBig.name}» ultrapassa os 15 MB e foi ignorado.`);
+    setFiles((cur) => [...cur, ...incoming.filter((f) => f.size <= 15 * 1024 * 1024)].slice(0, 20));
     setError(null);
   }
 
@@ -37,12 +41,26 @@ export function OcrImport() {
     const form = new FormData();
     files.forEach((f) => form.append('files', f, f.name));
     setBusy(true);
-    const res = await importStatementOcr(form);
-    setBusy(false);
-    if (res.ok) {
-      toast.success('Prova importada. Falta rever o texto extraído.');
-      router.push(`/statements/${res.data.id}`);
-    } else setError(res.error);
+    setError(null);
+    setStage('A enviar ficheiros…');
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const s = Math.floor((Date.now() - started) / 1000);
+      setElapsed(s);
+      // FE-11: sem progresso real do servidor; mostra a fase provável.
+      setStage(s < 5 ? 'A enviar ficheiros…' : s < 30 ? 'A extrair o texto (OCR)…' : 'A guardar o enunciado…');
+    }, 1000);
+    try {
+      const res = await importStatementOcr(form);
+      if (res.ok) {
+        toast.success('Prova importada. Falta rever o texto extraído.');
+        router.push(`/statements/${res.data.id}`);
+      } else setError(res.error);
+    } finally {
+      window.clearInterval(timer);
+      setBusy(false);
+      setStage(null);
+    }
   }
 
   return (
@@ -76,6 +94,13 @@ export function OcrImport() {
               </ol>
             )}
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+            {busy && stage ? (
+              <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm" role="status" aria-live="polite">
+                <Spinner className="size-4" />
+                <span className="font-medium">{stage}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{elapsed}s · limite 180s</span>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
         <div className="flex justify-end gap-3">

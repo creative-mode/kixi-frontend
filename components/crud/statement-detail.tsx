@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { FilePen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getStatementFull } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
 import { QuestionImages } from './question-images';
 import { DetailSkeleton } from './loading';
+import { StatementReview } from './statement-review';
 
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento' };
 const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
@@ -15,15 +18,29 @@ const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDig
 export function StatementDetail({ id }: { id: number }) {
   const [s, setS] = useState<Row | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   useEffect(() => {
     getStatementFull(id).then((r) => (r.ok ? setS(r.data) : setError(r.error)));
   }, [id]);
+
+  // FE-11: modo de revisão (editar cabeçalho, questões e gabarito).
+  if (reviewing) return <StatementReview id={id} onExit={() => setReviewing(false)} />;
 
   const entity = ENTITIES.statements;
   const questions: Row[] = s?.questions ?? [];
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
-      <PageHead entity={entity} title={s?.title ?? 'Enunciado'} subtitle={s ? `${s.examType}${s.variant ? ` · variante ${s.variant}` : ''}` : ''} back={{ href: '/statements', label: 'Voltar à lista' }} />
+      <PageHead
+        entity={entity}
+        title={s?.title ?? 'Enunciado'}
+        subtitle={s ? `${s.examType}${s.variant ? ` · variante ${s.variant}` : ''}` : ''}
+        back={{ href: '/statements', label: 'Voltar à lista' }}
+        actions={s ? (
+          <Button size="sm" onClick={() => setReviewing(true)}>
+            <FilePen size={14} /> Rever enunciado
+          </Button>
+        ) : undefined}
+      />
       {error ? (
         <p className="py-12 text-center text-sm text-destructive">{error}</p>
       ) : !s ? (
