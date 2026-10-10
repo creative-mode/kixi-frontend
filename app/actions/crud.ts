@@ -197,37 +197,63 @@ export async function getStatementFull(id: number): Promise<Result<Row>> {
   });
 }
 
-export type ReviewOptionInput = { id?: number; optionLabel: string; optionText: string; isCorrect: boolean };
-export type ReviewQuestionInput = {
-  id?: number;
-  number: number;
-  questionType: string;
-  text: string;
-  maxScore: number;
-  needsReview?: boolean;
-  modelAnswer?: string | null;
-  options?: ReviewOptionInput[];
+/** O corpo do `PUT /statements/{id}` (StatementRequest): só metadados, sem questões nem visibilidade. */
+export type StatementInput = {
+  institutionId: number;
+  subjectId: number;
+  title: string;
+  examType: string;
+  durationMinutes: number | null;
+  variant: string | null;
+  instructions: string | null;
+  totalMaxScore: number | null;
+  schoolYearId: number | null;
+  termId: number | null;
+  classId: number | null;
+  courseId: number | null;
 };
-export type ReviewStatementInput = {
-  title?: string;
-  examType?: string;
-  variant?: string | null;
-  durationMinutes?: number | null;
-  instructions?: string | null;
-  subjectId?: number | null;
-  classId?: number | null;
-  schoolYearId?: number | null;
-  termId?: number | null;
-  questions?: ReviewQuestionInput[];
+/** Uma questão alterada na revisão. Só segue o que mudou: cada parte é um pedido. */
+export type QuestionEdit = {
+  id: number;
+  number: number;
+  /** `PUT .../questions/{id}` (QuestionRequest), quando o texto, a cotação ou a resposta modelo mudaram. */
+  question?: { text: string; questionType: string | null; maxScore: number; modelAnswer: string | null };
+  /** `PUT .../options/{id}`, uma por opção cujo texto mudou. A etiqueta é a identidade e não muda. */
+  options?: { id: number; optionLabel: string; optionText: string }[];
+  /** `PUT .../questions/{id}/correct-option`, quando a resposta correta mudou. */
+  correctOptionId?: number;
 };
 
-/** FE-11: guarda a revisão do enunciado (cabeçalho + questões + gabarito). */
-export async function updateStatementReview(id: number, values: ReviewStatementInput): Promise<Result<Row>> {
+/**
+ * FE-11: guarda a revisão do enunciado. O backend não aceita questões no PUT do
+ * enunciado (StatementRequest), por isso cada questão, opção e resposta correta vai
+ * pela sua rota. Não é atómico: o que falhar volta em `failed`, por questão, e o
+ * ecrã recarrega do servidor para mostrar o que ficou de facto gravado.
+ */
+export async function saveStatementReview(id: number, statement: StatementInput, questions: QuestionEdit[]): Promise<Result<{ failed: string[] }>> {
   return guard(async () => {
-    const res = await call(`/api/v1/statements/${safeId(id)}`, { method: 'PUT', body: JSON.stringify(values) });
+    const sid = safeId(id);
+    const put = (path: string, body: unknown) => call(`/api/v1/statements/${sid}${path}`, { method: 'PUT', body: JSON.stringify(body) });
+    const res = await put('', statement);
     if (!res.ok) return fail(await message(res));
+    const failed: string[] = [];
+    for (const q of questions) {
+      const qid = safeId(q.id);
+      // Em sequência: o correct-option reescreve as opções que o PUT de texto acabou de gravar.
+      const steps: [string, unknown][] = [];
+      if (q.question) steps.push([`/questions/${qid}`, q.question]);
+      for (const o of q.options ?? []) steps.push([`/questions/${qid}/options/${safeId(o.id)}`, { optionLabel: o.optionLabel, optionText: o.optionText }]);
+      if (q.correctOptionId != null) steps.push([`/questions/${qid}/correct-option`, { optionId: q.correctOptionId }]);
+      for (const [path, body] of steps) {
+        const r = await put(path, body).catch(() => null);
+        if (!r?.ok) {
+          failed.push(`Questão ${q.number}: ${r ? await message(r) : 'não foi possível contactar o servidor.'}`);
+          break;
+        }
+      }
+    }
     revalidatePath('/statements');
-    return ok((await res.json()) as Row);
+    return ok({ failed });
   });
 }
 

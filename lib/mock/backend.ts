@@ -404,52 +404,76 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       if (!sub && method === 'DELETE') { s.deletedAt = now(); return json(204); }
       if (sub === '/restore' && method === 'POST') { s.deletedAt = null; return json(204); }
       if (sub === '/purge' && method === 'DELETE') { db.statements = db.statements.filter((x) => x.id !== id); return json(204); }
-      if (sub === '/approve' && method === 'POST') { s.needsReview = false; return json(200, mapStatement(s)); }
+      if (sub === '/approve' && method === 'POST') {
+        // Os dois 422 do StatementService.approveReview: opções sem correta, e cotações que não somam ao total.
+        const unanswered = s.questions.filter((q) => q.options?.length && !q.options.some((o) => o.isCorrect)).map((q) => q.number);
+        if (unanswered.length) return problem(422, `These questions have options but no correct option marked: question ${unanswered.join(', ')}`);
+        if (s.totalMaxScore != null) {
+          const cents = (n) => Math.round(Number(n ?? 0) * 100);
+          const sum = s.questions.reduce((a, q) => a + cents(q.maxScore), 0);
+          if (sum !== cents(s.totalMaxScore)) return problem(422, `The question scores add up to ${(sum / 100).toFixed(2)} but the statement is worth ${(cents(s.totalMaxScore) / 100).toFixed(2)}`);
+        }
+        s.needsReview = false;
+        return json(200, mapStatement(s));
+      }
       if (sub === '/visibility' && method === 'PATCH') { s.visible = url.searchParams.get('visible') === 'true'; return json(200, mapStatement(s)); }
-      // FE-11: revisão do enunciado (cabeçalho + questões + gabarito). Espelha o
-      // POST manual aninhado; o backend real expõe a mesma forma via BE-08.
+      // PUT do enunciado = StatementRequest: só metadados. As questões não vão aqui (o
+      // backend descarta-as em silêncio) e têm as rotas de questão/opção abaixo.
       if (!sub && method === 'PUT') {
         if (s.deletedAt) return problem(404, 'Statement not found');
         const b = readBody();
         const numOrNull = (v) => (v == null || v === '' ? null : Number(v));
-        if (b.subjectId != null && !db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt)) return problem(400, 'subject not found');
-        if (b.classId != null && !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt)) return problem(400, 'class not found');
-        if (b.schoolYearId != null && !db['school-years'].find((x) => x.id === Number(b.schoolYearId) && !x.deletedAt)) return problem(400, 'school year not found');
-        if (b.termId != null && !db.terms.find((x) => x.id === Number(b.termId) && !x.deletedAt)) return problem(400, 'term not found');
-        if (b.title != null) s.title = String(b.title).trim() || s.title;
-        if (b.examType != null) s.examType = String(b.examType).trim() || s.examType;
-        if (b.variant !== undefined) s.variant = b.variant ? String(b.variant) : null;
-        if (b.durationMinutes !== undefined) s.durationMinutes = numOrNull(b.durationMinutes);
-        if (b.instructions !== undefined) s.instructions = b.instructions ? String(b.instructions) : null;
-        if (b.subjectId !== undefined) s.subjectId = numOrNull(b.subjectId);
-        if (b.classId !== undefined) s.classId = numOrNull(b.classId);
-        if (b.schoolYearId !== undefined) s.schoolYearId = numOrNull(b.schoolYearId);
-        if (b.termId !== undefined) s.termId = numOrNull(b.termId);
-        if (b.questions !== undefined) {
-          if (!Array.isArray(b.questions) || !b.questions.length) return problem(400, 'A statement needs at least one question');
-          const seen = new Set();
-          s.questions = b.questions.map((q, i) => {
-            const number = Number(q.number ?? i + 1);
-            if (!q.text || !String(q.text).trim()) throw Object.assign(new Error(`Question ${number}: text is required`), { status: 400 });
-            const maxScore = Number(q.maxScore ?? 0);
-            if (!Number.isFinite(maxScore) || maxScore < 0) throw Object.assign(new Error(`Question ${number}: invalid maxScore`), { status: 400 });
-            const type = String(q.questionType ?? 'MULTIPLE_CHOICE');
-            const options = Array.isArray(q.options) ? q.options.map((o, k) => ({
-              id: Number(o.id) || 2000 + nextId('options'),
-              optionLabel: String(o.optionLabel ?? String.fromCharCode(65 + k)),
-              optionText: String(o.optionText ?? ''),
-              isCorrect: !!o.isCorrect,
-            })) : [];
-            if ((type === 'MULTIPLE_CHOICE' || type === 'TRUE_FALSE') && options.length < 2) throw Object.assign(new Error(`Question ${number}: needs at least 2 options`), { status: 400 });
-            if (seen.has(number)) throw Object.assign(new Error(`Duplicate question number ${number}`), { status: 400 });
-            seen.add(number);
-            return { id: Number(q.id) || 2000 + nextId('questions'), number, questionType: type, text: String(q.text), maxScore, needsReview: !!q.needsReview, modelAnswer: q.modelAnswer ? String(q.modelAnswer) : null, options };
-          });
-          s.totalMaxScore = s.questions.reduce((a, q) => a + Number(q.maxScore ?? 0), 0);
-        }
-        s.updatedAt = now();
-        return json(200, s);
+        if (b.institutionId == null) return problem(400, 'The institution is required');
+        if (b.subjectId == null) return problem(400, 'The subject is required');
+        const title = String(b.title ?? '').trim();
+        if (title.length < 3 || title.length > 500) return problem(400, 'The title must be between 3 and 500 characters');
+        if (!String(b.examType ?? '').trim()) return problem(400, 'The exam type is required');
+        if (b.durationMinutes != null && !(Number(b.durationMinutes) > 0)) return problem(400, 'The duration must be greater than zero');
+        if (b.totalMaxScore != null && !(Number(b.totalMaxScore) >= 0)) return problem(400, 'The total score cannot be negative');
+        if (!activeInst(b.institutionId)) return problem(404, 'Institution not found');
+        if (!db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt)) return problem(404, 'Subject not found');
+        Object.assign(s, {
+          institutionId: Number(b.institutionId), subjectId: Number(b.subjectId), title, examType: String(b.examType).trim(),
+          durationMinutes: numOrNull(b.durationMinutes), variant: b.variant || null, instructions: b.instructions || null,
+          // Como o apply() do servidor: grava o que vier, e null apaga o total.
+          totalMaxScore: numOrNull(b.totalMaxScore),
+          schoolYearId: numOrNull(b.schoolYearId), termId: numOrNull(b.termId), classId: numOrNull(b.classId), courseId: numOrNull(b.courseId),
+          updatedAt: now(),
+        });
+        return json(200, mapStatement(s));
       }
+    }
+
+    // ── questions and options of a statement (QuestionController / QuestionOptionController) ──
+    if ((m = path.match(/^\/api\/v1\/statements\/(\d+)\/questions\/(\d+)(\/correct-option|\/options\/(\d+))?$/)) && method === 'PUT') {
+      const st = db.statements.find((x) => x.id === Number(m[1]) && !x.deletedAt);
+      const q = st?.questions.find((x) => x.id === Number(m[2]));
+      if (!q) return problem(404, 'Question not found');
+      const b = readBody();
+      if (m[3] === '/correct-option') {
+        if (b.optionId == null) return problem(400, 'The option id is required');
+        if (!q.options.some((o) => o.id === Number(b.optionId))) return problem(404, 'Option not found');
+        q.options.forEach((o) => { o.isCorrect = o.id === Number(b.optionId); });
+        return json(200, q.options.find((o) => o.isCorrect));
+      }
+      if (m[4]) {
+        const o = q.options.find((x) => x.id === Number(m[4]));
+        if (!o) return problem(404, 'Option not found');
+        if (!String(b.optionLabel ?? '').trim()) return problem(400, 'The option label is required');
+        if (!String(b.optionText ?? '').trim()) return problem(400, 'The option text is required');
+        // A etiqueta é a identidade e não muda; isCorrect=true reescreve as outras.
+        o.optionText = String(b.optionText).trim();
+        if (b.isCorrect === true) q.options.forEach((x) => { x.isCorrect = x.id === o.id; });
+        return json(200, o);
+      }
+      if (!String(b.text ?? '').trim()) return problem(400, 'The question text is required');
+      if (b.maxScore == null) return problem(400, 'The question score is required');
+      if (!(Number(b.maxScore) >= 0)) return problem(400, 'The score cannot be negative');
+      q.text = String(b.text).trim();
+      if (b.questionType) q.questionType = String(b.questionType).trim();
+      q.maxScore = Number(b.maxScore);
+      q.modelAnswer = b.modelAnswer && String(b.modelAnswer).trim() ? String(b.modelAnswer) : null;
+      return json(200, q);
     }
 
     // ── question images (multipart upload) ──
@@ -484,7 +508,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const title = String(files[0].name ?? 'Prova importada').replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Prova importada';
       const sy = db['school-years'][0];
       const s = add('statements', {
-        title, examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
+        title, examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 6, visible: false, needsReview: true,
         source: 'OCR', ocrConfidence: 0.82, ocrRequestId: `req-${Date.now()}`, schoolYearId: sy?.id ?? null, termId: null, subjectId: null, classId: null,
         questions: [1, 2, 3].map((n) => ({ id: 1000 + nextId('questions'), number: n, questionType: 'MULTIPLE_CHOICE', text: `Questão ${n} extraída de ${files.length} ficheiro(s). Reveja o texto.`, maxScore: 2, needsReview: true, options: ['A', 'B', 'C', 'D'].map((l, i) => ({ id: 1000 + nextId('options'), optionLabel: l, optionText: `Opção ${l}`, isCorrect: i === 0 })) })),
       });
@@ -560,8 +584,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     return problem(404, `No route for ${method} ${path}`);
   } catch (e) {
     console.error(e);
-    const status = typeof e?.status === 'number' ? e.status : 500;
-    return problem(status, status === 500 ? 'Internal error' : String(e?.message ?? 'Error'));
+    return problem(500, 'Internal error');
   }
 }
 
