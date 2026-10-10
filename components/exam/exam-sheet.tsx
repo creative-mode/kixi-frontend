@@ -55,7 +55,7 @@ export function ExamSheet({ school, draft }: { school: School | undefined; draft
                     <li key={o.label} className="flex gap-2">
                       <span className="font-semibold">{o.label})</span>
                       <span>{o.text}</span>
-                      {o.correct && <b className="whitespace-nowrap print:hidden">← correcta</b>}
+                      {o.correct && <b className="whitespace-nowrap print:hidden">correcta</b>}
                     </li>
                   ))}
                 </ul>
