@@ -406,6 +406,50 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       if (sub === '/purge' && method === 'DELETE') { db.statements = db.statements.filter((x) => x.id !== id); return json(204); }
       if (sub === '/approve' && method === 'POST') { s.needsReview = false; return json(200, mapStatement(s)); }
       if (sub === '/visibility' && method === 'PATCH') { s.visible = url.searchParams.get('visible') === 'true'; return json(200, mapStatement(s)); }
+      // FE-11: revisão do enunciado (cabeçalho + questões + gabarito). Espelha o
+      // POST manual aninhado; o backend real expõe a mesma forma via BE-08.
+      if (!sub && method === 'PUT') {
+        if (s.deletedAt) return problem(404, 'Statement not found');
+        const b = readBody();
+        const numOrNull = (v) => (v == null || v === '' ? null : Number(v));
+        if (b.subjectId != null && !db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt)) return problem(400, 'subject not found');
+        if (b.classId != null && !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt)) return problem(400, 'class not found');
+        if (b.schoolYearId != null && !db['school-years'].find((x) => x.id === Number(b.schoolYearId) && !x.deletedAt)) return problem(400, 'school year not found');
+        if (b.termId != null && !db.terms.find((x) => x.id === Number(b.termId) && !x.deletedAt)) return problem(400, 'term not found');
+        if (b.title != null) s.title = String(b.title).trim() || s.title;
+        if (b.examType != null) s.examType = String(b.examType).trim() || s.examType;
+        if (b.variant !== undefined) s.variant = b.variant ? String(b.variant) : null;
+        if (b.durationMinutes !== undefined) s.durationMinutes = numOrNull(b.durationMinutes);
+        if (b.instructions !== undefined) s.instructions = b.instructions ? String(b.instructions) : null;
+        if (b.subjectId !== undefined) s.subjectId = numOrNull(b.subjectId);
+        if (b.classId !== undefined) s.classId = numOrNull(b.classId);
+        if (b.schoolYearId !== undefined) s.schoolYearId = numOrNull(b.schoolYearId);
+        if (b.termId !== undefined) s.termId = numOrNull(b.termId);
+        if (b.questions !== undefined) {
+          if (!Array.isArray(b.questions) || !b.questions.length) return problem(400, 'A statement needs at least one question');
+          const seen = new Set();
+          s.questions = b.questions.map((q, i) => {
+            const number = Number(q.number ?? i + 1);
+            if (!q.text || !String(q.text).trim()) throw Object.assign(new Error(`Question ${number}: text is required`), { status: 400 });
+            const maxScore = Number(q.maxScore ?? 0);
+            if (!Number.isFinite(maxScore) || maxScore < 0) throw Object.assign(new Error(`Question ${number}: invalid maxScore`), { status: 400 });
+            const type = String(q.questionType ?? 'MULTIPLE_CHOICE');
+            const options = Array.isArray(q.options) ? q.options.map((o, k) => ({
+              id: Number(o.id) || 2000 + nextId('options'),
+              optionLabel: String(o.optionLabel ?? String.fromCharCode(65 + k)),
+              optionText: String(o.optionText ?? ''),
+              isCorrect: !!o.isCorrect,
+            })) : [];
+            if ((type === 'MULTIPLE_CHOICE' || type === 'TRUE_FALSE') && options.length < 2) throw Object.assign(new Error(`Question ${number}: needs at least 2 options`), { status: 400 });
+            if (seen.has(number)) throw Object.assign(new Error(`Duplicate question number ${number}`), { status: 400 });
+            seen.add(number);
+            return { id: Number(q.id) || 2000 + nextId('questions'), number, questionType: type, text: String(q.text), maxScore, needsReview: !!q.needsReview, modelAnswer: q.modelAnswer ? String(q.modelAnswer) : null, options };
+          });
+          s.totalMaxScore = s.questions.reduce((a, q) => a + Number(q.maxScore ?? 0), 0);
+        }
+        s.updatedAt = now();
+        return json(200, s);
+      }
     }
 
     // ── question images (multipart upload) ──
@@ -516,7 +560,8 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     return problem(404, `No route for ${method} ${path}`);
   } catch (e) {
     console.error(e);
-    return problem(500, 'Internal error');
+    const status = typeof e?.status === 'number' ? e.status : 500;
+    return problem(status, status === 500 ? 'Internal error' : String(e?.message ?? 'Error'));
   }
 }
 

@@ -33,6 +33,9 @@ export async function guard<T>(fn: () => Promise<Result<T>>): Promise<Result<T>>
   try {
     return await fn();
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'TimeoutError') {
+      return fail('O processamento demorou demasiado tempo. Tente com menos ficheiros ou ficheiros mais leves.');
+    }
     const msg = String((e as Error)?.message ?? '');
     return fail(msg.includes('Não autenticado') ? 'Sessão expirada. Inicie sessão novamente.' : msg || 'Não foi possível contactar o servidor.');
   }

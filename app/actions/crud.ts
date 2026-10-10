@@ -197,6 +197,40 @@ export async function getStatementFull(id: number): Promise<Result<Row>> {
   });
 }
 
+export type ReviewOptionInput = { id?: number; optionLabel: string; optionText: string; isCorrect: boolean };
+export type ReviewQuestionInput = {
+  id?: number;
+  number: number;
+  questionType: string;
+  text: string;
+  maxScore: number;
+  needsReview?: boolean;
+  modelAnswer?: string | null;
+  options?: ReviewOptionInput[];
+};
+export type ReviewStatementInput = {
+  title?: string;
+  examType?: string;
+  variant?: string | null;
+  durationMinutes?: number | null;
+  instructions?: string | null;
+  subjectId?: number | null;
+  classId?: number | null;
+  schoolYearId?: number | null;
+  termId?: number | null;
+  questions?: ReviewQuestionInput[];
+};
+
+/** FE-11: guarda a revisão do enunciado (cabeçalho + questões + gabarito). */
+export async function updateStatementReview(id: number, values: ReviewStatementInput): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/statements/${safeId(id)}`, { method: 'PUT', body: JSON.stringify(values) });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/statements');
+    return ok((await res.json()) as Row);
+  });
+}
+
 // ── dashboard ───────────────────────────────────────────────────────────────
 export async function dashboardCounts(): Promise<Result<Record<string, number>>> {
   return guard(async () => {
