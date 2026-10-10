@@ -41,11 +41,25 @@ export function ExamSheet({ school, draft }: { school: School | undefined; draft
       </table>
 
       {items.length > 0 && (
-        <ol className="mt-5 list-decimal space-y-2 pl-8 text-justify">
+        <ol className="mt-5 list-decimal space-y-3 pl-8 text-justify">
           {items.map((it, i) => (
             <li key={i}>
               {it.text}
               {it.points !== '' && <span className="whitespace-nowrap"> ({it.points} val.)</span>}
+              {it.options.length > 0 && (
+                // As opções vão na folha porque o aluno as recebe; a marcação da
+                // correcta vai por baixo e é o que o `print:hidden` esconde — é a
+                // diferença entre a folha que ele leva e a que o professor revê.
+                <ul className="mt-1 list-none space-y-0.5 pl-4">
+                  {it.options.map((o) => (
+                    <li key={o.label} className="flex gap-2">
+                      <span className="font-semibold">{o.label})</span>
+                      <span>{o.text}</span>
+                      {o.correct && <b className="whitespace-nowrap print:hidden">← correcta</b>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ol>

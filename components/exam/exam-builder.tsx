@@ -8,11 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
-import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { createManualStatement, institutionLinks, myInstitutions } from '@/app/actions/crud';
 import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
+import { problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { ExamSheet } from './exam-sheet';
+import { QuestionEditor } from './question-editor';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="grid gap-1.5"><Label>{label}</Label>{children}</div>;
@@ -62,15 +63,25 @@ export function ExamBuilder() {
       examType: draft.kind,
       instructions: draft.rules.filter(Boolean).join('\n') || null,
       visible: false,
-      questions: draft.items.filter((i) => i.text.trim()).map((i) => ({ text: i.text.trim(), maxScore: i.points === '' ? null : i.points })),
+      // O gabarito viaja no próprio pedido: `ManualStatementRequest.Option.correct` é
+      // honrado na criação, por isso marcar a resposta certa não custa um segundo pedido.
+      questions: toRequest(draft.items),
     });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
-    toast.success('Prova guardada');
+    toast.success('Prova guardada. Fica oculta até a publicar no enunciado.');
   }
 
   const setItem = (i: number, patch: Partial<ExamDraft['items'][number]>) => set('items', draft.items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const setRule = (i: number, v: string) => set('rules', draft.rules.map((x, j) => (j === i ? v : x)));
+  /** Reordena no rascunho; a ordem vai no pedido de criação, que é quem a guarda. */
+  const moveItem = (i: number, direction: -1 | 1) => {
+    const to = i + direction;
+    if (to < 0 || to >= draft.items.length) return;
+    set('items', [...draft.items.slice(0, i + direction), draft.items[i], draft.items[i - direction], ...draft.items.slice(Math.max(i, to) + 1)]);
+  };
+  const total = totalScore(draft.items);
+  const problemas = problems(draft.items);
   const ready2print = !!school && !!draft.subject && draft.items.some((i) => i.text.trim());
 
   return (
@@ -133,16 +144,41 @@ export function ExamBuilder() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Questões</CardTitle><CardDescription>Cada questão pode ter cotação em valores.</CardDescription></CardHeader>
+            <CardHeader>
+              <CardTitle>Questões</CardTitle>
+              <CardDescription>
+                Cada questão pode ter cotação em valores. Uma pergunta com opções é de escolha múltipla, e precisa de resposta correcta marcada para a prova poder ser publicada.
+              </CardDescription>
+            </CardHeader>
             <CardContent className="grid gap-3">
               {draft.items.map((it, i) => (
-                <div key={i} className="grid grid-cols-[1fr_72px_auto] items-start gap-2">
-                  <Textarea rows={2} value={it.text} onChange={(e) => setItem(i, { text: e.target.value })} placeholder={`Questão ${i + 1}`} aria-label={`Questão ${i + 1}`} />
-                  <Input type="number" min={0} step="0.5" value={it.points} onChange={(e) => setItem(i, { points: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="Val." aria-label={`Cotação da questão ${i + 1}`} />
-                  <Button variant="ghost" size="icon" aria-label={`Remover questão ${i + 1}`} onClick={() => set('items', draft.items.filter((_, j) => j !== i))} disabled={draft.items.length === 1}><Trash2 /></Button>
-                </div>
+                <QuestionEditor
+                  key={i}
+                  item={it}
+                  index={i}
+                  total={draft.items.length}
+                  onChange={(patch) => setItem(i, patch)}
+                  onRemove={() => set('items', draft.items.filter((_, j) => j !== i))}
+                  onMove={(direction) => moveItem(i, direction)}
+                />
               ))}
-              <Button variant="outline" size="sm" className="justify-self-start" onClick={() => set('items', [...draft.items, { text: '', points: '' }])}><Plus aria-hidden /> Questão</Button>
+              <Button variant="outline" size="sm" className="justify-self-start" onClick={() => set('items', [...draft.items, { text: '', points: '', options: [] }])}><Plus aria-hidden /> Questão</Button>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-3 text-sm">
+                <span className="text-muted-foreground">
+                  {draft.items.filter((i) => i.text.trim()).length} questão(s), <b className="text-foreground">{total} valores</b>
+                </span>
+                {unscored(draft.items) > 0 && (
+                  // A soma do servidor **filtra** as perguntas sem cotação em vez de as
+                  // contar como zero. O total declarado sai menor do que a folha sugere
+                  // e o `/approve` recusa-o, sem dizer porquê.
+                  <span className="text-muted-foreground">{unscored(draft.items)} sem cotação, e sem cotação não conta para o total</span>
+                )}
+              </div>
+              {problemas.length > 0 && (
+                <ul role="status" className="grid gap-1 rounded-lg bg-warning-soft px-3 py-2 text-[13px] text-warning">
+                  {problemas.map((p) => <li key={p}>{p}</li>)}
+                </ul>
+              )}
             </CardContent>
           </Card>
 

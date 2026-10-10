@@ -261,6 +261,23 @@ export async function createManualStatement(values: Row): Promise<Result<Row>> {
   return guard(async () => {
     const res = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify(values) });
     if (!res.ok) return fail(await message(res));
+    revalidatePath('/statements');
+    return ok((await res.json()) as Row);
+  });
+}
+
+/**
+ * Marca a opção correcta de uma pergunta.
+ *
+ * O corpo é só o `optionId`: o servidor reescreve `is_correct` em todas as opções da
+ * pergunta para a resposta se manter singular, e recusa um id que seja de outra
+ * pergunta — sem isso, um id estrangeiro deixaria a pergunta sem resposta nenhuma em
+ * vez de falhar. Por isso não se manda o enunciado nem o texto.
+ */
+export async function setCorrectOption(questionId: number, optionId: number): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/questions/${safeId(questionId)}/correct-option`, { method: 'PUT', body: JSON.stringify({ optionId: Number(optionId) }) });
+    if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as Row);
   });
 }

@@ -6,7 +6,7 @@ import { approvalProblem, type GateStatement } from './gate';
 const choice = (number: number, maxScore: number, isCorrect: boolean[], extra: Partial<GateStatement['questions'][number]> = {}) => ({
   number,
   maxScore,
-  options: isCorrect.map((c, i) => ({ isCorrect: c, deletedAt: null })),
+  options: isCorrect.map((c) => ({ isCorrect: c, deletedAt: null })),
   deletedAt: null,
   ...extra,
 });

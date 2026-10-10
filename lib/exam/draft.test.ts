@@ -73,10 +73,10 @@ test('o pedido manda só as perguntas com texto, sem options em perguntas aberta
 test('o gabarito viaja no próprio pedido de criação', () => {
   // É o que o BE-08 tornou possível: ManualStatementRequest.Option.correct é honrado
   // na criação, por isso marcar a resposta certa não custa um segundo pedido.
-  const [wrong, right] = toRequest([choice('q', 2, 1)]);
-  assert.equal(wrong.options.filter((o) => o.correct).length, 1);
-  assert.equal(wrong.options[1].correct, true);
-  assert.equal(wrong.options[0].correct, false);
+  const [envio] = toRequest([choice('q', 2, 1)]);
+  assert.equal(envio.options.filter((o) => o.correct).length, 1);
+  assert.equal(envio.options[1].correct, true);
+  assert.equal(envio.options[0].correct, false);
 });
 
 test('a pergunta sem texto não conta para o número que o backend atribui', () => {
