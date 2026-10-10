@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   quality:
-    name: Manager: lint, testes e build
+    name: "Manager: lint, testes e build"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
