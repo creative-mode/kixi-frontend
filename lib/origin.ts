@@ -14,7 +14,7 @@
  * environment configured.
  */
 
-/** The gateway root, where the landing and the canonical /403 live. */
+/** The gateway root, where the landing and the canonical /403 live. Empty string when unset. */
 export function appOrigin(): string | null {
   return origin(process.env.APP_ORIGIN);
 }
@@ -28,42 +28,42 @@ function origin(value: string | undefined): string | null {
   const raw = value?.trim();
   if (!raw) return null;
   try {
-    return new URL(raw).origin;
+    const url = new URL(raw);
+    return url.origin;
   } catch {
     return null;
   }
 }
+
+/** Last resort, development only: believe the request. */
 /**
  * Last resort, outside production only: believe the request.
  *
- * In production this returns null whatever the request says. That is the whole fix: every
- * caller already goes through here or through `resolveOrigin`, so one guard covers the
- * `/403` forwarding, the proxy redirects and the manager handoff at the same time.
+ * In production this returns null whatever the request says. The guard is here as well as in
+ * `resolveOrigin`: this function is exported, and an export that is only correct by
+ * convention is one a future import breaks silently.
  */
 export function originFromRequest(headers: Headers, fallbackProtocol: string): string | null {
-  if (!emProducao()) {
-    const host = headers.get('x-forwarded-host') ?? headers.get('host');
-    if (host) {
-      const proto = headers.get('x-forwarded-proto') ?? fallbackProtocol.replace(':', '');
-      try {
-        return new URL(`${proto}://${host}`).origin;
-      } catch {
-        return null;
-      }
-    }
+  if (process.env.NODE_ENV === 'production') return null;
+  const host = headers.get('x-forwarded-host') ?? headers.get('host');
+  if (!host) return null;
+  const proto = headers.get('x-forwarded-proto') ?? fallbackProtocol.replace(':', '');
+  try {
+    return new URL(`${proto}://${host}`).origin;
+  } catch {
+    return null;
   }
-  return null;
 }
 
-const emProducao = () => process.env.NODE_ENV === 'production';
-
 /**
- * The origin to build redirects from, or null when nothing is configured.
+ * The origin to build redirects from. In production this is configuration only; if it
+ * is missing we fall back to the request so a misconfigured deployment still redirects
+ * (with a warning) instead of hard-failing every login.
  */
 export function resolveOrigin(headers: Headers, fallbackProtocol: string): string | null {
   const configured = managerOrigin() ?? appOrigin();
   if (configured) return configured;
-  if (emProducao()) {
+  if (process.env.NODE_ENV === 'production') {
     throw new Error(
       'APP_ORIGIN não está definido: em produção os redirects entre apps não podem ser ' +
         'construídos a partir dos cabeçalhos do pedido. Define APP_ORIGIN com o endereço ' +

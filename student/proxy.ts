@@ -6,45 +6,17 @@ const PUBLIC = ['/entrar', '/cadastro'];
 /** O manager vive no mesmo endereço, em /manager (fora do basePath deste app). */
 /** Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público
  *  (configuração primeiro, cabeçalhos do gateway como recurso). */
-/** A origem de confiança, ou null quando não há nenhuma.
- *
- * Em produção `resolveOrigin` recusa sem `APP_ORIGIN`, por isso este null só acontece em
- * desenvolvimento. Aí o redirect fica no endereço de onde o pedido veio, que é onde o
- * browser já está, em vez de num host tirado dos cabeçalhos. */
-function publicOrigin(req: NextRequest): string | null {
-  return resolveOrigin(req.headers, req.nextUrl.protocol);
+function publicOrigin(req: NextRequest) {
+  const configured = resolveOrigin(req.headers, req.nextUrl.protocol);
+  return configured ?? new URL(req.nextUrl.href).origin;
 }
-/**
- * Para onde vai quem é do gestor.
- *
- * Sem `APP_ORIGIN` e sem `NEXT_PUBLIC_MANAGER_URL` não há endereço de confiança para outra
- * app. O `nextUrl` deste proxy é relativo ao basePath, portanto `/manager` aqui daria
- * `/aluno/manager`, que é um 404 dentro do app do aluno — o gestor vive na raiz do
- * gateway. E reconstruir a URL a partir do host do pedido seria um open redirect. Fica então
- * no `/403`, que é um ecrã terminal, tal como o `guard.ts` faz depois do login.
- *
- * `NextResponse.redirect` recusa URLs relativas, daí o `go()` em vez de um caminho solto.
- */
-function gotoManager(req: NextRequest) {
-  const configured = configuredManagerUrl();
-  if (configured) return NextResponse.redirect(configured);
-  const confiavel = publicOrigin(req);
-  return confiavel
-    ? NextResponse.redirect(new URL('/manager', confiavel).toString())
-    : go(req, '/403?reason=manager');
-}
-
-/** Redireciona dentro deste app (mantém o basePath /aluno). Aceita `?a=b` no path. */
-function go(req: NextRequest, destino: string) {
-  const [caminho, pesquisa] = destino.split('?');
+const managerUrl = (req: NextRequest) => configuredManagerUrl() ?? new URL('/manager', publicOrigin(req)).toString();
+/** Redireciona dentro deste app (mantém o basePath /aluno). */
+function go(req: NextRequest, pathname: string) {
   const url = req.nextUrl.clone();
-  const confiavel = publicOrigin(req);
-  if (confiavel) {
-    url.host = new URL(confiavel).host;
-    url.protocol = new URL(confiavel).protocol;
-  }
-  url.pathname = caminho;
-  url.search = pesquisa ?? '';
+  url.host = new URL(publicOrigin(req)).host;
+  url.protocol = new URL(publicOrigin(req)).protocol;
+  url.pathname = pathname;
   return NextResponse.redirect(url);
 }
 
@@ -71,11 +43,11 @@ export function proxy(req: NextRequest) {
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   if (isPublic) {
-    if (r) return (r.includes('ADMIN') ? gotoManager(req) : go(req, '/inicio'));
+    if (r) return (r.includes('ADMIN') ? NextResponse.redirect(managerUrl(req)) : go(req, '/inicio'));
     return NextResponse.next();
   }
   if (!r) return go(req, '/entrar');
-  if (r.includes('ADMIN')) return gotoManager(req);
+  if (r.includes('ADMIN')) return NextResponse.redirect(managerUrl(req));
   return NextResponse.next();
 }
 

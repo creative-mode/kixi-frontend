@@ -7,26 +7,18 @@ import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/li
 
 const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
-/**
- * A origem de confiança, ou null quando não há nenhuma.
- *
- * Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem faz o
- * pedido, e um redireccionamento construído a partir deles é um open redirect. Com a guarda
- * de `lib/origin.ts` isto só acontece em desenvolvimento, onde o pedido é a única
- * fonte disponível; aí o redirect fica no endereço de onde o pedido veio, que é onde o
- * browser já está.
- */
-function publicOrigin(request: NextRequest): string | null {
-  return resolveOrigin(request.headers, request.nextUrl.protocol);
+function publicOrigin(request: NextRequest) {
+  // Configuração antes do pedido: `Host` e `x-forwarded-host` são escolhidos por quem
+  // faz o pedido, e um redireccionamento construído a partir deles é um open redirect.
+  // Ver lib/origin.ts.
+  return resolveOrigin(request.headers, request.nextUrl.protocol) ?? new URL(request.url).origin;
 }
 
 function redirectTo(path: string, request: NextRequest, query?: Record<string, string>) {
   const url = request.nextUrl.clone();
-  const origin = publicOrigin(request);
-  if (origin) {
-    url.protocol = new URL(origin).protocol;
-    url.host = new URL(origin).host;
-  }
+  const origin = new URL(publicOrigin(request));
+  url.protocol = origin.protocol;
+  url.host = origin.host;
   url.pathname = path;
   url.search = '';
   for (const [key, value] of Object.entries(query ?? {})) {

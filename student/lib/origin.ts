@@ -8,14 +8,8 @@
  * (scripts/gateway.mjs) each app gets an internal host and the public address arrives
  * in `x-forwarded-host`. That header — like `Host` — is chosen by whoever made the
  * request, so a redirect assembled from it is an open redirect. Hence the origin is
- * configuration.
- *
- * Outside production the request is believed, so `npm run dev` works with no environment
- * set. Inside production it is not: `originFromRequest` returns null and the callers fall
- * back to a same-origin redirect rather than to whatever host the request asked for.
- * Setting `APP_ORIGIN` is therefore not optional in production; when it is missing the
- * cross-app redirects simply do not happen, and the learner sees a 403 screen instead of
- * being sent somewhere untrusted.
+ * configuration, and the request is only believed outside production, which keeps
+ * `npm run dev` working with no environment set.
  */
 
 /** The gateway root, where the landing and the canonical /403 live. */
@@ -50,43 +44,38 @@ export function managerUrl(): string | null {
 /**
  * Last resort, outside production only: believe the request.
  *
- * In production this returns null whatever the request says. That is the whole fix: every
- * caller already goes through here or through `resolveOrigin`, so one guard covers the
- * `/403` forwarding, the proxy redirects and the manager handoff at the same time.
+ * In production this returns null whatever the request says. `x-forwarded-host` and `Host`
+ * are chosen by whoever made the request, so a redirect built from either is an open
+ * redirect. The guard is here as well as in `resolveOrigin`: this function is exported, and
+ * an export that is only correct by convention is one a future import breaks silently.
  */
 export function originFromRequest(headers: Headers, fallbackProtocol: string): string | null {
-  if (!emProducao()) {
-    const host = headers.get('x-forwarded-host') ?? headers.get('host');
-    if (host) {
-      const proto = headers.get('x-forwarded-proto') ?? fallbackProtocol.replace(':', '');
-      try {
-        return new URL(`${proto}://${host}`).origin;
-      } catch {
-        return null;
-      }
-    }
+  if (process.env.NODE_ENV === 'production') return null;
+  const host = headers.get('x-forwarded-host') ?? headers.get('host');
+  if (!host) return null;
+  const proto = headers.get('x-forwarded-proto') ?? fallbackProtocol.replace(':', '');
+  try {
+    return new URL(`${proto}://${host}`).origin;
+  } catch {
+    return null;
   }
-  return null;
 }
-
-const emProducao = () => process.env.NODE_ENV === 'production';
 
 /**
  * The origin to build redirects from, or null when nothing is configured.
  *
- * In production this is configuration or nothing. A redirect built from `x-forwarded-host`
- * is an open redirect, and degrading to a same-origin redirect turns one missing variable
- * into a broken page for the first person who opens the app. So in production we refuse,
- * with the same philosophy as the backend's ProdJwtSecretGuard: a missing APP_ORIGIN has to
- * fail at deploy time, not at runtime. The docker-compose sets APP_ORIGIN by default, so a
- * container deployment is unaffected; this catches the hosting where someone forgets it.
+ * In production this is configuration or nothing. Degrading to a same-origin redirect would
+ * turn one missing variable into a broken page for the first person who opens the app, so
+ * we refuse instead, with the same philosophy as the backend's ProdJwtSecretGuard: a missing
+ * APP_ORIGIN fails at deploy time, not at runtime. The docker-compose sets APP_ORIGIN by
+ * default, so containers are unaffected; this catches the hosting where it is forgotten.
  *
  * Outside production the request is believed, so `npm run dev` works with no environment.
  */
 export function resolveOrigin(headers: Headers, fallbackProtocol: string): string | null {
   const configured = appOrigin();
   if (configured) return configured;
-  if (emProducao()) {
+  if (process.env.NODE_ENV === 'production') {
     throw new Error(
       'APP_ORIGIN não está definido: em produção os redirects entre apps não podem ser ' +
         'construídos a partir dos cabeçalhos do pedido. Define APP_ORIGIN com o endereço ' +

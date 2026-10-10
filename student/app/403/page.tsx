@@ -15,11 +15,7 @@ type PageProps = { searchParams: Promise<Record<string, string | string[] | unde
  *
  * O destino é uma origem completa porque a página vive noutra app — a landing — e não por
  * causa do basePath. Não leva `/aluno` porque não é uma rota desta app, e o Next também
- * não mexeria: um URL absoluto com outra origem passa intacto.
- *
- * `resolveOrigin` e não `appOrigin` com recurso ao pedido: é a mesma função que o proxy
- * usa, com a mesma guarda. Sem `APP_ORIGIN` em produção, as duas coisas param juntas.
- * Ver `README.md`, "basePath".
+ * não mexeria: um URL absoluto com outra origem passa intacto. Ver `README.md`, "basePath".
  */
 export default async function ForbiddenPage({ searchParams }: PageProps) {
   const [head, params] = await Promise.all([headers(), searchParams]);
