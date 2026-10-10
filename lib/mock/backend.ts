@@ -449,6 +449,31 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         return json(200, mapStatement(s));
       }
       if (sub === '/visibility' && method === 'PATCH') { s.visible = url.searchParams.get('visible') === 'true'; return json(200, mapStatement(s)); }
+      // PUT do enunciado = StatementRequest: só metadados. As questões não vão aqui (o
+      // backend descarta-as em silêncio) e têm as rotas de questão/opção abaixo.
+      if (!sub && method === 'PUT') {
+        if (s.deletedAt) return problem(404, 'Statement not found');
+        const b = readBody();
+        const numOrNull = (v) => (v == null || v === '' ? null : Number(v));
+        if (b.institutionId == null) return problem(400, 'The institution is required');
+        if (b.subjectId == null) return problem(400, 'The subject is required');
+        const title = String(b.title ?? '').trim();
+        if (title.length < 3 || title.length > 500) return problem(400, 'The title must be between 3 and 500 characters');
+        if (!String(b.examType ?? '').trim()) return problem(400, 'The exam type is required');
+        if (b.durationMinutes != null && !(Number(b.durationMinutes) > 0)) return problem(400, 'The duration must be greater than zero');
+        if (b.totalMaxScore != null && !(Number(b.totalMaxScore) >= 0)) return problem(400, 'The total score cannot be negative');
+        if (!activeInst(b.institutionId)) return problem(404, 'Institution not found');
+        if (!db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt)) return problem(404, 'Subject not found');
+        Object.assign(s, {
+          institutionId: Number(b.institutionId), subjectId: Number(b.subjectId), title, examType: String(b.examType).trim(),
+          durationMinutes: numOrNull(b.durationMinutes), variant: b.variant || null, instructions: b.instructions || null,
+          // Como o apply() do servidor: grava o que vier, e null apaga o total.
+          totalMaxScore: numOrNull(b.totalMaxScore),
+          schoolYearId: numOrNull(b.schoolYearId), termId: numOrNull(b.termId), classId: numOrNull(b.classId), courseId: numOrNull(b.courseId),
+          updatedAt: now(),
+        });
+        return json(200, mapStatement(s));
+      }
     }
 
     // ── questions (BE-08) ──
@@ -512,7 +537,8 @@ export async function handle(method: string, rawUrl: string, authorization: stri
           if (b.maxScore != null) q.maxScore = Number(b.maxScore);
           if (b.questionType != null) q.questionType = b.questionType;
           if (b.pageIndex != null) q.pageIndex = Number(b.pageIndex);
-          if (b.modelAnswer != null) q.modelAnswer = b.modelAnswer;
+          // Como o setModelAnswer(blankToNull(...)) do servidor: vazio ou null apaga.
+          if ('modelAnswer' in b) q.modelAnswer = b.modelAnswer && String(b.modelAnswer).trim() ? String(b.modelAnswer) : null;
           return json(200, { ...q });
         }
       }
@@ -626,7 +652,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const title = String(files[0].name ?? 'Prova importada').replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Prova importada';
       const sy = db['school-years'][0];
       const s = add('statements', {
-        title, examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
+        title, examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 6, visible: false, needsReview: true,
         source: 'OCR', ocrConfidence: 0.82, ocrRequestId: `req-${Date.now()}`, schoolYearId: sy?.id ?? null, termId: null, subjectId: null, classId: null,
         questions: [1, 2, 3].map((n) => ({ id: 1000 + nextId('questions'), number: n, questionType: 'MULTIPLE_CHOICE', text: `Questão ${n} extraída de ${files.length} ficheiro(s). Reveja o texto.`, maxScore: 2, needsReview: true, options: ['A', 'B', 'C', 'D'].map((l, i) => ({ id: 1000 + nextId('options'), optionLabel: l, optionText: `Opção ${l}`, isCorrect: i === 0 })) })),
       });

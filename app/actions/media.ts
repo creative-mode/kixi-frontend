@@ -62,7 +62,8 @@ export async function importStatementOcr(form: FormData): Promise<Result<Row>> {
     }
     const out = new FormData();
     for (const f of files) out.append('files', f, f.name);
-    const res = await call('/api/v1/statements/ocr/extract', { method: 'POST', body: out });
+    // FE-11: o OCR pode demorar com PDFs grandes; aborta aos 3 min com erro legível.
+    const res = await call('/api/v1/statements/ocr/extract', { method: 'POST', body: out, signal: AbortSignal.timeout(180_000) });
     if (!res.ok) return fail(await message(res));
     revalidatePath('/statements');
     return ok((await res.json()) as Row);

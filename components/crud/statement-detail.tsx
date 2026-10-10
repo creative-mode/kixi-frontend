@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Eye, EyeOff } from 'lucide-react';
+import { Check, Eye, EyeOff, FilePen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { PageHead } from './page-head';
 import { Confirm, type ConfirmState } from './confirm';
 import { QuestionImages } from './question-images';
 import { DetailSkeleton } from './loading';
+import { StatementReview } from './statement-review';
 
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', multiple_choice: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', open: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento' };
 const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
@@ -33,6 +34,7 @@ export function StatementDetail({ id }: { id: number }) {
   const [gate, setGate] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   const load = useCallback(async () => {
     const r = await getStatementFull(id);
@@ -42,6 +44,9 @@ export function StatementDetail({ id }: { id: number }) {
     const task = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(task);
   }, [load]);
+
+  // FE-11: modo de revisão (editar cabeçalho, questões e gabarito). Ao sair, recarrega.
+  if (reviewing) return <StatementReview id={id} onExit={() => { setReviewing(false); void load(); }} />;
 
   async function mark(questionId: number, optionId: number) {
     const res = await setCorrectOption(questionId, optionId);
@@ -82,7 +87,17 @@ export function StatementDetail({ id }: { id: number }) {
   const questions: Row[] = s?.questions ?? [];
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
-      <PageHead entity={entity} title={s?.title ?? 'Enunciado'} subtitle={s ? `${s.examType}${s.variant ? ` · variante ${s.variant}` : ''}` : ''} back={{ href: '/statements', label: 'Voltar à lista' }} />
+      <PageHead
+        entity={entity}
+        title={s?.title ?? 'Enunciado'}
+        subtitle={s ? `${s.examType}${s.variant ? ` · variante ${s.variant}` : ''}` : ''}
+        back={{ href: '/statements', label: 'Voltar à lista' }}
+        actions={s ? (
+          <Button size="sm" onClick={() => setReviewing(true)}>
+            <FilePen size={14} /> Rever enunciado
+          </Button>
+        ) : undefined}
+      />
       {error ? (
         <p className="py-12 text-center text-sm text-destructive">{error}</p>
       ) : !s ? (
