@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Home,
   Sparkles,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,13 @@ const allNavLinks = [
     icon: FilePen,
     color: "bg-accent text-primary",
   },
+  {
+    href: "/assign",
+    label: "Atribuir",
+    description: "Professor, turma e disciplina numa só tela",
+    icon: UserCheck,
+    color: "bg-accent text-primary",
+  },
   ...NAV_KEYS.map((k) => {
     const e = ENTITIES[k];
     return { href: `/${e.path}`, label: e.plural, description: e.description, icon: e.icon, color: e.tone };
@@ -62,7 +70,7 @@ const allNavLinks = [
 
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
-const TEACHER_HREFS = ["/desempenho", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+const TEACHER_HREFS = ["/desempenho", "/exam-rooms", "/statements", "/exam-builder", "/assign", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink = {
   href: "/professor",
