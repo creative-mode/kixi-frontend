@@ -89,6 +89,9 @@ add('statements', {
 });
 
   const itel = add('institutions', { code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: '/manager/exam/itel.png' });
+  // A escola da turma é herdada do curso (como no backend): o seed liga-os aqui.
+  crs.institutionId = itel.id;
+  cls.institutionId = itel.id;
   for (const sub of db.subjects) db.institutionSubjects.push({ institutionId: itel.id, subjectId: sub.id });
   const helena = add('teachers', { accountId: teacherAcc.id, firstName: 'Helena', lastName: 'Gomes', email: 'professor@kixi.ao', photo: null, specialty: 'Redes', employeeNumber: 'P-001' });
   db.institutionTeachers.push({ institutionId: itel.id, teacherId: helena.id });
@@ -127,7 +130,10 @@ const RES = {
   subjects: { table: 'subjects', key: 'code', req: ['code', 'name'], pick: (b) => ({ code: b.code, name: b.name, short_name: b.short_name ?? null }) },
   classes: {
     table: 'classes', req: ['code', 'grade', 'courseId', 'schoolYearId'], noUpdate: true,
-    pick: (b) => ({ code: b.code, grade: b.grade, course: db.courses.find((c) => c.id === b.courseId), schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId) }),
+    pick: (b) => {
+      const course = db.courses.find((c) => c.id === b.courseId);
+      return { code: b.code, grade: b.grade, course, schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId), institutionId: course?.institutionId ?? null };
+    },
     validate: (b) => (!db.courses.find((c) => c.id === b.courseId) ? 'course not found' : !db['school-years'].find((s) => s.id === b.schoolYearId) ? 'school year not found' : null),
   },
   sessions: {
@@ -653,6 +659,13 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     }
 
     if (path.startsWith('/api/v1/analytics') && method === 'GET') { const a = analytics(path, url); if (a) return a; }
+
+    // ── teaching-assignments/me: como no backend, só as atribuições da conta.
+    if (path === '/api/v1/teaching-assignments/me' && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      if (!t) return json(200, []);
+      return json(200, db['teaching-assignments'].filter((a) => !a.deletedAt && a.teacherId === t.id));
+    }
 
     // ── generic CRUD (/api/v1/<resource>) ──
     m = path.match(/^\/api\/v1\/([a-z-]+)(?:\/(trash|active|[^/]+?))?(?:\/(restore|purge|login))?$/);
