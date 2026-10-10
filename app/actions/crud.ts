@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getAuthHeaders } from '@/lib/auth.server';
+import { getAuthHeaders, getCurrentUser } from '@/lib/auth.server';
 import { API_HOST } from '@/lib/constants';
 import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
 import { apiFetch } from '@/lib/mock/fetch';
@@ -195,6 +195,95 @@ export async function getStatementFull(id: number): Promise<Result<Row>> {
     if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as Row);
   });
+}
+
+// ── teacher scope ───────────────────────────────────────────────────────────
+// The CRUD endpoints return every record, so a plain teacher (never an admin)
+// narrows the lists on the client to their own classes/subjects. Admins get
+// `restricted: false` and are never filtered.
+//
+// Every other path here is ADMIN-only on the real backend, so a teacher must
+// not ask for them: `/api/v1/teachers/**` (there is no `/teachers/me` at all)
+// and `/api/v1/teaching-assignments` (the list) both answer 403 to a TEACHER.
+// The one endpoint that is open to a teacher is `/api/v1/teaching-assignments/me`,
+// and it already returns only that teacher's own assignments — which is why
+// there is no `teacherId` filter here.
+//
+// Anything that goes wrong resolves to an empty (restricted) scope carrying the
+// reason. Falling back to "see everything" would hand a teacher the whole
+// school on a 403 or a dropped connection.
+export interface TeachingScope {
+  restricted: boolean;
+  classIds: number[];
+  subjectIds: number[];
+  /** Ids of the statements that fall inside the teacher's classes/subjects. */
+  statementIds: number[];
+  /** Why the scope is empty, when it could not be loaded. */
+  error: string | null;
+}
+
+const openScope = (): TeachingScope => ({
+  restricted: false,
+  classIds: [],
+  subjectIds: [],
+  statementIds: [],
+  error: null,
+});
+
+/** Nothing visible, with the reason shown to the teacher. */
+const closedScope = (error: string): TeachingScope => ({
+  restricted: true,
+  classIds: [],
+  subjectIds: [],
+  statementIds: [],
+  error,
+});
+
+const numericIds = (rows: Row[], field: string) => [
+  ...new Set(rows.map((r) => Number(r[field])).filter((n) => Number.isFinite(n))),
+];
+
+async function loadTeachingScope(): Promise<Result<TeachingScope>> {
+  return guard(async () => {
+    const user = await getCurrentUser();
+    if (!user) return ok(closedScope('Sessão por resolver.'));
+    const roles = user.roles ?? [];
+    // An admin is never filtered.
+    if (roles.includes('ADMIN')) return ok(openScope());
+    if (!roles.includes('TEACHER')) return ok(closedScope('Conta sem papel de professor.'));
+
+    const mineRes = await call('/api/v1/teaching-assignments/me');
+    if (!mineRes.ok) return ok(closedScope(await message(mineRes)));
+    const mine = (await mineRes.json()) as Row[];
+    const classIds = numericIds(mine, 'classId');
+    const subjectIds = numericIds(mine, 'subjectId');
+
+    // The simulation payload nests a StatementBasicResponse, which carries no
+    // classId/subjectId — so mapping a simulation to a class still has to go
+    // through the statement list. One request, shared by every consumer.
+    const statementsRes = await call('/api/v1/statements');
+    if (!statementsRes.ok) return ok(closedScope(await message(statementsRes)));
+    const statements = (await statementsRes.json()) as Row[];
+    const statementIds = statements
+      .filter((s) => classIds.includes(Number(s.classId)) || subjectIds.includes(Number(s.subjectId)))
+      .map((s) => Number(s.id));
+
+    return ok({ restricted: true, classIds, subjectIds, statementIds, error: null });
+  });
+}
+
+/**
+ * Deliberadamente sem memoização aqui: este módulo corre no servidor, e uma
+ * variável de módulo seria partilhada por todos os utilizadores — o scope do
+ * primeiro professor a pedir seria servido aos seguintes, e um ADMIN deixaria
+ * o scope aberto para toda a gente. A deduplicação vive no cliente, em
+ * `hooks/use-teacher-scope.ts`, onde o cache é por sessão de browser.
+ *
+ * `async` é obrigatório: o Next.js descarta do grafo qualquer export que não
+ * seja uma função assíncrona.
+ */
+export async function myTeachingScope(): Promise<Result<TeachingScope>> {
+  return loadTeachingScope();
 }
 
 // ── dashboard ───────────────────────────────────────────────────────────────

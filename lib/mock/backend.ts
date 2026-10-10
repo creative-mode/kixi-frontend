@@ -91,11 +91,23 @@ add('statements', {
   for (const sub of db.subjects) db.institutionSubjects.push({ institutionId: itel.id, subjectId: sub.id });
   const helena = add('teachers', { accountId: teacherAcc.id, firstName: 'Helena', lastName: 'Gomes', email: 'professor@kixi.ao', photo: null, specialty: 'Redes', employeeNumber: 'P-001' });
   db.institutionTeachers.push({ institutionId: itel.id, teacherId: helena.id });
-  add('teachers', { accountId: null, firstName: 'Carlos', lastName: 'Mendes', email: 'carlos@itel.ao', photo: null, specialty: 'Sistemas Operativos', employeeNumber: 'P-002' });
+  const carlos = add('teachers', { accountId: null, firstName: 'Carlos', lastName: 'Mendes', email: 'carlos@itel.ao', photo: null, specialty: 'Sistemas Operativos', employeeNumber: 'P-002' });
+  db.institutionTeachers.push({ institutionId: itel.id, teacherId: carlos.id });
+  // Segundo professor com login próprio, para testar o filtro por professor.
+  const carlosAcc = add('accounts', { username: 'carlos', email: 'carlos@itel.ao', passwordHash: hash(SEED_PASSWORD), emailVerified: true, active: true, lastLogin: null });
+  db.accountRoles.push({ accountId: carlosAcc.id, roleId: roleId('TEACHER') });
+  carlos.accountId = carlosAcc.id;
   const stUser = db.users.find((u) => u.accountId === student.id);
   if (stUser) db.institutionStudents.push({ institutionId: itel.id, userId: stUser.id });
   add('enrollments', { accountId: student.id, classId: cls.id, schoolYearId: sy.id, status: 'ACTIVE' });
   add('teaching-assignments', { teacherId: helena.id, classId: cls.id, subjectId: redes.id, schoolYearId: sy.id, tutorStyle: null });
+  // Turma e disciplina só do Carlos (11A · Sistemas Operativos), para as listas dele diferirem das da Helena.
+  const cls11 = add('classes', { code: '11A', grade: 11, course: crs, schoolYear: sy });
+  add('statements', {
+    title: 'P1 · Sistemas Operativos (11A)', examType: 'P1', durationMinutes: 90, variant: 'A', instructions: 'Leia atentamente.', totalMaxScore: 20, visible: true, needsReview: false,
+    source: 'MANUAL', ocrConfidence: null, ocrRequestId: null, schoolYearId: sy.id, termId: 1, subjectId: db.subjects[1].id, classId: cls11.id, questions: [],
+  });
+  add('teaching-assignments', { teacherId: carlos.id, classId: cls11.id, subjectId: db.subjects[1].id, schoolYearId: sy.id, tutorStyle: null });
 
   seedExtras();
 }
@@ -190,7 +202,12 @@ function authorize(auth: any, method: string, path: string) {
   const has = (...r) => r.some((x) => roles.includes(x));
   if (path.startsWith('/api/v1/auth/')) return 200;
   if (!auth) return 401;
-  if (/^\/api\/v1\/(accounts|users|roles|sessions|teachers)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/(accounts|users|roles|sessions)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/teachers(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  // Como no backend: a lista de atribuições é de ADMIN; o `/me` é o único
+  // ponto que um professor pode ler.
+  if (/^\/api\/(v1\/)?teaching-assignments\/me$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
+  if (/^\/api\/(v1\/)?teaching-assignments(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   if (/^\/api\/v1\/institutions(\/|$)/.test(path)) {
     const readable = method === 'GET' && (path === '/api/v1/institutions' || path === '/api/v1/institutions/mine' || /^\/api\/v1\/institutions\/\d+(\/subjects)?$/.test(path));
     return readable || has('ADMIN') ? 200 : 403;
@@ -269,6 +286,13 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return json(201, loginResponse(acc));
     }
 
+    // ── current teacher (lets the teacher role scope its own lists) ──
+    if (path === '/api/v1/teachers/me' && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      if (!t) return problem(404, 'Teacher not found');
+      return json(200, strip(t));
+    }
+
     // ── account roles ──
     let m = path.match(/^\/api\/v1\/accounts\/(\d+)\/roles(?:\/(\d+))?$/);
     if (m) {
@@ -304,6 +328,14 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
       const ids = new Set(db.institutionTeachers.filter((l) => l.teacherId === t?.id).map((l) => l.institutionId));
       return json(200, db.institutions.filter((i) => !i.deletedAt && ids.has(i.id)));
+    }
+    // Espelha `TeachingAssignmentService.findMineForAccount`: procura o registo
+    // de professor pela conta autenticada. Um ADMIN não tem registo de
+    // professor, por isso recebe `[]` — como recebe o backend, não a lista toda.
+    if (/^\/api\/(v1\/)?teaching-assignments\/me$/.test(path) && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      const mine = t ? db['teaching-assignments'].filter((a) => a.teacherId === t.id) : [];
+      return json(200, mine.filter((a) => !a.deletedAt));
     }
     if ((m = path.match(/^\/api\/v1\/institutions\/(\d+)\/(subjects|teachers|students)(?:\/(\d+))?$/))) {
       const inst = activeInst(m[1]);

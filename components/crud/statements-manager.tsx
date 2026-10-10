@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Archive, Check, Eye, EyeOff, FileSearch, ScanText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { approveStatement, deleteRow, listStatements, setStatementVisible } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
+import { statementInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
 import { TableRowsSkeleton } from './loading';
@@ -26,6 +27,12 @@ export function StatementsManager() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  // Teachers only see statements of their own classes/subjects (admins see all).
+  const scope = useTeacherScope();
+  const shown = useMemo(
+    () => (rows && scope ? rows.filter((r) => statementInScope(scope, r)) : rows),
+    [rows, scope],
+  );
 
   const load = useCallback(async () => {
     setError(null);
@@ -89,10 +96,12 @@ export function StatementsManager() {
                 <TableRowsSkeleton cols={6} />
               ) : error ? (
                 <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
-              ) : rows.length === 0 ? (
+              ) : scope?.error ? (
+                <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">Não foi possível determinar as suas turmas, por isso a lista fica vazia: {scope.error}</TableCell></TableRow>
+              ) : !shown || shown.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="py-16 text-center text-sm text-muted-foreground">Nenhum enunciado neste filtro.</TableCell></TableRow>
               ) : (
-                rows.map((row) => (
+                shown.map((row) => (
                   <TableRow key={row.id} className="border-border hover:bg-accent/50">
                     {entity.columns.map((c) => (
                       <TableCell key={c.label} className={c.className}>{c.value(row)}</TableCell>

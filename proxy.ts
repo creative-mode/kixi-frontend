@@ -5,7 +5,29 @@ import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
 import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/lib/roles';
 
-const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
+/** Rotas de administração: só o ADMIN as abre (contas, papéis, escolas, etc.). */
+const ADMIN_ONLY_ROUTES = [
+  '/school-year',
+  '/terms',
+  '/subjects',
+  '/courses',
+  '/institutions',
+  '/teachers',
+  '/teaching-assignments',
+  '/enrollments',
+  '/roles',
+  '/accounts',
+  '/users',
+  '/sessions',
+];
+
+/** Rotas que o professor pode abrir; tudo o resto da gestão é-lhe vedado. */
+const TEACHER_ROUTES = ['/professor', '/statements', '/simulations', '/simulation-answers'];
+
+/** O professor consulta turmas, não as altera: `/classes` abre a lista, mas
+ * `/classes/new` e `/classes/{id}/edit` continuam só para ADMIN. Sem esta
+ * distinção ele abre o formulário e só descobre o bloqueio ao gravar. */
+const TEACHER_EXACT_ROUTES = ['/classes'];
 
 /**
  * A origem de confiança, ou null quando não há nenhuma.
@@ -46,8 +68,15 @@ function isRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
-function isManagerOnlyRoute(pathname: string) {
-  return MANAGER_ONLY_ROUTES.some((route) => isRoute(pathname, route));
+function isAdminOnlyRoute(pathname: string) {
+  return ADMIN_ONLY_ROUTES.some((route) => isRoute(pathname, route));
+}
+
+function isTeacherRoute(pathname: string) {
+  return (
+    TEACHER_EXACT_ROUTES.includes(pathname) ||
+    TEACHER_ROUTES.some((route) => isRoute(pathname, route))
+  );
 }
 
 function rolesFromPayload(value: unknown): Role[] {
@@ -71,7 +100,7 @@ export async function proxy(request: NextRequest) {
 
       if (canAccessManager(roles)) {
         if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
-          return NextResponse.redirect(redirectTo('/exam-builder', request));
+          return NextResponse.redirect(redirectTo('/professor', request));
         }
         return NextResponse.redirect(redirectTo('/', request));
       }
@@ -110,13 +139,13 @@ export async function proxy(request: NextRequest) {
     }
 
     const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN');
-    // O professor não entra na gestão (contas, papéis, utilizadores, sessões): 403 com motivo.
-    // Tem de vir antes do encaminhamento para o exam-builder, senão a 403 nunca é vista.
-    if (isTeacher && isManagerOnlyRoute(pathname)) {
+    // O professor não entra na gestão (contas, papéis, escolas…): acesso negado com motivo.
+    if (isTeacher && isAdminOnlyRoute(pathname)) {
       return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
     }
-    if (isTeacher && !pathname.startsWith('/exam-builder')) {
-      return NextResponse.redirect(redirectTo('/exam-builder', request));
+    // Fora das suas páginas (e do exam-builder), volta à sua área.
+    if (isTeacher && !isTeacherRoute(pathname) && !isRoute(pathname, '/exam-builder')) {
+      return NextResponse.redirect(redirectTo('/professor', request));
     }
 
     const response = NextResponse.next();
