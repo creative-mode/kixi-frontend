@@ -42,18 +42,29 @@ async function section<T>(path: string): Promise<Section<T>> {
   }
 }
 
+/** Escola e turma: só estreitam o que o papel já deixa ver (o backend aplica o scope). */
+export type DashboardFilters = { institutionId?: number | null; classId?: number | null };
+
+function filterQuery({ institutionId, classId }: DashboardFilters): string {
+  const q = new URLSearchParams();
+  if (institutionId && Number.isInteger(institutionId) && institutionId > 0) q.set('institutionId', String(institutionId));
+  if (classId && Number.isInteger(classId) && classId > 0) q.set('classId', String(classId));
+  return q.toString();
+}
+
 /**
  * Everything the dashboard shows, fetched in parallel. Each section reports
  * its own failure so that, say, a slow institutions query does not hide the
  * headline numbers.
  */
-export async function getDashboard(days: number): Promise<Dashboard> {
+export async function getDashboard(days: number, filters: DashboardFilters = {}): Promise<Dashboard> {
+  const f = filterQuery(filters);
   const [overview, activity, institutions, classes, statements] = await Promise.all([
-    section<Overview>('/overview'),
-    section<ActivityPoint[]>(`/activity?days=${days}`),
-    section<InstitutionStats[]>('/institutions'),
-    section<ClassStats[]>('/classes'),
-    section<StatementStats[]>('/statements?limit=50'),
+    section<Overview>(`/overview?${f}`),
+    section<ActivityPoint[]>(`/activity?days=${Math.trunc(days)}&${f}`),
+    section<InstitutionStats[]>(`/institutions?${f}`),
+    section<ClassStats[]>(`/classes?${f}`),
+    section<StatementStats[]>(`/statements?limit=50&${f}`),
   ]);
   return { overview, activity, institutions, classes, statements, loadedAt: new Date().toISOString() };
 }

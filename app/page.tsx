@@ -41,13 +41,24 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 import { formatDuration, formatInt, formatPercent } from "@/lib/format";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { Dashboard } from "@/types/analytics";
+
+type FilterOptions = {
+  institutions: { id: number; name: string }[];
+  classes: { id: number; label: string; institution: string | null }[];
+};
 
 const PERIODS = [7, 30, 90] as const;
 const REFRESH_MS = 60_000;
 
 export default function ManagerDashboard() {
   const [days, setDays] = useState<number>(30);
+  const [institutionId, setInstitutionId] = useState<number | null>(null);
+  const [classId, setClassId] = useState<number | null>(null);
+  // As opções dos filtros vêm da última leitura sem filtro: filtrar por uma turma
+  // não pode esvaziar a lista de onde se escolhe a turma seguinte.
+  const [options, setOptions] = useState<FilterOptions | null>(null);
   const [data, setData] = useState<Dashboard | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   // Only the latest request may write state, so a slow response for an old period cannot overwrite a newer one.
@@ -65,15 +76,31 @@ export default function ManagerDashboard() {
     const mine = ++requestId.current;
     setRefreshing(true);
     try {
-      const result = await getDashboard(days);
-      if (mine === requestId.current) setData(result);
+      const result = await getDashboard(days, { institutionId, classId });
+      if (mine === requestId.current) {
+        setData(result);
+        if (!institutionId && !classId) {
+          setOptions({
+            institutions: result.institutions.ok
+              ? result.institutions.data.map((i) => ({ id: i.id, name: i.name }))
+              : [],
+            classes: result.classes.ok
+              ? result.classes.data.map((c) => ({
+                  id: c.id,
+                  label: `${c.code ?? `${c.grade}.ª`} · ${c.course}`,
+                  institution: c.institution,
+                }))
+              : [],
+          });
+        }
+      }
     } catch (err) {
       // getDashboard reports per-section failures itself; reaching here means the session is gone.
       console.error("[dashboard]", err);
     } finally {
       if (mine === requestId.current) setRefreshing(false);
     }
-  }, [days]);
+  }, [days, institutionId, classId]);
 
   useEffect(() => {
     void load();
@@ -136,6 +163,42 @@ export default function ManagerDashboard() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+          {options && options.institutions.length > 1 ? (
+            <NativeSelect
+              aria-label="Filtrar por escola"
+              className="h-8 w-48 py-0"
+              value={institutionId ?? ""}
+              onChange={(e) => {
+                setInstitutionId(e.target.value ? Number(e.target.value) : null);
+                setClassId(null);
+              }}
+            >
+              <option value="">Todas as escolas</option>
+              {options.institutions.map((i) => (
+                <option key={i.id} value={i.id}>{i.name}</option>
+              ))}
+            </NativeSelect>
+          ) : null}
+          {options && options.classes.length > 1 ? (
+            <NativeSelect
+              aria-label="Filtrar por turma"
+              className="h-8 w-44 py-0"
+              value={classId ?? ""}
+              onChange={(e) => setClassId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Todas as turmas</option>
+              {options.classes
+                .filter(
+                  (c) =>
+                    !institutionId ||
+                    c.institution ===
+                      options.institutions.find((i) => i.id === institutionId)?.name,
+                )
+                .map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+            </NativeSelect>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -303,7 +366,10 @@ export default function ManagerDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AttentionPanel overview={o} />
+            <AttentionPanel
+              overview={o}
+              statements={data?.statements.ok ? data.statements.data : null}
+            />
           </CardContent>
         </Card>
       )}

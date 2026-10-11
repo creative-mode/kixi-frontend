@@ -37,6 +37,12 @@ export interface Me {
   school: SchoolInfo | null;
   course: CourseInfo | null;
   currentClass: ClassInfo | null;
+  /** Read-only: the account is entitled to +25% of a simulation's time. Only an
+   *  administrator writes it, through PATCH /api/v1/accounts/{id}/accessibility.
+   *  The backend has already folded it into the `deadline` it returns, so this is
+   *  only used to tell the student that the extra time is applied — never to
+   *  compute one. */
+  accessibility_extra_time?: boolean | null;
 }
 
 /** PUT /me — every field optional; the backend applies only what is present. */

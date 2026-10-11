@@ -34,6 +34,8 @@ export function StatementsManager() {
     () => (rows && scope ? rows.filter((r) => statementInScope(scope, r)) : null),
     [rows, scope],
   );
+  // A lixeira é gestão (o proxy não a abre ao professor), por isso só o ADMIN vê o link.
+  const admin = scope ? !scope.restricted : false;
 
   const load = useCallback(async () => {
     setError(null);
@@ -64,9 +66,11 @@ export function StatementsManager() {
         entity={entity}
         actions={
           <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link href="/statements/trash"><Archive size={16} /> Lixeira</Link>
-            </Button>
+            {admin ? (
+              <Button asChild variant="outline">
+                <Link href="/statements/trash"><Archive size={16} /> Lixeira</Link>
+              </Button>
+            ) : null}
             <Button asChild>
               <Link href="/statements/import"><ScanText size={16} /> Importar prova</Link>
             </Button>

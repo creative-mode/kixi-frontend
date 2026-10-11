@@ -102,6 +102,16 @@ function descodificar(valor) {
 }
 
 /**
+ * O texto como o leitor o vê. O React separa nós de texto com `<!-- -->`, por isso
+ * "0 de 3 respondidas" chega partido em pedaços; comparar a frase inteira dava um
+ * falso negativo que nada tem com o ecrã. Isto junta o que é pontuação do React e
+ * não do conteúdo.
+ */
+function textoLegivel(html) {
+  return html.replace(/<!-- -->/g, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+}
+
+/**
  * Os inputs escondidos que o próprio form emite, que é como se submete uma server action.
  *
  * `FormData` e não `URLSearchParams` porque o Next lê o corpo da acção como multipart: com
@@ -234,6 +244,178 @@ async function main() {
       const falta = ['Ana Verde', 'Instituto de Telecomunicações'].find((t) => !html.includes(t));
       return falta ? `não encontrei "${falta}"` : null;
     });
+
+    // 4 · a sala de prova, do princípio ao fim. Este é o passo que o `lint`, o `build`
+    // e os testes unitários não apanham: que a página renderiza o enunciado verdadeiro,
+    // que o botão de começar arranca mesmo uma tentativa, e que o servidor aceita a
+    // entrega. A conta é nova, por isso começa pelo ecrã de começar.
+    await passo('uma prova por começar oferece o início, não a sala', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      if (r.status !== 200) return `esperado 200, veio ${r.status}`;
+      return html.includes('Começar a prova') ? null : 'não ofereceu começar a prova';
+    });
+
+    const comecar = await (await fetch(`${BASE}/aluno/prova/2`, { headers: cabecalhos() })).text();
+    await passo(
+      'começar a prova leva à sala',
+      'POST', '/aluno/prova/2',
+      { form: camposDoForm(comecar, { statementId: '2' }), seguir: true },
+      (r, final, status) => destinoOk(final, '/aluno/prova/2', status),
+    );
+
+    await passo('a sala mostra o enunciado, o mapa e o botão de entregar', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      if (r.status !== 200) return `esperado 200, veio ${r.status}`;
+      const falta = ['Questões', 'Entregar', 'Marcar para rever'].find((t) => !html.includes(t));
+      return falta ? `não encontrei "${falta}" na sala` : null;
+    });
+
+    await passo('a sala conta as questões por responder', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const texto = textoLegivel(await r.text());
+      // A prova 2 tem três questões e nada guardado: o mapa diz 0 de 3. Um ecrã que
+      // mentisse aqui deixaria o aluno entregar sem ver o que falta.
+      return texto.includes('0 de 3 respondidas')
+        ? null
+        : `o mapa não contou as três questões por responder (vi "${(texto.match(/\d+ de \d+ respondidas/) ?? ['nada'])[0]}")`;
+    });
+
+    await passo('a sala não mostra o gabarito ao aluno', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      // `isCorrect` não chega num /full de aluno: o backend põe o campo a null e o
+      // @JsonInclude(NON_NULL) tira-o do JSON (StatementOcrResponse.java:171). O que
+      // se procura é o marcador do campo, não a resposta em si, que está no enunciado.
+      return html.includes('isCorrect') ? 'a sala recebeu o campo isCorrect' : null;
+    });
+
+    // A primeira questão da prova 2 é de escolha, e a sala só desenha uma de cada vez.
+    // Se desenhasse pelo `questionType` em vez de pela existência de opções, o
+    // servidor mandaria a resposta aberta para o professor e o desenho mentiria.
+    await passo('a questão de escolha desenha alternativas', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      const radios = (html.match(/type="radio"/g) ?? []).length;
+      if (radios === 0) return 'a questão de escolha não desenhou alternativas';
+      return null;
+    });
+
+    // Entregar é o único submit por HTTP sem JavaScript na sala: é um form. Leva ao
+    // resultado pelo caminho cru do `redirect()` numa server action, com o basePath
+    // aplicado uma vez — o duplo `/aluno/aluno` que já custou um 404 no PR #98.
+    const sala = await (await fetch(`${BASE}/aluno/prova/2`, { headers: cabecalhos() })).text();
+    const sessao = /name="simulationId" value="(\d+)"/.exec(sala)?.[1];
+    registar('a sala tem uma tentativa', sessao ? null : 'não encontrei o simulationId na sala', sessao ?? '');
+
+    await passo(
+      'entregar a prova leva ao resultado, com o basePath',
+      'POST', '/aluno/prova/2',
+      { form: camposDoForm(sala), seguir: true },
+      (r, final, status) => destinoOk(final, `/aluno/resultado?prova=${sessao}`, status),
+    );
+
+    // Reabrir depois de entregar não recomeça a prova. O Next 16 envia primeiro a
+    // shell e o `redirect()` vem no payload de streaming, por isso não chega como um
+    // 3xx: o que se confirma é que o destino está no payload e que a prova não abre.
+    await passo('reabrir uma prova entregue não a abre de novo', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      if (html.includes(`/aluno/resultado?prova=${sessao}`)) return null;
+      if (html.includes('Questões')) return 'a sala abriu outra vez depois de entregar';
+      return 'nem o redireccionamento nem a sala: a resposta não diz o que aconteceu';
+    });
+
+    // 4a · o resultado da tentativa que acabou de ser entregue (#18): vem do servidor,
+    // e a tentativa de outra conta não se abre.
+    await passo('o resultado mostra a revisão e as acções', 'GET', `/aluno/resultado?prova=${sessao}`, {}, async (r, final, status) => {
+      if (status !== 200) return `esperado 200, veio ${status}`;
+      const html = await r.text();
+      const falta = ['Revisão questão a questão', 'Refazer simulação', 'Voltar às provas'].find((t) => !html.includes(t));
+      return falta ? `não encontrei "${falta}"` : null;
+    });
+
+    // Com o loading.tsx a resposta já saiu como 200 quando o `notFound()` chega, por isso
+    // o que se verifica é o conteúdo: nem a revisão nem a nota de outra conta.
+    await passo('o resultado de outra conta não abre', 'GET', '/aluno/resultado?prova=1', {}, async (r) => {
+      const html = await r.text();
+      if (html.includes('Revisão questão a questão')) return 'abriu o resultado de outra conta';
+      return /16[,.]4/.test(html) ? 'vazou a nota de outra conta' : null;
+    });
+
+    // 4b · o detalhe da prova (#19): o ecrã que liga a lista aos três modos.
+    // A prova 1 é a que o aluno tem tentativa corrigida, a 3 é a que nunca fez.
+    await passo('o detalhe mostra o resumo e os dois modos', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      const html = await r.text();
+      const falta = ['Redes de Computadores', 'Como queres estudar', 'Simular', 'Estudo assistido']
+        .find((t) => !html.includes(t));
+      return falta ? `não encontrei "${falta}"` : null;
+    });
+
+    await passo('o social não aparece sem o endpoint de comunidade', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      // A tarefa é escondê-lo enquanto o kixi#119 estiver fechado. Um botão morto
+      // ensina o aluno a desconfiar do ecrã.
+      const html = await r.text();
+      return html.includes('Ver como outros') ? 'o CTA social está visível' : null;
+    });
+
+    // A conta deste fluxo acabou de registar-se, por isso não tem tentativas: o que se
+    // verifica aqui é o estado vazio e que as tentativas de outro aluno não aparecem.
+    // A lista com nota é do estado semeado, e quem a cobre é o ecrã com o mock ligado.
+    await passo('sem tentativas é um estado vazio, não uma lista vazia', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      const html = await r.text();
+      if (!html.includes('Ainda não tentaste esta prova')) return 'não encontrei o estado vazio';
+      // As tentativas da conta semeada (16,4) são de outra conta e não podem vazar.
+      return /16[,.]4/.test(html) ? 'vazou a nota de outro aluno' : null;
+    });
+
+    await passo('o tutor aberto da prova diz de que prova fala', 'GET', '/aluno/tutor?statementId=1', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Sobre Redes de Computadores') ? null : 'o tutor não recebeu o contexto';
+    });
+
+    await passo('o tutor sem prova continua a funcionar', 'GET', '/aluno/tutor', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Tutor') ? null : 'o tutor sem contexto não respondeu';
+    });
+
+    // 4c · o tutor (#28). O ecrã e a stream: o que o aluno vê vem do backend por SSE,
+    // lido com fetch porque o EventSource não faz POST.
+    await passo('o tutor sem prova pede uma prova, não finge uma conversa', 'GET', '/aluno/tutor', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Escolhe uma prova') ? null : 'não pediu uma prova';
+    });
+
+    await passo('estudar os erros abre o tutor com a pergunta pronta, por enviar', 'GET', '/aluno/tutor?statementId=1&questoes=2,3', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Errei as questões 2 e 3') ? null : 'a pergunta não veio escrita';
+    });
+
+    const json = { ...cabecalhos(), 'Content-Type': 'application/json' };
+    const abrir = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 1 }) });
+    const sessaoTutor = abrir.ok ? (await abrir.json()).id : null;
+    registar('abrir uma sessão do tutor', sessaoTutor ? null : `esperado 201, veio ${abrir.status}`);
+
+    if (sessaoTutor) {
+      const resp = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'Explica a questão 1' }) });
+      const corpo = await resp.text();
+      registar(
+        'a resposta do tutor chega por SSE, em deltas e um final',
+        resp.headers.get('content-type')?.includes('text/event-stream') && corpo.includes('event: delta') && corpo.includes('event: final')
+          ? null : `tipo ${resp.headers.get('content-type')}, ${corpo.slice(0, 80)}`,
+      );
+
+      const erro = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[erro]]' }) });
+      const corpoErro = await erro.text();
+      registar('uma falha a meio da resposta vem na própria stream', corpoErro.includes('event: error') ? null : 'sem evento de erro');
+
+      const limite = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[limite]]' }) });
+      registar('o limite de mensagens é 429 com Retry-After', limite.status === 429 && limite.headers.get('retry-after') ? null : `veio ${limite.status}`);
+
+      const semChave = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[sem-chave]]' }) });
+      registar('sem chave do provider é 503', semChave.status === 503 ? null : `veio ${semChave.status}`);
+    }
+
+    const alheia = await fetch(`${BASE}/aluno/api/tutor/sessions/9999/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'olá' }) });
+    registar('uma sessão que não é da conta é 404', alheia.status === 404 ? null : `veio ${alheia.status}`);
+
+    const oculta = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 4 }) });
+    registar('uma prova por publicar não abre sessão', oculta.status === 404 ? null : `veio ${oculta.status}`);
 
     // 5 · logout, e o cookie tem mesmo de desaparecer
     const perfil = await (await fetch(`${BASE}/aluno/perfil`, { headers: cabecalhos() })).text();
