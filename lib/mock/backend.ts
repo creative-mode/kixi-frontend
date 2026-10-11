@@ -678,7 +678,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       if (m[2] === 'permanent' && method === 'DELETE') { db.simulations = db.simulations.filter((x) => x !== sim); return json(204); }
     }
 
-    if (path.startsWith('/api/v1/analytics') && method === 'GET') { const a = analytics(path, url); if (a) return a; }
+    if (path.startsWith('/api/v1/analytics') && method === 'GET') { const a = analytics(path, url, auth); if (a) return a; }
 
     // ── generic CRUD (/api/v1/<resource>) ──
     m = path.match(/^\/api\/v1\/([a-z-]+)(?:\/(trash|active|[^/]+?))?(?:\/(restore|purge|login))?$/);
@@ -772,11 +772,52 @@ const INSTITUTIONS = [
   { id: 3, code: 'IMIL', name: 'Instituto Médio Industrial de Luanda', courses: 3, classes: 9, students: 238, finishedSimulations: 410, averageScorePercent: 66.1, averageTimeSeconds: 2940 },
 ];
 
-function analytics(path: string, url: URL) {
+function analytics(path: string, url: URL, auth: any) {
   const active = db.statements.filter((s: any) => !s.deletedAt);
+  // Como o BE-15: o professor só vê as turmas das suas atribuições.
+  const admin = (auth?.roles ?? []).includes('ADMIN');
+  const teacher = db.teachers.find((t: any) => t.accountId === Number(auth?.sub) && !t.deletedAt);
+  const myClasses = new Set(db['teaching-assignments'].filter((a: any) => !a.deletedAt && a.teacherId === teacher?.id).map((a: any) => a.classId));
+  const inScope = (classId: number) => admin || myClasses.has(classId);
+  const classMatch = path.match(/^\/api\/v1\/analytics\/classes\/(\d+)\/(students|weekly|questions)$/);
+  if (classMatch) {
+    const cid = Number(classMatch[1]);
+    if (!db.classes.find((c: any) => c.id === cid && !c.deletedAt)) return problem(404, 'Class not found');
+    if (!inScope(cid)) return problem(403, 'Class is outside your teaching assignments');
+    if (classMatch[2] === 'students') {
+      const ids = db.enrollments.filter((e: any) => e.classId === cid && !e.deletedAt && e.status === 'ACTIVE').map((e: any) => e.accountId);
+      const rows = ids.map((id: number, i: number) => {
+        const u = db.users.find((x: any) => x.accountId === id);
+        const avg = [42.5, null, 68.0, 81.3, 55.0][i % 5];
+        const finished = avg == null ? 0 : 2 + (i % 3);
+        return { accountId: id, name: u ? `${u.firstName} ${u.lastName}` : `Conta ${id}`, finishedSimulations: finished, averageScorePercent: avg, lastFinishedAt: avg == null ? null : new Date(Date.now() - i * 86400000).toISOString(), status: avg == null ? 'NO_ACTIVITY' : avg < 50 ? 'AT_RISK' : 'OK' };
+      });
+      return json(200, rows.sort((a: any, b: any) => (a.averageScorePercent ?? -1) - (b.averageScorePercent ?? -1)));
+    }
+    if (classMatch[2] === 'weekly') {
+      const weeks = Math.min(Math.max(Number(url.searchParams.get('weeks') ?? 8), 1), 52);
+      const monday = new Date();
+      monday.setUTCHours(0, 0, 0, 0);
+      monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+      return json(200, Array.from({ length: weeks }, (_, i) => {
+        const d = new Date(monday.getTime() - (weeks - 1 - i) * 7 * 86400000);
+        const finished = ((i * 7) % 5) + (i > 1 ? 3 : 0);
+        return { weekStart: d.toISOString().slice(0, 10), finished, averageScorePercent: finished ? Math.round((55 + i * 2.5) * 10) / 10 : null };
+      }));
+    }
+    // O par turma+disciplina, como o scope do backend: SO na turma da Helena é de outro professor.
+    const mine = db['teaching-assignments'].filter((a: any) => !a.deletedAt && a.teacherId === teacher?.id);
+    const ownsPair = (s: any) => admin || mine.some((a: any) => a.classId === s.classId && a.subjectId === s.subjectId);
+    const qs = active.filter((s: any) => s.classId === cid && ownsPair(s)).flatMap((s: any) => s.questions.filter((q: any) => q.options?.length).map((q: any) => ({ s, q })));
+    return json(200, qs.map(({ s, q }: any, i: number) => {
+      const attempts = 12;
+      const correct = (i * 5 + 3) % attempts;
+      return { id: q.id, number: q.number, text: q.text, questionType: q.questionType, maxScore: q.maxScore, statementId: s.id, statementTitle: s.title, attempts, correct, correctPercent: Math.round((correct / attempts) * 1000) / 10 };
+    }).sort((a: any, b: any) => a.correctPercent - b.correctPercent).slice(0, Number(url.searchParams.get('limit') ?? 10)));
+  }
   if (path === '/api/v1/analytics/overview') {
     return json(200, {
-      scope: 'ADMIN', institutions: INSTITUTIONS.length, classes: INSTITUTIONS.reduce((n, i) => n + i.classes, 0),
+      scope: admin ? 'ADMIN' : 'TEACHER', institutions: INSTITUTIONS.length, classes: INSTITUTIONS.reduce((n, i) => n + i.classes, 0),
       students: INSTITUTIONS.reduce((n, i) => n + i.students, 0), teachers: 38,
       statements: { total: active.length, published: active.filter((s: any) => s.visible).length, needingReview: active.filter((s: any) => s.needsReview).length, missingAnswerKey: 1 },
       simulations: { total: 2870, finished: 2650, inProgress: 140, cancelled: 80, uniqueStudents: 904 },
@@ -802,7 +843,7 @@ function analytics(path: string, url: URL) {
       { id: 2, code: '12A', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'ITEL', students: 29, teachers: 4, statements: 5, finishedSimulations: 104, averageScorePercent: 72.9, averageTimeSeconds: 3180 },
       { id: 3, code: '11C', grade: 11, course: 'Redes e Telecomunicações', institution: 'ISPTEC', students: 34, teachers: 3, statements: 4, finishedSimulations: 88, averageScorePercent: 64.2, averageTimeSeconds: 3600 },
       { id: 4, code: '13A', grade: 13, course: 'Eletrónica', institution: 'IMIL', students: 26, teachers: 3, statements: 3, finishedSimulations: 52, averageScorePercent: 58.7, averageTimeSeconds: 2880 },
-    ]);
+    ].filter((c) => inScope(c.id)));
   }
   const m = path.match(/^\/api\/v1\/analytics\/statements\/(\d+)\/questions$/);
   if (m) {
