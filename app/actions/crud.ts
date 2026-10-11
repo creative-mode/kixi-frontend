@@ -1,10 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getAuthHeaders } from '@/lib/auth.server';
+import { getAuthHeaders, getCurrentUser } from '@/lib/auth.server';
 import { API_HOST } from '@/lib/constants';
 import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
 import { apiFetch } from '@/lib/mock/fetch';
+import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -195,6 +196,60 @@ export async function getStatementFull(id: number): Promise<Result<Row>> {
     if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as Row);
   });
+}
+
+// ── teacher scope ───────────────────────────────────────────────────────────
+// A regra está em `lib/crud/teacher-scope.ts`, com testes. Aqui só se juntam
+// os três pedidos que ela precisa.
+//
+// No backend, `/api/v1/teachers/**` e a lista `/api/v1/teaching-assignments`
+// são só de ADMIN. O único ponto aberto ao professor é
+// `/api/v1/teaching-assignments/me`, que já devolve só as atribuições da conta.
+//
+// Tudo o que falhar dá um scope fechado com a razão: cair para "ver tudo"
+// entregaria a escola inteira ao professor num 403 ou numa ligação perdida.
+//
+// Isto é conveniência, não segurança. As server actions não passam pelo
+// `proxy.ts`, e `/api/v1/statements` devolve tudo a quem é staff: quem decide
+// o que um professor pode ler e escrever é o `SecurityConfig` e os serviços do
+// backend (creative-mode/kixi#174 para a filtragem no servidor).
+async function loadTeachingScope(): Promise<Result<TeachingScope>> {
+  return guard(async () => {
+    const user = await getCurrentUser();
+    if (!user) return ok(closedScope('Sessão por resolver.'));
+    const roles = user.roles ?? [];
+    if (roles.includes('ADMIN')) return ok(openScope());
+    if (!roles.includes('TEACHER')) return ok(closedScope('Conta sem papel de professor.'));
+
+    const [mineRes, statementsRes, simulationsRes] = await Promise.all([
+      call('/api/v1/teaching-assignments/me'),
+      call('/api/v1/statements'),
+      call(ENTITIES.simulations.api),
+    ]);
+    for (const res of [mineRes, statementsRes, simulationsRes]) {
+      if (!res.ok) return ok(closedScope(await message(res)));
+    }
+    const [mine, statements, simulations] = (await Promise.all([
+      mineRes.json(),
+      statementsRes.json(),
+      simulationsRes.json(),
+    ])) as [Row[], Row[], Row[]];
+    return ok(buildScope(mine, statements, simulations));
+  });
+}
+
+/**
+ * Deliberadamente sem memoização aqui: este módulo corre no servidor, e uma
+ * variável de módulo seria partilhada por todos os utilizadores — o scope do
+ * primeiro professor a pedir seria servido aos seguintes, e um ADMIN deixaria
+ * o scope aberto para toda a gente. A deduplicação vive no cliente, em
+ * `hooks/use-teacher-scope.ts`, onde o cache é por sessão de browser.
+ *
+ * `async` é obrigatório: o Next.js descarta do grafo qualquer export que não
+ * seja uma função assíncrona.
+ */
+export async function myTeachingScope(): Promise<Result<TeachingScope>> {
+  return loadTeachingScope();
 }
 
 // ── dashboard ───────────────────────────────────────────────────────────────

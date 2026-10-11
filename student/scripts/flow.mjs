@@ -102,6 +102,16 @@ function descodificar(valor) {
 }
 
 /**
+ * O texto como o leitor o vê. O React separa nós de texto com `<!-- -->`, por isso
+ * "0 de 3 respondidas" chega partido em pedaços; comparar a frase inteira dava um
+ * falso negativo que nada tem com o ecrã. Isto junta o que é pontuação do React e
+ * não do conteúdo.
+ */
+function textoLegivel(html) {
+  return html.replace(/<!-- -->/g, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+}
+
+/**
  * Os inputs escondidos que o próprio form emite, que é como se submete uma server action.
  *
  * `FormData` e não `URLSearchParams` porque o Next lê o corpo da acção como multipart: com
@@ -233,6 +243,82 @@ async function main() {
       const html = await r.text();
       const falta = ['Ana Verde', 'Instituto de Telecomunicações'].find((t) => !html.includes(t));
       return falta ? `não encontrei "${falta}"` : null;
+    });
+
+    // 4 · a sala de prova, do princípio ao fim. Este é o passo que o `lint`, o `build`
+    // e os testes unitários não apanham: que a página renderiza o enunciado verdadeiro,
+    // que o botão de começar arranca mesmo uma tentativa, e que o servidor aceita a
+    // entrega. A conta é nova, por isso começa pelo ecrã de começar.
+    await passo('uma prova por começar oferece o início, não a sala', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      if (r.status !== 200) return `esperado 200, veio ${r.status}`;
+      return html.includes('Começar a prova') ? null : 'não ofereceu começar a prova';
+    });
+
+    const comecar = await (await fetch(`${BASE}/aluno/prova/2`, { headers: cabecalhos() })).text();
+    await passo(
+      'começar a prova leva à sala',
+      'POST', '/aluno/prova/2',
+      { form: camposDoForm(comecar, { statementId: '2' }), seguir: true },
+      (r, final, status) => destinoOk(final, '/aluno/prova/2', status),
+    );
+
+    await passo('a sala mostra o enunciado, o mapa e o botão de entregar', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      if (r.status !== 200) return `esperado 200, veio ${r.status}`;
+      const falta = ['Questões', 'Entregar', 'Marcar para rever'].find((t) => !html.includes(t));
+      return falta ? `não encontrei "${falta}" na sala` : null;
+    });
+
+    await passo('a sala conta as questões por responder', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const texto = textoLegivel(await r.text());
+      // A prova 2 tem três questões e nada guardado: o mapa diz 0 de 3. Um ecrã que
+      // mentisse aqui deixaria o aluno entregar sem ver o que falta.
+      return texto.includes('0 de 3 respondidas')
+        ? null
+        : `o mapa não contou as três questões por responder (vi "${(texto.match(/\d+ de \d+ respondidas/) ?? ['nada'])[0]}")`;
+    });
+
+    await passo('a sala não mostra o gabarito ao aluno', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      // `isCorrect` não chega num /full de aluno: o backend põe o campo a null e o
+      // @JsonInclude(NON_NULL) tira-o do JSON (StatementOcrResponse.java:171). O que
+      // se procura é o marcador do campo, não a resposta em si, que está no enunciado.
+      return html.includes('isCorrect') ? 'a sala recebeu o campo isCorrect' : null;
+    });
+
+    // A primeira questão da prova 2 é de escolha, e a sala só desenha uma de cada vez.
+    // Se desenhasse pelo `questionType` em vez de pela existência de opções, o
+    // servidor mandaria a resposta aberta para o professor e o desenho mentiria.
+    await passo('a questão de escolha desenha alternativas', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      const radios = (html.match(/type="radio"/g) ?? []).length;
+      if (radios === 0) return 'a questão de escolha não desenhou alternativas';
+      return null;
+    });
+
+    // Entregar é o único submit por HTTP sem JavaScript na sala: é um form. Leva ao
+    // resultado pelo caminho cru do `redirect()` numa server action, com o basePath
+    // aplicado uma vez — o duplo `/aluno/aluno` que já custou um 404 no PR #98.
+    const sala = await (await fetch(`${BASE}/aluno/prova/2`, { headers: cabecalhos() })).text();
+    const sessao = /name="simulationId" value="(\d+)"/.exec(sala)?.[1];
+    registar('a sala tem uma tentativa', sessao ? null : 'não encontrei o simulationId na sala', sessao ?? '');
+
+    await passo(
+      'entregar a prova leva ao resultado, com o basePath',
+      'POST', '/aluno/prova/2',
+      { form: camposDoForm(sala), seguir: true },
+      (r, final, status) => destinoOk(final, `/aluno/resultado?prova=${sessao}`, status),
+    );
+
+    // Reabrir depois de entregar não recomeça a prova. O Next 16 envia primeiro a
+    // shell e o `redirect()` vem no payload de streaming, por isso não chega como um
+    // 3xx: o que se confirma é que o destino está no payload e que a prova não abre.
+    await passo('reabrir uma prova entregue não a abre de novo', 'GET', '/aluno/prova/2', {}, async (r) => {
+      const html = await r.text();
+      if (html.includes(`/aluno/resultado?prova=${sessao}`)) return null;
+      if (html.includes('Questões')) return 'a sala abriu outra vez depois de entregar';
+      return 'nem o redireccionamento nem a sala: a resposta não diz o que aconteceu';
     });
 
     // 4b · o detalhe da prova (#19): o ecrã que liga a lista aos três modos.

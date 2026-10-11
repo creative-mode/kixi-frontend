@@ -47,12 +47,14 @@ export const viewport: Viewport = {
 import { ManagerNavbar } from "@/components/manager-navbar"
 import { Providers } from "@/components/providers"
 import { AuthLayout } from "@/components/auth-layout"
+import { getCurrentUser } from "@/lib/auth.server"
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const user = await getCurrentUser()
   return (
     <html lang="pt" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
       <head>
@@ -62,7 +64,7 @@ export default function RootLayout({
         className={`${jakarta.variable} ${mono.variable} font-sans antialiased`}
       >
         <Providers>
-          <ManagerNavbar />
+          <ManagerNavbar roles={user?.roles ?? []} />
           <AuthLayout>
             {children}
           </AuthLayout>

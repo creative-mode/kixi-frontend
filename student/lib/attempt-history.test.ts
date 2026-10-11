@@ -129,3 +129,14 @@ test('um estado que o servidor invente não é dado como terminado', () => {
   assert.equal(labelOf({ id: 1, status: 'SOMETHING_NEW' }), 'unfinished');
   assert.equal(settled({ id: 1, status: 'SOMETHING_NEW' }), false);
 });
+
+test('uma data sem fuso é a hora do servidor, não a do aparelho', () => {
+  // 10:00 em Luanda (+01:00) são 09:00 UTC: passada meia hora, são 09:30 UTC.
+  const realNow = Date.now;
+  Date.now = () => Date.parse('2026-10-11T09:30:00Z');
+  try {
+    assert.equal(sinceLabel('2026-10-11T10:00:00'), 'há 30 min');
+  } finally {
+    Date.now = realNow;
+  }
+});

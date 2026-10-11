@@ -46,8 +46,8 @@ export function TutorChat({ statementId, paperTitle }: { statementId?: number; p
   };
 
   const description = paperTitle
-    ? `Sobre ${paperTitle}. As respostas citam a prova.`
-    : 'As respostas citam o enunciado de onde tiram a resposta.';
+    ? `Sobre ${paperTitle}.`
+    : 'Pergunta o que quiseres estudar.';
 
   return (
     <Page>

@@ -68,7 +68,13 @@ export function StatementDetailView({
                   </span>
                 </div>
               </div>
-              <Button asChild className="w-full"><Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar' : 'Começar'}</Link></Button>
+              {/* Uma tentativa corrigida não abre a sala outra vez (a sala manda-a para o
+                  resultado), por isso o botão diz o que de facto faz. */}
+              <Button asChild className="w-full">
+                {current?.label === 'corrected'
+                  ? <Link href={`/resultado?prova=${current.id}`}>Ver resultado</Link>
+                  : <Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar' : 'Começar'}</Link>}
+              </Button>
             </Card>
 
             <Card className="gap-3 p-4">
@@ -76,7 +82,7 @@ export function StatementDetailView({
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"><BookOpen aria-hidden /></span>
                 <div className="min-w-0">
                   <b className="block">Estudo assistido</b>
-                  <span className="text-[13px] text-muted-foreground">O tutor responde só sobre esta prova, e cita de onde tirou a resposta.</span>
+                  <span className="text-[13px] text-muted-foreground">Abre o tutor com esta prova como contexto.</span>
                 </div>
               </div>
               <Button asChild variant="outline" className="w-full"><Link href={`/tutor?statementId=${id}`}>Abrir o tutor</Link></Button>
@@ -100,7 +106,7 @@ export function StatementDetailView({
               <EmptyState
                 title={attempts ? "Ainda não tentaste esta prova" : "O teu histórico não está disponível"}
                 message={attempts
-                  ? "Quando a fizeres, aparece aqui com a nota e a data. Podes repeti-la as vezes que quiseres."
+                  ? "Quando a fizeres, aparece aqui com a nota e a data."
                   : "Não conseguimos buscar as tuas tentativas agora. Tenta outra vez daqui a pouco."}
                 action={attempts ? <Button asChild variant="outline"><Link href={`/prova/${id}`}>Fazer a prova</Link></Button> : undefined}
               />
@@ -131,6 +137,9 @@ export function StatementDetailView({
                     </div>
                     {/* Uma tentativa cancelada não tem nada para continuar: o botão
                         era o que a mostrava como «por terminar». */}
+                    {a.label === 'corrected' && (
+                      <Button asChild variant="outline" size="sm"><Link href={`/resultado?prova=${a.id}`}>Ver resultado</Link></Button>
+                    )}
                     {a.label === 'unfinished' && (
                       <Button asChild variant="outline" size="sm"><Link href={`/prova/${id}`}>Continuar</Link></Button>
                     )}

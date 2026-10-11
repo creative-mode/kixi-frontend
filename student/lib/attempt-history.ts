@@ -12,6 +12,8 @@
  * in the detail.
  */
 
+import { parseServerTime } from './exam-rules.ts';
+
 /** A simulation as `GET /simulations` returns it for the signed-in student. */
 export interface Attempt {
   id: number;
@@ -77,7 +79,8 @@ export function labelOf(a: Attempt): AttemptLabel {
 /** "há 2 dias", from an ISO date. Absent or unparseable means we cannot say. */
 export function sinceLabel(startedAt: string | null | undefined): string | undefined {
   if (!startedAt) return undefined;
-  const then = Date.parse(startedAt);
+  // Sem fuso é a hora do servidor, não a do aparelho: ver parseServerTime.
+  const then = parseServerTime(startedAt);
   if (!Number.isFinite(then)) return undefined;
   const minutes = Math.max(0, Math.floor((Date.now() - then) / 60000));
   if (minutes < 1) return 'agora mesmo';
