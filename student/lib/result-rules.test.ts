@@ -65,7 +65,7 @@ test('compara com a tentativa terminada imediatamente anterior', () => {
 
 test('a diferença mostra o sinal', () => {
   assert.equal(formatDelta(2.2), '+2,2');
-  assert.equal(formatDelta(-1.5), '−1,5');
+  assert.equal(formatDelta(-1.5), '-1,5');
   assert.equal(formatDelta(0), '0');
 });
 

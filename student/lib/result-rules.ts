@@ -93,7 +93,7 @@ export interface AttemptScore {
 
 export interface Comparison {
   previousScore: number;
-  /** current − previous, to one decimal: scores are decimals and 16.4 − 14.2 must not
+  /** current - previous, to one decimal: scores are decimals and 16.4 - 14.2 must not
    *  show as 2.1999999999999993. */
   delta: number;
 }
@@ -117,11 +117,11 @@ export function compareWithPrevious(
   };
 }
 
-/** `+2,2`, `−1,5`, `0`. */
+/** `+2,2`, `-1,5`, `0`. */
 export function formatDelta(delta: number): string {
   if (delta === 0) return '0';
   const text = String(Math.abs(delta)).replace('.', ',');
-  return delta > 0 ? `+${text}` : `−${text}`;
+  return delta > 0 ? `+${text}` : `-${text}`;
 }
 
 /** The letter shown for an option: the one the paper gave, or A, B, C by position. */
