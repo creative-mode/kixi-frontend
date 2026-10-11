@@ -314,13 +314,27 @@ function seed(): Store {
     // Uma resposta já guardada na tentativa 2, para se ver a sala a retomar o que
     // ficou em vez de recomeçar: um POST novo na mesma pergunta daria 409.
     answers: [
+      // A tentativa 1 está corrigida: duas escolhas, uma certa e uma errada, e uma
+      // resposta aberta que fica para o professor. É o que o ecrã de resultado mostra.
+      {
+        id: 2, simulationId: 1, questionId: 1, selectedOptionId: 12, answerText: null,
+        scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED', answeredAt: null,
+      },
+      {
+        id: 3, simulationId: 1, questionId: 2, selectedOptionId: 21, answerText: null,
+        scoreObtained: 0, isCorrect: false, reviewStatus: 'AUTO_GRADED', answeredAt: null,
+      },
+      {
+        id: 4, simulationId: 1, questionId: 3, selectedOptionId: null, answerText: 'É dividir uma rede em sub-redes mais pequenas.',
+        scoreObtained: null, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answeredAt: null,
+      },
       {
         id: 1, simulationId: 2, questionId: 1, selectedOptionId: 12, answerText: null,
         scoreObtained: null, isCorrect: null, reviewStatus: null, answeredAt: null,
       },
     ],
     nextSimulation: 3,
-    nextAnswer: 2,
+    nextAnswer: 5,
     // The seeded student is also explicitly affiliated with ITEL, as an administrator
     // would have done, so /me can be seen answering with the linked school. An account
     // created through /auth/register has no link and gets the school of its class.
