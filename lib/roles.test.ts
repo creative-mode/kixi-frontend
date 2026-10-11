@@ -6,6 +6,9 @@ import { teacherRoute } from './roles.ts';
 test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enunciado', () => {
   for (const p of [
     '/professor',
+    '/exam-rooms',
+    '/exam-rooms/new',
+    '/exam-rooms/12',
     '/exam-builder',
     '/exam-builder/x',
     '/statements',
@@ -37,6 +40,7 @@ test('lixeiras, formulários e o resto voltam ao início dele', () => {
     '/simulation-answers/9/edit',
     '/exam-builderx',
     '/professorx',
+    '/exam-rooms/12/edit',
   ]) {
     assert.equal(teacherRoute(p), 'home', p);
   }

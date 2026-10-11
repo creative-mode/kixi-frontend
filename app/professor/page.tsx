@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, FilePen, ScanText } from 'lucide-react';
+import { ArrowRight, DoorOpen, FilePen, ScanText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -33,6 +33,12 @@ const SHORTCUTS = [
     label: 'Carregar prova',
     description: 'Importe o enunciado por foto ou PDF (OCR).',
     icon: ScanText,
+  },
+  {
+    href: '/exam-rooms/new',
+    label: 'Criar sala',
+    description: 'Prova ao vivo para a turma, com notas lançadas no fim.',
+    icon: DoorOpen,
   },
   {
     href: '/exam-builder',
@@ -95,7 +101,7 @@ export default function TeacherHome() {
         <p className="mt-1 text-muted-foreground">Atalhos e resumo da sua atividade.</p>
       </div>
 
-      <section aria-label="Atalhos rápidos" className="grid gap-4 sm:grid-cols-2">
+      <section aria-label="Atalhos rápidos" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SHORTCUTS.map(({ href, label, description, icon: Icon }) => (
           <Link
             key={href}
@@ -128,7 +134,7 @@ export default function TeacherHome() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="flex flex-col">
-          <CardHeader className="flex-row items-start justify-between gap-3">
+          <CardHeader className="grid-cols-[1fr_auto] gap-3">
             <div>
               <CardTitle className="text-lg font-semibold text-foreground">
                 Últimas simulações
@@ -184,7 +190,7 @@ export default function TeacherHome() {
         </Card>
 
         <Card className="flex flex-col">
-          <CardHeader className="flex-row items-start justify-between gap-3">
+          <CardHeader className="grid-cols-[1fr_auto] gap-3">
             <div>
               <CardTitle className="text-lg font-semibold text-foreground">
                 Enunciados por rever

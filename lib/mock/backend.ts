@@ -6,6 +6,8 @@ import 'server-only';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from 'node:crypto';
 import { approvalProblem } from './gate';
+import { examRooms, liveStream, luandaClock } from './exam-rooms';
+import { assignmentsFrom, teacherCanWrite } from '../crud/teacher-scope';
 
 const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -50,6 +52,22 @@ function add(table, data) {
 }
 
 const roleId = (n) => db.roles.find((r) => r.name === n).id;
+
+// Salas de Prova: regras em ./exam-rooms.ts, com testes.
+const rooms = examRooms({
+  db,
+  add,
+  clock: luandaClock,
+  // StatementWriteAccessService.checkCanWrite, com as atribuições do professor.
+  canWriteStatement: (statementId, accountId, admin) => {
+    if (admin) return true;
+    const st = db.statements.find((x) => x.id === statementId && !x.deletedAt);
+    const teacher = db.teachers.find((t) => t.accountId === accountId && !t.deletedAt);
+    if (!st || !teacher) return false;
+    return teacherCanWrite(assignmentsFrom(db['teaching-assignments'].filter((a) => a.teacherId === teacher.id)), st);
+  },
+  isStudent: (accountId) => db.accountRoles.some((r) => r.accountId === accountId && r.roleId === roleId('STUDENT')),
+});
 function seedAccount(username, email, roleName, firstName, lastName) {
   const a = add('accounts', { username, email, passwordHash: hash(SEED_PASSWORD), emailVerified: true, active: true, lastLogin: null });
   db.accountRoles.push({ accountId: a.id, roleId: roleId(roleName) });
@@ -237,6 +255,8 @@ function authorize(auth: any, method: string, path: string) {
     return affiliated ? 200 : 403;
   }
   if (/^\/api\/(v1\/)?simulations/.test(path) && method !== 'DELETE' && !/restore/.test(path)) return has('ADMIN', 'TEACHER', 'STUDENT') ? 200 : 403;
+  // Como no backend: o SecurityConfig só pede sessão, e cada acção decide no ExamRoomController.
+  if (/^\/api\/(v1\/)?exam-rooms(\/|$)/.test(path)) return 200;
   return has('ADMIN', 'TEACHER') ? 200 : 403;
 }
 
@@ -659,6 +679,38 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return json(201, s);
     }
 
+    // ── exam rooms (BE-16/BE-17) ──
+    if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades))?$/))) {
+      const me = Number(auth.sub);
+      const roles = auth.roles ?? [];
+      const admin = roles.includes('ADMIN');
+      const staff = admin || roles.includes('TEACHER');
+      const out = (o) => (o.ok ? json(o.status, o.body) : problem(o.problem.status, o.problem.detail));
+      const [, target, action] = m;
+      const id = Number(target);
+      if (!target && !action && method === 'POST') {
+        return staff ? out(rooms.create(readBody(), me, admin)) : problem(403, 'Only teachers or ADMIN can create exam rooms');
+      }
+      if (target === 'owned' && method === 'GET') return json(200, staff ? rooms.owned(me) : []);
+      if (target === 'mine' && method === 'GET') return json(200, rooms.mine(me));
+      if (Number.isFinite(id) && method === 'POST') {
+        if (action === 'join') return out(rooms.join(id, me));
+        if (!staff) return problem(403, 'Only teachers or ADMIN can manage exam rooms');
+        if (action === 'participants') return out(rooms.addParticipant(id, readBody(), me, admin));
+        const next = { open: 'OPEN', start: 'RUNNING', close: 'CLOSED' }[action];
+        if (next) return out(rooms.transition(id, me, admin, next));
+      }
+      if (Number.isFinite(id) && method === 'GET' && staff) {
+        if (action === 'grades') return out(rooms.grades(id, me, admin));
+        if (action === 'live') {
+          const first = rooms.live(id, me, admin);
+          return first.ok ? liveStream(() => rooms.live(id, me, admin)) : out(first);
+        }
+      }
+      if (Number.isFinite(id) && method === 'GET' && !staff) return problem(403, 'Only teachers or ADMIN can view exam room progress');
+      return problem(405, 'Method not allowed');
+    }
+
     // ── simulations (note: /api/simulations, restore is PUT, purge is /permanent) ──
     if ((m = path.match(/^\/api\/simulations(?:\/(trash|\d+)(?:\/(restore|permanent))?)?$/))) {
       const t = m[1];
@@ -763,7 +815,12 @@ function seedExtras() {
     const o = q.options.find((x: any) => x.optionLabel === 'ABCD'[opt - 1]);
     add('simulation-answers', { simulationId: 1, questionId: q.id, selectedOptionId: o.id, answerText: null, answeredAt: now(), isCorrect: o.isCorrect, scoreObtained: o.isCorrect ? q.maxScore : 0 });
   }
-  for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
+  // Matriculados na turma da Helena: com o aluno da semente são cinco, o que a
+  // #24 pede para correr uma sala de prova de ponta a ponta.
+  for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) {
+    const acc = seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
+    add('enrollments', { accountId: acc.id, classId: db.classes[0].id, schoolYearId: sy.id, status: 'ACTIVE' });
+  }
 }
 
 const INSTITUTIONS = [

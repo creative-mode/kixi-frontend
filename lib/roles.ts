@@ -54,6 +54,9 @@ export function teacherMayOpen(pathname: string): boolean {
   return (
     pathname === '/professor' ||
     isUnder(pathname, '/exam-builder') ||
+    pathname === '/exam-rooms' ||
+    pathname === '/exam-rooms/new' ||
+    /^\/exam-rooms\/\d+$/.test(pathname) ||
     pathname === '/statements' ||
     pathname === '/statements/import' ||
     /^\/statements\/\d+$/.test(pathname) ||
