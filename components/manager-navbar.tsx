@@ -49,7 +49,7 @@ export function ManagerNavbar() {
     fetchCurrentUser().then((u) => setTeacherOnly(!!u && !u.roles.includes('ADMIN') && u.roles.includes('TEACHER')));
   }, []);
   // O professor só vê o exam builder.
-  const navLinks = teacherOnly ? allNavLinks.filter((l) => l.href === '/exam-builder') : allNavLinks;
+  const navLinks = teacherOnly ? allNavLinks.filter((l) => l.href === '/exam-builder' || l.href === '/statements') : allNavLinks;
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)

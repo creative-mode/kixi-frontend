@@ -9,10 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { importStatementOcr } from '@/app/actions/media';
 import { ENTITIES } from '@/lib/crud/entities';
+import { addOcrFiles, OCR_ACCEPT, ocrFilesProblem } from '@/lib/crud/ocr-files';
 import { PageHead } from './page-head';
 import { Spinner } from '@/components/ui/spinner';
 
-const ACCEPT = 'image/*,application/pdf';
 const size = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1000))} KB`);
 
 /** Upload photos or scans of an exam; the OCR turns them into a statement that waits for review. */
@@ -27,17 +27,16 @@ export function OcrImport() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function add(list: FileList | File[]) {
-    const incoming = Array.from(list).filter((f) => /^image\/|^application\/pdf$/.test(f.type));
-    if (incoming.length < Array.from(list).length) toast.error('Só são aceites imagens e PDF.');
-    const tooBig = incoming.find((f) => f.size > 15 * 1024 * 1024);
-    if (tooBig) toast.error(`«${tooBig.name}» ultrapassa os 15 MB e foi ignorado.`);
-    setFiles((cur) => [...cur, ...incoming.filter((f) => f.size <= 15 * 1024 * 1024)].slice(0, 20));
+    const { files: next, rejected } = addOcrFiles(files, Array.from(list));
+    rejected.forEach((r) => toast.error(r));
+    setFiles(next);
     setError(null);
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (files.length === 0) { setError('Escolha pelo menos um ficheiro.'); return; }
+    const problem = ocrFilesProblem(files);
+    if (problem) { setError(problem); return; }
     const form = new FormData();
     files.forEach((f) => form.append('files', f, f.name));
     setBusy(true);
@@ -56,6 +55,10 @@ export function OcrImport() {
         toast.success('Prova importada. Falta rever o texto extraído.');
         router.push(`/statements/${res.data.id}`);
       } else setError(res.error);
+    } catch {
+      // A action pode rebentar antes de correr (413 do limite de corpo, ligação cortada):
+      // aí não há Result, e sem este catch a página ficava parada sem dizer nada.
+      setError('Não foi possível enviar os ficheiros. Verifique a ligação e tente com menos ficheiros ou ficheiros mais leves.');
     } finally {
       window.clearInterval(timer);
       setBusy(false);
@@ -77,8 +80,8 @@ export function OcrImport() {
             >
               <UploadCloud className="size-8 text-muted-foreground" aria-hidden />
               <p className="text-sm font-medium">Arraste os ficheiros para aqui</p>
-              <p className="text-xs text-muted-foreground">Imagens ou PDF, até 15 MB cada, no máximo 20. As páginas são lidas pela ordem em que as adicionar.</p>
-              <input ref={inputRef} type="file" multiple accept={ACCEPT} className="sr-only" onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} aria-label="Escolher ficheiros" />
+              <p className="text-xs text-muted-foreground">JPG, PNG, PDF, WEBP, BMP ou TIFF, até 15 MB cada, no máximo 10 e 50 MB no total. As páginas são lidas pela ordem em que as adicionar.</p>
+              <input ref={inputRef} type="file" multiple accept={OCR_ACCEPT} className="sr-only" onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} aria-label="Escolher ficheiros" />
               <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy}>Escolher ficheiros</Button>
             </div>
 

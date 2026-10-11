@@ -7,10 +7,24 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { approveStatement, getStatementFull, listOptions, myInstitutions, saveStatementReview, setStatementVisible, type QuestionEdit, type StatementInput } from '@/app/actions/crud';
+import {
+  approveStatement,
+  getStatementForReview,
+  listOptions,
+  myInstitutions,
+  reviewChoices,
+  saveStatementReview,
+  setStatementVisible,
+  type QuestionEdit,
+  type ReviewChoice,
+  type ReviewChoices,
+  type StatementInput,
+} from '@/app/actions/crud';
+import { fetchCurrentUser } from '@/lib/auth';
 import { answerKeyIssues } from '@/lib/crud/answer-key';
 import type { Row } from '@/lib/crud/entities';
 import { Spinner } from '@/components/ui/spinner';
+import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
 
 // O tipo tem várias grafias no backend (OCR escreve `development`, o exam builder `open`).
@@ -18,13 +32,15 @@ const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múlt
 const typeLabel = (t: string | null) => (t ? QUESTION_TYPES[t.toUpperCase()] ?? t : 'Sem tipo');
 
 type OptionDraft = { id: number; optionLabel: string; optionText: string; isCorrect: boolean };
-type QuestionDraft = { id: number; number: number; questionType: string | null; text: string; maxScore: number; needsReview: boolean; modelAnswer: string; options: OptionDraft[] };
+// A cotação fica como o professor a escreve: como número, apagar o campo dava 0 e
+// escrever a seguir dava "01.5".
+type QuestionDraft = { id: number; number: number; questionType: string | null; text: string; maxScore: string; needsReview: boolean; modelAnswer: string; options: OptionDraft[] };
 type HeaderDraft = { institutionId: string; title: string; examType: string; variant: string; durationMinutes: string; instructions: string; totalMaxScore: string; subjectId: string; classId: string; schoolYearId: string; termId: string };
 type Draft = { header: HeaderDraft; questions: QuestionDraft[] };
-type Choice = { value: number; label: string };
 
 const str = (v: unknown) => (v != null ? String(v) : '');
-const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
+const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
+const score = (v: string) => numOrNull(v) ?? NaN;
 
 function toDraft(s: Row): Draft {
   return {
@@ -46,7 +62,7 @@ function toDraft(s: Row): Draft {
       number: q.number,
       questionType: q.questionType ?? null,
       text: q.text ?? '',
-      maxScore: Number(q.maxScore ?? 0),
+      maxScore: str(q.maxScore ?? 0),
       needsReview: !!q.needsReview,
       modelAnswer: q.modelAnswer ?? '',
       options: (q.options ?? []).map((o: Row) => ({ id: Number(o.id), optionLabel: o.optionLabel, optionText: o.optionText ?? '', isCorrect: !!o.isCorrect })),
@@ -55,16 +71,17 @@ function toDraft(s: Row): Draft {
 }
 
 /** O que o PUT do enunciado e o QuestionRequest/QuestionOptionRequest rejeitariam, dito antes de enviar. */
-function invalid({ header, questions }: Draft): string | null {
+function invalid({ header, questions }: Draft, admin: boolean): string | null {
   if (!header.institutionId) return 'Escolha a escola.';
   if (!header.subjectId) return 'Escolha a disciplina.';
+  if (!admin && !header.classId) return 'Escolha a turma: só o administrador grava um enunciado sem turma.';
   if (header.title.trim().length < 3) return 'O título precisa de pelo menos 3 caracteres.';
   if (!header.examType.trim()) return 'Indique a chave da prova (P1, P2, Exame…).';
   if (header.durationMinutes.trim() !== '' && !(Number(header.durationMinutes) > 0)) return 'A duração tem de ser maior que zero.';
-  if (header.totalMaxScore.trim() !== '' && !(Number(header.totalMaxScore) >= 0)) return 'A cotação total não pode ser negativa.';
+  if (header.totalMaxScore.trim() !== '' && !(score(header.totalMaxScore) >= 0)) return 'A cotação total não é válida.';
   for (const q of questions) {
     if (!q.text.trim()) return `A questão ${q.number} não tem texto.`;
-    if (!Number.isFinite(q.maxScore) || q.maxScore < 0) return `A cotação da questão ${q.number} não é válida.`;
+    if (!(score(q.maxScore) >= 0)) return `A cotação da questão ${q.number} não é válida.`;
     if (q.options.some((o) => !o.optionText.trim())) return `A questão ${q.number} tem uma opção sem texto.`;
   }
   return null;
@@ -95,8 +112,10 @@ function questionEdits(before: QuestionDraft[], after: QuestionDraft[]): Questio
     const old = before.find((x) => x.id === q.id);
     if (!old) continue;
     const edit: QuestionEdit = { id: q.id, number: q.number };
-    if (q.text !== old.text || q.maxScore !== old.maxScore || q.modelAnswer !== old.modelAnswer) {
-      edit.question = { text: q.text.trim(), questionType: q.questionType, maxScore: q.maxScore, modelAnswer: q.modelAnswer.trim() || null };
+    if (q.text !== old.text || score(q.maxScore) !== score(old.maxScore) || q.modelAnswer !== old.modelAnswer) {
+      // O modelAnswer vai sempre com o que o servidor tem (o PUT grava-o tal e qual):
+      // é por isso que tem de ter vindo de /questions, e não do /full, que não o traz.
+      edit.question = { text: q.text.trim(), questionType: q.questionType, maxScore: score(q.maxScore), modelAnswer: q.modelAnswer.trim() || null };
     }
     const changed = q.options.filter((o) => old.options.find((x) => x.id === o.id)?.optionText !== o.optionText);
     if (changed.length) edit.options = changed.map((o) => ({ id: o.id, optionLabel: o.optionLabel, optionText: o.optionText.trim() }));
@@ -107,11 +126,11 @@ function questionEdits(before: QuestionDraft[], after: QuestionDraft[]): Questio
   return out;
 }
 
-function Select({ label, value, onChange, options, required }: { label: string; value: string; onChange: (v: string) => void; options: Choice[]; required?: boolean }) {
+function Select({ label, value, onChange, options, required, disabled }: { label: string; value: string; onChange: (v: string) => void; options: ReviewChoice[]; required?: boolean; disabled?: boolean }) {
   return (
     <label className="grid gap-1 text-sm">
       <span className="text-xs text-muted-foreground">{label}{required ? ' *' : ''}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} required={required} className="rounded-md border border-border bg-card px-3 py-2">
+      <select value={value} onChange={(e) => onChange(e.target.value)} required={required} disabled={disabled} className="rounded-md border border-border bg-card px-3 py-2 disabled:opacity-60">
         <option value="">—</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -126,15 +145,19 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   const [original, setOriginal] = useState<Draft | null>(null);
   const [header, setHeader] = useState<HeaderDraft | null>(null);
   const [questions, setQuestions] = useState<QuestionDraft[] | null>(null);
-  const [courseId, setCourseId] = useState<number | null>(null);
   const [meta, setMeta] = useState<{ needsReview: boolean; visible: boolean; ocrConfidence: number | null }>({ needsReview: false, visible: false, ocrConfidence: null });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [opts, setOpts] = useState<Record<string, Choice[]>>({});
+  const [admin, setAdmin] = useState<boolean | null>(null);
+  const [schools, setSchools] = useState<ReviewChoice[]>([]);
+  const [global, setGlobal] = useState<Record<string, ReviewChoice[]>>({});
+  const [choices, setChoices] = useState<ReviewChoices | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const setH = (patch: Partial<HeaderDraft>) => setHeader((h) => (h ? { ...h, ...patch } : h));
 
-  const load = useCallback(async () => {
-    const r = await getStatementFull(id);
+  /** Lê do servidor. `keep` são rascunhos de questões que falharam ao gravar: ficam por cima. */
+  const load = useCallback(async (keep: QuestionDraft[] = []) => {
+    const r = await getStatementForReview(id);
     if (!r.ok) {
       setError(r.error);
       return;
@@ -142,8 +165,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
     const d = toDraft(r.data);
     setOriginal(d);
     setHeader(d.header);
-    setQuestions(d.questions);
-    setCourseId(r.data.courseId ?? null);
+    setQuestions(d.questions.map((q) => keep.find((k) => k.id === q.id) ?? q));
     setMeta({ needsReview: !!r.data.needsReview, visible: !!r.data.visible, ocrConfidence: r.data.ocrConfidence ?? null });
   }, [id]);
 
@@ -157,34 +179,67 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   useEffect(() => {
     let alive = true;
     (async () => {
-      const out: Record<string, Choice[]> = {};
-      await Promise.all([
-        ...(['subjects', 'classes', 'school-years', 'terms'] as const).map(async (k) => {
-          const r = await listOptions(k);
-          if (r.ok) out[k] = r.data;
-        }),
-        myInstitutions().then((r) => {
-          if (r.ok) out.institutions = r.data.map((i) => ({ value: Number(i.id), label: i.name ?? i.code }));
-        }),
-      ]);
-      if (alive) setOpts(out);
+      const [user, mine, years, terms] = await Promise.all([fetchCurrentUser(), myInstitutions(), listOptions('school-years'), listOptions('terms')]);
+      if (!alive) return;
+      setAdmin(!!user?.roles.includes('ADMIN'));
+      if (mine.ok) setSchools(mine.data.map((i) => ({ value: Number(i.id), label: i.name ?? i.code })));
+      setGlobal({ 'school-years': years.ok ? years.data : [], terms: terms.ok ? terms.data : [] });
     })();
     return () => {
       alive = false;
     };
   }, []);
 
-  if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
-  if (!header || !questions || !original) return <DetailSkeleton />;
+  // Disciplinas e turmas dependem da escola (e, ao professor, das suas atribuições).
+  const institutionId = header?.institutionId ?? '';
+  useEffect(() => {
+    if (!institutionId || admin == null) return;
+    let alive = true;
+    reviewChoices(Number(institutionId), !admin).then((r) => {
+      if (!alive) return;
+      if (!r.ok) return void toast.error(r.error);
+      setChoices(r.data);
+      // O que vinha do OCR ou de outra escola e aqui não se pode escolher fica em branco,
+      // em vez de um select a mostrar "—" com um valor escondido que o servidor recusaria.
+      const mine = r.data.assignments;
+      setHeader((h) => h && {
+        ...h,
+        subjectId: r.data.subjects.some((x) => String(x.value) === h.subjectId && (!mine || mine.some((a) => a.subjectId === x.value))) ? h.subjectId : '',
+        classId: r.data.classes.some((x) => String(x.value) === h.classId) ? h.classId : '',
+      });
+    });
+    return () => {
+      alive = false;
+      setChoices(null);
+    };
+  }, [institutionId, admin]);
 
-  const issues = answerKeyIssues(questions, numOrNull(header.totalMaxScore));
+  if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
+  if (!header || !questions || !original || admin == null) return <DetailSkeleton />;
+
+  const assigned = choices?.assignments;
+  const subjects = (choices?.subjects ?? []).filter(
+    // Ao professor, só as disciplinas que dá na turma escolhida (ou em alguma, sem turma).
+    (s) => !assigned || assigned.some((a) => a.subjectId === s.value && (!header.classId || a.classId === Number(header.classId))),
+  );
+  const classes = (choices?.classes ?? []).filter(
+    (c) => !assigned || !header.subjectId || assigned.some((a) => a.classId === c.value && a.subjectId === Number(header.subjectId)),
+  );
+  const courseId = choices?.classes.find((c) => c.value === Number(header.classId))?.courseId ?? null;
+
+  const issues = answerKeyIssues(questions.map((q) => ({ ...q, maxScore: score(q.maxScore) })), numOrNull(header.totalMaxScore));
   const lowConfidence = meta.ocrConfidence != null && meta.ocrConfidence < 0.9;
   const dirty = JSON.stringify({ header, questions }) !== JSON.stringify(original);
 
   /** Grava e recarrega do servidor. Devolve se tudo ficou gravado. */
   async function save(): Promise<boolean> {
     if (!header || !questions || !original) return false;
-    const problem = invalid({ header, questions });
+    // O curso vem da turma: sem as turmas carregadas, o PUT apagava-o.
+    if (header.institutionId && !choices) {
+      toast.error('Ainda a carregar as turmas da escola. Tente daqui a pouco.');
+      return false;
+    }
+    const problem = invalid({ header, questions }, !!admin);
     if (problem) {
       toast.error(problem);
       return false;
@@ -196,10 +251,12 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       toast.error(res.error);
       return false;
     }
-    await load();
+    // O que falhou continua no ecrã por gravar; o resto vem como ficou no servidor.
+    const failedIds = new Set(res.data.failed.map((f) => f.id));
+    await load(questions.filter((q) => failedIds.has(q.id)));
     setSaving(false);
     if (res.data.failed.length) {
-      toast.error(`Algumas questões não foram gravadas: ${res.data.failed.join(' · ')}`);
+      toast.error(`Algumas questões não foram gravadas: ${res.data.failed.map((f) => f.error).join(' · ')}`);
       return false;
     }
     toast.success('Revisão guardada.');
@@ -232,13 +289,24 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
     onExit();
   }
 
+  function leave() {
+    if (!dirty) return onExit();
+    setConfirm({
+      title: 'Sair sem gravar?',
+      description: 'As alterações que fez nesta revisão perdem-se.',
+      action: 'Sair sem gravar',
+      destructive: true,
+      run: onExit,
+    });
+  }
+
   const patchQ = (qid: number, patch: Partial<QuestionDraft>) =>
     setQuestions((qs) => (qs ? qs.map((q) => (q.id === qid ? { ...q, ...patch } : q)) : qs));
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="outline" size="sm" onClick={onExit}>
+        <Button variant="outline" size="sm" onClick={leave}>
           <ArrowLeft size={14} /> Voltar
         </Button>
         <h1 className="text-xl font-bold tracking-tight">Rever enunciado</h1>
@@ -286,17 +354,21 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
           </label>
           <label className="grid gap-1 text-sm">
             <span className="text-xs text-muted-foreground">Cotação total</span>
-            <Input type="number" min={0} step="0.5" value={header.totalMaxScore} onChange={(e) => setH({ totalMaxScore: e.target.value })} />
+            <Input inputMode="decimal" value={header.totalMaxScore} onChange={(e) => setH({ totalMaxScore: e.target.value })} />
           </label>
           <label className="grid gap-1 text-sm sm:col-span-2">
             <span className="text-xs text-muted-foreground">Instruções</span>
             <textarea value={header.instructions} onChange={(e) => setH({ instructions: e.target.value })} rows={2} className="rounded-md border border-border bg-card px-3 py-2" />
           </label>
-          <Select label="Escola" required value={header.institutionId} onChange={(v) => setH({ institutionId: v })} options={opts.institutions ?? []} />
-          <Select label="Disciplina" required value={header.subjectId} onChange={(v) => setH({ subjectId: v })} options={opts.subjects ?? []} />
-          <Select label="Turma" value={header.classId} onChange={(v) => setH({ classId: v })} options={opts.classes ?? []} />
-          <Select label="Ano letivo" value={header.schoolYearId} onChange={(v) => setH({ schoolYearId: v })} options={opts['school-years'] ?? []} />
-          <Select label="Trimestre" value={header.termId} onChange={(v) => setH({ termId: v })} options={opts.terms ?? []} />
+          {/* Mudar de escola muda as disciplinas e turmas possíveis: as escolhidas deixam de valer. */}
+          <Select label="Escola" required value={header.institutionId} onChange={(v) => setH({ institutionId: v, subjectId: '', classId: '' })} options={schools} />
+          <Select label="Turma" required={!admin} value={header.classId} onChange={(v) => setH({ classId: v })} options={classes} disabled={!choices} />
+          <Select label="Disciplina" required value={header.subjectId} onChange={(v) => setH({ subjectId: v })} options={subjects} disabled={!choices} />
+          <Select label="Ano letivo" value={header.schoolYearId} onChange={(v) => setH({ schoolYearId: v })} options={global['school-years'] ?? []} />
+          <Select label="Trimestre" value={header.termId} onChange={(v) => setH({ termId: v })} options={global.terms ?? []} />
+          {!admin && choices && classes.length === 0 ? (
+            <p className="text-xs text-warning sm:col-span-2">Não tem turmas atribuídas nesta escola. Peça ao administrador uma atribuição de turma e disciplina.</p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -308,10 +380,10 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <strong>Questão {q.number}</strong>
                 <Badge variant="outline">{typeLabel(q.questionType)}</Badge>
-                {q.needsReview ? <Badge variant="secondary">A rever</Badge> : null}
+                {q.needsReview ? <Badge variant="secondary">OCR a rever</Badge> : null}
                 <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                   Cotação
-                  <Input type="number" min={0} step="0.5" value={q.maxScore} onChange={(e) => patchQ(q.id, { maxScore: Number(e.target.value) })} className="w-20" />
+                  <Input inputMode="decimal" value={q.maxScore} onChange={(e) => patchQ(q.id, { maxScore: e.target.value })} className="w-20" aria-label={`Cotação da questão ${q.number}`} />
                 </label>
               </div>
               <textarea value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value })} rows={2} className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" aria-label={`Texto da questão ${q.number}`} />
@@ -345,7 +417,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       </Card>
 
       <div className="flex flex-wrap justify-end gap-3">
-        <Button variant="outline" onClick={onExit} disabled={saving}>Cancelar</Button>
+        <Button variant="outline" onClick={leave} disabled={saving}>Cancelar</Button>
         <Button variant="outline" onClick={() => void save()} disabled={saving || !dirty}>
           {saving ? <Spinner className="size-4" /> : <Check size={16} />}
           Guardar revisão
@@ -355,6 +427,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
           {dirty ? 'Guardar, aprovar e publicar' : 'Aprovar e publicar'}
         </Button>
       </div>
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }

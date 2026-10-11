@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
-import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/lib/roles';
+import { canAccessManager, isStudentOnly, normalizeRoles, teacherMayOpen, type Role } from '@/lib/roles';
 
 const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
 
@@ -115,7 +115,7 @@ export async function proxy(request: NextRequest) {
     if (isTeacher && isManagerOnlyRoute(pathname)) {
       return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
     }
-    if (isTeacher && !pathname.startsWith('/exam-builder')) {
+    if (isTeacher && !teacherMayOpen(pathname)) {
       return NextResponse.redirect(redirectTo('/exam-builder', request));
     }
 

@@ -20,3 +20,21 @@ export function canAccessManager(roles: readonly Role[]): boolean {
 export function isStudentOnly(roles: readonly Role[]): boolean {
   return roles.length === 1 && hasRole(roles, 'STUDENT');
 }
+
+// ── só do gestor (não tem espelho no aluno) ─────────────────────────────────
+
+/**
+ * As rotas do gestor que um professor (sem ADMIN) pode abrir. O resto manda-o para o
+ * exam-builder. Os enunciados entram porque a #22 é o professor a fotografar, rever e
+ * publicar a sua prova; a escrita continua limitada no backend às turmas e disciplinas
+ * que ele dá. A lixeira fica de fora: restaurar e apagar de vez é gestão.
+ */
+export function teacherMayOpen(pathname: string): boolean {
+  return (
+    pathname === '/exam-builder' ||
+    pathname.startsWith('/exam-builder/') ||
+    pathname === '/statements' ||
+    pathname === '/statements/import' ||
+    /^\/statements\/\d+$/.test(pathname)
+  );
+}

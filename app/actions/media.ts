@@ -3,9 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
 import type { Row } from '@/lib/crud/entities';
+import { ocrFilesProblem } from '@/lib/crud/ocr-files';
 
 const MAX_IMAGE = 5 * 1024 * 1024;
-const MAX_OCR_FILE = 15 * 1024 * 1024;
 
 export async function listQuestionImages(questionId: number): Promise<Result<Row[]>> {
   return guard(async () => {
@@ -54,12 +54,8 @@ export async function deleteQuestionImage(id: number): Promise<Result> {
 export async function importStatementOcr(form: FormData): Promise<Result<Row>> {
   return guard(async () => {
     const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
-    if (files.length === 0) return fail('Escolha pelo menos um ficheiro.');
-    if (files.length > 20) return fail('No máximo 20 ficheiros de cada vez.');
-    for (const f of files) {
-      if (!/^image\/|^application\/pdf$/.test(f.type)) return fail(`«${f.name}» não é uma imagem nem um PDF.`);
-      if (f.size > MAX_OCR_FILE) return fail(`«${f.name}» ultrapassa os 15 MB.`);
-    }
+    const problem = ocrFilesProblem(files);
+    if (problem) return fail(problem);
     const out = new FormData();
     for (const f of files) out.append('files', f, f.name);
     // FE-11: o OCR pode demorar com PDFs grandes; aborta aos 3 min com erro legível.

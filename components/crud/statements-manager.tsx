@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { approveStatement, deleteRow, listStatements, setStatementVisible } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
+import { fetchCurrentUser } from '@/lib/auth';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
 import { TableRowsSkeleton } from './loading';
@@ -26,6 +27,11 @@ export function StatementsManager() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  // A lixeira é gestão: o proxy manda o professor para o exam-builder, por isso nem se mostra.
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN')));
+  }, []);
 
   const load = useCallback(async () => {
     setError(null);
@@ -56,9 +62,11 @@ export function StatementsManager() {
         entity={entity}
         actions={
           <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link href="/statements/trash"><Archive size={16} /> Lixeira</Link>
-            </Button>
+            {admin ? (
+              <Button asChild variant="outline">
+                <Link href="/statements/trash"><Archive size={16} /> Lixeira</Link>
+              </Button>
+            ) : null}
             <Button asChild>
               <Link href="/statements/import"><ScanText size={16} /> Importar prova</Link>
             </Button>
