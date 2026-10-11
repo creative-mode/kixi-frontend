@@ -9,6 +9,8 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { EmptyState } from '@/components/states';
 import { RefreshError } from '@/components/refresh-error';
 import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@/lib/catalog';
+import { listInvitations } from '@/lib/exam-room';
+import { SalasDeProva } from '@/components/salas-de-prova';
 
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
@@ -149,13 +151,14 @@ export default async function Provas({ searchParams }: { searchParams: Params })
   };
   const page = Math.max(0, (Number(one(params.pagina)) || 1) - 1);
 
-  const names = await getCatalogNames();
+  const [names, invitations] = await Promise.all([getCatalogNames(), listInvitations()]);
   const result = await getCatalog({ ...filters, page, size: PAGE_SIZE }, names);
   if (!result.ok) {
     return (
       <Page variant="wide">
         <Column className="gap-5">
           <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
+          <SalasDeProva invitations={invitations} />
           <RefreshError
             title="Não foi possível carregar as provas"
             message="Verifica a ligação à internet e tenta de novo. As tuas simulações estão guardadas."
@@ -183,6 +186,8 @@ export default async function Provas({ searchParams }: { searchParams: Params })
     <Page variant="wide">
       <Column className="gap-5">
         <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
+
+        <SalasDeProva invitations={invitations} />
 
         <div className="flex flex-wrap items-center gap-4 rounded-xl border-[1.5px] border-dashed border-input bg-card px-5 py-4">
           <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Camera className="size-5" /></span>

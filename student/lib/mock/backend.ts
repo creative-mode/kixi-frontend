@@ -13,6 +13,7 @@ import {
 } from './simulation';
 
 import crypto from 'node:crypto';
+import { invitationsOf, join, roomDeadline, studentView, type MockParticipant, type MockRoom } from './exam-rooms';
 import { parseServerTime } from '../exam-rules';
 import type {
   Course,
@@ -107,6 +108,8 @@ type SimulationRow = {
   startedAt: string | null;
   finishedAt: string | null;
   timeSpentSeconds: number | null;
+  /** Só nas simulações de uma sala de prova (FE-14). */
+  examRoomId?: number | null;
 };
 
 type Store = {
@@ -131,6 +134,9 @@ type Store = {
   chatSent: Record<number, number>;
   /** The institution each student profile belongs to; an administrator sets this. */
   institutionByAccount: Record<number, number>;
+  /** Salas de prova e convites (BE-16), com as regras em ./exam-rooms. */
+  rooms: MockRoom[];
+  participants: MockParticipant[];
 };
 
 const G = globalThis as unknown as { __kixiStudentMock?: Store };
@@ -345,6 +351,19 @@ function seed(): Store {
     // would have done, so /me can be seen answering with the linked school. An account
     // created through /auth/register has no link and gets the school of its class.
     institutionByAccount: { 3: 1 },
+    // Três salas para o aluno da semente, uma por estado que a página mostra: a
+    // decorrer (entra e responde), aberta mais tarde (sala de espera) e encerrada.
+    // A prova é a 3, que não está publicada: a sala não passa pelo catálogo.
+    rooms: [
+      { id: 1, statementId: 3, status: 'RUNNING', startsAt: toLocalDateTime(new Date(Date.now() - 10 * 60_000)), endsAt: toLocalDateTime(new Date(Date.now() + 80 * 60_000)), durationMinutes: 45 },
+      { id: 2, statementId: 3, status: 'OPEN', startsAt: toLocalDateTime(new Date(Date.now() + 2 * 3_600_000)), endsAt: toLocalDateTime(new Date(Date.now() + 3 * 3_600_000)), durationMinutes: 45 },
+      { id: 3, statementId: 1, status: 'CLOSED', startsAt: toLocalDateTime(new Date(Date.now() - 26 * 3_600_000)), endsAt: toLocalDateTime(new Date(Date.now() - 25 * 3_600_000)), durationMinutes: 45 },
+    ],
+    participants: [
+      { roomId: 1, accountId: 3, simulationId: null, joinedAt: null },
+      { roomId: 2, accountId: 3, simulationId: null, joinedAt: null },
+      { roomId: 3, accountId: 3, simulationId: null, joinedAt: null },
+    ],
   };
 }
 
@@ -403,7 +422,8 @@ function ownedBy(db: Store, simulationId: number, accountId: number): boolean {
 const QUESTIONS_BY_STATEMENT: Record<number, number[]> = {
   1: [1, 2, 3, 4, 5],
   2: [1, 2, 3],
-  3: [1],
+  // Três questões, para a sala de prova da semente ter o que responder.
+  3: [1, 2, 4],
 };
 
 /** StatementBasicResponse, as it nests inside SimulationResponse. */
@@ -442,6 +462,13 @@ function statementSummary(db: Store, row: CatalogRow) {
 /** SimulationResponse. `deadline` is the instant the server stops taking answers,
  *  with the +25% and the tolerance already folded in
  *  (SimulationDeadlineService.java:89) — the room subtracts from this one number. */
+/** Numa sala, o prazo é a duração da sala sem passar o fecho (SimulationDeadlineService). */
+function roomDeadlineOf(db: Store, row: SimulationRow): string | null {
+  if (!row.examRoomId || !row.startedAt) return null;
+  const room = db.rooms.find((r) => r.id === row.examRoomId);
+  return room ? roomDeadline(row.startedAt, room.durationMinutes, room.endsAt) : null;
+}
+
 function simulationResponse(db: Store, row: SimulationRow) {
   const statement = db.statements.find((s) => s.id === row.statementId);
   const owner = db.accounts.find((a) => a.id === row.accountId);
@@ -452,9 +479,9 @@ function simulationResponse(db: Store, row: SimulationRow) {
     schoolYear: null,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
-    deadline: statement
+    deadline: roomDeadlineOf(db, row) ?? (statement
       ? deadlineFor(row.startedAt, statement.durationMinutes, owner?.accessibilityExtraTime === true)
-      : null,
+      : null),
     timeSpentSeconds: row.timeSpentSeconds,
     finalScore: row.finalScore,
     status: row.status,
@@ -783,6 +810,44 @@ export async function mockHandle(
     };
     db.simulations.push(row);
     return json(simulationResponse(db, row), 201);
+  }
+
+  // ── salas de prova (FE-14) ─────────────────────────────────────────────────
+  if (pathname === '/exam-rooms/mine' && method === 'GET') {
+    return json(invitationsOf(
+      account.id,
+      db.rooms,
+      db.participants,
+      (id) => db.statements.find((s) => s.id === id)?.title ?? null,
+      (id) => db.simulations.find((s) => s.id === id),
+      toLocalDateTime(new Date()),
+    ));
+  }
+  const roomMatch = /^\/exam-rooms\/(\d+)\/(join|student)$/.exec(pathname);
+  if (roomMatch) {
+    const roomId = Number(roomMatch[1]);
+    const now = toLocalDateTime(new Date());
+    if (roomMatch[2] === 'join' && method === 'POST') {
+      const joined = join(roomId, account.id, db.rooms, db.participants, now, (room) => {
+        const row: SimulationRow = {
+          id: db.nextSimulation++, accountId: account.id, statementId: room.statementId, status: 'IN_PROGRESS',
+          finalScore: null, startedAt: now, finishedAt: null, timeSpentSeconds: null, examRoomId: room.id,
+        };
+        db.simulations.push(row);
+        return row.id;
+      });
+      return joined.ok ? json(joined.body) : problem(joined.problem.status, joined.problem.detail);
+    }
+    if (roomMatch[2] === 'student' && method === 'GET') {
+      const view = studentView(roomId, account.id, db.rooms, db.participants, now, (statementId) =>
+        (QUESTIONS_BY_STATEMENT[statementId] ?? [])
+          .map((qid) => db.questions.find((q) => q.id === qid))
+          .filter((q): q is MockQuestion => q !== undefined)
+          // Sem gabarito: a vista do aluno nunca leva o `isCorrect`.
+          .map((q) => ({ ...q, options: q.options.map(({ isCorrect: _hidden, ...o }) => o) })),
+      );
+      return view.ok ? json(view.body) : problem(view.problem.status, view.problem.detail);
+    }
   }
 
   // ── a sala de prova ─────────────────────────────────────────────────────────

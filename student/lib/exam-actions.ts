@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { requireStudent } from './guard';
 import { getStatementFull, myAccountId, saveAnswer, startSimulation, submitSimulation } from './exam';
+import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 
 /** What the room sends to save one answer. Plain values, not a FormData: the save
@@ -16,6 +17,8 @@ export interface SaveInput {
   optionId: number | null;
   text: string;
   answerId: number | null;
+  /** Numa sala de prova, as questões leem-se da sala: o enunciado pode não estar publicado. */
+  roomId?: number | null;
 }
 
 /** The outcome of saving one answer. `transient` tells the queue whether to try
@@ -34,7 +37,12 @@ function id(value: unknown): number | null {
  *  decides whether this is a choice or an open answer, and that decision belongs
  *  to the server: a `questionType` or an option id sent by the browser would tell
  *  the backend that an open question has a chosen alternative. */
-async function questionOf(statementId: number, questionId: number): Promise<ExamQuestion | null> {
+async function questionOf(statementId: number, questionId: number, roomId: number | null): Promise<ExamQuestion | null> {
+  if (roomId !== null) {
+    const view = await getStudentView(roomId, { cached: true });
+    if (!view.ok) return null;
+    return view.data.questions.find((q) => q.id === questionId) ?? null;
+  }
   const statement = await getStatementFull(statementId, { cached: true });
   if (!statement.ok) return null;
   return statement.data.questions.find((q) => q.id === questionId) ?? null;
@@ -52,7 +60,7 @@ export async function guardarAction(input: SaveInput): Promise<SaveOutcome> {
     return { ok: false, transient: false, message: 'Não identificámos a questão. Tenta de novo.' };
   }
 
-  const question = await questionOf(statementId, questionId);
+  const question = await questionOf(statementId, questionId, id(input.roomId));
   if (!question) {
     return { ok: false, transient: false, message: 'Esta questão não existe nesta prova.' };
   }
