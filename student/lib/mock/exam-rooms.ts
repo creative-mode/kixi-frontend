@@ -57,7 +57,7 @@ export function ownedBy(): never[] {
   return [];
 }
 
-export type JoinResult = { status: number; simulationId: number | null } | { status: number; message: string };
+export type JoinResult = { status: number; simulationId: number | null; statementId?: number } | { status: number; message: string };
 
 /**
  * `POST /exam-rooms/{id}/join`, with the service's refusals in the service's order.
@@ -81,5 +81,5 @@ export function join(room: MockRoom | undefined, accountId: number, now: number)
   }
   if (now < Date.parse(room.startsAt)) return { status: 409, message: 'The exam room has not started' };
   if (now >= Date.parse(room.endsAt)) return { status: 409, message: 'The exam room has ended' };
-  return { status: 200, simulationId: room.id * 100 + accountId };
+  return { status: 200, simulationId: room.id * 100 + accountId, statementId: room.statementId };
 }

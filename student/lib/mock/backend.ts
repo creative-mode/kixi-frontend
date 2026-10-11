@@ -784,8 +784,25 @@ export async function mockHandle(
   if (entrar && method === 'POST') {
     const result = joinRoom(db.examRooms.find((r: MockRoom) => r.id === Number(entrar[1])), account.id, Date.now());
     if ('message' in result) return problem(result.status, result.message);
-    // O serviço devolve a simulação criada ou reutilizada; numa sala OPEN devolve
-    // `simulationId: null`, porque ainda é só presença.
+    // Numa sala OPEN o serviço devolve `simulationId: null` e não cria prova: é só
+    // presença. Numa RUNNING cria a simulação, ou devolve a que o aluno já tem — por
+    // isso ela precisa mesmo de existir em `simulations`, ou o `/simulations/{id}` que
+    // a acção segue a seguir daria 404.
+    if (result.simulationId != null && result.statementId != null) {
+      const jaExiste = db.simulations.find((s) => s.id === result.simulationId);
+      if (!jaExiste) {
+        db.simulations.push({
+          id: result.simulationId,
+          accountId: account.id,
+          statementId: result.statementId,
+          status: 'IN_PROGRESS',
+          finalScore: null,
+          startedAt: minutos(0),
+          finishedAt: null,
+          timeSpentSeconds: null,
+        });
+      }
+    }
     return json({ roomId: Number(entrar[1]), accountId: account.id, simulationId: result.simulationId, joinedAt: minutos(0) });
   }
 

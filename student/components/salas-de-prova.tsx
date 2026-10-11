@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
-import { AlarmClock, CircleCheck, DoorOpen, Play } from 'lucide-react';
+import { AlarmClock, DoorOpen, Play } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,7 +78,7 @@ function SalaCard({
     <div className="flex flex-wrap items-center gap-3 border-t px-5 py-3.5">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <b className="leading-snug">Prova {room.statementId}</b>
+          <b className="leading-snug">Sala de prova</b>
           <Badge variant={room.phase === 'running' ? 'success' : room.phase === 'closed' ? 'secondary' : 'info'}>
             {PHASE_LABEL[room.phase]}
           </Badge>
@@ -88,19 +88,18 @@ function SalaCard({
           {/* A closed room says so rather than counting down to nothing, and an open
               one says when the paper is released — the distinction the service makes
               between presence and the paper. */}
-          {room.phase === 'closed'
-            ? 'Esta prova já acabou.'
-            : room.phase === 'running'
-              ? left === null
-                ? 'Sem tempo limite.'
-                : `Termina em ${formatClock(left)}.`
-              : room.phase === 'open'
-                ? room.startsAt
-                  ? `A prova abre às ${clock(room.startsAt)}.`
-                  : 'A sala está aberta; a prova começa em breve.'
-                : room.startsAt
-                  ? `Começa às ${clock(room.startsAt)}.`
-                  : 'A prova ainda não começou.'}
+          {/* Nada aqui é inventado: o convite não traz janela, por isso não há contagem
+              nem hora de início para mostrar. «Sem tempo limite» seria uma mentira —
+              a prova tem o tempo que o professor deu. */}
+          {room.phase === 'running'
+            ? left === null
+              ? 'A prova está a decorrer. O tempo é o que o teu professor definiu.'
+              : `Termina em ${formatClock(left)}.`
+            : room.phase === 'closed'
+              ? 'Esta prova já acabou.'
+              : room.startsAt
+                ? `A prova abre às ${clock(room.startsAt)}.`
+                : 'Foste convidado. A prova abre quando o teu professor a iniciar.'}
         </p>
         {error && <p role="alert" className="mt-1 text-[13px] font-semibold text-destructive">{error}</p>}
       </div>
@@ -108,20 +107,15 @@ function SalaCard({
       {entering ? (
         <form action={formAction} className="shrink-0">
           <input type="hidden" name="roomId" value={room.id} />
-          <input type="hidden" name="statementId" value={room.statementId} />
           <Button type="submit" size="sm" disabled={submitting}>
             <Play aria-hidden />{room.simulationId != null ? 'Continuar' : 'Entrar'}
           </Button>
         </form>
-      ) : room.phase === 'closed' ? (
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
-          <CircleCheck className="size-4" aria-hidden />
-          {room.simulationId != null ? 'Vais ver o resultado' : 'Não entraste'}
-        </span>
       ) : (
+        // Só presença: o `join` numa sala OPEN regista o aluno e não cria prova, por
+        // isso o botão prometeria uma prova que o servidor não vai dar.
         <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
-          <AlarmClock className="size-4" aria-hidden />
-          {room.phase === 'open' ? 'Só presença' : 'Ainda não abriu'}
+          <AlarmClock className="size-4" aria-hidden />Só presença
         </span>
       )}
     </div>

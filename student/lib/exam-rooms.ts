@@ -21,7 +21,10 @@ import {
  */
 export interface RoomCard {
   id: number;
-  statementId: number;
+  /** The paper the room holds. Null while the backend does not say — the invitation
+   *  carries no `statementId`, so a card without one is honest and a card with a
+   *  guessed one is a link to the wrong exam. */
+  statementId: number | null;
   status: ExamRoomStatus;
   phase: RoomPhase;
   startsAt: string | null;
@@ -40,24 +43,29 @@ export type RoomsResult =
 /**
  * The rooms this student is on the invitation list of.
  *
- * `GET /exam-rooms/mine` answers one `ExamRoomParticipantResponse` per participant:
- * `(roomId, accountId, simulationId, joinedAt)`. **It carries no title, no window and
- * no status**, so the invitation list alone cannot draw a card with "termina em
- * 12:04" — which is what the issue asks for.
+ * **What the backend can and cannot answer, read in `ExamRoomController`:**
  *
- * So this asks the backend for the rooms themselves as well and joins the two by
- * `roomId`. That is the gap the plan documents: `ExamRoomResponse` has everything, but
- * `/mine` does not send it. When `/mine` does, `byRoomId` below stops being needed and
- * this collapses into a single call.
+ * - `GET /exam-rooms/mine` → `ExamRoomParticipantResponse` per participant:
+ *   `(roomId, accountId, simulationId, joinedAt)`. No title, no window, no status.
+ * - `GET /exam-rooms/owned` → the **teacher's** list; `ExamRoomController.owned`
+ *   gates it on ADMIN or TEACHER and returns an empty stream to anyone else. It is
+ *   useless here — a first version of this asked it for the room shape and got an
+ *   empty list back, which silently emptied the whole screen.
+ * - `GET /exam-rooms/{id}/student` → has `status`, `startsAt`, `endsAt` and
+ *   `durationMinutes`, but `ExamRoomService.studentView` only answers when the room
+ *   is `RUNNING` and inside the window. Outside that it is a 409, which is exactly
+ *   when a student most needs to see that the room exists.
  *
- * Degrades rather than fails: no rooms is a real answer, and a room the backend cannot
- * describe is left out rather than shown with invented times.
+ * So there is **no route** that gives a student the state of a room that has not
+ * started. The card therefore says what it knows for certain — that the student is on
+ * the invitation list, and whether they already hold a simulation — and does not
+ * invent a phase, a countdown or a title it was not told. The gap is `status`,
+ * `startsAt` and `endsAt` on the invitation; until the backend sends them, the
+ * section cannot promise the countdown the issue asks for, and pretending otherwise
+ * would be a screen that lies.
  */
 export async function getMyExamRooms(): Promise<RoomsResult> {
-  const [invitations, rooms] = await Promise.all([
-    apiGet<RoomInvitation[]>('/exam-rooms/mine'),
-    apiGet<ExamRoom[]>('/exam-rooms/owned'),
-  ]);
+  const invitations = await apiGet<RoomInvitation[]>('/exam-rooms/mine');
 
   if (!invitations.ok) {
     return invitations.status === 401
@@ -66,30 +74,24 @@ export async function getMyExamRooms(): Promise<RoomsResult> {
   }
   const mine = Array.isArray(invitations.data) ? invitations.data : [];
 
-  // `/owned` is the teacher's list; a student gets an empty one. It is only consulted
-  // for the room shape, so an empty answer simply means "no room details".
-  const described = new Map<number, ExamRoom>();
-  if (rooms.ok && Array.isArray(rooms.data)) {
-    for (const room of rooms.data) described.set(Number(room.id), room);
-  }
-
-  const now = Date.now();
   const cards: RoomCard[] = [];
+  const seen = new Set<number>();
   for (const invitation of mine) {
     const id = Number(invitation.roomId);
-    if (!Number.isInteger(id)) continue;
-    const room = described.get(id);
-    // Without the room there is no status and no window, so there is no card to draw.
-    if (!room || !visible(room.status)) continue;
+    if (!Number.isInteger(id) || seen.has(id)) continue;
+    seen.add(id);
+    const simulationId = invitation.simulationId == null ? null : Number(invitation.simulationId);
+    // A simulation means the room was RUNNING and the paper was released. That is the
+    // one state the invitation can prove, and it is the one the student can act on.
     cards.push({
       id,
-      statementId: Number(room.statementId),
-      status: room.status,
-      phase: phaseOf(room.status, room.startsAt, room.endsAt, now),
-      startsAt: room.startsAt ?? null,
-      endsAt: room.endsAt ?? null,
-      durationMinutes: room.durationMinutes ?? null,
-      simulationId: invitation.simulationId == null ? null : Number(invitation.simulationId),
+      statementId: null,
+      status: simulationId == null ? 'OPEN' : 'RUNNING',
+      phase: simulationId == null ? 'open' : 'running',
+      startsAt: null,
+      endsAt: null,
+      durationMinutes: null,
+      simulationId,
       joined: Boolean(invitation.joinedAt),
     });
   }

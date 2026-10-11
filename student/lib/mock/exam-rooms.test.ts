@@ -55,7 +55,23 @@ test('a janela decide, e recusa antes e depois', () => {
   assert.deepEqual(acabou, { status: 409, message: 'The exam room has ended' });
 
   const dentro = join(room(), 3, AGORA);
-  assert.deepEqual(dentro, { status: 200, simulationId: room().id * 100 + 3 });
+  assert.deepEqual(dentro, { status: 200, simulationId: room().id * 100 + 3, statementId: 1 });
+});
+
+test('quem entra numa prova a correr recebe o enunciado da sala', () => {
+  // Sem o `statementId` a acção de entrar não sabe para que prova mandar o aluno, e
+  // acabava a redireccionar para `/prova/undefined`. É o serviço que devolve a
+  // simulação; o enunciado tem de vir com ela.
+  const dentro = join(room({ id: 7, statementId: 3 }), 3, AGORA);
+  assert.equal(dentro.status, 200);
+  assert.equal('statementId' in dentro ? dentro.statementId : null, 3);
+});
+
+test('uma sala só de presença não devolve enunciado', () => {
+  // Numa sala OPEN não há prova: não há enunciado para abrir.
+  const aberta = join(room({ status: 'OPEN' }), 3, AGORA);
+  assert.equal(aberta.status, 200);
+  assert.equal('statementId' in aberta ? aberta.statementId : null, null);
 });
 
 test('numa sala aberta, a janela já passou, é o fim e não o começo', () => {

@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { requireStudent } from './guard';
+import { apiGet } from './api';
 import { getMyExamRooms, joinExamRoom } from './exam-rooms';
 import { joinMessage } from './exam-room-rules';
 
@@ -23,12 +24,11 @@ export async function entrarSalaAction(_: JoinState, form: FormData): Promise<Jo
   await requireStudent();
 
   const roomId = Number(form.get('roomId'));
-  const statementId = Number(form.get('statementId'));
   if (!Number.isInteger(roomId) || roomId <= 0) return { error: 'Não identificámos a sala.' };
 
-  // The window is re-read from the server rather than trusted from the form: the card
-  // rendered some seconds ago, and the room may have started or ended since. Reading
-  // it again is what lets "ainda não começou" name the real time.
+  // The window is re-read from the server rather than trusted from the card: it was
+  // drawn some seconds ago and the room may have started or ended since. Reading it
+  // again is what lets "ainda não começou" name the real time.
   const rooms = await getMyExamRooms();
   if (rooms.kind === 'unauthorized') redirect('/entrar?reason=session-expired');
   const known = rooms.kind === 'ok' ? rooms.rooms.find((r) => r.id === roomId) : undefined;
@@ -36,8 +36,16 @@ export async function entrarSalaAction(_: JoinState, form: FormData): Promise<Jo
   const outcome = await joinExamRoom(roomId, { startsAt: known?.startsAt ?? null });
 
   if (outcome.kind === 'joined') {
-    // A paper exists. The screen is indexed by the statement, as FE-06 already is.
-    redirect(`/prova/${Number.isInteger(statementId) && statementId > 0 ? statementId : known?.statementId ?? 0}`);
+    // The exam screen is indexed by the statement, and the invitation does not carry
+    // one — so it comes from the simulation the join created or reused. Trusting a
+    // `statementId` from the form would let a tampered field send the student to
+    // another paper's room.
+    const simulation = await apiGet<{ statement?: { id?: number | null } | null }>(`/simulations/${outcome.simulationId}`);
+    const statementId = Number(simulation.ok ? simulation.data?.statement?.id : NaN);
+    if (!Number.isInteger(statementId) || statementId <= 0) {
+      return { error: 'Não conseguimos abrir esta prova. Tenta outra vez.', roomId };
+    }
+    redirect(`/prova/${statementId}`);
   }
 
   return { error: joinMessage(outcome), roomId };

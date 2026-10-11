@@ -417,6 +417,33 @@ async function main() {
     const oculta = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 4 }) });
     registar('uma prova por publicar não abre sessão', oculta.status === 404 ? null : `veio ${oculta.status}`);
 
+    // 4c · salas de prova (#25). A conta deste fluxo acabou de registar-se e não tem
+    // salas — o que se verifica aqui é que a secção some, não que há salas. As salas
+    // semeadas são da conta 3, e quem cobre o cartão com as quatro fases é o ecrã com
+    // o mock ligado.
+    await passo(
+      'sem salas, o início não mostra a secção',
+      'GET', '/aluno/inicio', {},
+      async (r) => {
+        const html = await r.text();
+        return html.includes('Salas de prova') ? 'a secção apareceu sem haver salas' : null;
+      },
+    );
+
+    // O `/inicio` passou a ser um Server Component que lê as salas antes de renderizar
+    // o feed. O que se verifica é que o feed continua lá dentro — uma divisão de ficheiro
+    // que se engana deixa a página a responder 200 e sem conteúdo.
+    await passo(
+      'o feed continua no início, depois de o tornar servidor',
+      'GET', '/aluno/inicio', {},
+      async (r) => {
+        const html = await r.text();
+        // O cabeçalho e o atalho de_partilhar resultado são do feed.
+        const falta = ['Início', 'Partilhar resultado'].find((t) => !html.includes(t));
+        return falta ? `não encontrei "${falta}"` : null;
+      },
+    );
+
     // 5 · logout, e o cookie tem mesmo de desaparecer
     const perfil = await (await fetch(`${BASE}/aluno/perfil`, { headers: cabecalhos() })).text();
     await passo(
