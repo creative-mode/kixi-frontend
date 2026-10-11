@@ -869,7 +869,7 @@ export async function mockHandle(
             {
               id: 1,
               questionId,
-              imageUrl: '/mascote-subnetting.svg',
+              imageUrl: "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 80'%3E%3Crect width='320' height='80' fill='%23eef'/%3E%3Ctext x='160' y='47' text-anchor='middle' font-family='sans-serif' font-size='18'%3E192.168.1.0/29%3C/text%3E%3C/svg%3E",
               caption: 'Divisão de um endereço em rede e host',
               orderIndex: 0,
               createdAt: null,

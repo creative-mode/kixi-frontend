@@ -150,10 +150,10 @@ test('a marcada ganha à respondida no mapa', () => {
 test('sem deadline não há cronómetro, e um deadline ilegível também não', () => {
   // SimulationDeadlineService.java:89 devolve null quando não há startedAt ou não há
   // durationMinutes: essa simulação nunca expira. Inventar um prazo seria mentira.
-  assert.equal(remainingMs(null, Date.parse('2026-10-11T10:00:00')), null);
-  assert.equal(remainingMs('não é uma data', Date.parse('2026-10-11T10:00:00')), null);
+  assert.equal(remainingMs(null, parseServerTime('2026-10-11T10:00:00')), null);
+  assert.equal(remainingMs('não é uma data', parseServerTime('2026-10-11T10:00:00')), null);
 
-  const now = Date.parse('2026-10-11T10:00:00');
+  const now = parseServerTime('2026-10-11T10:00:00');
   assert.equal(remainingMs('2026-10-11T10:30:00', now), 30 * 60 * 1000);
   assert.equal(remainingMs('2026-10-11T09:00:00', now), -60 * 60 * 1000);
 });
@@ -168,7 +168,7 @@ test('antes de o relógio arrancar o cronómetro ainda não sabe o que falta', (
   // A sala é um componente de cliente mas o servidor também a renderiza, e o
   // `Date.now()` dele não é o do aluno. Sem este estado, o primeiro render
   // diria "Sem tempo" numa prova que está a contar.
-  const agora = Date.parse('2026-10-11T10:00:00');
+  const agora = parseServerTime('2026-10-11T10:00:00');
   assert.equal(timer('2026-10-11T10:30:00', null), 'a-contar');
   assert.equal(timer('2026-10-11T10:30:00', agora), 'restante');
 });
@@ -176,7 +176,7 @@ test('antes de o relógio arrancar o cronómetro ainda não sabe o que falta', (
 test('sem deadline é "sem limite", não "a contar"', () => {
   // São coisas diferentes: uma prova sem `durationMinutes` nunca expira
   // (SimulationDeadlineService.java:89), e dizer que está a contar seria falso.
-  const agora = Date.parse('2026-10-11T10:00:00');
+  const agora = parseServerTime('2026-10-11T10:00:00');
   assert.equal(timer(null, agora), 'sem-limite');
   assert.equal(timer('não é uma data', agora), 'sem-limite');
   assert.notEqual(timer(null, agora), timer(null, null));
@@ -212,7 +212,7 @@ test('o estado vem em maiúsculas ou minúsculas, consoxe o servidor', () => {
 });
 
 test('aceita respostas só em curso e antes do prazo', () => {
-  const now = Date.parse('2026-10-11T10:00:00');
+  const now = parseServerTime('2026-10-11T10:00:00');
   assert.equal(acceptsAnswers({ id: 1, status: 'IN_PROGRESS' }, now), true);
   assert.equal(
     acceptsAnswers({ id: 1, status: 'IN_PROGRESS', deadline: '2026-10-11T10:30:00' }, now),

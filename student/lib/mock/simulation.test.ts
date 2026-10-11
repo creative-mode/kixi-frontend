@@ -6,6 +6,7 @@
 // dois têm de concordar, com a referência do backend ao lado.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { parseServerTime } from '../exam-rules.ts';
 import {
   TOLERANCE_SECONDS,
   deadlineFor,
@@ -61,14 +62,14 @@ test('o prazo é o início mais a duração, mais a tolerância', () => {
   // por isso o cliente que subtrair `deadline` chega ao mesmo instante que o
   // servidor impõe — sem um segundo número para acertar.
   const deadline = deadlineFor('2026-10-11T10:00:00', 60, false);
-  assert.equal(deadline, toLocalDateTime(new Date(Date.parse('2026-10-11T10:00:00') + (3600 + TOLERANCE_SECONDS) * 1000)));
+  assert.equal(deadline, toLocalDateTime(new Date(parseServerTime('2026-10-11T10:00:00') + (3600 + TOLERANCE_SECONDS) * 1000)));
 });
 
 test('com +25% de tempo a duração por minuto é de 75 segundos, não 60', () => {
   const normal = deadlineFor('2026-10-11T10:00:00', 60, false);
   const extra = deadlineFor('2026-10-11T10:00:00', 60, true);
-  assert.equal(Date.parse(extra!) - Date.parse('2026-10-11T10:00:00'), 60 * 75 * 1000 + TOLERANCE_SECONDS * 1000);
-  assert.equal(Date.parse(normal!) - Date.parse('2026-10-11T10:00:00'), 60 * 60 * 1000 + TOLERANCE_SECONDS * 1000);
+  assert.equal(parseServerTime(extra!) - parseServerTime('2026-10-11T10:00:00'), 60 * 75 * 1000 + TOLERANCE_SECONDS * 1000);
+  assert.equal(parseServerTime(normal!) - parseServerTime('2026-10-11T10:00:00'), 60 * 60 * 1000 + TOLERANCE_SECONDS * 1000);
 });
 
 test('sem início ou sem duração não há prazo, e a prova nunca expira', () => {
@@ -82,15 +83,15 @@ test('sem início ou sem duração não há prazo, e a prova nunca expira', () =
 test('o prazo é um LocalDateTime, sem zona', () => {
   // É o que o Jackson escreve para um LocalDateTime. Um `Z` aqui faria o cliente
   // ler o prazo noutro fuso e o cronómetro não bater certo com o servidor.
-  assert.equal(toLocalDateTime(new Date(2026, 9, 11, 10, 0, 0)), '2026-10-11T10:00:00');
+  assert.equal(toLocalDateTime(new Date(Date.UTC(2026, 9, 11, 9, 0, 0))), '2026-10-11T10:00:00');
   assert.equal(deadlineFor('2026-10-11T10:00:00', 1, false)?.endsWith('Z'), false);
 });
 
 test('passado o prazo o servidor já não aceita respostas', () => {
-  assert.equal(expired('2026-10-11T10:00:00', Date.parse('2026-10-11T10:00:01')), true);
-  assert.equal(expired('2026-10-11T10:00:00', Date.parse('2026-10-11T09:59:59')), false);
+  assert.equal(expired('2026-10-11T10:00:00', parseServerTime('2026-10-11T10:00:01')), true);
+  assert.equal(expired('2026-10-11T10:00:00', parseServerTime('2026-10-11T09:59:59')), false);
   // Uma data ilegível não pode ser lida como "ainda há tempo" sem o servidor a dizer.
-  assert.equal(expired('lixo', Date.parse('2026-10-11T09:00:00')), false);
+  assert.equal(expired('lixo', parseServerTime('2026-10-11T09:00:00')), false);
 });
 
 test('uma questão é objectiva quando tem opções, não quando o tipo diz', () => {
