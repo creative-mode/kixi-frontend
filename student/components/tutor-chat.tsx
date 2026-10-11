@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { BASE_PATH } from '@/lib/base-path';
 import { useMe } from '@/lib/me-context';
 import { fullName } from '@/lib/profile';
 import {
@@ -113,7 +114,7 @@ export function TutorChat({
   useEffect(() => () => abort.current?.abort(), []);
 
   const openSession = useCallback(async (signal: AbortSignal): Promise<number> => {
-    const res = await fetch('/aluno/api/tutor/sessions', {
+    const res = await fetch(`${BASE_PATH}/api/tutor/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ statementId }),
@@ -145,7 +146,7 @@ export function TutorChat({
     if (!repeat) setDraft('');
 
     const send = async (id: number) => {
-      const res = await fetch(`/aluno/api/tutor/sessions/${id}/messages`, {
+      const res = await fetch(`${BASE_PATH}/api/tutor/sessions/${id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: text }),
@@ -191,7 +192,7 @@ export function TutorChat({
         // stays above the box, with the question still there to send again.
         setMessages((prev) => prev.filter((m) => !(m.role === 'tutor' && m.text === '' && m.streaming)));
         setNotice(message);
-        if (status === 401) window.location.assign('/aluno/entrar?reason=session-expired');
+        if (status === 401) window.location.assign(`${BASE_PATH}/entrar?reason=session-expired`);
       }
     } finally {
       setBusy(false);
