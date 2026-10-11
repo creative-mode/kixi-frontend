@@ -12,6 +12,7 @@ import {
   ChevronRight,
   FilePen,
   DoorOpen,
+  TrendingUp,
   Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,13 @@ const allNavLinks = [
     color: "bg-accent text-primary",
   },
   {
+    href: "/desempenho",
+    label: "Desempenho",
+    description: "Questões mais falhadas, alunos em risco e evolução",
+    icon: TrendingUp,
+    color: "bg-accent text-primary",
+  },
+  {
     href: "/exam-builder",
     label: "Montar prova",
     description: "Prova no modelo da escola, pronta a imprimir",
@@ -53,7 +61,7 @@ const allNavLinks = [
 
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
-const TEACHER_HREFS = ["/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+const TEACHER_HREFS = ["/desempenho", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink = {
   href: "/professor",

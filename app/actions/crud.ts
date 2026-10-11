@@ -252,6 +252,131 @@ export async function myTeachingScope(): Promise<Result<TeachingScope>> {
   return loadTeachingScope();
 }
 
+/**
+ * FE-11: o enunciado como o ecrã de revisão o precisa, de três leituras. Nenhuma
+ * chega sozinha, e gravar a partir de uma só apagava dados no servidor:
+ * - `/full` (StatementOcrResponse): instruções, questões e opções com a correta;
+ *   mas não traz `institutionId`, e as questões vêm sem `modelAnswer`.
+ * - `/statements/{id}` (StatementSummary): o `institutionId`.
+ * - `/statements/{id}/questions` (QuestionResponse): o `modelAnswer`, só para staff.
+ * O `courseId` não vem em nenhuma: o ecrã tira-o da turma escolhida.
+ */
+export async function getStatementForReview(id: number): Promise<Result<Row>> {
+  return guard(async () => {
+    const sid = safeId(id);
+    const [full, summary, questions] = await Promise.all([
+      call(`/api/v1/statements/${sid}/full`),
+      call(`/api/v1/statements/${sid}`),
+      call(`/api/v1/statements/${sid}/questions`),
+    ]);
+    for (const r of [full, summary, questions]) if (!r.ok) return fail(await message(r));
+    const s = (await full.json()) as Row;
+    const head = (await summary.json()) as Row;
+    const answers = new Map(((await questions.json()) as Row[]).map((q) => [Number(q.id), q.modelAnswer ?? null]));
+    return ok({
+      ...s,
+      institutionId: head.institutionId ?? null,
+      questions: (s.questions ?? []).map((q: Row) => ({ ...q, modelAnswer: answers.get(Number(q.id)) ?? null })),
+    });
+  });
+}
+
+export type ReviewChoice = { value: number; label: string };
+export type ReviewChoices = {
+  subjects: ReviewChoice[];
+  /** Com o curso da turma: o PUT do enunciado substitui o `courseId`, e é daqui que ele vem. */
+  classes: (ReviewChoice & { courseId: number | null })[];
+  /** As turma+disciplina do professor (`/teaching-assignments/me`); null para o administrador. */
+  assignments: { classId: number; subjectId: number }[] | null;
+};
+
+/**
+ * As disciplinas e turmas que se podem escolher para um enunciado desta escola, com a
+ * mesma regra que o backend aplica ao gravar: disciplina da escola, turma da escola, e
+ * para o professor só o que lhe está atribuído.
+ */
+export async function reviewChoices(institutionId: number, teacher: boolean): Promise<Result<ReviewChoices>> {
+  return guard(async () => {
+    const inst = safeId(institutionId);
+    const [subjects, classes, mine] = await Promise.all([
+      call(`/api/v1/institutions/${inst}/subjects`),
+      call(`/api/v1/classes?institutionId=${inst}`),
+      teacher ? call('/api/v1/teaching-assignments/me') : Promise.resolve(null),
+    ]);
+    for (const r of [subjects, classes, mine]) if (r && !r.ok) return fail(await message(r));
+    const assignments = mine ? ((await mine.json()) as Row[]).map((a) => ({ classId: Number(a.classId), subjectId: Number(a.subjectId) })) : null;
+    const classRows = (await classes.json()) as Row[];
+    return ok({
+      subjects: ((await subjects.json()) as Row[]).map((r) => ({ value: Number(r.id), label: String(r.name ?? r.code) })),
+      classes: classRows
+        .filter((c) => !assignments || assignments.some((a) => a.classId === Number(c.id)))
+        .map((c) => ({ value: Number(c.id), label: ENTITIES.classes.titleOf(c), courseId: c.course?.id ?? c.courseId ?? null })),
+      assignments,
+    });
+  });
+}
+
+/** O corpo do `PUT /statements/{id}` (StatementRequest): só metadados, sem questões nem visibilidade. */
+export type StatementInput = {
+  institutionId: number;
+  subjectId: number;
+  title: string;
+  examType: string;
+  durationMinutes: number | null;
+  variant: string | null;
+  instructions: string | null;
+  totalMaxScore: number | null;
+  schoolYearId: number | null;
+  termId: number | null;
+  classId: number | null;
+  courseId: number | null;
+};
+/** Uma questão alterada na revisão. Só segue o que mudou: cada parte é um pedido. */
+export type QuestionEdit = {
+  id: number;
+  number: number;
+  /** `PUT .../questions/{id}` (QuestionRequest), quando o texto, a cotação ou a resposta modelo mudaram. */
+  question?: { text: string; questionType: string | null; maxScore: number; modelAnswer: string | null };
+  /** `PUT .../options/{id}`, uma por opção cujo texto mudou. A etiqueta é a identidade e não muda. */
+  options?: { id: number; optionLabel: string; optionText: string }[];
+  /** `PUT /questions/{id}/correct-option` (a mesma rota de `setCorrectOption`), quando a resposta correta mudou. */
+  correctOptionId?: number;
+};
+
+/**
+ * FE-11: guarda a revisão do enunciado. O backend não aceita questões no PUT do
+ * enunciado (StatementRequest), por isso cada questão, opção e resposta correta vai
+ * pela sua rota. Não é atómico: o que falhar volta em `failed`, por questão (com o id,
+ * para o ecrã manter o rascunho dessa questão), e o
+ * ecrã recarrega do servidor para mostrar o que ficou de facto gravado.
+ */
+export async function saveStatementReview(id: number, statement: StatementInput, questions: QuestionEdit[]): Promise<Result<{ failed: { id: number; error: string }[] }>> {
+  return guard(async () => {
+    const sid = safeId(id);
+    const put = (path: string, body: unknown) => call(`/api/v1${path}`, { method: 'PUT', body: JSON.stringify(body) });
+    const res = await put(`/statements/${sid}`, statement);
+    if (!res.ok) return fail(await message(res));
+    const failed: { id: number; error: string }[] = [];
+    for (const q of questions) {
+      const qid = safeId(q.id);
+      // Em sequência: o correct-option reescreve as opções que o PUT de texto acabou de gravar.
+      const steps: [string, unknown][] = [];
+      if (q.question) steps.push([`/statements/${sid}/questions/${qid}`, q.question]);
+      for (const o of q.options ?? []) steps.push([`/statements/${sid}/questions/${qid}/options/${safeId(o.id)}`, { optionLabel: o.optionLabel, optionText: o.optionText }]);
+      if (q.correctOptionId != null) steps.push([`/questions/${qid}/correct-option`, { optionId: q.correctOptionId }]);
+      for (const [path, body] of steps) {
+        const r = await put(path, body).catch(() => null);
+        if (!r?.ok) {
+          failed.push({ id: q.id, error: `Questão ${q.number}: ${r ? await message(r) : 'não foi possível contactar o servidor.'}` });
+          break;
+        }
+      }
+    }
+    revalidatePath('/statements');
+    return ok({ failed });
+  });
+}
+
 // ── dashboard ───────────────────────────────────────────────────────────────
 export async function dashboardCounts(): Promise<Result<Record<string, number>>> {
   return guard(async () => {

@@ -11,7 +11,7 @@ import { useMe } from '@/lib/me-context';
 
 const ITEMS = [
   { href: '/inicio', label: 'Início', icon: House, also: [] as string[] },
-  { href: '/provas', label: 'Provas', icon: FileText, also: ['/prova', '/resultado'] },
+  { href: '/provas', label: 'Provas', icon: FileText, also: ['/prova', '/resultado', '/sala'] },
   { href: '/ranking', label: 'Turma', icon: Users, also: [] as string[] },
   { href: '/tutor', label: 'Tutor', icon: MessageCircle, also: [] as string[] },
   { href: '/perfil', label: 'Perfil', icon: User, also: [] as string[] },

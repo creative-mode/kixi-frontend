@@ -123,6 +123,17 @@ export default function TeacherHome() {
         ))}
       </section>
 
+      <Link
+        href="/desempenho"
+        className="group flex items-center gap-4 rounded-xl border bg-card p-5 shadow-xs transition-colors hover:border-primary"
+      >
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="block font-semibold text-foreground">Desempenho da turma</span>
+          <span className="text-sm text-muted-foreground">A questão mais falhada, os alunos em risco e a evolução por semana.</span>
+        </span>
+        <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" aria-hidden />
+      </Link>
+
       {scopeError ? (
         <p
           role="status"
