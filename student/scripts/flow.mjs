@@ -321,6 +321,23 @@ async function main() {
       return 'nem o redireccionamento nem a sala: a resposta não diz o que aconteceu';
     });
 
+    // 4a · o resultado da tentativa que acabou de ser entregue (#18): vem do servidor,
+    // e a tentativa de outra conta não se abre.
+    await passo('o resultado mostra a revisão e as acções', 'GET', `/aluno/resultado?prova=${sessao}`, {}, async (r, final, status) => {
+      if (status !== 200) return `esperado 200, veio ${status}`;
+      const html = await r.text();
+      const falta = ['Revisão questão a questão', 'Refazer simulação', 'Voltar às provas'].find((t) => !html.includes(t));
+      return falta ? `não encontrei "${falta}"` : null;
+    });
+
+    // Com o loading.tsx a resposta já saiu como 200 quando o `notFound()` chega, por isso
+    // o que se verifica é o conteúdo: nem a revisão nem a nota de outra conta.
+    await passo('o resultado de outra conta não abre', 'GET', '/aluno/resultado?prova=1', {}, async (r) => {
+      const html = await r.text();
+      if (html.includes('Revisão questão a questão')) return 'abriu o resultado de outra conta';
+      return /16[,.]4/.test(html) ? 'vazou a nota de outra conta' : null;
+    });
+
     // 4b · o detalhe da prova (#19): o ecrã que liga a lista aos três modos.
     // A prova 1 é a que o aluno tem tentativa corrigida, a 3 é a que nunca fez.
     await passo('o detalhe mostra o resumo e os dois modos', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {

@@ -49,6 +49,7 @@ export interface SimulationSummary {
   id: number;
   status?: string | null;
   deadline?: string | null;
+  finalScore?: number | null;
   statement?: { id?: number | null; title?: string | null } | null;
 }
 
