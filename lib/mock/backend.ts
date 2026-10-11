@@ -774,6 +774,10 @@ const INSTITUTIONS = [
 
 function analytics(path: string, url: URL) {
   const active = db.statements.filter((s: any) => !s.deletedAt);
+  // Filtros como no backend: só estreitam. Os dados aqui são de demonstração.
+  const classFilter = Number(url.searchParams.get('classId') ?? 0);
+  const instFilter = Number(url.searchParams.get('institutionId') ?? 0);
+  const instName = INSTITUTIONS.find((i) => i.id === instFilter)?.name;
   if (path === '/api/v1/analytics/overview') {
     return json(200, {
       scope: 'ADMIN', institutions: INSTITUTIONS.length, classes: INSTITUTIONS.reduce((n, i) => n + i.classes, 0),
@@ -795,14 +799,14 @@ function analytics(path: string, url: URL) {
     }
     return json(200, out);
   }
-  if (path === '/api/v1/analytics/institutions') return json(200, INSTITUTIONS);
+  if (path === '/api/v1/analytics/institutions') return json(200, INSTITUTIONS.filter((i) => !instFilter || i.id === instFilter));
   if (path === '/api/v1/analytics/classes') {
     return json(200, [
-      { id: 1, code: '12B', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'ITEL', students: 31, teachers: 4, statements: 6, finishedSimulations: 128, averageScorePercent: 76.4, averageTimeSeconds: 3010 },
-      { id: 2, code: '12A', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'ITEL', students: 29, teachers: 4, statements: 5, finishedSimulations: 104, averageScorePercent: 72.9, averageTimeSeconds: 3180 },
-      { id: 3, code: '11C', grade: 11, course: 'Redes e Telecomunicações', institution: 'ISPTEC', students: 34, teachers: 3, statements: 4, finishedSimulations: 88, averageScorePercent: 64.2, averageTimeSeconds: 3600 },
-      { id: 4, code: '13A', grade: 13, course: 'Eletrónica', institution: 'IMIL', students: 26, teachers: 3, statements: 3, finishedSimulations: 52, averageScorePercent: 58.7, averageTimeSeconds: 2880 },
-    ]);
+      { id: 1, code: '12B', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'Instituto de Telecomunicações', students: 31, teachers: 4, statements: 6, finishedSimulations: 128, averageScorePercent: 76.4, averageTimeSeconds: 3010 },
+      { id: 2, code: '12A', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'Instituto de Telecomunicações', students: 29, teachers: 4, statements: 5, finishedSimulations: 104, averageScorePercent: 72.9, averageTimeSeconds: 3180 },
+      { id: 3, code: '11C', grade: 11, course: 'Redes e Telecomunicações', institution: 'Instituto Superior Politécnico de Tecnologias e Ciências', students: 34, teachers: 3, statements: 4, finishedSimulations: 88, averageScorePercent: 64.2, averageTimeSeconds: 3600 },
+      { id: 4, code: '13A', grade: 13, course: 'Eletrónica', institution: 'Instituto Médio Industrial de Luanda', students: 26, teachers: 3, statements: 3, finishedSimulations: 52, averageScorePercent: 58.7, averageTimeSeconds: 2880 },
+    ].filter((c) => (!classFilter || c.id === classFilter) && (!instFilter || c.institution === instName)));
   }
   const m = path.match(/^\/api\/v1\/analytics\/statements\/(\d+)\/questions$/);
   if (m) {
@@ -816,7 +820,7 @@ function analytics(path: string, url: URL) {
   }
   if (path === '/api/v1/analytics/statements') {
     const limit = Number(url.searchParams.get('limit') ?? 50);
-    return json(200, active.slice(0, limit).map((s: any, i: number) => ({
+    return json(200, active.filter((s: any) => !classFilter || s.classId === classFilter).slice(0, limit).map((s: any, i: number) => ({
       id: s.id, title: s.title, examType: s.examType, classCode: '12B', subject: db.subjects.find((x: any) => x.id === s.subjectId)?.short_name ?? null,
       published: s.visible, needsReview: s.needsReview, answerKeyComplete: !s.needsReview, questions: s.questions.length,
       finishedSimulations: 60 - i * 11, uniqueStudents: 44 - i * 8, averageScorePercent: [78.2, 71.5, 64.9, null][i] ?? 70, passRatePercent: [88.6, 79.1, 66.7, null][i] ?? 70, averageTimeSeconds: 3100 + i * 240,

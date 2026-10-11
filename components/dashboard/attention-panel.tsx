@@ -1,9 +1,13 @@
-import { CheckCircle2, FileSearch, KeyRound, PlayCircle } from 'lucide-react';
-import type { Overview } from '@/types/analytics';
+import Link from 'next/link';
+import { ArrowRight, CheckCircle2, FileSearch, KeyRound, PlayCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import type { Overview, StatementStats } from '@/types/analytics';
 import { formatInt } from '@/lib/format';
 
 /** What needs a human right now: drafts to review, exams that cannot be graded, attempts in flight. */
-export function AttentionPanel({ overview }: { overview: Overview }) {
+export function AttentionPanel({ overview, statements }: { overview: Overview; statements: StatementStats[] | null }) {
+  // As provas concretas, para o administrador ir direto a cada uma em vez de as procurar.
+  const pending = (statements ?? []).filter((s) => s.needsReview || !s.answerKeyComplete).slice(0, 6);
   const items = [
     {
       count: overview.statements.needingReview,
@@ -58,6 +62,24 @@ export function AttentionPanel({ overview }: { overview: Overview }) {
           </li>
         ))}
       </ul>
+      {pending.length ? (
+        <ul className="divide-y rounded-md border" aria-label="Provas com pendências">
+          {pending.map((s) => (
+            <li key={s.id}>
+              <Link
+                href={`/statements/${s.id}`}
+                className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-accent/50"
+              >
+                <span className="font-medium text-foreground">{s.title ?? `Prova ${s.id}`}</span>
+                {s.classCode ? <span className="text-muted-foreground">{s.classCode}</span> : null}
+                {s.needsReview ? <Badge variant="warning">Por rever</Badge> : null}
+                {!s.answerKeyComplete ? <Badge variant="destructive">Sem gabarito</Badge> : null}
+                <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
