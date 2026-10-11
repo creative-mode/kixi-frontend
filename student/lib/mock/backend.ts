@@ -1,5 +1,6 @@
 import 'server-only';
 import { catalogPage } from './catalog-page';
+import { invitationsOf, join as joinRoom, ownedBy as ownedRooms, type MockRoom } from './exam-rooms';
 import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import {
@@ -129,6 +130,8 @@ type Store = {
    *  a conta já enviou, para o limite. */
   chatSessions: { id: number; accountId: number; statementId: number }[];
   chatSent: Record<number, number>;
+  /** Salas de prova (#25). `exam-rooms.ts` tem a regra; aqui só os dados. */
+  examRooms: MockRoom[];
   /** The institution each student profile belongs to; an administrator sets this. */
   institutionByAccount: Record<number, number>;
 };
@@ -162,6 +165,12 @@ function accountIdOf(token: string | null): number | null {
   }
 }
 
+
+/** ISO dentro de `n` minutos. As salas semeadas precisam de datas em torno de
+ *  agora, senão o cartão decide a fase contra janelas de 2024. */
+function minutos(n: number): string {
+  return new Date(Date.now() + n * 60_000).toISOString();
+}
 
 function seed(): Store {
   const schoolYears: SchoolYear[] = [
@@ -345,6 +354,16 @@ function seed(): Store {
     // would have done, so /me can be seen answering with the linked school. An account
     // created through /auth/register has no link and gets the school of its class.
     institutionByAccount: { 3: 1 },
+    // As quatro fases, todas convidadas à conta semeada (3), para oecra ter o que
+    // mostrar: uma a espera de abrir, uma aberta (só presença), uma a correr e uma
+    // fechada. A quinta é de outra conta, para se ver que não vaza.
+    examRooms: [
+      { id: 1, statementId: 1, startsAt: minutos(45), endsAt: minutos(135), durationMinutes: 90, status: 'OPEN', invitedAccountIds: [3] },
+      { id: 2, statementId: 2, startsAt: minutos(-20), endsAt: minutos(70), durationMinutes: 90, status: 'RUNNING', invitedAccountIds: [3] },
+      { id: 3, statementId: 3, startsAt: minutos(-180), endsAt: minutos(-120), durationMinutes: 60, status: 'CLOSED', invitedAccountIds: [3] },
+      { id: 4, statementId: 1, startsAt: minutos(30), endsAt: minutos(120), durationMinutes: 90, status: 'DRAFT', invitedAccountIds: [3] },
+      { id: 5, statementId: 1, startsAt: minutos(-10), endsAt: minutos(80), durationMinutes: 90, status: 'RUNNING', invitedAccountIds: [99] },
+    ],
   };
 }
 
@@ -750,6 +769,24 @@ export async function mockHandle(
     const row = findVisible(db.statements, Number(detail[1]));
     if (!row) return problem(404, 'Statement not found');
     return json(summaryOf(row));
+  }
+
+  // ── salas de prova (#25) ──
+  if (pathname === '/exam-rooms/mine' && method === 'GET') {
+    return json(invitationsOf(db.examRooms, account.id));
+  }
+  // `/owned` é a lista do professor. O aluno só a lê para a forma da sala, por isso
+  // devolve vazio — como o serviço, que recusa a um aluno.
+  if (pathname === '/exam-rooms/owned' && method === 'GET') {
+    return json(ownedRooms());
+  }
+  const entrar = pathname.match(/^\/exam-rooms\/(\d+)\/join$/);
+  if (entrar && method === 'POST') {
+    const result = joinRoom(db.examRooms.find((r: MockRoom) => r.id === Number(entrar[1])), account.id, Date.now());
+    if ('message' in result) return problem(result.status, result.message);
+    // O serviço devolve a simulação criada ou reutilizada; numa sala OPEN devolve
+    // `simulationId: null`, porque ainda é só presença.
+    return json({ roomId: Number(entrar[1]), accountId: account.id, simulationId: result.simulationId, joinedAt: minutos(0) });
   }
 
   if (pathname === '/simulations' && method === 'GET') {
