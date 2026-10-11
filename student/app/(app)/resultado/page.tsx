@@ -16,6 +16,7 @@ import {
   optionTag,
   verdict,
   type ResultQuestion,
+  toReview,
   type Verdict,
 } from '@/lib/result-rules';
 
@@ -158,7 +159,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           {statementId != null && <RefazerSimulacao statementId={statementId} />}
           {statementId != null && hasMistakes && (
             <Button asChild>
-              <Link href={`/tutor?statementId=${statementId}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
+              <Link href={`/tutor?statementId=${statementId}&questoes=${toReview(result.questions).map((q) => q.number).join(',')}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
