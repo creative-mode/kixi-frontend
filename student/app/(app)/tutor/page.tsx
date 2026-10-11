@@ -1,5 +1,6 @@
 import { TutorChat } from '@/components/tutor-chat';
 import { getStatementTitle } from '@/lib/statement-detail';
+import { parseQuestionNumbers, studyPrompt } from '@/lib/tutor-rules';
 
 /**
  * The tutor, optionally about one paper.
@@ -16,12 +17,17 @@ import { getStatementTitle } from '@/lib/statement-detail';
 export default async function TutorPage({
   searchParams,
 }: {
-  searchParams: Promise<{ statementId?: string | string[] }>;
+  searchParams: Promise<{ statementId?: string | string[]; questoes?: string | string[] }>;
 }) {
-  const raw = (await searchParams).statementId;
+  const query = await searchParams;
+  const raw = query.statementId;
   const parsed = Number(Array.isArray(raw) ? raw[0] : raw);
   const statementId = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
   const paperTitle = statementId ? await getStatementTitle(statementId) : null;
 
-  return <TutorChat statementId={statementId} paperTitle={paperTitle} />;
+  // `?questoes=2,3` is how the result screen sends the student here to study the ones they
+  // got wrong: the question is written in the box, ready to send.
+  const draft = studyPrompt(parseQuestionNumbers(query.questoes));
+
+  return <TutorChat statementId={statementId} paperTitle={paperTitle} initialDraft={draft} />;
 }

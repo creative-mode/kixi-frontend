@@ -374,6 +374,49 @@ async function main() {
       return html.includes('Tutor') ? null : 'o tutor sem contexto não respondeu';
     });
 
+    // 4c · o tutor (#28). O ecrã e a stream: o que o aluno vê vem do backend por SSE,
+    // lido com fetch porque o EventSource não faz POST.
+    await passo('o tutor sem prova pede uma prova, não finge uma conversa', 'GET', '/aluno/tutor', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Escolhe uma prova') ? null : 'não pediu uma prova';
+    });
+
+    await passo('estudar os erros abre o tutor com a pergunta pronta, por enviar', 'GET', '/aluno/tutor?statementId=1&questoes=2,3', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Errei as questões 2 e 3') ? null : 'a pergunta não veio escrita';
+    });
+
+    const json = { ...cabecalhos(), 'Content-Type': 'application/json' };
+    const abrir = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 1 }) });
+    const sessaoTutor = abrir.ok ? (await abrir.json()).id : null;
+    registar('abrir uma sessão do tutor', sessaoTutor ? null : `esperado 201, veio ${abrir.status}`);
+
+    if (sessaoTutor) {
+      const resp = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'Explica a questão 1' }) });
+      const corpo = await resp.text();
+      registar(
+        'a resposta do tutor chega por SSE, em deltas e um final',
+        resp.headers.get('content-type')?.includes('text/event-stream') && corpo.includes('event: delta') && corpo.includes('event: final')
+          ? null : `tipo ${resp.headers.get('content-type')}, ${corpo.slice(0, 80)}`,
+      );
+
+      const erro = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[erro]]' }) });
+      const corpoErro = await erro.text();
+      registar('uma falha a meio da resposta vem na própria stream', corpoErro.includes('event: error') ? null : 'sem evento de erro');
+
+      const limite = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[limite]]' }) });
+      registar('o limite de mensagens é 429 com Retry-After', limite.status === 429 && limite.headers.get('retry-after') ? null : `veio ${limite.status}`);
+
+      const semChave = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[sem-chave]]' }) });
+      registar('sem chave do provider é 503', semChave.status === 503 ? null : `veio ${semChave.status}`);
+    }
+
+    const alheia = await fetch(`${BASE}/aluno/api/tutor/sessions/9999/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'olá' }) });
+    registar('uma sessão que não é da conta é 404', alheia.status === 404 ? null : `veio ${alheia.status}`);
+
+    const oculta = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 4 }) });
+    registar('uma prova por publicar não abre sessão', oculta.status === 404 ? null : `veio ${oculta.status}`);
+
     // 5 · logout, e o cookie tem mesmo de desaparecer
     const perfil = await (await fetch(`${BASE}/aluno/perfil`, { headers: cabecalhos() })).text();
     await passo(

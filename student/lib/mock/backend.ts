@@ -125,6 +125,10 @@ type Store = {
   answers: MockAnswer[];
   nextSimulation: number;
   nextAnswer: number;
+  /** Sessões do tutor: a (conta, enunciado) a que cada id pertence, e quantas mensagens
+   *  a conta já enviou, para o limite. */
+  chatSessions: { id: number; accountId: number; statementId: number }[];
+  chatSent: Record<number, number>;
   /** The institution each student profile belongs to; an administrator sets this. */
   institutionByAccount: Record<number, number>;
 };
@@ -335,6 +339,8 @@ function seed(): Store {
     ],
     nextSimulation: 3,
     nextAnswer: 5,
+    chatSessions: [],
+    chatSent: {},
     // The seeded student is also explicitly affiliated with ITEL, as an administrator
     // would have done, so /me can be seen answering with the linked school. An account
     // created through /auth/register has no link and gets the school of its class.
@@ -860,6 +866,70 @@ export async function mockHandle(
     existing.answerText =
       body.answerText === null || body.answerText === undefined ? null : String(body.answerText);
     return json(existing);
+  }
+
+  // ── o tutor (BE-18) ──────────────────────────────────────────────────────────
+  // POST /chat/sessions abre uma sessão presa a um enunciado que o aluno pode ler;
+  // POST /chat/sessions/{id}/messages responde em text/event-stream: `delta`s, depois
+  // `final`. Tudo o que falha ANTES do primeiro byte é um estado HTTP normal (404 de uma
+  // sessão alheia, 429 + Retry-After, 503); depois só há um evento `error` na própria
+  // stream. O texto da mensagem escolhe o caso, para o fluxo de integração os exercitar.
+  if (pathname === '/chat/sessions' && method === 'POST') {
+    const statementId = Number(body.statementId);
+    if (!Number.isInteger(statementId) || statementId <= 0) {
+      return validationError({ statementId: 'statementId is required' });
+    }
+    const statement = db.statements.find((x) => x.id === statementId);
+    if (!statement || (!staff && !statement.visible)) return problem(404, 'Statement not found');
+    const session = { id: db.chatSessions.length + 1, accountId: account.id, statementId };
+    db.chatSessions.push(session);
+    return json({ id: session.id, statementId, createdAt: toLocalDateTime(new Date()) }, 201);
+  }
+
+  const chatMatch = /^\/chat\/sessions\/(\d+)\/messages$/.exec(pathname);
+  if (chatMatch && method === 'POST') {
+    const session = db.chatSessions.find((x) => x.id === Number(chatMatch[1]) && x.accountId === account.id);
+    // Uma sessão alheia é 404, não 403: não se revela que existe.
+    if (!session) return problem(404, 'Chat session not found');
+    const content = text('content');
+    if (!content) return validationError({ content: 'content is required' });
+    if (content.length > 4000) return validationError({ content: 'content must be at most 4000 characters' });
+    if (content.includes('[[sem-chave]]')) return problem(503, 'The AI provider is not configured');
+
+    db.chatSent[account.id] = (db.chatSent[account.id] ?? 0) + 1;
+    if (content.includes('[[limite]]') || db.chatSent[account.id] > 30) {
+      return new Response(
+        JSON.stringify({ type: null, title: 'Too Many Requests', status: 429, detail: 'Too many tutor messages. Try again later.', properties: { code: 'CHAT_RATE_LIMITED' } }),
+        { status: 429, headers: { 'Content-Type': 'application/problem+json', 'Retry-After': '90' } },
+      );
+    }
+
+    const statement = db.statements.find((x) => x.id === session.statementId);
+    const reply = content.includes('[[fora]]')
+      ? 'Só acompanho o enunciado desta sessão, por isso não consigo ajudar com esse assunto.'
+      : `Vamos por passos, sobre «${statement?.title ?? 'esta prova'}». Primeiro, identifica o que a questão pede. Depois, aplica a regra e confirma o resultado: a escolha final é tua.`;
+    const pieces = reply.match(/\S+\s*/g) ?? [reply];
+    const broken = content.includes('[[erro]]');
+    const encoder = new TextEncoder();
+    const sse = (type: string, payload: object) =>
+      encoder.encode(`event: ${type}\ndata: ${JSON.stringify({ type, ...payload })}\n\n`);
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for (const [i, piece] of pieces.entries()) {
+          if (broken && i === 3) {
+            controller.enqueue(sse('error', { code: 'CHAT_PROVIDER_TIMEOUT', message: 'Provider timed out' }));
+            controller.close();
+            return;
+          }
+          controller.enqueue(sse('delta', { content: piece }));
+          await new Promise((resolve) => setTimeout(resolve, 15));
+        }
+        controller.enqueue(sse('final', { messageId: db.chatSent[account.id], model: 'mock' }));
+        controller.close();
+      },
+    });
+    return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
   }
 
   const fullMatch = /^\/statements\/(\d+)\/full$/.exec(pathname);
