@@ -181,6 +181,9 @@ export async function getQuestionImages(questionId: number): Promise<QuestionIma
  *  the map never shows a question popping an image in after the fact. */
 export interface RoomData {
   simulationId: number;
+  /** Só numa sala de prova (FE-14): as questões e a gravação passam pela sala, e não
+   *  pelo catálogo, e o aluno não refaz a prova. */
+  roomId?: number | null;
   /** `IN_PROGRESS` when the room is open. Carried through so the client can check
    *  the same condition the server does instead of assuming it is still writable. */
   status: string | null;

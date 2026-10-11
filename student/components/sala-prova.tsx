@@ -192,6 +192,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           optionId: snapshot.optionId,
           text: snapshot.text,
           answerId,
+          roomId: data.roomId ?? null,
         }),
       onChange: () => rerender((n) => n + 1),
       wait: (attempt) => new Promise((resolve) => setTimeout(resolve, backoffMs(attempt))),
@@ -339,7 +340,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-card px-4 py-2.5 md:px-5">
         <Button asChild variant="ghost" size="icon" aria-label="Sair da prova">
-          <Link href="/provas"><ChevronLeft /></Link>
+          <Link href={data.roomId ? '/provas#salas' : '/provas'}><ChevronLeft /></Link>
         </Button>
         <div className="min-w-0 leading-tight">
           <div className="truncate text-[15px] font-bold">{data.title}</div>
