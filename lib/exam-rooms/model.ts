@@ -1,0 +1,269 @@
+// Salas de Prova (FE-13): os contratos do backend e as regras que o ecrã usa.
+//
+// Os DTOs são os do `examrooms` do backend (BE-16 e BE-17). As horas chegam como
+// `LocalDateTime` sem fuso, na hora do servidor, que corre em Africa/Luanda
+// (`TZ` no backend.Dockerfile). Por isso aqui nunca se passa por `Date`: as
+// horas são tratadas como hora de parede, lidas e escritas como texto. Um
+// `new Date('2026-10-12T09:00:00')` dependia do fuso do browser e deslocava a
+// janela da prova para quem não estivesse em Luanda.
+
+export type RoomStatus = 'DRAFT' | 'OPEN' | 'RUNNING' | 'CLOSED';
+
+/** `ExamRoomResponse` */
+export interface ExamRoom {
+  id: number;
+  statementId: number;
+  classId: number | null;
+  teacherAccountId: number;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  status: RoomStatus;
+}
+
+/** `ExamRoomLiveResponse.ParticipantProgress` */
+export interface ParticipantProgress {
+  accountId: number;
+  simulationId: number | null;
+  joinedAt: string | null;
+  /** `NOT_STARTED` ou o estado da simulação (`IN_PROGRESS`, `FINISHED`…). */
+  status: string;
+  answeredQuestions: number;
+  totalQuestions: number;
+  /** Ainda não vem do backend; ver `participantName`. */
+  displayName?: string | null;
+}
+
+/** `ExamRoomLiveResponse` */
+export interface LiveSnapshot {
+  roomId: number;
+  status: RoomStatus;
+  serverTime: string;
+  startsAt: string;
+  endsAt: string;
+  remainingSeconds: number;
+  totalParticipants: number;
+  joinedParticipants: number;
+  submittedParticipants: number;
+  progressPercentage: number;
+  participants: ParticipantProgress[];
+}
+
+/** `ExamRoomGradeResponse` */
+export interface Grade {
+  accountId: number;
+  simulationId: number | null;
+  status: string | null;
+  finalScore: number | null;
+  correctAnswers: number | null;
+  totalQuestions: number | null;
+  pendingReviewCount: number | null;
+  finishedAt: string | null;
+  displayName?: string | null;
+}
+
+export const STATUS_LABEL: Record<RoomStatus, string> = {
+  DRAFT: 'Rascunho',
+  OPEN: 'Aberta',
+  RUNNING: 'A decorrer',
+  CLOSED: 'Encerrada',
+};
+
+export const PARTICIPANT_LABEL: Record<string, string> = {
+  NOT_STARTED: 'Por entrar',
+  IN_PROGRESS: 'A responder',
+  FINISHED: 'Entregou',
+  EXPIRED: 'Tempo esgotado',
+  CANCELLED: 'Cancelada',
+};
+
+/** O backend ainda não devolve o nome do aluno (pedido no kixi#181). Até lá,
+ *  o número da conta é a única identificação que o professor pode ler. */
+export function participantName(p: { accountId: number; displayName?: string | null }): string {
+  return p.displayName?.trim() || `Aluno n.º ${p.accountId}`;
+}
+
+// ── hora de parede ──────────────────────────────────────────────────────────
+
+const WALL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/;
+
+/** Minutos desde 1970 de uma hora de parede, para comparar e subtrair sem fuso. */
+export function wallMinutes(value: string): number | null {
+  const m = WALL.exec(value);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m.map(Number);
+  return Date.UTC(y, mo - 1, d, h, mi) / 60_000;
+}
+
+/** "12/10 09:00", ou com o ano quando não é o corrente. */
+export function formatWall(value: string | null | undefined, currentYear?: number): string {
+  if (!value) return '—';
+  const m = WALL.exec(value);
+  if (!m) return value;
+  const [, y, mo, d, h, mi] = m;
+  const year = currentYear && Number(y) !== currentYear ? `/${y}` : '';
+  return `${d}/${mo}${year} ${h}:${mi}`;
+}
+
+/** O valor de um `<input type="datetime-local">` como o `LocalDateTime` que o backend espera. */
+export function toLocalDateTime(input: string): string {
+  return input.length === 16 ? `${input}:00` : input;
+}
+
+/** A hora de parede de Luanda agora (UTC+1, sem horário de verão), no formato do input. */
+export function luandaNowInput(now: Date = new Date()): string {
+  return new Date(now.getTime() + 60 * 60_000).toISOString().slice(0, 16);
+}
+
+/** `mm:ss`, ou `h:mm:ss` a partir de uma hora. */
+export function formatCountdown(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+// ── nova sala ───────────────────────────────────────────────────────────────
+
+export interface RoomDraft {
+  classId: string;
+  statementId: string;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: string;
+}
+
+/** O que impede a criação, na ordem em que o professor preenche. O backend
+ *  valida o mesmo; isto evita a viagem e diz a frase em português. */
+export function draftProblem(d: RoomDraft): string | null {
+  if (!d.classId) return 'Escolha a turma.';
+  if (!d.statementId) return 'Escolha o enunciado.';
+  const start = wallMinutes(d.startsAt);
+  const end = wallMinutes(d.endsAt);
+  if (start === null) return 'Indique quando a sala abre.';
+  if (end === null) return 'Indique quando a sala fecha.';
+  if (end <= start) return 'A sala tem de fechar depois de abrir.';
+  const duration = Number(d.durationMinutes);
+  if (!Number.isInteger(duration) || duration <= 0) return 'A duração tem de ser um número inteiro de minutos.';
+  if (duration > end - start) return `A duração (${duration} min) não cabe na janela da sala (${end - start} min).`;
+  return null;
+}
+
+/**
+ * Os enunciados que podem ir para uma sala desta turma. O backend
+ * (`ExamRoomService.create`) exige que a turma do enunciado seja a da sala, e
+ * recusa ao professor um enunciado sem turma; o ADMIN pode usar os sem turma.
+ */
+export function statementFitsRoom(
+  statement: { classId?: unknown },
+  classId: number,
+  admin: boolean,
+): boolean {
+  const own = statement.classId === null || statement.classId === undefined || statement.classId === ''
+    ? null
+    : Number(statement.classId);
+  if (own === null) return admin;
+  return own === classId;
+}
+
+// ── controlo da sala ────────────────────────────────────────────────────────
+
+export type RoomAction = 'open' | 'start' | 'close';
+
+/**
+ * As transições que o `ExamRoomService.transition` aceita agora, com o motivo
+ * quando não aceita. `now` é a hora de parede de Luanda.
+ */
+export function roomActions(
+  room: Pick<ExamRoom, 'status' | 'startsAt' | 'endsAt'>,
+  now: string,
+): Record<RoomAction, { allowed: boolean; reason: string | null }> {
+  const t = wallMinutes(now) ?? 0;
+  const start = wallMinutes(room.startsAt) ?? 0;
+  const end = wallMinutes(room.endsAt) ?? 0;
+  const ended = t >= end;
+  const s = room.status;
+  return {
+    open:
+      s !== 'DRAFT'
+        ? { allowed: false, reason: null }
+        : ended
+          ? { allowed: false, reason: 'A janela da sala já terminou.' }
+          : { allowed: true, reason: null },
+    start:
+      s !== 'OPEN'
+        ? { allowed: false, reason: s === 'DRAFT' ? 'Abra a sala primeiro.' : null }
+        : t < start
+          ? { allowed: false, reason: `Só pode iniciar a partir de ${formatWall(room.startsAt)}.` }
+          : ended
+            ? { allowed: false, reason: 'A janela da sala já terminou.' }
+            : { allowed: true, reason: null },
+    close: { allowed: s === 'OPEN' || s === 'RUNNING', reason: null },
+  };
+}
+
+// ── resultados ──────────────────────────────────────────────────────────────
+
+export interface GradeSummary {
+  invited: number;
+  graded: number;
+  pendingReview: number;
+  average: number | null;
+  min: number | null;
+  max: number | null;
+  /** % de notas iguais ou acima de metade da cotação total, entre as que existem. */
+  passRate: number | null;
+  /** Contagem por intervalo de 2 valores (0–2, 2–4, …), numa prova de 20. */
+  buckets: { label: string; count: number }[];
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+export function summarizeGrades(grades: Grade[], totalMaxScore = 20): GradeSummary {
+  const scores = grades.map((g) => g.finalScore).filter((s): s is number => typeof s === 'number' && Number.isFinite(s));
+  const max = totalMaxScore > 0 ? totalMaxScore : 20;
+  const width = max / 10;
+  const buckets = Array.from({ length: 10 }, (_, i) => ({
+    label: `${round1(i * width)}–${round1((i + 1) * width)}`,
+    count: 0,
+  }));
+  for (const s of scores) buckets[Math.min(9, Math.max(0, Math.floor(s / width)))].count += 1;
+  return {
+    invited: grades.length,
+    graded: scores.length,
+    pendingReview: grades.reduce((n, g) => n + (g.pendingReviewCount && g.pendingReviewCount > 0 ? 1 : 0), 0),
+    average: scores.length ? round1(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+    min: scores.length ? Math.min(...scores) : null,
+    max: scores.length ? Math.max(...scores) : null,
+    passRate: scores.length ? round1((scores.filter((s) => s >= max / 2).length / scores.length) * 100) : null,
+    buckets,
+  };
+}
+
+const csvCell = (v: unknown) => {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+/**
+ * As notas em CSV para abrir no Excel: separador `;` e vírgula decimal, como o
+ * Excel em português espera, e BOM para os acentos chegarem inteiros.
+ */
+export function gradesCsv(grades: Grade[]): string {
+  const decimal = (n: number | null) => (n === null || n === undefined ? '' : String(n).replace('.', ','));
+  const rows = [
+    ['Aluno', 'Conta', 'Estado', 'Nota', 'Respostas certas', 'Questões', 'Por corrigir', 'Entregue em'],
+    ...grades.map((g) => [
+      participantName(g),
+      g.accountId,
+      g.status ? (PARTICIPANT_LABEL[g.status] ?? g.status) : '',
+      decimal(g.finalScore),
+      g.correctAnswers ?? '',
+      g.totalQuestions ?? '',
+      g.pendingReviewCount ?? '',
+      g.finishedAt ? formatWall(g.finishedAt) : '',
+    ]),
+  ];
+  return `\uFEFF${rows.map((r) => r.map(csvCell).join(';')).join('\r\n')}\r\n`;
+}

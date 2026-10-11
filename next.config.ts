@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   enablePrerenderSourceMaps: false,
   productionBrowserSourceMaps: false,
+  // Igual a BASE_PATH em lib/constants.ts, que os pedidos feitos à mão usam.
   basePath: '/manager',
   // Imagem Docker mínima (docker/app.Dockerfile)
   output: 'standalone',
