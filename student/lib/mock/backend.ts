@@ -72,6 +72,9 @@ type SimulationRow = {
   statementId: number;
   status: 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
   finalScore: number | null;
+  /** ISO. O SimulationResponse real traz startedAt, e o histórico do detalhe (#19)
+   *  escreve «há 2 dias» a partir daqui. */
+  startedAt: string;
 };
 
 type Store = {
@@ -123,6 +126,11 @@ function accountIdOf(token: string | null): number | null {
   } catch {
     return null;
   }
+}
+
+/** ISO de há `n` dias, para as tentativas semeadas terem data em vez de «sem data». */
+function diasAtras(n: number): string {
+  return new Date(Date.now() - n * 86400000).toISOString();
 }
 
 function seed(): Store {
@@ -226,8 +234,8 @@ function seed(): Store {
     chatSessions: [],
     nextChatSession: 1,
     simulations: [
-      { id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4 },
-      { id: 2, accountId: 3, statementId: 2, status: 'IN_PROGRESS', finalScore: null },
+      { id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4, startedAt: diasAtras(2) },
+      { id: 2, accountId: 3, statementId: 2, status: 'IN_PROGRESS', finalScore: null, startedAt: diasAtras(1) },
     ],
     // The seeded student is also explicitly affiliated with ITEL, as an administrator
     // would have done, so /me can be seen answering with the linked school. An account
@@ -494,6 +502,7 @@ export async function mockHandle(
         statement: { id: s.statementId },
         status: s.status,
         finalScore: s.finalScore,
+        startedAt: s.startedAt,
       })),
     );
   }

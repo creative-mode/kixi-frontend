@@ -235,6 +235,42 @@ async function main() {
       return falta ? `não encontrei "${falta}"` : null;
     });
 
+    // 4b · o detalhe da prova (#19): o ecrã que liga a lista aos três modos.
+    // A prova 1 é a que o aluno tem tentativa corrigida, a 3 é a que nunca fez.
+    await passo('o detalhe mostra o resumo e os dois modos', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      const html = await r.text();
+      const falta = ['Redes de Computadores', 'Como queres estudar', 'Simular', 'Estudo assistido']
+        .find((t) => !html.includes(t));
+      return falta ? `não encontrei "${falta}"` : null;
+    });
+
+    await passo('o social não aparece sem o endpoint de comunidade', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      // A tarefa é escondê-lo enquanto o kixi#119 estiver fechado. Um botão morto
+      // ensina o aluno a desconfiar do ecrã.
+      const html = await r.text();
+      return html.includes('Ver como outros') ? 'o CTA social está visível' : null;
+    });
+
+    // A conta deste fluxo acabou de registar-se, por isso não tem tentativas: o que se
+    // verifica aqui é o estado vazio e que as tentativas de outro aluno não aparecem.
+    // A lista com nota é do estado semeado, e quem a cobre é o ecrã com o mock ligado.
+    await passo('sem tentativas é um estado vazio, não uma lista vazia', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      const html = await r.text();
+      if (!html.includes('Ainda não tentaste esta prova')) return 'não encontrei o estado vazio';
+      // As tentativas da conta semeada (16,4) são de outra conta e não podem vazar.
+      return /16[,.]4/.test(html) ? 'vazou a nota de outro aluno' : null;
+    });
+
+    await passo('o tutor aberto da prova diz de que prova fala', 'GET', '/aluno/tutor?statementId=1', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Sobre Redes de Computadores') ? null : 'o tutor não recebeu o contexto';
+    });
+
+    await passo('o tutor sem prova continua a funcionar', 'GET', '/aluno/tutor', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('Tutor') ? null : 'o tutor sem contexto não respondeu';
+    });
+
     // 5 · logout, e o cookie tem mesmo de desaparecer
     const perfil = await (await fetch(`${BASE}/aluno/perfil`, { headers: cabecalhos() })).text();
     await passo(
