@@ -417,6 +417,39 @@ async function main() {
     const oculta = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 4 }) });
     registar('uma prova por publicar não abre sessão', oculta.status === 404 ? null : `veio ${oculta.status}`);
 
+    // 4c · salas de prova (#25, passos trazidos do #125). A conta deste fluxo acabou de
+    // registar-se e não tem salas: o que se verifica é que a secção não aparece. As
+    // salas semeadas são da conta 3.
+    await passo(
+      'sem salas, o início não mostra a secção',
+      'GET', '/aluno/inicio', {},
+      async (r) => {
+        const html = await r.text();
+        return html.includes('Salas de prova') ? 'a secção apareceu sem haver salas' : null;
+      },
+    );
+
+    // O `/inicio` passou a Server Component, que lê as salas antes de desenhar o feed.
+    // Uma divisão de ficheiro que se engana deixa a página a responder 200 sem conteúdo.
+    await passo(
+      'o feed continua no início, depois de o tornar servidor',
+      'GET', '/aluno/inicio', {},
+      async (r) => {
+        const html = await r.text();
+        const falta = ['Início', 'Partilhar resultado'].find((t) => !html.includes(t));
+        return falta ? `não encontrei "${falta}"` : null;
+      },
+    );
+
+    await passo(
+      'sem salas, as provas também não mostram a secção',
+      'GET', '/aluno/provas', {},
+      async (r) => {
+        const html = await r.text();
+        return html.includes('Salas de prova') ? 'a secção apareceu sem haver salas' : null;
+      },
+    );
+
     // 5 · logout, e o cookie tem mesmo de desaparecer
     const perfil = await (await fetch(`${BASE}/aluno/perfil`, { headers: cabecalhos() })).text();
     await passo(
