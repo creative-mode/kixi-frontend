@@ -55,8 +55,13 @@ function State({ item }: { item: CatalogItem }) {
   );
 }
 
+/**
+ * The card's button label. It opens the detail (#19), not the room, so it cannot say
+ * "Continuar": there is a choice of two modes in between and the label is the only
+ * thing telling the student what a click will do.
+ */
 function actionOf(state: ExamState): string {
-  return state === 'progress' ? 'Continuar' : state === 'done' ? 'Ver resultado' : 'Começar';
+  return state === 'progress' ? 'Retomar' : state === 'done' ? 'Ver resultado' : 'Ver a prova';
 }
 
 function Filters({
@@ -200,7 +205,10 @@ export default async function Provas({ searchParams }: { searchParams: Params })
 
         <Card className="gap-0 divide-y overflow-hidden py-0" aria-label="Provas disponíveis">
           {result.items.map((item) => (
-            <Link key={item.id} href={`/prova/${item.id}`} aria-label={`${actionOf(item.state)}: ${item.kind} ${item.title}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
+            // The card opens the detail (#19), not the room: the three modes live
+            // there, and going straight to the room would make them unreachable from
+            // the list — which is exactly what the acceptance criterion asks for.
+            <Link key={item.id} href={`/prova/${item.id}/detalhe`} aria-label={`${actionOf(item.state)}: ${item.kind} ${item.title}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
               <div className="min-w-0"><div className="leading-snug font-bold">{item.kind} · {item.title}</div><div className="mt-0.5 text-[13px] text-muted-foreground">{[item.school, item.year, item.subject].filter(Boolean).join(' · ')}</div></div>
               <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><State item={item} /></div>
               <span className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-card px-3 text-sm font-semibold shadow-xs">{actionOf(item.state)}</span>

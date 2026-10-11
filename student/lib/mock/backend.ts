@@ -1,5 +1,6 @@
 import 'server-only';
 import { catalogPage } from './catalog-page';
+import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import {
   deadlineFor,
@@ -67,17 +68,33 @@ type ClassRow = {
   institutionId: number;
 };
 
-/** Flat statement row, the shape StatementSummary exposes: ids only, no names. */
+/**
+ * One statement row, for the catalog and for `GET /statements/{id}`.
+ *
+ * Havia uma tabela paralela para o detalhe, com os mesmos enunciados e outros
+ * valores — duracoes diferentes, e o enunciado 3 visivel aqui e oculto la. Era o
+ * pior de dois mundos: os dois ecrãs discordavam sobre a mesma prova sem que nada
+ * dissesse. Uma linha so, com os campos que ambos precisam.
+ *
+ * `termId`, `needsReview` e `ocrConfidence` sao reais, como o StatementSummary os
+ * devolve; `needsReview` e `ocrConfidence` so importam para quem nao e aluno, e o
+ * detalhe esconde-os.
+ */
 type CatalogRow = {
   id: number;
   title: string;
   examType: string;
   subjectId: number | null;
   schoolYearId: number | null;
+  termId: number | null;
   institutionId: number | null;
   classId: number | null;
   durationMinutes: number | null;
   totalMaxScore: number | null;
+  variant: string | null;
+  source: 'MANUAL' | 'OCR';
+  needsReview: boolean;
+  ocrConfidence: number | null;
   visible: boolean;
 };
 
@@ -140,6 +157,7 @@ function accountIdOf(token: string | null): number | null {
     return null;
   }
 }
+
 
 function seed(): Store {
   const schoolYears: SchoolYear[] = [
@@ -230,9 +248,11 @@ function seed(): Store {
     // A prova 1 é a que a sala abre; as de SO e Matemática dão enunciados com
     // outra mistura: uma aberta a meio, que só o professor pode corrigir.
     statements: [
-      { id: 1, title: 'Redes de Computadores', examType: 'Teste', subjectId: 1, schoolYearId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 20, visible: true },
-      { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, institutionId: 1, classId: 2, durationMinutes: 90, totalMaxScore: 20, visible: true },
-      { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, institutionId: 2, classId: 6, durationMinutes: 120, totalMaxScore: 20, visible: false },
+      { id: 1, title: 'Redes de Computadores', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
+      { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, termId: 2, institutionId: 1, classId: 2, durationMinutes: 90, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
+      { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, termId: 3, institutionId: 2, classId: 6, durationMinutes: 120, totalMaxScore: 20, variant: 'B', source: 'OCR', needsReview: false, ocrConfidence: 0.87, visible: false },
+      // Nunca publicada: tem de dar 404 como se não existisse.
+      { id: 4, title: 'Rascunho por publicar', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 10, variant: null, source: 'OCR', needsReview: true, ocrConfidence: 0.62, visible: false },
     ],
     questions: [
       {
@@ -687,8 +707,11 @@ export async function mockHandle(
       const value = search.get(key);
       return value === null || value === '' ? undefined : Number(value);
     };
+    // O catálogo só devolve o que está publicado, como o `StatementCatalogService`.
+    // Só agora é que a linha é única e uma prova oculta vive na mesma tabela: antes
+    // o catálogo nunca viu uma linha não publicada, e não precisava do filtro.
     return json(
-      catalogPage(db.statements, {
+      catalogPage(db.statements.filter((s) => s.visible), {
         q: search.get('q')?.trim() || undefined,
         subjectId: num('subjectId'),
         schoolYearId: num('schoolYearId'),
@@ -698,6 +721,15 @@ export async function mockHandle(
         size: num('size'),
       }),
     );
+  }
+
+  // GET /statements/{id} — a StatementSummary. `findByIdVisible` no backend só devolve
+  // o que está publicado, e responde 404 ao resto, inclusive a algo que existe.
+  const detail = pathname.match(/^\/statements\/(\d+)$/);
+  if (detail && method === 'GET') {
+    const row = findVisible(db.statements, Number(detail[1]));
+    if (!row) return problem(404, 'Statement not found');
+    return json(summaryOf(row));
   }
 
   if (pathname === '/simulations' && method === 'GET') {
