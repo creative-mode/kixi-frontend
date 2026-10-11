@@ -1,8 +1,19 @@
 import 'server-only';
 import { catalogPage } from './catalog-page';
+import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
+import {
+  deadlineFor,
+  expired,
+  finalScore,
+  gradeAnswer,
+  toLocalDateTime,
+  type MockAnswer,
+  type MockQuestion,
+} from './simulation';
 
 import crypto from 'node:crypto';
+import { parseServerTime } from '../exam-rules';
 import type {
   Course,
   Enrollment,
@@ -39,6 +50,9 @@ type Account = {
   firstName: string;
   lastName: string;
   photo: string | null;
+  /** Read-only from the student's side; the backend has already folded it into the
+   *  simulation's `deadline`, so the mock mirrors that rather than recomputing it. */
+  accessibilityExtraTime: boolean;
 };
 /** How a class is stored, as opposed to how ClassResponse exposes it: the rows keep
  *  the foreign keys and the response resolves them into nested objects. */
@@ -54,15 +68,34 @@ type ClassRow = {
   institutionId: number;
 };
 
-/** Flat statement row, the shape StatementSummary exposes: ids only, no names. */
+/**
+ * One statement row, for the catalog and for `GET /statements/{id}`.
+ *
+ * Havia uma tabela paralela para o detalhe, com os mesmos enunciados e outros
+ * valores — duracoes diferentes, e o enunciado 3 visivel aqui e oculto la. Era o
+ * pior de dois mundos: os dois ecrãs discordavam sobre a mesma prova sem que nada
+ * dissesse. Uma linha so, com os campos que ambos precisam.
+ *
+ * `termId`, `needsReview` e `ocrConfidence` sao reais, como o StatementSummary os
+ * devolve; `needsReview` e `ocrConfidence` so importam para quem nao e aluno, e o
+ * detalhe esconde-os.
+ */
 type CatalogRow = {
   id: number;
   title: string;
   examType: string;
   subjectId: number | null;
   schoolYearId: number | null;
+  termId: number | null;
   institutionId: number | null;
   classId: number | null;
+  durationMinutes: number | null;
+  totalMaxScore: number | null;
+  variant: string | null;
+  source: 'MANUAL' | 'OCR';
+  needsReview: boolean;
+  ocrConfidence: number | null;
+  visible: boolean;
 };
 
 type SimulationRow = {
@@ -71,6 +104,9 @@ type SimulationRow = {
   statementId: number;
   status: 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
   finalScore: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  timeSpentSeconds: number | null;
 };
 
 type Store = {
@@ -84,7 +120,15 @@ type Store = {
   nextEnrollment: number;
   subjects: { id: number; code: string; name: string }[];
   statements: CatalogRow[];
+  questions: MockQuestion[];
   simulations: SimulationRow[];
+  answers: MockAnswer[];
+  nextSimulation: number;
+  nextAnswer: number;
+  /** Sessões do tutor: a (conta, enunciado) a que cada id pertence, e quantas mensagens
+   *  a conta já enviou, para o limite. */
+  chatSessions: { id: number; accountId: number; statementId: number }[];
+  chatSent: Record<number, number>;
   /** The institution each student profile belongs to; an administrator sets this. */
   institutionByAccount: Record<number, number>;
 };
@@ -117,6 +161,7 @@ function accountIdOf(token: string | null): number | null {
     return null;
   }
 }
+
 
 function seed(): Store {
   const schoolYears: SchoolYear[] = [
@@ -167,6 +212,7 @@ function seed(): Store {
     role: string,
     firstName: string,
     lastName: string,
+    accessibilityExtraTime = false,
   ): Account => ({
     id,
     username,
@@ -177,6 +223,7 @@ function seed(): Store {
     firstName,
     lastName,
     photo: null,
+    accessibilityExtraTime,
   });
 
   const accounts = [
@@ -202,15 +249,98 @@ function seed(): Store {
       { id: 3, code: 'MD', name: 'Matemática Discreta' },
     ],
     // One finished, one in progress, one untouched: the three card states.
+    // A prova 1 é a que a sala abre; as de SO e Matemática dão enunciados com
+    // outra mistura: uma aberta a meio, que só o professor pode corrigir.
     statements: [
-      { id: 1, title: 'Redes de Computadores', examType: 'Teste', subjectId: 1, schoolYearId: 1, institutionId: 1, classId: 1 },
-      { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, institutionId: 1, classId: 2 },
-      { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, institutionId: 2, classId: 6 },
+      { id: 1, title: 'Redes de Computadores', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
+      { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, termId: 2, institutionId: 1, classId: 2, durationMinutes: 90, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
+      { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, termId: 3, institutionId: 2, classId: 6, durationMinutes: 120, totalMaxScore: 20, variant: 'B', source: 'OCR', needsReview: false, ocrConfidence: 0.87, visible: false },
+      // Nunca publicada: tem de dar 404 como se não existisse.
+      { id: 4, title: 'Rascunho por publicar', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 10, variant: null, source: 'OCR', needsReview: true, ocrConfidence: 0.62, visible: false },
     ],
+    questions: [
+      {
+        id: 1, number: 1, text: 'Uma rede de classe A tem, por omissão, um prefixo de:',
+        questionType: 'multiple_choice', maxScore: 2, orderIndex: 0,
+        options: [
+          { id: 11, optionLabel: 'A', optionText: '/8', isCorrect: false, orderIndex: 0 },
+          { id: 12, optionLabel: 'B', optionText: '/16', isCorrect: true, orderIndex: 1 },
+          { id: 13, optionLabel: 'C', optionText: '/24', isCorrect: false, orderIndex: 2 },
+        ],
+      },
+      {
+        id: 2, number: 2, text: 'Quantos hosts utilizáveis tem uma sub-rede /29?',
+        questionType: 'multiple_choice', maxScore: 2, orderIndex: 1,
+        options: [
+          { id: 21, optionLabel: 'A', optionText: '4', isCorrect: false, orderIndex: 0 },
+          { id: 22, optionLabel: 'B', optionText: '6', isCorrect: true, orderIndex: 1 },
+        ],
+      },
+      {
+        // Sem alternativas: o servidor corrige isto por PENDING_REVIEW, e a sala
+        // tem de mostrar uma caixa de texto mesmo que o tipo diga "multiple_choice".
+        id: 3, number: 3, text: 'Explica, com as tuas palavras, o que é subnetting.',
+        questionType: 'short_answer', maxScore: 4, orderIndex: 2, options: [],
+      },
+      {
+        id: 4, number: 4, text: 'Qual destes endereços é um endereço de multicast?',
+        questionType: 'multiple_choice', maxScore: 2, orderIndex: 3,
+        options: [
+          { id: 41, optionLabel: 'A', optionText: '192.168.1.10', isCorrect: false, orderIndex: 0 },
+          { id: 42, optionLabel: 'B', optionText: '224.0.0.1', isCorrect: true, orderIndex: 1 },
+          { id: 43, optionLabel: 'C', optionText: '10.0.0.1', isCorrect: false, orderIndex: 2 },
+        ],
+      },
+      {
+        id: 5, number: 5, text: 'Ordena as camadas do modelo OSI, da mais baixa para a mais alta.',
+        questionType: 'development', maxScore: 4, orderIndex: 4,
+        options: [
+          { id: 51, optionLabel: 'A', optionText: 'Física, ligação, rede, transporte, sessão', isCorrect: false, orderIndex: 0 },
+          { id: 52, optionLabel: 'B', optionText: 'Enlace, rede, física, transporte, sessão', isCorrect: false, orderIndex: 1 },
+        ],
+      },
+    ],
+    // One finished, one in progress, one untouched: the three card states. The
+    // in-progress one carries a start in the past, so its deadline is real.
     simulations: [
-      { id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4 },
-      { id: 2, accountId: 3, statementId: 2, status: 'IN_PROGRESS', finalScore: null },
+      {
+        id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4,
+        startedAt: toLocalDateTime(new Date(Date.now() - 72 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 71 * 3600 * 1000)),
+        timeSpentSeconds: 3120,
+      },
+      {
+        id: 2, accountId: 3, statementId: 2, status: 'IN_PROGRESS', finalScore: null,
+        startedAt: toLocalDateTime(new Date(Date.now() - 20 * 60 * 1000)),
+        finishedAt: null, timeSpentSeconds: null,
+      },
     ],
+    // Uma resposta já guardada na tentativa 2, para se ver a sala a retomar o que
+    // ficou em vez de recomeçar: um POST novo na mesma pergunta daria 409.
+    answers: [
+      // A tentativa 1 está corrigida: duas escolhas, uma certa e uma errada, e uma
+      // resposta aberta que fica para o professor. É o que o ecrã de resultado mostra.
+      {
+        id: 2, simulationId: 1, questionId: 1, selectedOptionId: 12, answerText: null,
+        scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED', answeredAt: null,
+      },
+      {
+        id: 3, simulationId: 1, questionId: 2, selectedOptionId: 21, answerText: null,
+        scoreObtained: 0, isCorrect: false, reviewStatus: 'AUTO_GRADED', answeredAt: null,
+      },
+      {
+        id: 4, simulationId: 1, questionId: 3, selectedOptionId: null, answerText: 'É dividir uma rede em sub-redes mais pequenas.',
+        scoreObtained: null, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answeredAt: null,
+      },
+      {
+        id: 1, simulationId: 2, questionId: 1, selectedOptionId: 12, answerText: null,
+        scoreObtained: null, isCorrect: null, reviewStatus: null, answeredAt: null,
+      },
+    ],
+    nextSimulation: 3,
+    nextAnswer: 5,
+    chatSessions: [],
+    chatSent: {},
     // The seeded student is also explicitly affiliated with ITEL, as an administrator
     // would have done, so /me can be seen answering with the linked school. An account
     // created through /auth/register has no link and gets the school of its class.
@@ -263,6 +393,167 @@ function loginResponse(account: Account) {
 }
 
 const yearLabel = (year: SchoolYear) => `${year.startYear}/${year.endYear}`;
+
+function ownedBy(db: Store, simulationId: number, accountId: number): boolean {
+  return db.simulations.some((s) => s.id === simulationId && s.accountId === accountId);
+}
+
+/** Which questions belong to which statement. The rows keep only what the pure
+ *  grading rules need, so the link lives here rather than in simulation.ts. */
+const QUESTIONS_BY_STATEMENT: Record<number, number[]> = {
+  1: [1, 2, 3, 4, 5],
+  2: [1, 2, 3],
+  3: [1],
+};
+
+/** StatementBasicResponse, as it nests inside SimulationResponse. */
+function statementBasic(row: SimulationRow, db: Store) {
+  const statement = db.statements.find((s) => s.id === row.statementId);
+  if (!statement) return null;
+  return {
+    id: statement.id,
+    examType: statement.examType,
+    variant: null,
+    title: statement.title,
+    durationMinutes: statement.durationMinutes,
+    totalMaxScore: statement.totalMaxScore,
+  };
+}
+
+function statementSummary(db: Store, row: CatalogRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    examType: row.examType,
+    durationMinutes: row.durationMinutes,
+    variant: null,
+    instructions: null,
+    totalMaxScore: row.totalMaxScore,
+    visible: row.visible,
+    source: 'MANUAL',
+    subjectId: row.subjectId,
+    schoolYearId: row.schoolYearId,
+    institutionId: row.institutionId,
+    classId: row.classId,
+    questions: [] as unknown[],
+  };
+}
+
+/** SimulationResponse. `deadline` is the instant the server stops taking answers,
+ *  with the +25% and the tolerance already folded in
+ *  (SimulationDeadlineService.java:89) — the room subtracts from this one number. */
+function simulationResponse(db: Store, row: SimulationRow) {
+  const statement = db.statements.find((s) => s.id === row.statementId);
+  const owner = db.accounts.find((a) => a.id === row.accountId);
+  return {
+    id: row.id,
+    account: owner ? { id: owner.id, username: owner.username, email: owner.email } : null,
+    statement: statementBasic(row, db),
+    schoolYear: null,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    deadline: statement
+      ? deadlineFor(row.startedAt, statement.durationMinutes, owner?.accessibilityExtraTime === true)
+      : null,
+    timeSpentSeconds: row.timeSpentSeconds,
+    finalScore: row.finalScore,
+    status: row.status,
+    createdAt: row.startedAt,
+    updatedAt: row.finishedAt,
+    deletedAt: null,
+  };
+}
+
+/** The two conditions a write has to satisfy, in the order the backend checks them
+ *  (SimulationAnswerService.java:107-115): a simulation that exists, is still in
+ *  progress, and whose deadline has not passed. */
+function editableGuard(db: Store, simulationId: number, accountId: number): Response | null {
+  const row = db.simulations.find((s) => s.id === simulationId);
+  if (!row || row.accountId !== accountId) {
+    return problem(403, 'The simulation does not belong to the authenticated account');
+  }
+  if (row.status !== 'IN_PROGRESS') {
+    return problem(409, 'Simulation no longer accepts answers');
+  }
+  const response = simulationResponse(db, row);
+  if (expired(response.deadline)) {
+    return problem(409, 'The time allowed for this simulation has expired');
+  }
+  return null;
+}
+
+/** validateSelectedOption: uma questão `open` ou `development` recusa uma opção com
+ *  400, MESMO quando tem opções — o backend contradiz-se, porque a correcção decide
+ *  por haver opções e esta validação decide pelo tipo. O mock reproduz-o para a sala
+ *  não passar só aqui e falhar contra o backend real. */
+function optionRefusal(db: Store, questionId: number, selectedOptionId: unknown): Response | null {
+  const question = db.questions.find((q) => q.id === questionId);
+  if (!question) return problem(404, 'Question not found');
+  const type = question.questionType.toLowerCase();
+  if (Number(selectedOptionId) && (type === 'open' || type === 'development')) {
+    return problem(400, 'Open questions cannot select an option');
+  }
+  return null;
+}
+
+/** Grades everything stored and closes the simulation, the way
+ *  SimulationSubmissionService does on submit. */
+function closeSimulation(db: Store, row: SimulationRow): void {
+  const answers = db.answers.filter((a) => a.simulationId === row.id);
+  for (const answer of answers) {
+    const question = db.questions.find((q) => q.id === answer.questionId);
+    if (question) Object.assign(answer, gradeAnswer(answer, question));
+  }
+  row.finalScore = finalScore(answers);
+  row.status = 'FINISHED';
+  row.finishedAt = toLocalDateTime(new Date());
+  const start = row.startedAt ? parseServerTime(row.startedAt) : null;
+  row.timeSpentSeconds =
+    start === null || Number.isNaN(start)
+      ? null
+      : Math.max(0, Math.round((Date.now() - start) / 1000));
+}
+
+function simulationResult(db: Store, row: SimulationRow) {
+  const answers = db.answers.filter((a) => a.simulationId === row.id);
+  const questions = db.questions.filter((q) => answers.some((a) => a.questionId === q.id));
+  const pending = answers.filter((a) => a.reviewStatus === 'PENDING_REVIEW').length;
+
+  return {
+    simulationId: row.id,
+    status: row.status,
+    finalScore: row.finalScore,
+    correctAnswers: answers.filter((a) => a.isCorrect === true).length,
+    totalQuestions: questions.length,
+    pendingReviewCount: pending,
+    timeSpentSeconds: row.timeSpentSeconds,
+    finishedAt: row.finishedAt,
+    questions: questions.map((question) => {
+      const answer = answers.find((a) => a.questionId === question.id)!;
+      const correct = question.options.find((o) => o.isCorrect);
+      return {
+        questionId: question.id,
+        number: question.number,
+        text: question.text,
+        questionType: question.questionType,
+        maxScore: question.maxScore,
+        modelAnswer: null,
+        correctOptionId: correct?.id ?? null,
+        selectedOptionId: answer.selectedOptionId,
+        answerText: answer.answerText,
+        scoreObtained: answer.scoreObtained,
+        isCorrect: answer.isCorrect,
+        reviewStatus: answer.reviewStatus,
+        options: question.options.map((o) => ({
+          id: o.id,
+          optionLabel: o.optionLabel,
+          optionText: o.optionText,
+          isCorrect: o.isCorrect,
+        })),
+      };
+    }),
+  };
+}
 
 /** Resolves the class list the way ClassService.toResponse does: the nested course and
  *  school year are always objects, empty when the referenced row is gone. */
@@ -318,6 +609,9 @@ function meResponse(db: Store, account: Account): Me {
             school_year: yearLabel(schoolYear),
           }
         : null,
+    // Só um administrador o escreve (PATCH /api/v1/accounts/{id}/accessibility), e o
+    // backend já o dobroou no `deadline` da simulação: a app só o mostra.
+    accessibility_extra_time: account.accessibilityExtraTime,
   };
 }
 
@@ -380,6 +674,7 @@ export async function mockHandle(
       firstName: text('firstName'),
       lastName: text('lastName'),
       photo: null,
+      accessibilityExtraTime: false,
     };
     db.accounts.push(account);
     return json(loginResponse(account), 201);
@@ -432,8 +727,11 @@ export async function mockHandle(
       const value = search.get(key);
       return value === null || value === '' ? undefined : Number(value);
     };
+    // O catálogo só devolve o que está publicado, como o `StatementCatalogService`.
+    // Só agora é que a linha é única e uma prova oculta vive na mesma tabela: antes
+    // o catálogo nunca viu uma linha não publicada, e não precisava do filtro.
     return json(
-      catalogPage(db.statements, {
+      catalogPage(db.statements.filter((s) => s.visible), {
         q: search.get('q')?.trim() || undefined,
         subjectId: num('subjectId'),
         schoolYearId: num('schoolYearId'),
@@ -445,15 +743,257 @@ export async function mockHandle(
     );
   }
 
+  // GET /statements/{id} — a StatementSummary. `findByIdVisible` no backend só devolve
+  // o que está publicado, e responde 404 ao resto, inclusive a algo que existe.
+  const detail = pathname.match(/^\/statements\/(\d+)$/);
+  if (detail && method === 'GET') {
+    const row = findVisible(db.statements, Number(detail[1]));
+    if (!row) return problem(404, 'Statement not found');
+    return json(summaryOf(row));
+  }
+
   if (pathname === '/simulations' && method === 'GET') {
     const mine = db.simulations.filter((s) => s.accountId === account.id);
+    return json(mine.map((s) => simulationResponse(db, s)));
+  }
+
+  if (pathname === '/simulations' && method === 'POST') {
+    const target = Number(body.accountId);
+    const statementId = Number(body.statementId);
+    // SimulationService.java:103-105: o accountId tem de ser o da conta
+    // autenticada. Sem esta verificação o mock aceitaria criar em nome de outro.
+    if (!staff && target !== account.id) {
+      return problem(403, 'A simulation can only be created for the authenticated account');
+    }
+    const statement = db.statements.find((s) => s.id === statementId);
+    // Um aluno só começa uma prova que pode ler: publicada, senão 404 como no /full.
+    if (!statement || (!staff && !statement.visible)) return problem(404, 'Statement not found');
+
+    const row: SimulationRow = {
+      id: db.nextSimulation++,
+      accountId: target,
+      statementId,
+      // O relógio começa no servidor (SimulationService.java:95); o que o cliente
+      // mande em startedAt ou status é ignorado, tal como no backend.
+      status: 'IN_PROGRESS',
+      finalScore: null,
+      startedAt: toLocalDateTime(new Date()),
+      finishedAt: null,
+      timeSpentSeconds: null,
+    };
+    db.simulations.push(row);
+    return json(simulationResponse(db, row), 201);
+  }
+
+  // ── a sala de prova ─────────────────────────────────────────────────────────
+
+  const simulationMatch = /^\/simulations\/(\d+)(\/result)?$/.exec(pathname);
+  if (simulationMatch && method === 'GET') {
+    const id = Number(simulationMatch[1]);
+    const row = db.simulations.find((s) => s.id === id && s.accountId === account.id);
+    // Fora do dono é 404, não 403 (SimulationResultService.java:70-71): um aluno
+    // não fica a saber de que lado está a tentativa de outra pessoa.
+    if (!row) return problem(404, 'Simulation not found');
+    if (simulationMatch[2]) {
+      // SimulationResultService.java:83-90: o resultado só existe depois de FINISHED.
+      // É este 409 que esconde o gabarito durante a prova.
+      if (row.status !== 'FINISHED') {
+        return problem(409, 'The result is only available once the simulation is finished');
+      }
+      return json(simulationResult(db, row));
+    }
+    return json(simulationResponse(db, row));
+  }
+
+  const submitMatch = /^\/simulations\/(\d+)\/submit$/.exec(pathname);
+  if (submitMatch && method === 'POST') {
+    const id = Number(submitMatch[1]);
+    const row = db.simulations.find((s) => s.id === id && s.accountId === account.id);
+    if (!row) return problem(404, 'Simulation not found');
+    // SimulationSubmissionService.java:55-57: entregar duas vezes é 409.
+    if (row.status !== 'IN_PROGRESS') {
+      return problem(409, 'Simulation has already been submitted');
+    }
+    closeSimulation(db, row);
+    return json(simulationResult(db, row));
+  }
+
+  if (pathname === '/simulation-answers' && method === 'GET') {
+    return json(db.answers.filter((a) => ownedBy(db, a.simulationId, account.id)));
+  }
+
+  if (pathname === '/simulation-answers' && method === 'POST') {
+    const simulationId = Number(body.simulationId);
+    const questionId = Number(body.questionId);
+    const guard = editableGuard(db, simulationId, account.id);
+    if (guard) return guard;
+
+    // SimulationAnswerService.java:95-99: um segundo POST da mesma pergunta é 409,
+    // porque não há upsert. O cliente tem de guardar o id devolvido e usar PUT.
+    if (db.answers.some((a) => a.simulationId === simulationId && a.questionId === questionId)) {
+      return problem(409, 'This question has already been answered in this simulation.');
+    }
+    const refused = optionRefusal(db, questionId, body.selectedOptionId);
+    if (refused) return refused;
+    const answer: MockAnswer = {
+      id: db.nextAnswer++,
+      simulationId,
+      questionId,
+      selectedOptionId: Number(body.selectedOptionId) || null,
+      answerText: body.answerText === null || body.answerText === undefined ? null : String(body.answerText),
+      scoreObtained: null,
+      isCorrect: null,
+      reviewStatus: null,
+      answeredAt: null,
+    };
+    db.answers.push(answer);
+    return json(answer, 201);
+  }
+
+  const answerMatch = /^\/simulation-answers\/(\d+)$/.exec(pathname);
+  if (answerMatch && method === 'PUT') {
+    const existing = db.answers.find((a) => a.id === Number(answerMatch[1]));
+    if (!existing || !ownedBy(db, existing.simulationId, account.id)) {
+      return problem(404, 'Simulation answer not found');
+    }
+    const guard = editableGuard(db, existing.simulationId, account.id);
+    if (guard) return guard;
+    // O enunciado não pode mudar de pergunta a meio: o PUT reescreve a linha com o
+    // questionId que vem no corpo, e a chave única (simulação, pergunta) barra-o.
+    const refused = optionRefusal(db, existing.questionId, body.selectedOptionId);
+    if (refused) return refused;
+    existing.selectedOptionId = Number(body.selectedOptionId) || null;
+    existing.answerText =
+      body.answerText === null || body.answerText === undefined ? null : String(body.answerText);
+    return json(existing);
+  }
+
+  // ── o tutor (BE-18) ──────────────────────────────────────────────────────────
+  // POST /chat/sessions abre uma sessão presa a um enunciado que o aluno pode ler;
+  // POST /chat/sessions/{id}/messages responde em text/event-stream: `delta`s, depois
+  // `final`. Tudo o que falha ANTES do primeiro byte é um estado HTTP normal (404 de uma
+  // sessão alheia, 429 + Retry-After, 503); depois só há um evento `error` na própria
+  // stream. O texto da mensagem escolhe o caso, para o fluxo de integração os exercitar.
+  if (pathname === '/chat/sessions' && method === 'POST') {
+    const statementId = Number(body.statementId);
+    if (!Number.isInteger(statementId) || statementId <= 0) {
+      return validationError({ statementId: 'statementId is required' });
+    }
+    const statement = db.statements.find((x) => x.id === statementId);
+    if (!statement || (!staff && !statement.visible)) return problem(404, 'Statement not found');
+    const session = { id: db.chatSessions.length + 1, accountId: account.id, statementId };
+    db.chatSessions.push(session);
+    return json({ id: session.id, statementId, createdAt: toLocalDateTime(new Date()) }, 201);
+  }
+
+  const chatMatch = /^\/chat\/sessions\/(\d+)\/messages$/.exec(pathname);
+  if (chatMatch && method === 'POST') {
+    const session = db.chatSessions.find((x) => x.id === Number(chatMatch[1]) && x.accountId === account.id);
+    // Uma sessão alheia é 404, não 403: não se revela que existe.
+    if (!session) return problem(404, 'Chat session not found');
+    const content = text('content');
+    if (!content) return validationError({ content: 'content is required' });
+    if (content.length > 4000) return validationError({ content: 'content must be at most 4000 characters' });
+    if (content.includes('[[sem-chave]]')) return problem(503, 'The AI provider is not configured');
+
+    db.chatSent[account.id] = (db.chatSent[account.id] ?? 0) + 1;
+    if (content.includes('[[limite]]') || db.chatSent[account.id] > 30) {
+      return new Response(
+        JSON.stringify({ type: null, title: 'Too Many Requests', status: 429, detail: 'Too many tutor messages. Try again later.', properties: { code: 'CHAT_RATE_LIMITED' } }),
+        { status: 429, headers: { 'Content-Type': 'application/problem+json', 'Retry-After': '90' } },
+      );
+    }
+
+    const statement = db.statements.find((x) => x.id === session.statementId);
+    const reply = content.includes('[[fora]]')
+      ? 'Só acompanho o enunciado desta sessão, por isso não consigo ajudar com esse assunto.'
+      : `Vamos por passos, sobre «${statement?.title ?? 'esta prova'}». Primeiro, identifica o que a questão pede. Depois, aplica a regra e confirma o resultado: a escolha final é tua.`;
+    const pieces = reply.match(/\S+\s*/g) ?? [reply];
+    const broken = content.includes('[[erro]]');
+    const encoder = new TextEncoder();
+    const sse = (type: string, payload: object) =>
+      encoder.encode(`event: ${type}\ndata: ${JSON.stringify({ type, ...payload })}\n\n`);
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for (const [i, piece] of pieces.entries()) {
+          if (broken && i === 3) {
+            controller.enqueue(sse('error', { code: 'CHAT_PROVIDER_TIMEOUT', message: 'Provider timed out' }));
+            controller.close();
+            return;
+          }
+          controller.enqueue(sse('delta', { content: piece }));
+          await new Promise((resolve) => setTimeout(resolve, 15));
+        }
+        controller.enqueue(sse('final', { messageId: db.chatSent[account.id], model: 'mock' }));
+        controller.close();
+      },
+    });
+    return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  }
+
+  const fullMatch = /^\/statements\/(\d+)\/full$/.exec(pathname);
+  if (fullMatch && method === 'GET') {
+    const statement = db.statements.find((s) => s.id === Number(fullMatch[1]));
+    if (!statement) return problem(404, 'Statement not found');
+    // Um aluno só lê o enunciado publicado (StatementController.java:135). O mock
+    // devolve 404 como o backend, para o cartão não abrir uma prova invisível.
+    if (!staff && !statement.visible) return problem(404, 'Statement not found');
+
+    const ids = QUESTIONS_BY_STATEMENT[statement.id] ?? [];
+    const questions = ids
+      .map((qid) => db.questions.find((q) => q.id === qid))
+      .filter((q): q is MockQuestion => q !== undefined)
+      .map((q) => {
+      // O gabarito viaja só com quem é staff (StatementOcrResponse.java:166-173),
+      // e o `@JsonInclude(NON_NULL)` tira o campo do JSON em vez de o mandar a
+      // null. O mesmo para `modelAnswer`, que nem existe neste DTO. Um mock que
+      // mandasse `isCorrect` ao aluno ensinaria a sala a ler o gabarito — e a sala
+      // a mostrar a resposta certa antes de entregar.
+      const body = {
+        ...q,
+        needsReview: staff ? false : undefined,
+        ocrConfidence: staff ? 0.98 : undefined,
+      };
+      return {
+        ...body,
+        options: q.options.map((o) => ({
+          id: o.id,
+          optionLabel: o.optionLabel,
+          optionText: o.optionText,
+          orderIndex: o.orderIndex,
+          ...(staff ? { isCorrect: o.isCorrect, ocrConfidence: 0.98 } : {}),
+        })),
+      };
+    });
+    return json({
+      ...statementSummary(db, statement),
+      needsReview: staff ? false : undefined,
+      ocrConfidence: staff ? 0.98 : undefined,
+      questions,
+    });
+  }
+
+  const imagesMatch = /^\/question-images\/question\/(\d+)$/.exec(pathname);
+  if (imagesMatch && method === 'GET') {
+    const questionId = Number(imagesMatch[1]);
+    // Uma imagem por questão, para se ver o caminho que a sala percorre. As URLs
+    // são do armazenamento do backend; aqui são locais, o resto do contrato é igual.
     return json(
-      mine.map((s) => ({
-        id: s.id,
-        statement: { id: s.statementId },
-        status: s.status,
-        finalScore: s.finalScore,
-      })),
+      questionId === 1
+        ? [
+            {
+              id: 1,
+              questionId,
+              imageUrl: "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 80'%3E%3Crect width='320' height='80' fill='%23eef'/%3E%3Ctext x='160' y='47' text-anchor='middle' font-family='sans-serif' font-size='18'%3E192.168.1.0/29%3C/text%3E%3C/svg%3E",
+              caption: 'Divisão de um endereço em rede e host',
+              orderIndex: 0,
+              createdAt: null,
+              updatedAt: null,
+              deletedAt: null,
+            },
+          ]
+        : [],
     );
   }
 
