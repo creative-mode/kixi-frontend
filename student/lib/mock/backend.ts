@@ -1,5 +1,6 @@
 import 'server-only';
 import { catalogPage } from './catalog-page';
+import { canOpenChat, findVisible, summaryOf, type DetailRow } from './statement-detail';
 import { resolveSchoolId } from './school';
 
 import crypto from 'node:crypto';
@@ -84,7 +85,13 @@ type Store = {
   nextEnrollment: number;
   subjects: { id: number; code: string; name: string }[];
   statements: CatalogRow[];
+  /** Same rows as `statements`, widened with what StatementSummary also carries:
+   *  duration, total score and visibility. The detail screen reads those. */
+  statementDetails: DetailRow[];
   simulations: SimulationRow[];
+  /** Chat sessions, the tutor's. Bound to a statement, like the backend. */
+  chatSessions: { id: number; accountId: number; statementId: number; createdAt: string }[];
+  nextChatSession: number;
   /** The institution each student profile belongs to; an administrator sets this. */
   institutionByAccount: Record<number, number>;
 };
@@ -207,6 +214,17 @@ function seed(): Store {
       { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, institutionId: 1, classId: 2 },
       { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, institutionId: 2, classId: 6 },
     ],
+    // The detail rows: the catalog shape plus what StatementSummary also carries. The
+    // third is published but from another school, so it opens and the catalog scopes it
+    // away; the fourth is never published and must 404 like one that does not exist.
+    statementDetails: [
+      { id: 1, title: 'Redes de Computadores', examType: 'Teste', subjectId: 1, schoolYearId: 1, institutionId: 1, classId: 1, durationMinutes: 90, totalMaxScore: 20, visible: true },
+      { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, institutionId: 1, classId: 2, durationMinutes: 120, totalMaxScore: 20, visible: true },
+      { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, institutionId: 2, classId: 6, durationMinutes: 180, totalMaxScore: 20, visible: true },
+      { id: 4, title: 'Rascunho por publicar', examType: 'Teste', subjectId: 1, schoolYearId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 10, visible: false },
+    ],
+    chatSessions: [],
+    nextChatSession: 1,
     simulations: [
       { id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4 },
       { id: 2, accountId: 3, statementId: 2, status: 'IN_PROGRESS', finalScore: null },
@@ -443,6 +461,29 @@ export async function mockHandle(
         size: num('size'),
       }),
     );
+  }
+
+  // GET /statements/{id} — a StatementSummary. `findByIdVisible` no backend só devolve
+  // o que está publicado, e responde 404 ao resto, inclusive a algo que existe.
+  const detail = pathname.match(/^\/statements\/(\d+)$/);
+  if (detail && method === 'GET') {
+    const row = findVisible(db.statementDetails, Number(detail[1]));
+    if (!row) return problem(404, 'Statement not found');
+    return json(summaryOf(row));
+  }
+
+  // POST /chat/sessions — o tutor é sempre sobre um enunciado: `statementId` é
+  // @NotNull no backend, e um enunciado que o aluno não pode ler não abre sessão.
+  if (pathname === '/chat/sessions' && method === 'POST') {
+    if (!canOpenChat(db.statementDetails, body.statementId)) return problem(404, 'Statement not found');
+    const session = {
+      id: db.nextChatSession++,
+      accountId: account.id,
+      statementId: body.statementId as number,
+      createdAt: new Date().toISOString(),
+    };
+    db.chatSessions.push(session);
+    return json({ id: session.id, statementId: session.statementId, createdAt: session.createdAt }, 201);
   }
 
   if (pathname === '/simulations' && method === 'GET') {
