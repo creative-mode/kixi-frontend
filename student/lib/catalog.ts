@@ -94,8 +94,12 @@ export async function getCatalogNames(): Promise<{
 /** Regra do cartão, escrita no código porque é escolha de produto: o cartão é
  *  sobre o enunciado, e perante várias tentativas mostra a IN_PROGRESS (há uma
  *  prova por terminar); sem ela, mostra a tentativa mais recente. Nunca mistura
- *  nota de uma tentativa com progresso de outra. */
-function pickAttempt(attempts: CatalogSimulation[]): CatalogSimulation | null {
+ *  nota de uma tentativa com progresso de outra.
+ *
+ *  Exportada porque o ecrã de detalhe (#19) mostra o histórico inteiro, e tem de
+ *  escolher a mesma tentativa que o cartão — senão a mesma prova aparece em
+ *  curso no cartão e terminada no detalhe. */
+export function pickAttempt(attempts: CatalogSimulation[]): CatalogSimulation | null {
   if (attempts.length === 0) return null;
   return (
     attempts.find((a) => (a.status ?? '').toUpperCase() === 'IN_PROGRESS') ??
