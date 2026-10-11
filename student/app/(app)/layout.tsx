@@ -1,24 +1,27 @@
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { canAccessManager, normalizeRoles } from '@/lib/roles';
-import { COOKIE, decode, managerUrl } from '@/lib/session';
+import { getProfile } from '@/lib/me';
+import { requireStudent } from '@/lib/guard';
+import { MeProvider } from '@/lib/me-context';
 import { Shell } from '@/components/Shell';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const token = (await cookies()).get(COOKIE)?.value;
-  const session = decode(token);
+  await requireStudent();
 
-  if (!session) {
-    redirect(`/entrar?reason=${token ? 'session-expired' : 'required'}`);
+  const profile = await getProfile();
+  if (profile.kind === 'unauthorized') {
+    redirect('/entrar?reason=session-expired');
   }
 
-  const roles = normalizeRoles(session.roles);
-  if (canAccessManager(roles)) {
-    redirect(await managerUrl());
-  }
-  if (roles.length !== 1 || !roles.includes('STUDENT')) {
-    redirect('/403?reason=role');
+  // Feed, ranking and proofs are scoped to the student's class, so an account with no
+  // enrollment has nothing to show until it picks one. Only an answer we actually got
+  // from the backend can send them to onboarding; an unreachable one lets them in.
+  if (profile.kind === 'ok' && !profile.me.currentClass) {
+    redirect('/onboarding');
   }
 
-  return <Shell>{children}</Shell>;
+  return (
+    <MeProvider me={profile.me}>
+      <Shell>{children}</Shell>
+    </MeProvider>
+  );
 }

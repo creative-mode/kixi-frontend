@@ -13,7 +13,9 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { KIND_LABEL, me, posts as seed, ranking, topicsToReview, upcoming, type FeedPost } from '@/lib/data';
+import { KIND_LABEL, posts as seed, ranking, topicsToReview, upcoming, type FeedPost } from '@/lib/data';
+import { useMe } from '@/lib/me-context';
+import { contextLine, fullName } from '@/lib/profile';
 
 const TABS = ['Turma', 'Escola', 'A seguir'] as const;
 const SHORTCUTS = [
@@ -43,6 +45,7 @@ function Attach({ p }: { p: FeedPost }) {
 }
 
 function Post({ p }: { p: FeedPost }) {
+  const me = useMe();
   const [useful, setUseful] = useState(false);
   const [saved, setSaved] = useState(false);
   const [open, setOpen] = useState(false);
@@ -53,7 +56,7 @@ function Post({ p }: { p: FeedPost }) {
     e.preventDefault();
     const t = draft.trim();
     if (!t) return;
-    setList((l) => [...l, { name: me.name, text: t, time: 'agora' }]);
+    setList((l) => [...l, { name: fullName(me), text: t, time: 'agora' }]);
     setDraft('');
   };
   const act = 'h-10 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
@@ -95,7 +98,7 @@ function Post({ p }: { p: FeedPost }) {
             </div>
           ))}
           <form className="flex items-center gap-2.5" onSubmit={send}>
-            <UserAvatar name={me.name} size={32} />
+            <UserAvatar name={fullName(me)} size={32} />
             <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário"><Send /></Button>
           </form>
@@ -106,6 +109,7 @@ function Post({ p }: { p: FeedPost }) {
 }
 
 export default function Inicio() {
+  const me = useMe();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Turma');
   const [text, setText] = useState('');
   const [mine, setMine] = useState<FeedPost[]>([]);
@@ -114,7 +118,7 @@ export default function Inicio() {
     e.preventDefault();
     const t = text.trim();
     if (!t) return;
-    setMine((m) => [{ id: 'm' + m.length, kind: 'duvida', name: me.name, meta: `${me.turma} · ${me.escola} · agora`, text: t, useful: 0, comments: [] }, ...m]);
+    setMine((m) => [{ id: 'm' + m.length, kind: 'duvida', name: fullName(me), meta: `${contextLine(me)} · agora`, text: t, useful: 0, comments: [] }, ...m]);
     setText('');
   };
   const top = ranking.Turma.rows.slice(0, 3);
@@ -135,7 +139,7 @@ export default function Inicio() {
         <Card className="gap-3 py-4">
           <form className="grid gap-3 px-4" onSubmit={publish}>
             <div className="flex items-center gap-3">
-              <UserAvatar name={me.name} size={40} />
+              <UserAvatar name={fullName(me)} size={40} />
               <Input className="h-11 rounded-full bg-secondary px-4" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha um resultado ou pergunta à turma" aria-label="Nova publicação" />
               <Button type="submit" size="sm" disabled={!text.trim()}>Publicar</Button>
             </div>

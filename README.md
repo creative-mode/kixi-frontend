@@ -41,8 +41,15 @@ npm --prefix landing run dev   # landing :3004
 sua app — a landing e a `/403` canónica. Não se pode confiar em `Host` nem em
 `x-forwarded-host` para isso: ambos vêm de quem fez o pedido, e um redireccionamento
 construído a partir deles deixa o utilizador seguir para um domínio à escolha do atacante.
-Atrás do gateway define `APP_ORIGIN` com o endereço público; sem isso, em produção, os
-redireccionamentos saem construídos a partir do pedido e a app avisa no log.
+Atrás do gateway define `APP_ORIGIN` com o endereço público.
+
+**`APP_ORIGIN` é obrigatório em produção.** Sem ele, `resolveOrigin` recusa, e o erro diz o
+nome da variável: uma configuração em falta aparece no deploy, e não como um login que não
+funciona. Fora de produção o pedido é acreditado, para o `npm run dev` funcionar sem `.env`.
+
+A origem tem de trazer a porta quando a traz. Atrás do gateway o Next vê o host interno, com
+a porta interna da app; se a origem não a trouxer, o redirect saía em
+`https://kixi.ao:3002/...` e nenhuma visita sem sessão chegava ao gestor.
 
 ## Scripts úteis
 
@@ -50,7 +57,25 @@ redireccionamentos saem construídos a partir do pedido e a app avisa no log.
 npm run build && npm run lint   # raiz (gestor)
 npm run ds:sync                 # sincroniza o design system para student/ e landing/
 docker compose up --build           # tudo em contentores, http://localhost:3000
+node .github/scripts/self-review.js DEV   # a auto-revisão, antes de abrir o PR
 ```
+
+### Auto-revisão
+
+`self-review.js` lê as linhas novas do diff contra `DEV` e aponta o que já custou um bug a
+este repositório: o `basePath` written à mão num `redirect()` de server action (que é o que o
+cliente do Next aplica, não o servidor), o `action` de um `<form>`, texto com caracteres de
+outra escrita, `__html` que não é literal, segredos em literal, e lógica do mock que muda sem
+um teste que a fixe. Corre no CI como check.
+
+O que ela **não** apanha está escrito nos testes: letra dobrada numa palavra — o erro que eu
+de facto commito — passa, porque letra dobrada é normal em português e a regra passaria a
+gritar em texto correcto. E um problema que já estava no ficheiro não é blame da mudança; o
+que está em falta no código de hoje é assunto de outra mudança, e `student/scripts/flow.mjs`
+apanha o que estiver a correr mal.
+
+Antes de mexer numa regra, lee `self-review.test.js`: cada uma tem um caso em que **não**
+dispara, e é aí que um gate ganha ou perde a credibilidade.
 
 ## Docker
 

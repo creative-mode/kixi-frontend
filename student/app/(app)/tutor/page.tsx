@@ -8,11 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { me, tutorChat, tutorChips } from '@/lib/data';
+import { tutorChat, tutorChips } from '@/lib/data';
+import { useMe } from '@/lib/me-context';
+import { fullName } from '@/lib/profile';
 
 type Msg = { from: 'student' | 'tutor'; text: string; source?: string };
 
 export default function Tutor() {
+  const me = useMe();
   const [msgs, setMsgs] = useState<Msg[]>([...tutorChat] as Msg[]);
   const [text, setText] = useState('');
   const end = useRef<HTMLDivElement>(null);
@@ -35,7 +38,7 @@ export default function Tutor() {
               <div key={i} className={cn('flex max-w-[94%] gap-2.5 md:max-w-[86%]', m.from === 'student' && 'flex-row-reverse self-end')}>
                 {m.from === 'tutor'
                   ? <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-[13px] font-bold text-background" aria-hidden="true">K</span>
-                  : <UserAvatar name={me.name} size={32} className="max-md:hidden" />}
+                  : <UserAvatar name={fullName(me)} size={32} className="max-md:hidden" />}
                 <div className={cn('rounded-xl border px-3.5 py-2.5 leading-relaxed', m.from === 'student' ? 'border-primary bg-primary text-primary-foreground' : 'bg-secondary')}>
                   {m.text}
                   {m.source && <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><FileText className="size-3.5" />Fonte: {m.source}</div>}

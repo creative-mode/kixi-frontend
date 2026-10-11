@@ -6,7 +6,8 @@ import { Bell, Camera, ChevronsUpDown, House, FileText, MessageCircle, Search, U
 import { Logo } from './brand';
 import { UserAvatar } from './user-avatar';
 import { Button } from '@/components/ui/button';
-import { me } from '@/lib/data';
+import { contextLine, fullName, photoUrl } from '@/lib/profile';
+import { useMe } from '@/lib/me-context';
 
 const ITEMS = [
   { href: '/inicio', label: 'Início', icon: House, also: [] as string[] },
@@ -18,7 +19,10 @@ const ITEMS = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const me = useMe();
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
+  const name = fullName(me) || 'Aluno';
+  const context = contextLine(me);
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[256px_minmax(0,1fr)]">
@@ -34,8 +38,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="mt-auto grid gap-3">
           <Button asChild><Link href="/provas"><Camera />Carregar prova</Link></Button>
           <Link href="/perfil" className="flex items-center gap-2.5 rounded-md p-2 hover:bg-secondary">
-            <UserAvatar name={me.name} size={36} />
-            <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{me.name}</span><span className="text-xs text-muted-foreground">{me.escola} · Turma {me.turma}</span></span>
+            <UserAvatar name={name} src={photoUrl(me)} size={36} />
+            <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{name}</span>{context && <span className="block truncate text-xs text-muted-foreground">{context}</span>}</span>
             <ChevronsUpDown className="size-4 text-muted-foreground" />
           </Link>
         </div>
