@@ -4,6 +4,10 @@ import { getAuthHeaders } from '@/lib/auth.server';
 import { API_BASE } from '@/lib/constants';
 import type {
   ActivityPoint,
+  ClassDashboard,
+  ClassStudentStats,
+  HardQuestion,
+  WeeklyPoint,
   ClassStats,
   Dashboard,
   InstitutionStats,
@@ -67,4 +71,18 @@ export async function getDashboard(days: number, filters: DashboardFilters = {})
 
 export async function getStatementQuestions(statementId: number): Promise<Section<QuestionStats[]>> {
   return section<QuestionStats[]>(`/statements/${statementId}/questions`);
+}
+
+/** O que o professor vê de uma turma: alunos, evolução por semana e as questões mais falhadas. */
+export async function getClassDashboard(classId: number, weeks = 8): Promise<ClassDashboard> {
+  if (!Number.isInteger(classId) || classId <= 0) {
+    const error = { ok: false as const, error: 'Turma inválida.' };
+    return { students: error, weekly: error, questions: error };
+  }
+  const [students, weekly, questions] = await Promise.all([
+    section<ClassStudentStats[]>(`/classes/${classId}/students`),
+    section<WeeklyPoint[]>(`/classes/${classId}/weekly?weeks=${Math.trunc(weeks)}`),
+    section<HardQuestion[]>(`/classes/${classId}/questions?limit=10`),
+  ]);
+  return { students, weekly, questions };
 }

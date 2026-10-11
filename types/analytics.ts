@@ -102,3 +102,44 @@ export interface Dashboard {
   statements: Section<StatementStats[]>;
   loadedAt: string;
 }
+
+// ── por turma (dashboard do professor, FE-16) ───────────────────────────────
+
+/** `AT_RISK`: média abaixo de metade. `NO_ACTIVITY`: ainda não terminou nenhuma prova. */
+export type StudentStatus = 'AT_RISK' | 'NO_ACTIVITY' | 'OK';
+
+export interface ClassStudentStats {
+  accountId: number;
+  name: string;
+  finishedSimulations: number;
+  averageScorePercent: number | null;
+  /** ISO-8601 com fuso. */
+  lastFinishedAt: string | null;
+  status: StudentStatus;
+}
+
+export interface WeeklyPoint {
+  /** Segunda-feira da semana, no formato AAAA-MM-DD (UTC). */
+  weekStart: string;
+  finished: number;
+  averageScorePercent: number | null;
+}
+
+export interface HardQuestion {
+  id: number;
+  number: number;
+  text: string;
+  questionType: string;
+  maxScore: number | null;
+  statementId: number;
+  statementTitle: string | null;
+  attempts: number;
+  correct: number;
+  correctPercent: number | null;
+}
+
+export interface ClassDashboard {
+  students: Section<ClassStudentStats[]>;
+  weekly: Section<WeeklyPoint[]>;
+  questions: Section<HardQuestion[]>;
+}
