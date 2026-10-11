@@ -417,6 +417,13 @@ async function main() {
     const oculta = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 4 }) });
     registar('uma prova por publicar não abre sessão', oculta.status === 404 ? null : `veio ${oculta.status}`);
 
+    // 4d · o histórico do perfil (#33): as simulações da própria conta, e só dela.
+    await passo('o perfil lista as simulações desta conta, não as de outra', 'GET', '/aluno/perfil', {}, async (r) => {
+      const html = await r.text();
+      if (!html.includes('Sistemas Operativos')) return 'a prova entregue não está no histórico';
+      return /16[,.]4/.test(html) ? 'vazou a nota de outra conta' : null;
+    });
+
     // 5 · logout, e o cookie tem mesmo de desaparecer
     const perfil = await (await fetch(`${BASE}/aluno/perfil`, { headers: cabecalhos() })).text();
     await passo(

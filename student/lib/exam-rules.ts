@@ -50,6 +50,7 @@ export interface SimulationSummary {
   status?: string | null;
   deadline?: string | null;
   finalScore?: number | null;
+  startedAt?: string | null;
   statement?: { id?: number | null; title?: string | null } | null;
 }
 

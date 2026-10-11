@@ -1,12 +1,14 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Check, LogOut, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut } from 'lucide-react';
 import { sairAction } from '@/lib/auth-actions';
 import { Column, Page } from '@/components/page';
 import { Mastery } from '@/components/mastery';
 import { UserAvatar } from '@/components/user-avatar';
 import { ProfileEditor } from '@/components/profile-editor';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -15,22 +17,64 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setTheme, useNightTheme } from '@/lib/theme';
 import { result, topicsToReview } from '@/lib/data';
+import type { HistoryRow } from '@/lib/simulation-history';
 import type { Me } from '@/lib/types';
 
-const TABS = ['Atividade', 'Desempenho', 'Guardados'] as const;
+const TABS = ['Histórico', 'Desempenho', 'Guardados'] as const;
+// «Reduzir movimento» ainda não é persistido nem lido por nada: a definição fica por
+// ligar à conta (BE-22, kixi#118). O tempo extra deixou de ser um interruptor porque só
+// um administrador o define (PATCH /accounts/{id}/accessibility); o aluno vê o estado.
 const DEFS = [
-  { key: 'time', label: '+25% de tempo nas provas', hint: 'Ajuste de tempo para quem precisa.', def: true },
   { key: 'motion', label: 'Reduzir movimento', hint: 'Menos animações na interface.', def: false },
 ];
-// A activity feed still comes from lib/data.ts; it needs the student's own simulations
-// to be real, which arrives with the statements and results work.
-const ACTIVITY = [
-  { t: 'Concluíste a P1 · Redes de Computadores', m: 'Nota 15,0 · há 2 dias', icon: Check },
-  { t: 'Perguntaste na turma sobre subnetting', m: '3 respostas · há 4 dias', icon: MessageCircle },
-  { t: 'Concluíste a P2 · Sistemas Operativos', m: 'Nota 16,4 · há 1 semana', icon: Check },
-];
 
-export function PerfilView({ me }: { me: Me | null }) {
+/** The student's own simulations, from the server. `null` means the list could not be
+ *  loaded, which is not the same as «nenhuma»: saying the student never tried anything
+ *  because a request failed would be telling them something false about their work. */
+function Historico({ rows }: { rows: HistoryRow[] | null }) {
+  if (rows === null) {
+    return (
+      <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
+        <b className="text-foreground">O teu histórico não está disponível</b>
+        <span>Não conseguimos buscar as tuas simulações agora. Tenta outra vez daqui a pouco.</span>
+      </Card>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <Card className="grid justify-items-center gap-2 px-5 py-10 text-center text-sm text-muted-foreground">
+        <b className="text-foreground">Ainda não fizeste nenhuma simulação</b>
+        <span>Quando fizeres, aparecem aqui com a nota e a data.</span>
+        <Button asChild variant="outline" size="sm"><Link href="/provas">Ver as provas</Link></Button>
+      </Card>
+    );
+  }
+  return (
+    <Card className="gap-0 divide-y py-0">
+      {rows.map((r) => (
+        <div key={r.id} className="flex items-center gap-3.5 px-5 py-3.5">
+          {r.label === 'corrected' ? (
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-sm font-bold text-success tabular-nums">{r.score ?? '—'}</span>
+          ) : (
+            <Badge variant={r.label === 'cancelled' ? 'secondary' : 'warning'}>{r.label === 'cancelled' ? 'Cancelada' : 'Em curso'}</Badge>
+          )}
+          <div className="min-w-0 flex-1 leading-snug">
+            <b className="block truncate text-sm">{r.title}</b>
+            <span className="text-[13px] text-muted-foreground">
+              {r.since ?? 'sem data'}
+              {r.label === 'corrected' && r.score ? ` · ${r.score} valores` : ''}
+              {r.label === 'cancelled' ? ' · não foi corrigida' : ''}
+            </span>
+          </div>
+          {r.label === 'corrected' && <Button asChild variant="outline" size="sm"><Link href={`/resultado?prova=${r.id}`}>Ver resultado</Link></Button>}
+          {r.label === 'unfinished' && r.statementId != null && <Button asChild variant="outline" size="sm"><Link href={`/prova/${r.statementId}`}>Continuar</Link></Button>}
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+export function PerfilView({ me, history }: { me: Me | null; history: HistoryRow[] | null }) {
   const [editing, setEditing] = useState(false);
   const night = useNightTheme();
   const [on, setOn] = useState<Record<string, boolean>>(Object.fromEntries(DEFS.map((d) => [d.key, d.def])));
@@ -87,18 +131,9 @@ export function PerfilView({ me }: { me: Me | null }) {
           {editing && me && <ProfileEditor me={me} onDone={close} />}
         </Card>
 
-        <Tabs defaultValue="Atividade">
+        <Tabs defaultValue="Histórico">
           <TabsList aria-label="Perfil">{TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
-          <TabsContent value="Atividade">
-            <Card className="gap-0 divide-y py-0">
-              {ACTIVITY.map((a) => (
-                <div key={a.t} className="flex items-center gap-3.5 px-5 py-3.5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><a.icon className="size-[18px]" /></span>
-                  <div className="leading-snug"><b className="block text-sm">{a.t}</b><span className="text-[13px] text-muted-foreground">{a.m}</span></div>
-                </div>
-              ))}
-            </Card>
-          </TabsContent>
+          <TabsContent value="Histórico"><Historico rows={history} /></TabsContent>
           <TabsContent value="Desempenho">
             <Card><CardHeader><CardTitle>Domínio por tema</CardTitle></CardHeader>
               <CardContent className="grid gap-3.5">{[...result.topics, ...topicsToReview.filter((t) => !result.topics.some((r) => r.label === t.label))].map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}</CardContent>
@@ -114,6 +149,13 @@ export function PerfilView({ me }: { me: Me | null }) {
             <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0">
               <Label htmlFor="def-night" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Tema escuro</span><span className="text-[13px] font-normal text-muted-foreground">Fundo escuro, para estudar à noite.</span></Label>
               <Switch id="def-night" checked={night} onCheckedChange={setTheme} />
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3.5">
+              <div className="grid gap-0.5 leading-snug">
+                <span className="text-[15px]">+25% de tempo nas provas</span>
+                <span className="text-[13px] font-normal text-muted-foreground">Definido pela tua escola. Se precisares dele e não o tens, fala com a secretaria.</span>
+              </div>
+              <Badge variant={me?.accessibility_extra_time ? 'success' : 'secondary'}>{me?.accessibility_extra_time ? 'Ativo' : 'Inativo'}</Badge>
             </div>
             {DEFS.map((d) => (
               <div key={d.key} className="flex items-center justify-between gap-4 py-3.5 last:pb-0">

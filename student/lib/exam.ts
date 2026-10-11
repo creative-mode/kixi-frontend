@@ -89,6 +89,13 @@ export async function listSimulations(): Promise<SimulationSummary[]> {
   return result.data;
 }
 
+/** The same list, for a screen that must tell «none» from «could not load»: a failed
+ *  request is `null`, not an empty list. */
+export async function getHistory(): Promise<SimulationSummary[] | null> {
+  const result = await apiGet<SimulationSummary[]>('/simulations');
+  return result.ok && Array.isArray(result.data) ? result.data : null;
+}
+
 /** Starts an attempt. The server starts the clock itself (SimulationService.java:95),
  *  so the body carries only the account and the statement: `startedAt` and `status`
  *  in the request are ignored, and sending them would be a claim the backend drops. */
