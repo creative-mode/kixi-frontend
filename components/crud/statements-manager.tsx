@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Archive, Check, Eye, EyeOff, FileSearch, ScanText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { approveStatement, deleteRow, listStatements, setStatementVisible } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
-import { fetchCurrentUser } from '@/lib/auth';
+import { statementInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
 import { TableRowsSkeleton } from './loading';
@@ -27,11 +27,15 @@ export function StatementsManager() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  // A lixeira é gestão: o proxy manda o professor para o exam-builder, por isso nem se mostra.
-  const [admin, setAdmin] = useState(false);
-  useEffect(() => {
-    fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN')));
-  }, []);
+  // O professor vê os enunciados que pode escrever (o ADMIN vê todos). Sem
+  // scope resolvido fica null, e a tabela continua no esqueleto.
+  const scope = useTeacherScope();
+  const shown = useMemo(
+    () => (rows && scope ? rows.filter((r) => statementInScope(scope, r)) : null),
+    [rows, scope],
+  );
+  // A lixeira é gestão (o proxy não a abre ao professor), por isso só o ADMIN vê o link.
+  const admin = scope ? !scope.restricted : false;
 
   const load = useCallback(async () => {
     setError(null);
@@ -93,14 +97,16 @@ export function StatementsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows === null ? (
-                <TableRowsSkeleton cols={6} />
-              ) : error ? (
+              {error ? (
                 <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
-              ) : rows.length === 0 ? (
+              ) : scope?.error ? (
+                <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">Não foi possível determinar as suas turmas, por isso a lista fica vazia: {scope.error}</TableCell></TableRow>
+              ) : shown === null ? (
+                <TableRowsSkeleton cols={6} />
+              ) : shown.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="py-16 text-center text-sm text-muted-foreground">Nenhum enunciado neste filtro.</TableCell></TableRow>
               ) : (
-                rows.map((row) => (
+                shown.map((row) => (
                   <TableRow key={row.id} className="border-border hover:bg-accent/50">
                     {entity.columns.map((c) => (
                       <TableCell key={c.label} className={c.className}>{c.value(row)}</TableCell>

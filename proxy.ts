@@ -3,9 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
-import { canAccessManager, isStudentOnly, normalizeRoles, teacherMayOpen, type Role } from '@/lib/roles';
-
-const MANAGER_ONLY_ROUTES = ['/accounts', '/roles', '/users', '/sessions'];
+import { canAccessManager, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
 
 /**
  * A origem de confiança, ou null quando não há nenhuma.
@@ -46,10 +44,6 @@ function isRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
-function isManagerOnlyRoute(pathname: string) {
-  return MANAGER_ONLY_ROUTES.some((route) => isRoute(pathname, route));
-}
-
 function rolesFromPayload(value: unknown): Role[] {
   return normalizeRoles(value);
 }
@@ -71,7 +65,7 @@ export async function proxy(request: NextRequest) {
 
       if (canAccessManager(roles)) {
         if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
-          return NextResponse.redirect(redirectTo('/exam-builder', request));
+          return NextResponse.redirect(redirectTo('/professor', request));
         }
         return NextResponse.redirect(redirectTo('/', request));
       }
@@ -109,14 +103,16 @@ export async function proxy(request: NextRequest) {
       return response;
     }
 
-    const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN');
-    // O professor não entra na gestão (contas, papéis, utilizadores, sessões): 403 com motivo.
-    // Tem de vir antes do encaminhamento para o exam-builder, senão a 403 nunca é vista.
-    if (isTeacher && isManagerOnlyRoute(pathname)) {
-      return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
-    }
-    if (isTeacher && !teacherMayOpen(pathname)) {
-      return NextResponse.redirect(redirectTo('/exam-builder', request));
+    // O professor tem uma lista fechada de rotas (`teacherRoute`, com testes): a
+    // gestão dá 403 com motivo, e o resto volta ao início dele.
+    if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
+      const decision = teacherRoute(pathname);
+      if (decision === 'forbidden') {
+        return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
+      }
+      if (decision === 'home') {
+        return NextResponse.redirect(redirectTo('/professor', request));
+      }
     }
 
     const response = NextResponse.next();

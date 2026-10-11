@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { unstable_rethrow } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import 'server-only';
 import { getJwtSecret } from './jwt';
@@ -50,6 +51,9 @@ export async function getCurrentUser() {
       roles: normalizeRoles(payload.roles),
     };
   } catch (err) {
+    // O `cookies()` lança um erro do próprio Next quando a rota é pré-renderizada
+    // no build; engoli-lo aqui fazia o layout parecer estático. Esse tem de seguir.
+    unstable_rethrow(err);
     console.error('Erro ao obter perfil do usuário:', err);
     return null;
   }

@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Eye, EyeOff, FilePen } from 'lucide-react';
+import { Check, Eye, EyeOff, FilePen, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { approveStatement, getStatementFull, setCorrectOption, setStatementVisible } from '@/app/actions/crud';
+import { approveStatement, deleteRow, getStatementFull, setCorrectOption, setStatementVisible } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
 import { Confirm, type ConfirmState } from './confirm';
@@ -83,6 +83,25 @@ export function StatementDetail({ id }: { id: number }) {
     });
   }
 
+  /** O backend decide quem pode apagar (`StatementWriteAccessService`): o
+   *  professor só apaga o que pode escrever, e um 403 chega aqui como toast. */
+  function askDelete() {
+    setConfirm({
+      title: 'Apagar enunciado?',
+      description: `«${s?.title ?? 'Enunciado'}» vai para a lixeira e deixa de aparecer aos alunos. Pode restaurá-lo depois.`,
+      action: 'Apagar',
+      destructive: true,
+      run: async () => {
+        const res = await deleteRow('statements', id);
+        if (res.ok) {
+          toast.success('Enunciado movido para a lixeira');
+          router.push('/statements');
+          router.refresh();
+        } else toast.error(res.error);
+      },
+    });
+  }
+
   const entity = ENTITIES.statements;
   const questions: Row[] = s?.questions ?? [];
   return (
@@ -92,11 +111,23 @@ export function StatementDetail({ id }: { id: number }) {
         title={s?.title ?? 'Enunciado'}
         subtitle={s ? `${s.examType}${s.variant ? ` · variante ${s.variant}` : ''}` : ''}
         back={{ href: '/statements', label: 'Voltar à lista' }}
-        actions={s ? (
-          <Button size="sm" onClick={() => setReviewing(true)}>
-            <FilePen size={14} /> Rever enunciado
-          </Button>
-        ) : undefined}
+        actions={
+          s ? (
+            <>
+              <Button size="sm" onClick={() => setReviewing(true)}>
+                <FilePen size={14} /> Rever enunciado
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-muted-foreground hover:bg-danger-soft hover:text-destructive"
+                onClick={askDelete}
+              >
+                <Trash2 size={14} /> Apagar
+              </Button>
+            </>
+          ) : null
+        }
       />
       {error ? (
         <p className="py-12 text-center text-sm text-destructive">{error}</p>
