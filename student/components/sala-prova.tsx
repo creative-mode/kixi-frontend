@@ -1,10 +1,12 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Clock, Flag, Loader2, TriangleAlert } from 'lucide-react';
-import { responderAction, submeterAction, type AnswerState } from '@/lib/exam-actions';
+import { ChevronLeft, ChevronRight, Clock, Flag, Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
+import { guardarAction, submeterAction } from '@/lib/exam-actions';
+import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue';
 import {
+  backoffMs,
   cellState,
   formatClock,
   isChoice,
@@ -24,6 +26,7 @@ const CELL = {
   done: 'border-transparent bg-accent text-accent-foreground',
   flag: 'border-transparent bg-warning-soft text-warning',
   empty: 'bg-card text-muted-foreground',
+  unsaved: 'border-destructive/50 bg-destructive/10 text-destructive',
 } as const;
 
 /** The id of the one form that delivers the proof. Both submit buttons point at
@@ -34,32 +37,26 @@ const CELL_LABEL: Record<CellState, string> = {
   done: 'respondida',
   flag: 'marcada para rever',
   empty: 'por responder',
+  unsaved: 'por guardar',
 };
 
 const CELL_TEXT: Record<CellState, string> = {
   done: 'Respondida',
   flag: 'Para rever',
   empty: 'Por responder',
+  unsaved: 'Por guardar',
 };
 
-/** One question's draft, plus the id of the row on the server once it exists.
- *  `answerId` decides POST vs PUT on the next save; see exam-rules.ts. */
-interface Draft {
-  optionId: number | null;
-  text: string;
-  answerId: number | null;
-}
+/** One question's draft: what is on screen, which may be ahead of the server. The
+ *  `answerId` is not here — it belongs to the save queue, which reads it when a
+ *  request leaves, not when the student taps. */
+type Draft = Snapshot;
 
 function draftFrom(data: RoomData): Record<number, Draft> {
   return Object.fromEntries(
     data.questions.map((q) => {
       const saved = data.saved[q.id];
-      return [
-        q.id,
-        saved
-          ? { optionId: saved.optionId, text: saved.text, answerId: saved.answerId }
-          : { optionId: null, text: '', answerId: null },
-      ];
+      return [q.id, saved ? { optionId: saved.optionId, text: saved.text } : { optionId: null, text: '' }];
     }),
   );
 }
@@ -75,37 +72,73 @@ function isAnswered(question: ExamQuestion, draft: Draft | undefined): boolean {
  *  It does not carry its own `<form>`. The submitting form lives once in the room
  *  and this button joins it through `form=`, because a form inside a form is
  *  invalid HTML and the browser drops the inner one — the delivery would silently
- *  never reach the server. */
+ *  never reach the server.
+ *
+ *  Handing in is blocked while an answer is still on its way or has failed: the
+ *  server grades what it holds, so delivering now would grade a proof that is
+ *  missing something the student believes they answered. */
 function Confirmar({
   unanswered,
+  saving,
+  failed,
   pending,
   error,
   onCancel,
+  onRetry,
 }: {
   unanswered: number;
+  saving: boolean;
+  failed: number;
   pending: boolean;
   error?: string;
   onCancel: () => void;
+  onRetry: () => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // O diálogo aparece por cima de uma página que pode estar rolada até ao mapa:
+  // sem trazê-lo à vista e dar-lhe o foco, quem usa teclado ou leitor de ecrã não
+  // sabe que abriu.
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, []);
+
+  const blocked = saving || failed > 0;
   return (
-    <Card className="gap-4 border-warning/50 bg-warning-soft/40 p-5" role="alertdialog" aria-labelledby="confirmar">
+    <Card
+      ref={ref}
+      tabIndex={-1}
+      className="gap-4 border-warning/50 bg-warning-soft/40 p-5"
+      role="alertdialog"
+      aria-labelledby="confirmar"
+      aria-describedby="confirmar-texto"
+    >
       <div className="flex items-start gap-3">
         <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
         <div className="min-w-0 flex-1">
           <h2 id="confirmar" className="text-[15px] font-bold">Entregar a prova?</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {unanswered === 0
-              ? 'Depois de entregar não dá para alterar as respostas.'
-              : unanswered === 1
-                ? 'Ficou 1 questão por responder. Depois de entregar não dá para alterar.'
-                : `Ficaram ${unanswered} questões por responder. Depois de entregar não dá para alterar.`}
+          <p id="confirmar-texto" className="mt-1 text-sm text-muted-foreground">
+            {failed > 0
+              ? `${failed === 1 ? '1 resposta não foi guardada' : `${failed} respostas não foram guardadas`}. Tenta de novo antes de entregar, senão a prova segue sem ${failed === 1 ? 'ela' : 'elas'}.`
+              : saving
+                ? 'A guardar as tuas respostas… Já podes entregar a seguir.'
+                : unanswered === 0
+                  ? 'Depois de entregar não dá para alterar as respostas.'
+                  : unanswered === 1
+                    ? 'Ficou 1 questão por responder. Depois de entregar não dá para alterar.'
+                    : `Ficaram ${unanswered} questões por responder. Depois de entregar não dá para alterar.`}
           </p>
         </div>
       </div>
       {error && <p role="alert" className="text-[13px] font-medium text-destructive">{error}</p>}
       <div className="flex flex-wrap gap-2.5">
-        <Button type="submit" form={SUBMIT_FORM} disabled={pending}>
-          {pending ? <Loader2 className="animate-spin" aria-hidden /> : null}
+        {failed > 0 && (
+          <Button type="button" variant="outline" onClick={onRetry}>
+            <RefreshCw aria-hidden />Tentar de novo
+          </Button>
+        )}
+        <Button type="submit" form={SUBMIT_FORM} disabled={pending || blocked}>
+          {pending || (saving && failed === 0) ? <Loader2 className="animate-spin" aria-hidden /> : null}
           Entregar
         </Button>
         <Button type="button" variant="outline" onClick={onCancel} disabled={pending}>
@@ -116,13 +149,25 @@ function Confirmar({
   );
 }
 
+/** Debounce of an open answer: long enough not to send a request per keystroke,
+ *  short enough that closing the lid right after typing loses little. */
+const TEXT_DEBOUNCE_MS = 800;
+/** Flush of everything still unsent when this much time is left, so the last words
+ *  typed reach the server before the deadline closes the room. */
+const FLUSH_BEFORE_END_MS = 4000;
+
 export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: boolean }) {
   const questions = data.questions;
   const [index, setIndex] = useState(0);
   const [flagged, setFlagged] = useState<ReadonlySet<number>>(() => new Set());
   const [drafts, setDrafts] = useState<Record<number, Draft>>(() => draftFrom(data));
-  const [feedback, setFeedback] = useState<Record<number, AnswerState>>({});
+  /** A synchronous mirror of `drafts`: a tap and a save happen in the same tick, and
+   *  the state the closure sees is the one from before the tap. */
+  const draftsRef = useRef(drafts);
+  const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const [, rerender] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
   /** The countdown ticks only once mounted, on purpose.
    *
    *  `Date.now()` during render would give a different value on the server and on the
@@ -130,10 +175,32 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
    *  divergência na hidratação. Renderiza-se sem prazo e o primeiro `setNow` no
    *  efeito é que o faz aparecer. */
   const [now, setNow] = useState<number | null>(null);
-  const [pendingSave, startSave] = useTransition();
   /** `useActionState` for the same reason as the rest of the app: the error the
    *  server sends back has to land next to the button that caused it. */
   const [submitState, submit, submitting] = useActionState(submeterAction, undefined);
+
+  /** One queue per room: it serialises the writes of each question, retries the ones
+   *  that fail for a transient reason, and is the only thing that knows which answers
+   *  the server has confirmed. */
+  const [queue] = useState<SaveQueue>(() => {
+    const created = createSaveQueue({
+      send: (questionId, snapshot, answerId) =>
+        guardarAction({
+          simulationId: data.simulationId,
+          statementId: data.statementId,
+          questionId,
+          optionId: snapshot.optionId,
+          text: snapshot.text,
+          answerId,
+        }),
+      onChange: () => rerender((n) => n + 1),
+      wait: (attempt) => new Promise((resolve) => setTimeout(resolve, backoffMs(attempt))),
+    });
+    for (const [questionId, saved] of Object.entries(data.saved)) {
+      created.seed(Number(questionId), saved.answerId, { optionId: saved.optionId, text: saved.text });
+    }
+    return created;
+  });
 
   useEffect(() => {
     setNow(Date.now());
@@ -147,10 +214,10 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   const left = now === null ? null : remainingMs(data.deadline, now);
   /** The same two conditions the server enforces on a write (SimulationAnswerService
    *  :107 and :125): not IN_PROGRESS, or past the deadline. Stopping the form here is
-   *  what keeps the student from answering into a 409. `acceptsAnswers` is the tested
-   *  rule, and it reads a missing deadline as "no limit" — which is what
-   *  SimulationDeadlineService.java:89 means by a null deadline. Before the clock
-   *  starts there is no reason to lock the form, so the room stays open. */
+   *  what keeps the student from answering into a 409. `remainingMs` reads a missing
+   *  deadline as "no limit" — which is what SimulationDeadlineService.java:89 means by
+   *  a null deadline. Before the clock starts there is no reason to lock the form, so
+   *  the room stays open. */
   const closed =
     (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' ||
     (now !== null && left !== null && left <= 0);
@@ -161,42 +228,83 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
    *  without `durationMinutes` has no deadline and never expires. */
   const tempo = timer(data.deadline, now);
 
-  const answered = useMemo(
-    () => new Set(questions.filter((q) => isAnswered(q, drafts[q.id])).map((q) => q.id)),
-    [questions, drafts],
+  const snapshotOf = useCallback((id: number): Snapshot => draftsRef.current[id] ?? { optionId: null, text: '' }, []);
+
+  /** Hands the latest value of a question to the queue, cancelling its debounce. */
+  const guardar = useCallback(
+    (questionId: number) => {
+      const timer = timers.current.get(questionId);
+      if (timer) clearTimeout(timer);
+      timers.current.delete(questionId);
+      void queue.request(questionId, snapshotOf(questionId));
+    },
+    [queue, snapshotOf],
   );
 
+  const flushAll = useCallback(() => {
+    for (const question of data.questions) guardar(question.id);
+    return queue.settled();
+  }, [data.questions, guardar, queue]);
+
+  // O que ainda não saiu não pode ficar só neste separador: ao esconder ou fechar a
+  // página, e pouco antes de o tempo acabar, tudo o que está por enviar é enviado.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') void flushAll(); };
+    const onPageHide = () => void flushAll();
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+      for (const timer of timers.current.values()) clearTimeout(timer);
+    };
+  }, [flushAll]);
+
+  const flushedAtEnd = useRef(false);
+  useEffect(() => {
+    if (left !== null && left <= FLUSH_BEFORE_END_MS && !flushedAtEnd.current) {
+      flushedAtEnd.current = true;
+      void flushAll();
+    }
+  }, [left, flushAll]);
+
+  // Avisos falados aos 5 e a 1 minuto: o cronómetro visual não chega a quem usa
+  // leitor de ecrã, e `role="timer"` não anuncia por si.
+  const bucket = left === null ? null : left <= 0 ? 0 : left <= 60_000 ? 1 : left <= 300_000 ? 5 : 99;
+  useEffect(() => {
+    if (bucket === 5) setAnnouncement('Faltam 5 minutos para o fim da prova.');
+    else if (bucket === 1) setAnnouncement('Falta 1 minuto para o fim da prova.');
+    else if (bucket === 0) setAnnouncement('O tempo da prova terminou.');
+  }, [bucket]);
+
+  /** The map follows what the SERVER confirmed. A question whose latest value is not
+   *  on the server (in flight, or failed) is `unsaved`, never `done`. */
+  const unsaved = new Set(questions.filter((q) => queue.dirty(q.id, snapshotOf(q.id))).map((q) => q.id));
+  const answered = new Set(
+    questions.filter((q) => !unsaved.has(q.id) && isAnswered(q, drafts[q.id])).map((q) => q.id),
+  );
+  const failed = queue.failed();
+  const saving = queue.busy() || unsaved.size > 0;
+
   function patch(questionId: number, change: Partial<Draft>) {
-    setDrafts((prev) => ({ ...prev, [questionId]: { ...prev[questionId], ...change } }));
-  }
-
-  /** Writes the answer to the server. The draft is passed in rather than read from
-   *  state: a tap calls `patch` and `guardar` in the same tick, so the state the
-   *  closure sees is the one from before the tap, and the option just chosen would
-   *  be lost. Choices go on the tap; open text goes when the student leaves the
-   *  question — a request per keystroke is the wrong shape for an answer that is
-   *  still being written. */
-  function guardar(question: ExamQuestion, draft: Draft | undefined = drafts[question.id]) {
-    if (!draft || closed) return;
-    if (!isAnswered(question, draft) && draft.answerId === null) return;
-
-    const form = new FormData();
-    form.set('simulationId', String(data.simulationId));
-    form.set('statementId', String(data.statementId));
-    form.set('questionId', String(question.id));
-    form.set('optionId', draft.optionId === null ? '' : String(draft.optionId));
-    form.set('answerText', draft.text);
-    form.set('answerId', draft.answerId === null ? '' : String(draft.answerId));
-
-    startSave(async () => {
-      const result = await responderAction(undefined, form);
-      setFeedback((prev) => ({ ...prev, [question.id]: result }));
-      if (result?.status === 'saved') patch(question.id, { answerId: result.answerId });
-    });
+    const next = { ...draftsRef.current, [questionId]: { ...snapshotOf(questionId), ...change } };
+    draftsRef.current = next;
+    setDrafts(next);
   }
 
   function sairDaQuestao() {
-    if (current) guardar(current);
+    if (current) guardar(current.id);
+  }
+
+  function writeText(questionId: number, text: string) {
+    patch(questionId, { text });
+    const previous = timers.current.get(questionId);
+    if (previous) clearTimeout(previous);
+    timers.current.set(questionId, setTimeout(() => guardar(questionId), TEXT_DEBOUNCE_MS));
+  }
+
+  function retryAll() {
+    for (const id of queue.failed()) void queue.retry(id);
   }
 
   function toggleFlag(questionId: number) {
@@ -207,11 +315,11 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
       return next;
     });
   }
+
   function openConfirm() {
-    // O texto aberto só é gravado ao sair da questão, por isso a saída é forçada
-    // antes de confirmar: caso contrário a última resposta escrita não chegava ao
-    // servidor e a prova saía sem ela.
-    sairDaQuestao();
+    // Tudo o que está por enviar sai antes de confirmar: caso contrário a última
+    // resposta escrita não chegava ao servidor e a prova saía sem ela.
+    void flushAll();
     setConfirming(true);
   }
 
@@ -256,6 +364,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
         </div>
         <Button variant="outline" size="sm" onClick={openConfirm} disabled={closed}>Entregar</Button>
       </header>
+      <p className="sr-only" role="status" aria-live="assertive">{announcement}</p>
 
       <div className="mx-auto grid w-full max-w-[1040px] flex-1 items-start gap-6 p-4 md:grid-cols-[minmax(0,1fr)_280px] md:p-6">
         <div className="grid min-w-0 gap-4">
@@ -269,9 +378,12 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           {confirming && (
             <Confirmar
               unanswered={questions.length - answered.size}
+              saving={saving && failed.length === 0}
+              failed={failed.length}
               pending={submitting}
               error={submitState?.error}
               onCancel={fecharConfirm}
+              onRetry={retryAll}
             />
           )}
 
@@ -280,7 +392,11 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               <p className="text-[15px] font-bold text-destructive">O tempo desta prova terminou</p>
               <p className="text-sm text-muted-foreground">
                 O servidor já não aceita respostas. Entrega o que está guardado para veres a nota.
+                {unsaved.size > 0 && ` ${unsaved.size === 1 ? '1 resposta' : `${unsaved.size} respostas`} não chegou ao servidor e vai ficar de fora.`}
               </p>
+              {submitState?.error && (
+                <p role="alert" className="text-[13px] font-medium text-destructive">{submitState.error}</p>
+              )}
               <Button type="submit" form={SUBMIT_FORM} size="sm" className="mt-2 justify-self-start" disabled={submitting}>
                 Entregar o que está guardado
               </Button>
@@ -295,7 +411,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             <p id="q-text" className="max-w-[60ch] text-[17px] leading-relaxed md:text-[19px]">{current.text}</p>
 
             {isChoice(current) ? (
-              <fieldset className="grid gap-2.5" aria-label="Respostas" disabled={closed}>
+              <fieldset className="grid gap-2.5" aria-labelledby="q-text" disabled={closed}>
                 {current.options.map((option, i) => (
                   <label
                     key={option.id}
@@ -307,9 +423,8 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                       name={`opcao-${current.id}`}
                       checked={drafts[current.id]?.optionId === option.id}
                       onChange={() => {
-                        const draft = { ...drafts[current.id], optionId: option.id };
                         patch(current.id, { optionId: option.id });
-                        guardar(current, draft);
+                        guardar(current.id);
                       }}
                     />
                     <span className="grid size-7 shrink-0 place-items-center rounded-full border-[1.5px] border-input text-[13px] font-bold text-muted-foreground peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground">
@@ -327,22 +442,31 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                   rows={5}
                   value={drafts[current.id]?.text ?? ''}
                   disabled={closed}
-                  onChange={(e) => patch(current.id, { text: e.target.value })}
+                  onChange={(e) => writeText(current.id, e.target.value)}
                   onBlur={sairDaQuestao}
                 />
                 <p className="text-[13px] text-muted-foreground">As respostas abertas são corrigidas pelo professor.</p>
               </div>
             )}
 
-            <p aria-live="polite" role="status" className="min-h-5 text-sm text-muted-foreground">
-              {feedback[current.id]?.status === 'error'
-                ? feedback[current.id]?.error
-                : feedback[current.id]?.status === 'saved'
-                  ? pendingSave
-                    ? 'A guardar…'
-                    : 'Resposta guardada. Podes mudá-la até entregares a prova.'
-                  : ''}
-            </p>
+            <div aria-live="polite" role="status" className="flex min-h-5 flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              {(() => {
+                const state = queue.status(current.id);
+                if (state.status === 'error') {
+                  return (
+                    <>
+                      <span className="text-destructive">{state.error ?? 'Não foi possível guardar.'}</span>
+                      <Button type="button" variant="outline" size="sm" onClick={() => void queue.retry(current.id)}>
+                        <RefreshCw aria-hidden />Tentar de novo
+                      </Button>
+                    </>
+                  );
+                }
+                if (state.status === 'saving') return 'A guardar…';
+                if (unsaved.has(current.id)) return 'Por guardar…';
+                return answered.has(current.id) ? 'Resposta guardada. Podes mudá-la até entregares a prova.' : '';
+              })()}
+            </div>
 
             {data.images[current.id]?.length > 0 && (
               <div className="grid gap-2">
@@ -393,7 +517,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           <CardContent className="grid gap-3.5">
             <div className="grid grid-cols-6 gap-2">
               {questions.map((question, i) => {
-                const status = cellState(question.id, answered, flagged);
+                const status = cellState(question.id, answered, flagged, unsaved);
                 return (
                   <button
                     key={question.id}
@@ -409,7 +533,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               })}
             </div>
             <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
-              {(['done', 'flag', 'empty'] as const).map((key) => (
+              {(['done', 'flag', 'empty', 'unsaved'] as const).map((key) => (
                 <span key={key} className="inline-flex items-center gap-1.5">
                   <i className={cn('inline-block size-2.5 rounded-[3px] border', CELL[key])} aria-hidden />
                   {CELL_TEXT[key]}

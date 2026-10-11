@@ -141,32 +141,54 @@ export function savedAnswerFor(
   return answers.find((a) => a.simulationId === simulationId && a.questionId === questionId);
 }
 
-export type CellState = 'done' | 'flag' | 'empty';
+export type CellState = 'done' | 'flag' | 'empty' | 'unsaved';
 
-/** A cell of the map: flagged wins over answered, because "mark for review" is a
- *  statement about the student's intent to come back, and answered alone would
- *  hide a question they wanted to see again. */
+/** A cell of the map. `answered` is what the SERVER has confirmed, never the local
+ *  draft: a cell that says "respondida" for an answer that is still in flight, or
+ *  that failed, would let the student hand in an incomplete proof believing nothing
+ *  is missing. A question whose answer is not safe yet shows as `unsaved`, ahead of
+ *  everything else, because it is the one state the student has to act on.
+ *
+ *  Flagged wins over answered: "mark for review" is a statement about the student's
+ *  intent to come back, and answered alone would hide a question they wanted to see
+ *  again. */
 export function cellState(
   questionId: number,
   answered: ReadonlySet<number>,
   flagged: ReadonlySet<number>,
+  unsaved: ReadonlySet<number> = new Set(),
 ): CellState {
+  if (unsaved.has(questionId)) return 'unsaved';
   if (flagged.has(questionId)) return 'flag';
   if (answered.has(questionId)) return 'done';
   return 'empty';
 }
 
+/** The backend's wall clock is Angola's, UTC+1 all year (no daylight saving). Its
+ *  LocalDateTime fields carry no zone, so the offset has to come from here. */
+export const SERVER_OFFSET = '+01:00';
+
+/** Reads a timestamp the backend sent. A value without a zone is the server's wall
+ *  clock, so it is read with the explicit offset and not in whatever zone the browser
+ *  happens to be in: a phone set to another zone would otherwise count down hours too
+ *  many or too few. A value that already names a zone (`Z`, `+hh:mm`) is left alone.
+ *  Returns NaN for what does not parse. */
+export function parseServerTime(value: string): number {
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim());
+  return Date.parse(hasZone ? value : `${value}${SERVER_OFFSET}`);
+}
+
 /**
  * Milliseconds left until the deadline, or null when there is no deadline.
  *
- * The backend sends LocalDateTime without a zone, and a string without an offset
- * is read as local time — the same wall clock the server reasoned with. A value
- * that does not parse yields null rather than a guess: showing a wrong countdown
- * is worse than showing none, and the server refuses late answers either way.
+ * The backend sends LocalDateTime without a zone; it is read as the server's wall
+ * clock (`parseServerTime`). A value that does not parse yields null rather than a
+ * guess: showing a wrong countdown is worse than showing none, and the server
+ * refuses late answers either way.
  */
 export function remainingMs(deadline: string | null | undefined, now: number): number | null {
   if (!deadline) return null;
-  const at = Date.parse(deadline);
+  const at = parseServerTime(deadline);
   if (Number.isNaN(at)) return null;
   return at - now;
 }
@@ -231,4 +253,34 @@ export function acceptsAnswers(
   if ((simulation.status ?? '').toUpperCase() !== 'IN_PROGRESS') return false;
   const left = remainingMs(simulation.deadline, now);
   return left === null || left > 0;
+}
+
+/** The backend answers in English, and the student reads Portuguese. Only the
+ *  messages the room can actually provoke are translated; anything else is shown as
+ *  the server sent it, which beats a generic sentence that hides the cause. */
+const KNOWN_ERRORS: [RegExp, string][] = [
+  [/already been answered/i, 'Esta questão já tinha uma resposta. A guardar de novo…'],
+  [/time allowed.*expired/i, 'O tempo desta prova terminou.'],
+  [/no longer accepts answers/i, 'Esta prova já não aceita respostas.'],
+  [/already been submitted/i, 'Esta prova já foi entregue.'],
+  [/open questions cannot select an option/i, 'Esta questão é de resposta escrita: não aceita uma opção.'],
+  [/currently assigned to an exam room/i, 'Esta prova está atribuída a uma sala de prova e só se faz lá.'],
+  [/does not belong to the authenticated account/i, 'Esta tentativa não é da tua conta.'],
+  [/statement not found/i, 'Esta prova já não está disponível.'],
+  [/simulation not found/i, 'Não encontrámos esta tentativa.'],
+];
+
+export function translateError(message: string): string {
+  return KNOWN_ERRORS.find(([pattern]) => pattern.test(message))?.[1] ?? message;
+}
+
+/** Whether a failed write is worth trying again: the network or the server had a bad
+ *  moment (status 0 or 5xx), as opposed to a refusal that a repeat cannot change. */
+export function isTransient(status: number): boolean {
+  return status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
+/** Wait before retry number `attempt` (1-based): 1s, 2s, 4s, capped at 8s. */
+export function backoffMs(attempt: number): number {
+  return Math.min(8000, 1000 * 2 ** Math.max(0, attempt - 1));
 }

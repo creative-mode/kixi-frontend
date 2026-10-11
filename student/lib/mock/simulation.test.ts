@@ -149,3 +149,10 @@ test('a nota final é a soma das cotações, em fração decimal', () => {
   // 2 + 0 (a aberta não pontua) + 0 = 2. Uma aberta por corrigir não pesa para baixo.
   assert.equal(finalScore(answers), 2);
 });
+
+test('o LocalDateTime do mock é a hora do servidor (+01:00), seja qual for o fuso do processo', () => {
+  assert.equal(toLocalDateTime(new Date('2026-10-11T09:30:00Z')), '2026-10-11T10:30:00');
+  // Ida e volta: o prazo calculado lê-se de volta no mesmo instante.
+  const deadline = deadlineFor('2026-10-11T10:00:00', 1, false);
+  assert.equal(deadline, '2026-10-11T10:01:10');
+});

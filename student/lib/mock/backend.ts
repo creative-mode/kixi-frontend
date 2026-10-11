@@ -12,6 +12,7 @@ import {
 } from './simulation';
 
 import crypto from 'node:crypto';
+import { parseServerTime } from '../exam-rules';
 import type {
   Course,
   Enrollment,
@@ -294,7 +295,7 @@ function seed(): Store {
     // ficou em vez de recomeçar: um POST novo na mesma pergunta daria 409.
     answers: [
       {
-        id: 1, simulationId: 2, questionId: 11, selectedOptionId: 112, answerText: null,
+        id: 1, simulationId: 2, questionId: 1, selectedOptionId: 12, answerText: null,
         scoreObtained: null, isCorrect: null, reviewStatus: null, answeredAt: null,
       },
     ],
@@ -441,6 +442,20 @@ function editableGuard(db: Store, simulationId: number, accountId: number): Resp
   return null;
 }
 
+/** validateSelectedOption: uma questão `open` ou `development` recusa uma opção com
+ *  400, MESMO quando tem opções — o backend contradiz-se, porque a correcção decide
+ *  por haver opções e esta validação decide pelo tipo. O mock reproduz-o para a sala
+ *  não passar só aqui e falhar contra o backend real. */
+function optionRefusal(db: Store, questionId: number, selectedOptionId: unknown): Response | null {
+  const question = db.questions.find((q) => q.id === questionId);
+  if (!question) return problem(404, 'Question not found');
+  const type = question.questionType.toLowerCase();
+  if (Number(selectedOptionId) && (type === 'open' || type === 'development')) {
+    return problem(400, 'Open questions cannot select an option');
+  }
+  return null;
+}
+
 /** Grades everything stored and closes the simulation, the way
  *  SimulationSubmissionService does on submit. */
 function closeSimulation(db: Store, row: SimulationRow): void {
@@ -452,7 +467,7 @@ function closeSimulation(db: Store, row: SimulationRow): void {
   row.finalScore = finalScore(answers);
   row.status = 'FINISHED';
   row.finishedAt = toLocalDateTime(new Date());
-  const start = row.startedAt ? Date.parse(row.startedAt) : null;
+  const start = row.startedAt ? parseServerTime(row.startedAt) : null;
   row.timeSpentSeconds =
     start === null || Number.isNaN(start)
       ? null
@@ -695,11 +710,12 @@ export async function mockHandle(
     const statementId = Number(body.statementId);
     // SimulationService.java:103-105: o accountId tem de ser o da conta
     // autenticada. Sem esta verificação o mock aceitaria criar em nome de outro.
-    if (staff && target !== account.id) {
+    if (!staff && target !== account.id) {
       return problem(403, 'A simulation can only be created for the authenticated account');
     }
     const statement = db.statements.find((s) => s.id === statementId);
-    if (!statement) return problem(404, 'Statement not found');
+    // Um aluno só começa uma prova que pode ler: publicada, senão 404 como no /full.
+    if (!statement || (!staff && !statement.visible)) return problem(404, 'Statement not found');
 
     const row: SimulationRow = {
       id: db.nextSimulation++,
@@ -726,7 +742,14 @@ export async function mockHandle(
     // Fora do dono é 404, não 403 (SimulationResultService.java:70-71): um aluno
     // não fica a saber de que lado está a tentativa de outra pessoa.
     if (!row) return problem(404, 'Simulation not found');
-    if (simulationMatch[2]) return json(simulationResult(db, row));
+    if (simulationMatch[2]) {
+      // SimulationResultService.java:83-90: o resultado só existe depois de FINISHED.
+      // É este 409 que esconde o gabarito durante a prova.
+      if (row.status !== 'FINISHED') {
+        return problem(409, 'The result is only available once the simulation is finished');
+      }
+      return json(simulationResult(db, row));
+    }
     return json(simulationResponse(db, row));
   }
 
@@ -758,6 +781,8 @@ export async function mockHandle(
     if (db.answers.some((a) => a.simulationId === simulationId && a.questionId === questionId)) {
       return problem(409, 'This question has already been answered in this simulation.');
     }
+    const refused = optionRefusal(db, questionId, body.selectedOptionId);
+    if (refused) return refused;
     const answer: MockAnswer = {
       id: db.nextAnswer++,
       simulationId,
@@ -783,6 +808,8 @@ export async function mockHandle(
     if (guard) return guard;
     // O enunciado não pode mudar de pergunta a meio: o PUT reescreve a linha com o
     // questionId que vem no corpo, e a chave única (simulação, pergunta) barra-o.
+    const refused = optionRefusal(db, existing.questionId, body.selectedOptionId);
+    if (refused) return refused;
     existing.selectedOptionId = Number(body.selectedOptionId) || null;
     existing.answerText =
       body.answerText === null || body.answerText === undefined ? null : String(body.answerText);

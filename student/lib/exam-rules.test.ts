@@ -14,7 +14,11 @@ import {
   formatClock,
   isChoice,
   orderQuestions,
+  backoffMs,
+  isTransient,
+  parseServerTime,
   remainingMs,
+  translateError,
   savedAnswerFor,
   timer,
   type ExamQuestion,
@@ -220,4 +224,36 @@ test('aceita respostas só em curso e antes do prazo', () => {
     false,
   );
   assert.equal(acceptsAnswers(null, now), false);
+});
+
+test('um prazo sem fuso lê-se na hora do servidor (+01:00), não na do aparelho', () => {
+  // 10:30 em Luanda são 09:30 UTC, seja qual for o fuso do telemóvel.
+  assert.equal(parseServerTime('2026-10-11T10:30:00'), Date.parse('2026-10-11T09:30:00Z'));
+  assert.equal(parseServerTime('2026-10-11T10:30:00Z'), Date.parse('2026-10-11T10:30:00Z'));
+  assert.equal(parseServerTime('2026-10-11T10:30:00-03:00'), Date.parse('2026-10-11T13:30:00Z'));
+  assert.ok(Number.isNaN(parseServerTime('lixo')));
+
+  const now = Date.parse('2026-10-11T09:00:00Z');
+  assert.equal(remainingMs('2026-10-11T10:30:00', now), 30 * 60 * 1000);
+});
+
+test('uma resposta por guardar aparece no mapa antes de tudo o resto', () => {
+  const answered = new Set([1]);
+  assert.equal(cellState(1, answered, new Set([1]), new Set([1])), 'unsaved');
+  assert.equal(cellState(2, answered, new Set(), new Set([2])), 'unsaved');
+  assert.equal(cellState(1, answered, new Set()), 'done');
+});
+
+test('os erros conhecidos do backend saem em português, os outros ficam como vieram', () => {
+  assert.equal(translateError('The time allowed for this simulation has expired'), 'O tempo desta prova terminou.');
+  assert.match(translateError('The statement is currently assigned to an exam room'), /sala de prova/);
+  assert.equal(translateError('Algo inesperado'), 'Algo inesperado');
+});
+
+test('só se repete o que pode correr melhor: rede e 5xx, não uma recusa', () => {
+  assert.equal(isTransient(0), true);
+  assert.equal(isTransient(503), true);
+  assert.equal(isTransient(400), false);
+  assert.equal(isTransient(409), false);
+  assert.deepEqual([1, 2, 3, 4, 9].map(backoffMs), [1000, 2000, 4000, 8000, 8000]);
 });

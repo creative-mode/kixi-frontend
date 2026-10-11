@@ -14,6 +14,8 @@
  *  - `SimulationResultService.java:83-90`: the result exists only once FINISHED.
  */
 
+import { parseServerTime } from '../exam-rules.ts';
+
 /** SimulationTimeLimitProperties.toleranceSeconds. */
 export const TOLERANCE_SECONDS = 10;
 
@@ -21,13 +23,12 @@ const SECONDS_PER_MINUTE = 60;
 /** 1.25 * 60, in whole seconds. */
 const EXTRA_TIME_SECONDS_PER_MINUTE = 75;
 
-/** LocalDateTime without a zone, as Jackson serialises it: no `Z`, no offset. */
+/** LocalDateTime without a zone, as Jackson serialises it: no `Z`, no offset. It is
+ *  the SERVER's wall clock (UTC+1), whatever zone this process runs in, so the mock
+ *  and the browser agree on what an unzoned value means (`parseServerTime`). */
 export function toLocalDateTime(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-  );
+  const shifted = new Date(date.getTime() + 3600 * 1000);
+  return shifted.toISOString().slice(0, 19);
 }
 
 /**
@@ -42,7 +43,7 @@ export function deadlineFor(
   extraTime: boolean,
 ): string | null {
   if (!startedAt || durationMinutes === null || !Number.isFinite(durationMinutes)) return null;
-  const start = Date.parse(startedAt);
+  const start = parseServerTime(startedAt);
   if (Number.isNaN(start)) return null;
   const perMinute = extraTime ? EXTRA_TIME_SECONDS_PER_MINUTE : SECONDS_PER_MINUTE;
   const end = start + (durationMinutes * perMinute + TOLERANCE_SECONDS) * 1000;
@@ -52,7 +53,7 @@ export function deadlineFor(
 /** Whether the server would still take a write. */
 export function expired(deadline: string | null, now = Date.now()): boolean {
   if (!deadline) return false;
-  const at = Date.parse(deadline);
+  const at = parseServerTime(deadline);
   if (Number.isNaN(at)) return false;
   return at <= now;
 }

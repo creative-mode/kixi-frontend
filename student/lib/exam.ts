@@ -99,16 +99,31 @@ export async function startSimulation(
   return apiPost<Simulation>('/simulations', { accountId, statementId });
 }
 
+/** The student variant of a statement is the same for every student and only changes
+ *  when a teacher edits it, so each save does not need its own round trip for the
+ *  whole statement just to learn one question's type. A short cache keeps the tap
+ *  fast, which also narrows the window in which two saves can overlap. */
+const FULL_TTL_MS = 60_000;
+const fullCache = new Map<number, { at: number; data: StatementFull }>();
+
 /** GET /statements/{id}/full — the questions. For a STUDENT the backend serves the
  *  visible variant with the answer key stripped (StatementController.java:132-136),
  *  and a statement that is not published is not readable at all. */
-export async function getStatementFull(statementId: number): Promise<Result<StatementFull>> {
+export async function getStatementFull(
+  statementId: number,
+  { cached = false }: { cached?: boolean } = {},
+): Promise<Result<StatementFull>> {
+  const hit = fullCache.get(statementId);
+  if (cached && hit && Date.now() - hit.at < FULL_TTL_MS) return { ok: true, data: hit.data };
+
   const result = await apiGet<StatementFull>(`/statements/${statementId}/full`);
-  if (!result.ok) return result;
-  return {
-    ok: true,
-    data: { ...result.data, questions: orderQuestions(result.data.questions ?? []) },
-  };
+  if (!result.ok) {
+    fullCache.delete(statementId);
+    return result;
+  }
+  const data = { ...result.data, questions: orderQuestions(result.data.questions ?? []) };
+  fullCache.set(statementId, { at: Date.now(), data });
+  return { ok: true, data };
 }
 
 /** GET /simulation-answers — every active answer of the student, across attempts.
@@ -121,14 +136,24 @@ export async function listAnswers(): Promise<SavedAnswer[]> {
 
 /** Creates the answer the first time a question is touched, changes it afterwards.
  *  There is no upsert: a second POST for the same question is a 409
- *  (SimulationAnswerService.java:97), so `answerId` decides the verb. */
+ *  (SimulationAnswerService.java:97), so `answerId` decides the verb.
+ *
+ *  If the POST still comes back 409 — a row the browser never heard about, because
+ *  an earlier response was lost — the existing answer is looked up and the write is
+ *  repeated as a PUT, so the value the student chose is the one the server ends up
+ *  with instead of whichever request got there first. */
 export async function saveAnswer(
   body: AnswerRequest,
   answerId: number | null,
 ): Promise<Result<SavedAnswer>> {
-  return answerId === null
-    ? apiPost<SavedAnswer>('/simulation-answers', body)
-    : apiPut<SavedAnswer>(`/simulation-answers/${answerId}`, body);
+  if (answerId !== null) return apiPut<SavedAnswer>(`/simulation-answers/${answerId}`, body);
+
+  const created = await apiPost<SavedAnswer>('/simulation-answers', body);
+  if (created.ok || created.status !== 409) return created;
+
+  const existing = savedAnswerFor(await listAnswers(), body.simulationId, body.questionId);
+  if (!existing) return created;
+  return apiPut<SavedAnswer>(`/simulation-answers/${existing.id}`, body);
 }
 
 /** POST /simulations/{id}/submit — the server grades what is stored and closes the
