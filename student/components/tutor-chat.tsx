@@ -34,12 +34,14 @@ export function TutorChat({ statementId, paperTitle }: { statementId?: number; p
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs]);
 
-  const source = paperTitle ? `${paperTitle}${statementId ? ` · enunciado ${statementId}` : ''}` : undefined;
+  // Sem `source` de propósito: a conversa é a simulada de `lib/data.ts`, que responde
+  // sobre uma sub-rede fixa. Citar «enunciado 1» por cima dela apagaria que a resposta
+  // é deitada à mão. As fontes verdadeiras chegam com o tutor de streaming, na #28.
 
   const send = (value: string) => {
     const v = value.trim();
     if (!v) return;
-    setMsgs((m) => [...m, { from: 'student', text: v }, { from: 'tutor', source, text: 'Vamos por passos: a sub-rede seguinte começa onde a anterior termina. Qual é o último endereço do bloco de 64?' }]);
+    setMsgs((m) => [...m, { from: 'student', text: v }, { from: 'tutor', text: 'Vamos por passos: a sub-rede seguinte começa onde a anterior termina. Qual é o último endereço do bloco de 64?' }]);
     setText('');
   };
 
@@ -55,7 +57,7 @@ export function TutorChat({ statementId, paperTitle }: { statementId?: number; p
           title="Tutor"
           description={description}
         />
-        {statementId != null && (
+        {statementId != null && paperTitle && (
           <div className="-mt-2">
             <Button asChild variant="outline" size="sm">
               <Link href={`/prova/${statementId}/detalhe`}><FileText aria-hidden />Voltar à prova</Link>

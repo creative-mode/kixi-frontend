@@ -25,10 +25,21 @@ export const inProgress = (a: Attempt) => (a.status ?? '').toUpperCase() === 'IN
 
 export const isFinished = (a: Attempt) => (a.status ?? '').toUpperCase() === 'FINISHED';
 
+/** Cancelled by the student through `PUT /simulations/{id}`. */
+export const isCancelled = (a: Attempt) => (a.status ?? '').toUpperCase() === 'CANCELLED';
+
+/** Anything the backend adds later is treated as unfinished rather than finished:
+ *  claiming a score that is not there is worse than saying nothing. */
+export const settled = (a: Attempt) => isFinished(a) || isCancelled(a);
+
 /**
- * The attempt the card speaks about: the one in progress if there is one (there is
- * a paper to finish), otherwise the most recent. Never mixes a score from one
- * attempt with progress from another.
+ * The attempt the card and the detail both speak about: the one in progress if there
+ * is one (there is a paper to finish), otherwise the most recent. Never mixes a score
+ * from one attempt with progress from another.
+ *
+ * A cancelled attempt is settled, so it never becomes "the" attempt when a newer one
+ * exists — but it is not finished either, so a card never offers "Ver resultado" for
+ * an attempt that was never corrected.
  */
 export function currentAttempt(attempts: Attempt[]): Attempt | null {
   if (attempts.length === 0) return null;
@@ -50,6 +61,17 @@ export function history(attempts: Attempt[]): Attempt[] {
 export function formatScore(score: number | null | undefined): string | undefined {
   if (score == null) return undefined;
   return String(score).replace('.', ',');
+}
+
+/** What the screen calls an attempt. Kept here so the card and the detail cannot
+ *  disagree about it — which is how the same paper ends up "done" in one place and
+ *  "in progress" in the other. */
+export type AttemptLabel = 'corrected' | 'unfinished' | 'cancelled';
+
+export function labelOf(a: Attempt): AttemptLabel {
+  if (isCancelled(a)) return 'cancelled';
+  if (isFinished(a)) return 'corrected';
+  return 'unfinished';
 }
 
 /** "há 2 dias", from an ISO date. Absent or unparseable means we cannot say. */

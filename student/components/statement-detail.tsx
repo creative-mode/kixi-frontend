@@ -17,16 +17,19 @@ export function StatementDetailView({
   current,
 }: {
   summary: StatementSummaryView;
-  attempts: AttemptRow[];
+  /** null when the history could not be loaded: the banner below says so, rather than
+   *  the card claiming the student never attempted this. */
+  attempts: AttemptRow[] | null;
   current: AttemptRow | null;
 }) {
   const id = summary.id;
   const duration = summary.durationMinutes;
+  const list = attempts ?? [];
 
   return (
     <Page>
       <Column className="gap-5">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground">
+        <Button asChild variant="ghost" size="sm" className="-ml-2 self-start text-muted-foreground">
           <Link href="/provas"><ArrowLeft aria-hidden />Voltar às provas</Link>
         </Button>
 
@@ -37,7 +40,7 @@ export function StatementDetailView({
         />
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Como é esta prova</CardTitle></CardHeader>
+          <CardHeader><h2 className="leading-none font-bold tracking-tight text-base">Como é esta prova</h2></CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <Fact icon={FileText} label="Tipo" value={summary.kind} />
             <Fact icon={Target} label="Cotação" value={summary.totalMaxScore != null ? `${summary.totalMaxScore} valores` : undefined} />
@@ -65,7 +68,7 @@ export function StatementDetailView({
                   </span>
                 </div>
               </div>
-              <Button asChild className="w-full"><Link href={`/prova/${id}`}>{current && !current.finished ? 'Continuar' : 'Começar'}</Link></Button>
+              <Button asChild className="w-full"><Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar' : 'Começar'}</Link></Button>
             </Card>
 
             <Card className="gap-3 p-4">
@@ -87,33 +90,48 @@ export function StatementDetailView({
         </Card>
 
         <Card className="gap-0 py-0">
-          <CardHeader className="flex-row items-center gap-2.5 pb-3">
+          <CardHeader className="flex flex-row items-center gap-2.5 pb-3">
             <History className="size-4 text-muted-foreground" aria-hidden />
-            <CardTitle className="text-base">As tuas tentativas</CardTitle>
-            {attempts.length > 0 && <span className="ml-auto text-sm text-muted-foreground">{attempts.length}</span>}
+            <h2 className="leading-none font-bold tracking-tight text-base">As tuas tentativas</h2>
+            {list.length > 0 && <span className="ml-auto text-sm text-muted-foreground">{list.length}</span>}
           </CardHeader>
           <CardContent className="p-0">
-            {attempts.length === 0 ? (
+            {list.length === 0 ? (
               <EmptyState
-                title="Ainda não tentaste esta prova"
-                message="Quando a fizeres, aparece aqui com a nota e a data. Podes repeti-la as vezes que quiseres."
-                action={<Button asChild variant="outline"><Link href={`/prova/${id}`}>Fazer a prova</Link></Button>}
+                title={attempts ? "Ainda não tentaste esta prova" : "O teu histórico não está disponível"}
+                message={attempts
+                  ? "Quando a fizeres, aparece aqui com a nota e a data. Podes repeti-la as vezes que quiseres."
+                  : "Não conseguimos buscar as tuas tentativas agora. Tenta outra vez daqui a pouco."}
+                action={attempts ? <Button asChild variant="outline"><Link href={`/prova/${id}`}>Fazer a prova</Link></Button> : undefined}
               />
             ) : (
               <ul className="divide-y border-t">
-                {attempts.map((a) => (
+                {list.map((a) => (
                   <li key={a.id} className="flex items-center gap-3.5 px-5 py-3.5">
-                    <span className={`grid size-9 shrink-0 place-items-center rounded-full ${a.finished ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'}`}>
-                      {a.finished ? (a.score ?? '—') : 'Em curso'}
-                    </span>
+                    {/* A nota é curta e cabe num círculo; «Em curso» não cabia e
+                        transbordava. O estado agora vive num badge, que cresce. */}
+                    {a.label === 'corrected' ? (
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-sm font-bold text-success tabular-nums">
+                        {a.score ?? '—'}
+                      </span>
+                    ) : (
+                      <Badge variant={a.label === 'cancelled' ? 'secondary' : 'warning'}>
+                        {a.label === 'cancelled' ? 'Cancelada' : 'Em curso'}
+                      </Badge>
+                    )}
                     <div className="min-w-0 flex-1 leading-snug">
-                      <b className="block text-sm">{a.finished ? 'Prova corrigida' : 'Prova por terminar'}</b>
+                      <b className="block text-sm">
+                        {a.label === 'corrected' ? 'Prova corrigida' : a.label === 'cancelled' ? 'Prova cancelada' : 'Prova por terminar'}
+                      </b>
                       <span className="text-[13px] text-muted-foreground">
                         {a.since ?? 'sem data'}
-                        {a.finished && a.score != null ? ` · ${a.score} valores` : ''}
+                        {a.label === 'corrected' && a.score != null ? ` · ${a.score} valores` : ''}
+                        {a.label === 'cancelled' ? ' · não foi corrigida' : ''}
                       </span>
                     </div>
-                    {!a.finished && (
+                    {/* Uma tentativa cancelada não tem nada para continuar: o botão
+                        era o que a mostrava como «por terminar». */}
+                    {a.label === 'unfinished' && (
                       <Button asChild variant="outline" size="sm"><Link href={`/prova/${id}`}>Continuar</Link></Button>
                     )}
                   </li>

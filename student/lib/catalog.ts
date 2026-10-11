@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { apiGet } from './api';
+import { currentAttempt, formatScore, isFinished, type Attempt } from './attempt-history';
 
 /** Item do catálogo como o backend devolve (StatementSummary): só ids, sem nomes.
  *  Os nomes vêm de /subjects, /school-years e /institutions, carregados uma vez. */
@@ -91,22 +92,6 @@ export async function getCatalogNames(): Promise<{
   };
 }
 
-/** Regra do cartão, escrita no código porque é escolha de produto: o cartão é
- *  sobre o enunciado, e perante várias tentativas mostra a IN_PROGRESS (há uma
- *  prova por terminar); sem ela, mostra a tentativa mais recente. Nunca mistura
- *  nota de uma tentativa com progresso de outra.
- *
- *  Exportada porque o ecrã de detalhe (#19) mostra o histórico inteiro, e tem de
- *  escolher a mesma tentativa que o cartão — senão a mesma prova aparece em
- *  curso no cartão e terminada no detalhe. */
-export function pickAttempt(attempts: CatalogSimulation[]): CatalogSimulation | null {
-  if (attempts.length === 0) return null;
-  return (
-    attempts.find((a) => (a.status ?? '').toUpperCase() === 'IN_PROGRESS') ??
-    attempts.reduce((a, b) => (b.id > a.id ? b : a))
-  );
-}
-
 /** Catálogo real, paginado no backend. Sem fallback: se o catálogo falhar,
  *  a página mostra erro em vez de uma lista que parece certa e não é a do aluno. */
 export async function getCatalog(
@@ -145,8 +130,11 @@ export async function getCatalog(
   }
 
   const items = (result.data.content ?? []).map((s) => {
-    const attempt = pickAttempt(attempts.get(Number(s.id)) ?? []);
-    const finished = attempt && (attempt.status ?? '').toUpperCase() !== 'IN_PROGRESS';
+    // `currentAttempt` vem de `attempt-history.ts`, o mesmo módulo que o detalhe (#19)
+    // usa. Estava reimplementado aqui e as duas cópias já discordavam numa tentativa
+    // CANCELLED: o cartão dizia «Ver resultado» e o detalhe «Em curso». Uma regra só.
+    const attempt = currentAttempt((attempts.get(Number(s.id)) ?? []) as Attempt[]);
+    const finished = attempt ? isFinished(attempt) : false;
     return {
       id: String(s.id),
       kind: s.examType || 'Prova',
@@ -155,9 +143,7 @@ export async function getCatalog(
       school: s.institutionId == null ? '' : (schoolById.get(s.institutionId) ?? ''),
       year: s.schoolYearId == null ? '' : (yearById.get(s.schoolYearId) ?? ''),
       state: !attempt ? 'new' : finished ? 'done' : 'progress',
-      score: finished && attempt.finalScore != null
-        ? String(attempt.finalScore).replace('.', ',')
-        : undefined,
+      score: finished ? formatScore(attempt?.finalScore) : undefined,
     } satisfies CatalogItem;
   });
 

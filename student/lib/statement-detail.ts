@@ -2,7 +2,7 @@ import 'server-only';
 
 import { apiGet } from './api';
 import { getCatalogNames, type Named } from './catalog';
-import { currentAttempt, history, sinceLabel, type Attempt } from './attempt-history';
+import { currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
 
 /** What `GET /statements/{id}` answers: a StatementSummary. No questions, no options,
  *  and no answer key — `StatementOcrResponse.from` withholds `isCorrect` from anyone
@@ -33,13 +33,18 @@ export interface StatementSummaryView {
 
 export interface AttemptRow {
   id: number;
-  finished: boolean;
+  /** 'corrected' | 'unfinished' | 'cancelled' — from `labelOf`, the same rule the card uses. */
+  label: AttemptLabel;
   score?: string;
   since?: string;
 }
 
 export type StatementDetailResult =
   | { kind: 'ok'; summary: StatementSummaryView; attempts: AttemptRow[]; current: AttemptRow | null }
+  /** The statement came, but the attempts did not. Distinct from 'ok' with an empty
+   *  list on purpose: saying «ainda não tentaste» when the request failed is telling
+   *  the student something false about their own work, and they would act on it. */
+  | { kind: 'partial'; summary: StatementSummaryView; message: string }
   /** The statement is not there, or not visible to this student. The backend answers
    *  404 for both, and the difference is not the student's business. */
   | { kind: 'missing' }
@@ -52,12 +57,13 @@ const nameOf = (list: Named[], id: number | null | undefined) =>
   id == null ? '' : (list.find((n) => n.id === id)?.name ?? '');
 
 function toRow(attempt: Attempt): AttemptRow {
-  const finished = (attempt.status ?? '').toUpperCase() === 'FINISHED';
+  const label = labelOf(attempt);
   return {
     id: attempt.id,
-    finished,
-    // Uma nota de zero é uma nota: só a ausente é ausente.
-    score: finished && attempt.finalScore != null ? String(attempt.finalScore).replace('.', ',') : undefined,
+    label,
+    // Uma nota de zero é uma nota: só a ausente é ausente. E uma tentativa cancelada
+    // nunca tem nota, porque nunca foi corrigida.
+    score: label === 'corrected' ? formatScore(attempt.finalScore) : undefined,
     since: sinceLabel(attempt.startedAt),
   };
 }
@@ -85,27 +91,30 @@ export async function getStatementDetail(id: number): Promise<StatementDetailRes
     return { kind: 'unknown', message: statement.message };
   }
 
-  const mine = simulations.ok && Array.isArray(simulations.data)
-    ? simulations.data.filter((s) => Number(s.statement?.id) === id)
-    : [];
-  const attempts = history(mine).map(toRow);
-  const current = mine.length > 0 ? toRow(currentAttempt(mine)!) : null;
+  const s0 = statement.data;
+  const summary: StatementSummaryView = {
+    id: s0.id,
+    title: s0.title || 'Sem título',
+    kind: s0.examType || 'Prova',
+    subject: nameOf(names.subjects, s0.subjectId),
+    school: nameOf(names.schools, s0.institutionId),
+    year: nameOf(names.years, s0.schoolYearId),
+    durationMinutes: s0.durationMinutes ?? undefined,
+    totalMaxScore: s0.totalMaxScore ?? undefined,
+  };
 
-  const s = statement.data;
+  if (!simulations.ok) {
+    return { kind: 'partial', summary, message: simulations.message };
+  }
+
+  const mine = Array.isArray(simulations.data)
+    ? simulations.data.filter((x) => Number(x.statement?.id) === id)
+    : [];
   return {
     kind: 'ok',
-    summary: {
-      id: s.id,
-      title: s.title || 'Sem título',
-      kind: s.examType || 'Prova',
-      subject: nameOf(names.subjects, s.subjectId),
-      school: nameOf(names.schools, s.institutionId),
-      year: nameOf(names.years, s.schoolYearId),
-      durationMinutes: s.durationMinutes ?? undefined,
-      totalMaxScore: s.totalMaxScore ?? undefined,
-    },
-    attempts,
-    current,
+    summary,
+    attempts: history(mine).map(toRow),
+    current: mine.length > 0 ? toRow(currentAttempt(mine)!) : null,
   };
 }
 

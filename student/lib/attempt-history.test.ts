@@ -7,6 +7,8 @@ import {
   history,
   inProgress,
   isFinished,
+  labelOf,
+  settled,
   sinceLabel,
   type Attempt,
 } from './attempt-history.ts';
@@ -77,4 +79,53 @@ test('uma data ausente ou ilegível não vira "agora mesmo"', () => {
 test('uma data no futuro não dá um tempo negativo', () => {
   const futuro = new Date(Date.now() + 5 * 60_000).toISOString();
   assert.equal(sinceLabel(futuro), 'agora mesmo');
+});
+
+// ── CANCELLED ────────────────────────────────────────────────────────────────
+// O aluno cancela uma tentativa com `PUT /simulations/{id}`, e aí o cartão e o
+// detalhe discordavam: o cartão contava-a como terminada («Ver resultado») porque
+// usava `status !== 'IN_PROGRESS'`, e o detalhe só via FINISHED, portanto dizia
+// «Em curso» e oferecia Continuar para uma prova que já não existia.
+
+test('uma tentativa cancelada é cancelada, nem terminada nem em curso', () => {
+  const cancelada: Attempt = { id: 1, status: 'CANCELLED', finalScore: null };
+  assert.equal(labelOf(cancelada), 'cancelled');
+  assert.equal(isFinished(cancelada), false);
+  assert.equal(inProgress(cancelada), false);
+  assert.equal(settled(cancelada), true);
+});
+
+test('cancelada e terminada partilham o mesmo rótulo', () => {
+  assert.equal(labelOf(done(1)), 'corrected');
+  assert.equal(labelOf(running(1)), 'unfinished');
+  // Só CANCELLED: o backend escreve o estado em maiúsculas e com dois L.
+  assert.equal(labelOf({ id: 1, status: 'canceled' }), 'unfinished');
+  assert.equal(labelOf({ id: 1, status: 'CANCELLED' }), 'cancelled');
+});
+
+test('uma tentativa cancelada nunca tem nota', () => {
+  // Nem o servidor a dá: uma prova por cancelar não foi corrigida.
+  const cancelada: Attempt = { id: 1, status: 'CANCELLED', finalScore: 15 };
+  assert.equal(labelOf(cancelada), 'cancelled');
+  // E o detalhe só mostra nota quando o rótulo é 'corrected'.
+  assert.equal(labelOf(cancelada), 'cancelled');
+});
+
+test('cancelada nunca passa a ser a tentativa actual se há uma mais recente', () => {
+  const maisAntiga: Attempt = { id: 1, status: 'CANCELLED', finalScore: null };
+  const maisRecente = done(2);
+  assert.equal(currentAttempt([maisAntiga, maisRecente])?.id, 2);
+  assert.equal(labelOf(currentAttempt([maisAntiga, maisRecente])!), 'corrected');
+});
+
+test('a tentativa em curso ganha mesmo a uma cancelada mais recente', () => {
+  // Há um papel por terminar: é esse que o cartão e o detalhe falam.
+  assert.equal(currentAttempt([{ id: 5, status: 'CANCELLED' }, running(9)])?.id, 9);
+});
+
+test('um estado que o servidor invente não é dado como terminado', () => {
+  // Um estado novo amanhã não pode trazer uma nota que não existe. Melhor dizer
+  // «em curso» do que mentir sobre uma correção.
+  assert.equal(labelOf({ id: 1, status: 'SOMETHING_NEW' }), 'unfinished');
+  assert.equal(settled({ id: 1, status: 'SOMETHING_NEW' }), false);
 });

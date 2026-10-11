@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { canOpenChat, findVisible, summaryOf, type DetailRow } from './statement-detail.ts';
+import { findVisible, summaryOf, type DetailRow } from './statement-detail.ts';
 
 const row = (over: Partial<DetailRow> = {}): DetailRow => ({
   id: 1,
@@ -13,6 +13,8 @@ const row = (over: Partial<DetailRow> = {}): DetailRow => ({
   classId: 1,
   durationMinutes: 90,
   totalMaxScore: 20,
+  termId: 2,
+  needsReview: false,
   visible: true,
   ...over,
 });
@@ -34,21 +36,28 @@ test('o resumo não leva o gabarito nem os enunciados', () => {
   assert.equal(summary.title, 'Redes de Computadores');
   assert.equal(summary.durationMinutes, 90);
   assert.equal(summary.totalMaxScore, 20);
-  // needsReview e ocrConfidence são null para quem não pode editar o enunciado, e não
-  // há campo de gabarito nenhum: o summary é o que o catálogo já devolvia.
-  assert.equal(summary.needsReview, null);
+  // needsReview e ocrConfidence viajam como o backend os manda no summary. O mock
+  // escondia-os aos alunos e o teste confirmava isso, mais um sítio onde mock e backend
+  // discordavam: so o `/full` esconde o ocrConfidence.
+  assert.equal(summary.needsReview, false);
   assert.equal(summary.ocrConfidence, null);
   assert.equal('questions' in summary, false);
   assert.equal('options' in summary, false);
+  // O `termId` faltava: faz parte do StatementSummary e o mock nao o mandava.
+  assert.equal(summary.termId, 2);
 });
 
-test('a sessão de chat exige um enunciado que o aluno pode ler', () => {
-  // statementId é @NotNull: não existe tutor sem papel. E um id que não é número
-  // é recusado antes de chegar a lado nenhum.
-  assert.equal(canOpenChat([row()], 1), true);
-  assert.equal(canOpenChat([row()], 99), false);
-  assert.equal(canOpenChat([row({ visible: false })], 1), false);
-  assert.equal(canOpenChat([row()], null), false);
-  assert.equal(canOpenChat([row()], '1'), false);
-  assert.equal(canOpenChat([row()], 1.5), false);
+test('o catálogo só lista o que está publicado', () => {
+  // Com a linha única, uma prova oculta vive na mesma tabela que as do catálogo. O
+  // `StatementCatalogService` só devolve `visible = true`, e o mock tem de fazer o
+  // mesmo: senão o aluno via no catálogo uma prova que o detalhe diz que não existe.
+  const rows = [
+    row({ id: 1 }),
+    row({ id: 2 }),
+    row({ id: 4, title: 'Rascunho', visible: false }),
+  ];
+  const publicados = rows.filter((r) => r.visible).map((r) => r.id);
+  assert.deepEqual(publicados, [1, 2]);
+  // E a oculta continua a dar 404 pelo id, como se nunca tivesse existido.
+  assert.equal(findVisible(rows, 4), null);
 });
