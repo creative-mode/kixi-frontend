@@ -36,7 +36,7 @@ const SHORTCUTS = [
   },
   {
     href: '/exam-builder',
-    label: 'Criar sala',
+    label: 'Montar prova',
     description: 'Monte a prova no modelo da escola, pronta a imprimir.',
     icon: FilePen,
   },
@@ -131,9 +131,9 @@ export default function TeacherHome() {
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div>
               <CardTitle className="text-lg font-semibold text-foreground">
-                Últimas salas
+                Últimas simulações
               </CardTitle>
-              <CardDescription>Simulações mais recentes dos estudantes.</CardDescription>
+              <CardDescription>As mais recentes dos alunos, nas suas provas.</CardDescription>
             </div>
             <Button asChild variant="ghost" size="sm">
               <Link href="/simulations">
@@ -164,7 +164,7 @@ export default function TeacherHome() {
                       colSpan={simulations.columns.length}
                       className="py-12 text-center text-sm text-muted-foreground"
                     >
-                      Ainda não há salas.
+                      Ainda não há simulações nas suas provas.
                     </TableCell>
                   </TableRow>
                 ) : (

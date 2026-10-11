@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
+import { resetTeacherScope } from "@/hooks/use-teacher-scope";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 
@@ -42,7 +43,9 @@ const allNavLinks = [
   }),
 ];
 
-const TEACHER_HREFS = ["/statements", "/simulations", "/simulation-answers", "/classes"];
+// Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
+// lista mandava o professor de volta ao início.
+const TEACHER_HREFS = ["/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink = {
   href: "/professor",
@@ -202,7 +205,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
                 <div className="md:hidden">
                   <UserDisplay />
                 </div>
-                <Button variant="destructive" size="lg" className="ml-auto" onClick={() => logoutAction()}>
+                <Button variant="destructive" size="lg" className="ml-auto" onClick={() => { resetTeacherScope(); logoutAction(); }}>
                   <LogOut size={18} />
                   Sair do sistema
                 </Button>

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { deleteRow, listOptions, listRows } from '@/app/actions/crud';
 import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
-import { classInScope, simulationInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
+import { answerInScope, classInScope, simulationInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { AccountRoles } from './account-roles';
 import { InstitutionMembers } from './institution-members';
 import { TeacherAccess } from './teacher-access';
@@ -64,11 +64,12 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   }, [entityKey, entity]);
 
   const scoped = useMemo(() => {
-    // Sem scope resolvido, `rows` continua null e a lista mostra o esqueleto:
-    // filtrar aqui daria uma lista vazida antes de a resposta do scope chegar.
-    if (!rows || !scope) return rows;
+    // Sem scope resolvido fica null, e a lista continua no esqueleto: devolver
+    // `rows` aqui mostrava a escola inteira até o scope chegar.
+    if (!rows || !scope) return null;
     if (entityKey === 'classes') return rows.filter((r) => classInScope(scope, r));
     if (entityKey === 'simulations') return rows.filter((r) => simulationInScope(scope, r));
+    if (entityKey === 'simulation-answers') return rows.filter((r) => answerInScope(scope, r));
     return rows;
   }, [rows, scope, entityKey]);
 
@@ -141,9 +142,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows === null ? (
-                <TableRowsSkeleton cols={cols} />
-              ) : error ? (
+              {error ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-12 text-center">
                     <p className="mb-3 text-sm text-destructive">{error}</p>
@@ -158,7 +157,9 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                     </p>
                   </TableCell>
                 </TableRow>
-              ) : shown && shown.length === 0 ? (
+              ) : shown === null ? (
+                <TableRowsSkeleton cols={cols} />
+              ) : shown.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-16 text-center text-muted-foreground">
                     <p className="mb-3 text-sm">{query ? 'Nada corresponde à pesquisa.' : `Ainda não há ${entity.plural.toLowerCase()}.`}</p>
@@ -172,7 +173,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                   </TableCell>
                 </TableRow>
               ) : (
-                shown?.map((row) => (
+                shown.map((row) => (
                   <TableRow key={rowId(entity, row)} className="border-border transition-colors hover:bg-accent/50">
                     {entity.columns.map((c) => (
                       <TableCell key={c.label} className={c.className}>{c.value(row, labels)}</TableCell>

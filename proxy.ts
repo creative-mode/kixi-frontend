@@ -3,31 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
-import { canAccessManager, isStudentOnly, normalizeRoles, type Role } from '@/lib/roles';
-
-/** Rotas de administração: só o ADMIN as abre (contas, papéis, escolas, etc.). */
-const ADMIN_ONLY_ROUTES = [
-  '/school-year',
-  '/terms',
-  '/subjects',
-  '/courses',
-  '/institutions',
-  '/teachers',
-  '/teaching-assignments',
-  '/enrollments',
-  '/roles',
-  '/accounts',
-  '/users',
-  '/sessions',
-];
-
-/** Rotas que o professor pode abrir; tudo o resto da gestão é-lhe vedado. */
-const TEACHER_ROUTES = ['/professor', '/statements', '/simulations', '/simulation-answers'];
-
-/** O professor consulta turmas, não as altera: `/classes` abre a lista, mas
- * `/classes/new` e `/classes/{id}/edit` continuam só para ADMIN. Sem esta
- * distinção ele abre o formulário e só descobre o bloqueio ao gravar. */
-const TEACHER_EXACT_ROUTES = ['/classes'];
+import { canAccessManager, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
 
 /**
  * A origem de confiança, ou null quando não há nenhuma.
@@ -66,17 +42,6 @@ function redirectTo(path: string, request: NextRequest, query?: Record<string, s
 
 function isRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
-}
-
-function isAdminOnlyRoute(pathname: string) {
-  return ADMIN_ONLY_ROUTES.some((route) => isRoute(pathname, route));
-}
-
-function isTeacherRoute(pathname: string) {
-  return (
-    TEACHER_EXACT_ROUTES.includes(pathname) ||
-    TEACHER_ROUTES.some((route) => isRoute(pathname, route))
-  );
 }
 
 function rolesFromPayload(value: unknown): Role[] {
@@ -138,14 +103,16 @@ export async function proxy(request: NextRequest) {
       return response;
     }
 
-    const isTeacher = roles.includes('TEACHER') && !roles.includes('ADMIN');
-    // O professor não entra na gestão (contas, papéis, escolas…): acesso negado com motivo.
-    if (isTeacher && isAdminOnlyRoute(pathname)) {
-      return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
-    }
-    // Fora das suas páginas (e do exam-builder), volta à sua área.
-    if (isTeacher && !isTeacherRoute(pathname) && !isRoute(pathname, '/exam-builder')) {
-      return NextResponse.redirect(redirectTo('/professor', request));
+    // O professor tem uma lista fechada de rotas (`teacherRoute`, com testes): a
+    // gestão dá 403 com motivo, e o resto volta ao início dele.
+    if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
+      const decision = teacherRoute(pathname);
+      if (decision === 'forbidden') {
+        return NextResponse.redirect(redirectTo('/403', request, { reason: 'role' }));
+      }
+      if (decision === 'home') {
+        return NextResponse.redirect(redirectTo('/professor', request));
+      }
     }
 
     const response = NextResponse.next();

@@ -314,12 +314,6 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return json(201, loginResponse(acc));
     }
 
-    // ── current teacher (lets the teacher role scope its own lists) ──
-    if (path === '/api/v1/teachers/me' && method === 'GET') {
-      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
-      if (!t) return problem(404, 'Teacher not found');
-      return json(200, strip(t));
-    }
 
     // ── account roles ──
     let m = path.match(/^\/api\/v1\/accounts\/(\d+)\/roles(?:\/(\d+))?$/);

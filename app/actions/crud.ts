@@ -5,6 +5,7 @@ import { getAuthHeaders, getCurrentUser } from '@/lib/auth.server';
 import { API_HOST } from '@/lib/constants';
 import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
 import { apiFetch } from '@/lib/mock/fetch';
+import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -198,77 +199,42 @@ export async function getStatementFull(id: number): Promise<Result<Row>> {
 }
 
 // ── teacher scope ───────────────────────────────────────────────────────────
-// The CRUD endpoints return every record, so a plain teacher (never an admin)
-// narrows the lists on the client to their own classes/subjects. Admins get
-// `restricted: false` and are never filtered.
+// A regra está em `lib/crud/teacher-scope.ts`, com testes. Aqui só se juntam
+// os três pedidos que ela precisa.
 //
-// Every other path here is ADMIN-only on the real backend, so a teacher must
-// not ask for them: `/api/v1/teachers/**` (there is no `/teachers/me` at all)
-// and `/api/v1/teaching-assignments` (the list) both answer 403 to a TEACHER.
-// The one endpoint that is open to a teacher is `/api/v1/teaching-assignments/me`,
-// and it already returns only that teacher's own assignments — which is why
-// there is no `teacherId` filter here.
+// No backend, `/api/v1/teachers/**` e a lista `/api/v1/teaching-assignments`
+// são só de ADMIN. O único ponto aberto ao professor é
+// `/api/v1/teaching-assignments/me`, que já devolve só as atribuições da conta.
 //
-// Anything that goes wrong resolves to an empty (restricted) scope carrying the
-// reason. Falling back to "see everything" would hand a teacher the whole
-// school on a 403 or a dropped connection.
-export interface TeachingScope {
-  restricted: boolean;
-  classIds: number[];
-  subjectIds: number[];
-  /** Ids of the statements that fall inside the teacher's classes/subjects. */
-  statementIds: number[];
-  /** Why the scope is empty, when it could not be loaded. */
-  error: string | null;
-}
-
-const openScope = (): TeachingScope => ({
-  restricted: false,
-  classIds: [],
-  subjectIds: [],
-  statementIds: [],
-  error: null,
-});
-
-/** Nothing visible, with the reason shown to the teacher. */
-const closedScope = (error: string): TeachingScope => ({
-  restricted: true,
-  classIds: [],
-  subjectIds: [],
-  statementIds: [],
-  error,
-});
-
-const numericIds = (rows: Row[], field: string) => [
-  ...new Set(rows.map((r) => Number(r[field])).filter((n) => Number.isFinite(n))),
-];
-
+// Tudo o que falhar dá um scope fechado com a razão: cair para "ver tudo"
+// entregaria a escola inteira ao professor num 403 ou numa ligação perdida.
+//
+// Isto é conveniência, não segurança. As server actions não passam pelo
+// `proxy.ts`, e `/api/v1/statements` devolve tudo a quem é staff: quem decide
+// o que um professor pode ler e escrever é o `SecurityConfig` e os serviços do
+// backend (creative-mode/kixi#174 para a filtragem no servidor).
 async function loadTeachingScope(): Promise<Result<TeachingScope>> {
   return guard(async () => {
     const user = await getCurrentUser();
     if (!user) return ok(closedScope('Sessão por resolver.'));
     const roles = user.roles ?? [];
-    // An admin is never filtered.
     if (roles.includes('ADMIN')) return ok(openScope());
     if (!roles.includes('TEACHER')) return ok(closedScope('Conta sem papel de professor.'));
 
-    const mineRes = await call('/api/v1/teaching-assignments/me');
-    if (!mineRes.ok) return ok(closedScope(await message(mineRes)));
-    const mine = (await mineRes.json()) as Row[];
-    const classIds = numericIds(mine, 'classId');
-    const subjectIds = numericIds(mine, 'subjectId');
-
-    // The simulation payload nests a StatementBasicResponse, which carries no
-    // classId/subjectId — so mapping a simulation to a class still has to go
-    // through the statement list. One request, shared by every consumer.
-    const statementsRes = await call('/api/v1/statements');
-    if (!statementsRes.ok) return ok(closedScope(await message(statementsRes)));
-    const statements = (await statementsRes.json()) as Row[];
-    const statementIds = statements
-      .filter((s) => classIds.includes(Number(s.classId)) || subjectIds.includes(Number(s.subjectId)))
-      .map((s) => Number(s.id));
-
-    return ok({ restricted: true, classIds, subjectIds, statementIds, error: null });
+    const [mineRes, statementsRes, simulationsRes] = await Promise.all([
+      call('/api/v1/teaching-assignments/me'),
+      call('/api/v1/statements'),
+      call(ENTITIES.simulations.api),
+    ]);
+    for (const res of [mineRes, statementsRes, simulationsRes]) {
+      if (!res.ok) return ok(closedScope(await message(res)));
+    }
+    const [mine, statements, simulations] = (await Promise.all([
+      mineRes.json(),
+      statementsRes.json(),
+      simulationsRes.json(),
+    ])) as [Row[], Row[], Row[]];
+    return ok(buildScope(mine, statements, simulations));
   });
 }
 
