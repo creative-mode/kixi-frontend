@@ -347,11 +347,12 @@ async function main() {
       return falta ? `não encontrei "${falta}"` : null;
     });
 
-    await passo('o social não aparece sem o endpoint de comunidade', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
-      // A tarefa é escondê-lo enquanto o kixi#119 estiver fechado. Um botão morto
-      // ensina o aluno a desconfiar do ecrã.
+    await passo('a comunidade não aparece sem tentativa corrigida', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      // #32/#119: a comunidade compara desempenhos, e esta conta (acabada de
+      // registar-se) nunca fez esta prova - mostrá-la sem nota própria era um
+      // ecrã a comparar o aluno com ninguém.
       const html = await r.text();
-      return html.includes('Ver como outros') ? 'o CTA social está visível' : null;
+      return html.includes('Comunidade') ? 'a secção da comunidade está visível' : null;
     });
 
     // A conta deste fluxo acabou de registar-se, por isso não tem tentativas: o que se
