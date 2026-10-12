@@ -1436,7 +1436,7 @@ export async function mockHandle(
     const askedQuestion =
       questionId === null
         ? null
-        : db.questions.find((q) => q.id === questionId && (QUESTIONS_BY_STATEMENT[statementId] ?? []).includes(q.id));
+        : db.questions.find((q) => q.id === questionId && (QUESTIONS_BY_STATEMENT[statementId] ?? []).includes(q.id)) ?? null;
     if (questionId !== null && !askedQuestion) return problem(404, 'Question is not part of this statement.');
     const rawSelectedOptionId = body.selectedOptionId ?? null;
     if (rawSelectedOptionId !== null && (!Number.isInteger(Number(rawSelectedOptionId)) || Number(rawSelectedOptionId) <= 0)) {
