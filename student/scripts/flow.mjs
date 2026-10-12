@@ -436,7 +436,10 @@ async function main() {
       'GET', '/aluno/inicio', {},
       async (r) => {
         const html = await r.text();
-        const falta = ['Início', 'Partilhar resultado'].find((t) => !html.includes(t));
+        // "Partilhar resultado" saiu do compositor com o #30: o backend só deixa o
+        // aluno criar publicações do tipo doubt/topic à mão (PostType.isManual()),
+        // nunca milestone - por isso o atalho deixou de fingir que essa opção existe.
+        const falta = ['Início', 'Fazer uma pergunta'].find((t) => !html.includes(t));
         return falta ? `não encontrei "${falta}"` : null;
       },
     );
