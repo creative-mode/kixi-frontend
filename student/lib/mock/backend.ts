@@ -1487,7 +1487,7 @@ export async function mockHandle(
     const askedQuestion =
       session.questionId == null
         ? null
-        : db.questions.find((q) => q.id === session.questionId && (QUESTIONS_BY_STATEMENT[session.statementId] ?? []).includes(q.id));
+        : db.questions.find((q) => q.id === session.questionId && (QUESTIONS_BY_STATEMENT[session.statementId] ?? []).includes(q.id)) ?? null;
     const reply = content.includes('[[fora]]')
       ? 'Só acompanho o enunciado desta sessão, por isso não consigo ajudar com esse assunto.'
       : `Vamos por passos, sobre «${statement?.title ?? 'esta prova'}». Primeiro, identifica o que a questão pede. Depois, aplica a regra e confirma o resultado: a escolha final é tua.`;
