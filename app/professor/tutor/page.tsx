@@ -142,7 +142,7 @@ function StyleCard({ row }: { row: TutorStyleRow }) {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-auto whitespace-normal py-1 text-left text-xs"
+                className="h-auto max-w-full whitespace-normal py-1 text-left text-xs"
                 onClick={() => setText(example)}
                 disabled={busy}
               >
