@@ -18,7 +18,8 @@ import {
   SUGGESTIONS,
   answerTo,
   applyEvent,
-  buildTurnPayload,
+  buildMessagePayload,
+  buildSessionPayload,
   describeHttpFailure,
   parseRetryAfter,
   parseSse,
@@ -118,6 +119,7 @@ export function TutorChat({
   );
   const [notice, setNotice] = useState<string | null>(null);
   const sessionId = useRef<number | null>(null);
+  const sessionContext = useRef<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const nextId = useRef(1);
   const end = useRef<HTMLDivElement>(null);
@@ -127,6 +129,7 @@ export function TutorChat({
     if (statementId == null) return;
     const saved = load(statementId);
     sessionId.current = saved.sessionId;
+    sessionContext.current = null;
     nextId.current = saved.messages.reduce((max, m) => Math.max(max, m.id), 0) + 1;
     setMessages(saved.messages);
   }, [statementId]);
@@ -138,18 +141,23 @@ export function TutorChat({
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [messages]);
   useEffect(() => () => abort.current?.abort(), []);
 
-  const openSession = useCallback(async (signal: AbortSignal): Promise<number> => {
+  const openSession = useCallback(async (
+    signal: AbortSignal,
+    payload: Record<string, unknown>,
+    contextKey: string,
+  ): Promise<number> => {
     const res = await fetch(`${BASE_PATH}/api/tutor/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statementId }),
+      body: JSON.stringify(payload),
       signal,
     });
     if (!res.ok) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')));
     const created = (await res.json()) as { id: number };
     sessionId.current = created.id;
+    sessionContext.current = contextKey;
     return created.id;
-  }, [statementId]);
+  }, []);
 
   const ask = useCallback(async (
     content: string,
@@ -157,6 +165,12 @@ export function TutorChat({
   ) => {
     const text = content.trim();
     if (!text || busy || statementId == null) return;
+    const desiredMode = asMode ?? mode;
+    const selected = questions.find((question) => question.id === questionId) ?? null;
+    if ((desiredMode === 'EXPLAIN_QUESTION' || desiredMode === 'SIMILAR_EXERCISES') && !selected) {
+      setNotice('Escolhe uma questão para esse modo.');
+      return;
+    }
     lastSent.current = text;
     setNotice(null);
     setBusy(true);
@@ -164,15 +178,16 @@ export function TutorChat({
     const controller = new AbortController();
     abort.current = controller;
 
-    const selected = questions.find((question) => question.id === questionId) ?? null;
-    const payload = buildTurnPayload({
-      content: text,
+    const sessionPayload = buildSessionPayload({
+      statementId,
       // `asMode` carries the mode the caller wants: setMode is asynchronous, so a
       // button that switched the mode and asked in the same click would send the old one.
-      mode: asMode ?? mode,
+      mode: desiredMode,
       questionId: selected?.id,
-      wrongAnswer: answerTo(wrongAnswers, selected?.number ?? null),
+      studentAnswer: answerTo(wrongAnswers, selected?.number ?? null),
     });
+    const messagePayload = buildMessagePayload(text);
+    const contextKey = JSON.stringify(sessionPayload);
 
     const tutorId = nextId.current + (repeat ? 0 : 1);
     setMessages((prev) => {
@@ -187,7 +202,7 @@ export function TutorChat({
       const res = await fetch(`${BASE_PATH}/api/tutor/sessions/${id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(messagePayload),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')));
@@ -195,14 +210,17 @@ export function TutorChat({
     };
 
     try {
-      let id = sessionId.current ?? (await openSession(controller.signal));
+      let id =
+        sessionId.current != null && sessionContext.current === contextKey
+          ? sessionId.current
+          : await openSession(controller.signal, sessionPayload, contextKey);
       let body: ReadableStream<Uint8Array>;
       try {
         body = await send(id);
       } catch (error) {
         // The session is gone on the server's side (404): open a fresh one, once.
         if (!(error instanceof HttpFailure) || error.status !== 404) throw error;
-        id = await openSession(controller.signal);
+        id = await openSession(controller.signal, sessionPayload, contextKey);
         body = await send(id);
       }
 
@@ -236,7 +254,7 @@ export function TutorChat({
       setBusy(false);
       abort.current = null;
     }
-  }, [busy, openSession, statementId]);
+  }, [busy, mode, openSession, questionId, questions, statementId, wrongAnswers]);
 
   function stop() {
     abort.current?.abort();
@@ -266,6 +284,7 @@ export function TutorChat({
 
   const limit = draft.length > MAX_MESSAGE;
   const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
+  const modeNeedsQuestion = mode === 'EXPLAIN_QUESTION' || mode === 'SIMILAR_EXERCISES';
   // Only the latest finished answer offers it: asking again on every bubble would
   // stack copies of the same request.
   const lastAnswerId = [...messages].reverse().find((m) => m.role === 'tutor' && !m.streaming)?.id;
@@ -330,9 +349,12 @@ export function TutorChat({
                         {m.sources.map((source, index) => (
                           <div key={`${source.statementId}-${source.questionId}-${index}`}>
                             <p className="font-medium text-foreground">
-                              {source.questionNumber ? `Questão ${source.questionNumber}` : source.title ?? 'Enunciado'}
+                              {source.kind === 'CATALOG_QUESTION'
+                                ? `Exercício semelhante · ${source.statementTitle ?? 'Prova'}`
+                                : source.questionNumber
+                                  ? `Questão ${source.questionNumber}`
+                                  : source.statementTitle ?? 'Enunciado'}
                             </p>
-                            <p>{source.text}</p>
                           </div>
                         ))}
                       </div>
@@ -364,10 +386,12 @@ export function TutorChat({
                 </Button>
               ))}
             </div>
-            {mode === 'EXPLAIN_QUESTION' && questions.length > 0 && (
+            {modeNeedsQuestion && questions.length > 0 && (
               <div className="grid gap-1.5">
                 <label htmlFor="tutor-question" className="text-xs font-medium text-muted-foreground">
-                  Qual questão queres que eu explique?
+                  {mode === 'SIMILAR_EXERCISES'
+                    ? 'Qual questão queres usar como base?'
+                    : 'Qual questão queres que eu explique?'}
                 </label>
                 <NativeSelect
                   id="tutor-question"
@@ -386,6 +410,9 @@ export function TutorChat({
                   <p className="text-xs text-muted-foreground">Incluo a tua resposta: {selectedAnswer}</p>
                 )}
               </div>
+            )}
+            {modeNeedsQuestion && questions.length === 0 && (
+              <p className="text-xs text-muted-foreground">Este modo precisa de uma questão da prova.</p>
             )}
             {notice && (
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">

@@ -347,11 +347,12 @@ async function main() {
       return falta ? `não encontrei "${falta}"` : null;
     });
 
-    await passo('o social não aparece sem o endpoint de comunidade', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
-      // A tarefa é escondê-lo enquanto o kixi#119 estiver fechado. Um botão morto
-      // ensina o aluno a desconfiar do ecrã.
+    await passo('a comunidade não aparece sem tentativa corrigida', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      // #32/#119: a comunidade compara desempenhos, e esta conta (acabada de
+      // registar-se) nunca fez esta prova - mostrá-la sem nota própria era um
+      // ecrã a comparar o aluno com ninguém.
       const html = await r.text();
-      return html.includes('Ver como outros') ? 'o CTA social está visível' : null;
+      return html.includes('Comunidade') ? 'a secção da comunidade está visível' : null;
     });
 
     // A conta deste fluxo acabou de registar-se, por isso não tem tentativas: o que se
@@ -410,23 +411,30 @@ async function main() {
       const semChave = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[sem-chave]]' }) });
       registar('sem chave do provider é 503', semChave.status === 503 ? null : `veio ${semChave.status}`);
 
-      // #115 · modos e contexto. O aluno nomeia a questão e a resposta que deu; a
-      // resposta traz a fonte que o ecrã mostra por baixo do texto.
-      const comContexto = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, {
+      // #115 · modos e contexto via abertura da sessão. A mensagem leva só conteúdo.
+      const sessaoComContexto = await fetch(`${BASE}/aluno/api/tutor/sessions`, {
         method: 'POST',
         headers: json,
-        body: JSON.stringify({ content: 'Onde errei?', mode: 'EXPLAIN_QUESTION', questionId: 1, wrongAnswer: '/8' }),
+        body: JSON.stringify({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 1, studentAnswer: '/8' }),
       });
-      const corpoContexto = await comContexto.text();
+      const sessaoComContextoId = sessaoComContexto.ok ? (await sessaoComContexto.json()).id : null;
+      const comContexto = sessaoComContextoId
+        ? await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoComContextoId}/messages`, {
+            method: 'POST',
+            headers: json,
+            body: JSON.stringify({ content: 'Onde errei?' }),
+          })
+        : null;
+      const corpoContexto = comContexto ? await comContexto.text() : '';
       registar(
         'explicar uma questão nomeada devolve a fonte dessa questão',
-        corpoContexto.includes('"questionId":1') && corpoContexto.includes('"type":"QUESTION"') ? null : `faltou a fonte: ${corpoContexto.slice(-160)}`,
+        corpoContexto.includes('"questionId":1') && corpoContexto.includes('"kind":"QUESTION"') ? null : `faltou a fonte: ${corpoContexto.slice(-160)}`,
       );
 
-      const modoInvalido = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'olá', mode: 'INVADIR' }) });
+      const modoInvalido = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 1, mode: 'INVADIR' }) });
       registar('um modo que não existe é 400, não uma resposta', modoInvalido.status === 400 ? null : `veio ${modoInvalido.status}`);
 
-      const questaoAlheia = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'olá', mode: 'EXPLAIN_QUESTION', questionId: 999 }) });
+      const questaoAlheia = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 999 }) });
       registar('uma questão que não é desta prova é 404', questaoAlheia.status === 404 ? null : `veio ${questaoAlheia.status}`);
     }
 
@@ -467,7 +475,10 @@ async function main() {
       'GET', '/aluno/inicio', {},
       async (r) => {
         const html = await r.text();
-        const falta = ['Início', 'Partilhar resultado'].find((t) => !html.includes(t));
+        // "Partilhar resultado" saiu do compositor com o #30: o backend só deixa o
+        // aluno criar publicações do tipo doubt/topic à mão (PostType.isManual()),
+        // nunca milestone - por isso o atalho deixou de fingir que essa opção existe.
+        const falta = ['Início', 'Fazer uma pergunta'].find((t) => !html.includes(t));
         return falta ? `não encontrei "${falta}"` : null;
       },
     );
@@ -478,6 +489,21 @@ async function main() {
       async (r) => {
         const html = await r.text();
         return html.includes('Salas de prova') ? 'a secção apareceu sem haver salas' : null;
+      },
+    );
+
+    await passo(
+      'o ranking liga-se ao backend, não às linhas fixas de lib/data.ts',
+      'GET', '/aluno/ranking', {},
+      async (r) => {
+        // #117/#31: esta conta é desta corrida, sozinha na sua turma (curso TLP-ITEL,
+        // #31 não partilha semente com a 12B) - por isso a janela do backend é só ela
+        // própria, em 1.º de 1. A prova é não mostrar as linhas fixas de lib/data.ts
+        // (Mariana Costa, Paulo Neto, ...), que não dependem de nota nenhuma.
+        const html = await r.text();
+        if (html.includes('Mariana Costa')) return 'ainda mostra as linhas fixas de lib/data.ts';
+        const falta = ['Turma', 'Escola', 'Amigos', '1.º de 1'].find((t) => !html.includes(t));
+        return falta ? `não encontrei "${falta}"` : null;
       },
     );
 

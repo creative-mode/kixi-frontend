@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/states';
+import { StatementCommunity } from '@/components/statement-community';
 import type { AttemptRow, StatementSummaryView } from '@/lib/statement-detail';
+import type { CommunityStats, SharedSolution } from '@/lib/community';
+import type { Named } from '@/lib/catalog';
 
 /** The detail screen: what this paper is, what the student already did with it, and
  *  the ways into it. */
@@ -15,12 +18,16 @@ export function StatementDetailView({
   summary,
   attempts,
   current,
+  community,
 }: {
   summary: StatementSummaryView;
   /** null when the history could not be loaded: the banner below says so, rather than
    *  the card claiming the student never attempted this. */
   attempts: AttemptRow[] | null;
   current: AttemptRow | null;
+  /** Null sem tentativa corrigida (#32/#119): a comunidade compara desempenhos, e sem
+   *  um próprio não há "tu vs. a média" para mostrar. */
+  community: { stats: CommunityStats | null; solutions: SharedSolution[]; schools: Named[] } | null;
 }) {
   const id = summary.id;
   const duration = summary.durationMinutes;
@@ -88,12 +95,10 @@ export function StatementDetailView({
               <Button asChild variant="outline" className="w-full"><Link href={`/tutor?statementId=${id}`}>Abrir o tutor</Link></Button>
             </Card>
 
-            {/* "Ver como outros resolveram" is deliberately absent. The endpoint is
-                kixi#119 (BE-23), still open, and the issue says to hide the CTA when
-                there is no data. A button that leads nowhere teaches the student that
-                this screen cannot be trusted. It appears with #32. */}
           </div>
         </Card>
+
+        {community && current && <StatementCommunity statementId={id} simulationId={current.id} stats={community.stats} solutions={community.solutions} schools={community.schools} />}
 
         <Card className="gap-0 py-0">
           <CardHeader className="flex flex-row items-center gap-2.5 pb-3">

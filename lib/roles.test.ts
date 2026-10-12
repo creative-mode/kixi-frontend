@@ -41,6 +41,8 @@ test('lixeiras, formulários e o resto voltam ao início dele', () => {
     '/classes/3/edit',
     '/simulation-answers/9/edit',
     '/exam-builderx',
+    '/assign',
+    '/assignment-settings',
     '/professorx',
     '/professor/tutor/1',
     '/exam-rooms/12/edit',

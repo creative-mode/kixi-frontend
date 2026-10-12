@@ -19,21 +19,19 @@
 export type ChatMode = 'EXPLAIN_QUESTION' | 'SIMILAR_EXERCISES' | 'CONCEPT';
 
 export interface ChatSource {
-  type: string;
+  kind: string;
   statementId: number | null;
+  statementTitle: string | null;
   questionId: number | null;
   questionNumber: number | null;
-  title: string | null;
-  text: string;
 }
 
-/** What the screen sends with a turn (kixi#115). `questionId` and `wrongAnswer` are
- *  the context the modes work from; absent means "the whole paper, no question". */
-export interface TurnPayload {
-  content: string;
+/** What opens one tutor session in the backend (`POST /chat/sessions`, kixi#115). */
+export interface SessionPayload {
+  statementId: number;
   mode: ChatMode;
   questionId?: number;
-  wrongAnswer?: string;
+  studentAnswer?: string;
 }
 
 /** A question of the paper, as far as the tutor needs it. */
@@ -43,18 +41,22 @@ export interface PaperQuestion {
   text: string;
 }
 
-/** The payload of one turn, with only what is set. The proxy route validates it
- *  again, so a malformed value here is an error the student sees, not a 500. */
-export function buildTurnPayload(turn: TurnPayload): Record<string, unknown> {
-  const payload: Record<string, unknown> = { content: turn.content.trim(), mode: turn.mode };
-  if (turn.questionId !== undefined) payload.questionId = turn.questionId;
-  const wrongAnswer = turn.wrongAnswer?.trim();
-  if (wrongAnswer) payload.wrongAnswer = wrongAnswer.slice(0, MAX_WRONG_ANSWER);
+/** The body to open one session, with only the optional fields that exist. */
+export function buildSessionPayload(session: SessionPayload): Record<string, unknown> {
+  const payload: Record<string, unknown> = { statementId: session.statementId, mode: session.mode };
+  if (session.questionId !== undefined) payload.questionId = session.questionId;
+  const studentAnswer = session.studentAnswer?.trim();
+  if (studentAnswer) payload.studentAnswer = studentAnswer.slice(0, MAX_STUDENT_ANSWER);
   return payload;
 }
 
-/** Same cap as `ChatSendRequest.wrongAnswer` in the backend. */
-export const MAX_WRONG_ANSWER = 2000;
+/** One message turn (`POST /chat/sessions/{id}/messages`). */
+export function buildMessagePayload(content: string): Record<string, unknown> {
+  return { content: content.trim() };
+}
+
+/** Same cap as `ChatSessionRequest.studentAnswer` in the backend. */
+export const MAX_STUDENT_ANSWER = 2000;
 
 /** How much of an answer a link carries, and how many. Well under the 2000 the
  *  turn itself accepts: the text is context for the explanation, not the essay. */
@@ -125,7 +127,7 @@ function toEvent(payload: unknown): StreamEvent | null {
 function isSource(value: unknown): value is ChatSource {
   if (!value || typeof value !== 'object') return false;
   const source = value as Record<string, unknown>;
-  return typeof source.type === 'string' && typeof source.text === 'string';
+  return typeof source.kind === 'string';
 }
 
 export type Role = 'student' | 'tutor';

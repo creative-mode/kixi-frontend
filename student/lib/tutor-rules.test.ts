@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  MAX_WRONG_ANSWER,
+  MAX_STUDENT_ANSWER,
   answerTo,
   applyEvent,
-  buildTurnPayload,
+  buildMessagePayload,
+  buildSessionPayload,
   describeHttpFailure,
   formatWait,
   parseQuestionNumbers,
@@ -39,7 +40,7 @@ test('um evento estragado não leva os outros', () => {
 });
 
 test('final e erro trazem o que o backend envia', () => {
-  const sources = [{ type: 'STATEMENT', statementId: 7, questionId: null, questionNumber: null, title: 'Prova', text: 'Enunciado' }];
+  const sources = [{ kind: 'STATEMENT', statementId: 7, statementTitle: 'Prova', questionId: null, questionNumber: null }];
   const events = parseSse(ev('final', { messageId: 9, model: 'm', sources }) + ev('error', { code: 'X', message: 'y' })).events;
   assert.deepEqual(events, [
     { type: 'final', messageId: 9, model: 'm', sources },
@@ -108,27 +109,33 @@ test('o pedido de estudar os erros lê-se bem no singular e no plural', () => {
 
 test('a resposta do aluno vai com o contexto, não com o texto da mensagem', () => {
   assert.deepEqual(
-    buildTurnPayload({ content: 'Porquê?', mode: 'EXPLAIN_QUESTION', questionId: 41, wrongAnswer: ' A ' }),
-    { content: 'Porquê?', mode: 'EXPLAIN_QUESTION', questionId: 41, wrongAnswer: 'A' },
+    buildSessionPayload({ statementId: 7, mode: 'EXPLAIN_QUESTION', questionId: 41, studentAnswer: ' A ' }),
+    { statementId: 7, mode: 'EXPLAIN_QUESTION', questionId: 41, studentAnswer: 'A' },
   );
 });
 
-test('sem contexto, o turno leva só o conteúdo e o modo', () => {
-  assert.deepEqual(buildTurnPayload({ content: '  o que é TCP?  ', mode: 'CONCEPT' }), {
-    content: 'o que é TCP?',
+test('sem contexto, a sessão leva só prova e modo', () => {
+  assert.deepEqual(buildSessionPayload({ statementId: 9, mode: 'CONCEPT' }), {
+    statementId: 9,
     mode: 'CONCEPT',
   });
 });
 
+test('a mensagem leva só o conteúdo', () => {
+  assert.deepEqual(buildMessagePayload('  o que é TCP?  '), {
+    content: 'o que é TCP?',
+  });
+});
+
 test('uma resposta errada vazia não viaja: o campo é opcional', () => {
-  const payload = buildTurnPayload({ content: 'x', mode: 'CONCEPT', questionId: 2, wrongAnswer: '   ' });
-  assert.equal('wrongAnswer' in payload, false);
+  const payload = buildSessionPayload({ statementId: 1, mode: 'CONCEPT', questionId: 2, studentAnswer: '   ' });
+  assert.equal('studentAnswer' in payload, false);
   assert.equal(payload.questionId, 2);
 });
 
 test('a resposta errada é limitada ao mesmo tamanho que o backend aceita', () => {
-  const payload = buildTurnPayload({ content: 'x', mode: 'CONCEPT', wrongAnswer: 'z'.repeat(5000) });
-  assert.equal((payload.wrongAnswer as string).length, MAX_WRONG_ANSWER);
+  const payload = buildSessionPayload({ statementId: 1, mode: 'CONCEPT', studentAnswer: 'z'.repeat(5000) });
+  assert.equal((payload.studentAnswer as string).length, MAX_STUDENT_ANSWER);
 });
 
 test('o link não carrega um treatise: corta o que é contexto e o que é número', () => {

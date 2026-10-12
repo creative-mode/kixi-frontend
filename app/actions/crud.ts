@@ -64,8 +64,7 @@ export async function listRows(key: string, trash = false): Promise<Result<Row[]
   });
 }
 
-export async function getRow(key: string, id: string | number): Promise<Result<Row>> {
-  return guard(async () => {
+export async function getRow(key: string, id: string | number): Promise<Result<Row>> {  return guard(async () => {
     const e = entity(key);
     const res = await call(`${e.api}/${safeId(id)}`);
     if (!res.ok) return fail(await message(res));
