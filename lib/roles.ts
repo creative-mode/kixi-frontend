@@ -53,6 +53,7 @@ const isUnder = (pathname: string, route: string) => pathname === route || pathn
 export function teacherMayOpen(pathname: string): boolean {
   return (
     pathname === '/professor' ||
+    pathname === '/professor/tutor' ||
     pathname === '/desempenho' ||
     isUnder(pathname, '/exam-builder') ||
     pathname === '/exam-rooms' ||

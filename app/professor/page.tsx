@@ -134,6 +134,17 @@ export default function TeacherHome() {
         <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" aria-hidden />
       </Link>
 
+      <Link
+        href="/professor/tutor"
+        className="group flex items-center gap-4 rounded-xl border bg-card p-5 shadow-xs transition-colors hover:border-primary"
+      >
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="block font-semibold text-foreground">Estilo do tutor</span>
+          <span className="text-sm text-muted-foreground">Diga ao tutor de IA como costuma explicar aos seus alunos.</span>
+        </span>
+        <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" aria-hidden />
+      </Link>
+
       {scopeError ? (
         <p
           role="status"

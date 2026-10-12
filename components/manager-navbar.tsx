@@ -14,6 +14,7 @@ import {
   DoorOpen,
   TrendingUp,
   Home,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -71,12 +72,21 @@ const teacherHomeLink = {
   color: "bg-accent text-primary",
 };
 
+// FE-18 (#29): só do professor. O ADMIN não dá aulas; muda o estilo nas atribuições.
+const teacherTutorLink = {
+  href: "/professor/tutor",
+  label: "Estilo do tutor",
+  description: "Como o tutor de IA explica aos seus alunos",
+  icon: Sparkles,
+  color: "bg-accent text-primary",
+};
+
 export function ManagerNavbar({ roles }: { roles: string[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const isAdmin = roles.includes("ADMIN");
   const isTeacher = roles.includes("TEACHER");
   const navLinks = isTeacher && !isAdmin
-    ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href))]
+    ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
     : allNavLinks;
   const pathname = usePathname();
 
