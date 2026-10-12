@@ -151,7 +151,10 @@ export function TutorChat({
     return created.id;
   }, [statementId]);
 
-  const ask = useCallback(async (content: string, { repeat = false }: { repeat?: boolean } = {}) => {
+  const ask = useCallback(async (
+    content: string,
+    { repeat = false, asMode }: { repeat?: boolean; asMode?: ChatMode } = {},
+  ) => {
     const text = content.trim();
     if (!text || busy || statementId == null) return;
     lastSent.current = text;
@@ -164,7 +167,9 @@ export function TutorChat({
     const selected = questions.find((question) => question.id === questionId) ?? null;
     const payload = buildTurnPayload({
       content: text,
-      mode,
+      // `asMode` carries the mode the caller wants: setMode is asynchronous, so a
+      // button that switched the mode and asked in the same click would send the old one.
+      mode: asMode ?? mode,
       questionId: selected?.id,
       wrongAnswer: answerTo(wrongAnswers, selected?.number ?? null),
     });
@@ -261,6 +266,9 @@ export function TutorChat({
 
   const limit = draft.length > MAX_MESSAGE;
   const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
+  // Only the latest finished answer offers it: asking again on every bubble would
+  // stack copies of the same request.
+  const lastAnswerId = [...messages].reverse().find((m) => m.role === 'tutor' && !m.streaming)?.id;
   const selectedAnswer = answerTo(wrongAnswers, selectedQuestion?.number ?? null);
 
   return (
@@ -296,6 +304,23 @@ export function TutorChat({
                   {m.failed && (
                     <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-destructive" role="alert">
                       <TriangleAlert className="size-3.5" aria-hidden />{m.failed}
+                    </div>
+                  )}
+                  {m.id === lastAnswerId && !m.failed && (
+                    <div className="mt-2 border-t pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        disabled={busy || statementId == null}
+                        onClick={() => {
+                          setMode('SIMILAR_EXERCISES');
+                          void ask('Dá-me exercícios parecidos com esta questão, para eu tentar antes de ver as soluções.', { asMode: 'SIMILAR_EXERCISES' });
+                        }}
+                      >
+                        Fazer exercício semelhante
+                      </Button>
                     </div>
                   )}
                   {m.role === 'tutor' && m.sources && m.sources.length > 0 && !m.streaming && (
