@@ -18,7 +18,6 @@ test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enu
     '/statements/42',
     '/simulations',
     '/simulation-answers',
-    '/assign',
     '/classes',
   ]) {
     assert.equal(teacherRoute(p), 'allow', p);
@@ -42,6 +41,7 @@ test('lixeiras, formulários e o resto voltam ao início dele', () => {
     '/classes/3/edit',
     '/simulation-answers/9/edit',
     '/exam-builderx',
+    '/assign',
     '/assignment-settings',
     '/professorx',
     '/professor/tutor/1',

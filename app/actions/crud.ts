@@ -73,14 +73,6 @@ export async function getRow(key: string, id: string | number): Promise<Result<R
 }
 
 /** `[value, label]` pairs for a select that points at another entity. */
-export async function listMine(key: string): Promise<Result<Row[]>> {
-  return guard(async () => {
-    const e = entity(key);
-    const res = await call(`${e.api}/me`);
-    if (!res.ok) return fail(await message(res));
-    return ok((await res.json()) as Row[]);
-  });
-}
 export async function listOptions(key: string): Promise<Result<{ value: number; label: string }[]>> {
   return guard(async () => {
     const e = entity(key);
