@@ -36,6 +36,7 @@
     animation-duration: 0.7s !important;
     animation-iteration-count: infinite !important;
   }
+}
 /* "Reduzir movimento" (perfil) corta transições e animações, para além do que
    prefers-reduced-motion do sistema já trata por si — este é um pedido explícito do
    aluno, guardado em lib/motion.ts. */
