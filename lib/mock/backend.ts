@@ -228,6 +228,8 @@ function authorize(auth: any, method: string, path: string) {
   // Como no backend: a lista de atribuições é de ADMIN; o `/me` é o único
   // ponto que um professor pode ler.
   if (/^\/api\/(v1\/)?teaching-assignments\/me$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
+  // creative-mode/kixi#206: o professor escreve o estilo do tutor das suas; o handler confirma que são dele.
+  if (method === 'PUT' && /^\/api\/v1\/teaching-assignments\/\d+\/tutor-style$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
   if (/^\/api\/(v1\/)?teaching-assignments(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   if (/^\/api\/v1\/institutions(\/|$)/.test(path)) {
     const readable = method === 'GET' && (path === '/api/v1/institutions' || path === '/api/v1/institutions/mine' || /^\/api\/v1\/institutions\/\d+(\/subjects)?$/.test(path));
@@ -813,6 +815,21 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     if (path === '/api/v1/teaching-assignments/me' && method === 'GET') {
       const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
       return json(200, t ? db['teaching-assignments'].filter((a) => !a.deletedAt && a.teacherId === t.id) : []);
+    }
+
+    // ── o estilo do tutor de uma atribuição (TeachingAssignmentController.updateTutorStyle, kixi#206) ──
+    m = path.match(/^\/api\/v1\/teaching-assignments\/(\d+)\/tutor-style$/);
+    if (m && method === 'PUT') {
+      const a = db['teaching-assignments'].find((x) => x.id === Number(m[1]) && !x.deletedAt);
+      if (!a) return problem(404, 'Teaching assignment not found');
+      const admin = (auth?.roles ?? []).includes('ADMIN');
+      const t = db.teachers.find((x) => x.id === a.teacherId && !x.deletedAt);
+      if (!admin && (!t || t.accountId !== Number(auth.sub))) return problem(403, 'Only the assigned teacher or ADMIN can change this tutor style');
+      const raw = readBody().tutorStyle;
+      const style = typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+      if (style && style.length > 100) return problem(400, 'The tutor style must not exceed 100 characters');
+      a.tutorStyle = style;
+      return json(200, a);
     }
 
     // ── generic CRUD (/api/v1/<resource>) ──
