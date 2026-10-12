@@ -3,6 +3,7 @@ import 'server-only';
 import { apiGet } from './api';
 import { getCatalogNames, type Named } from './catalog';
 import { currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
+import type { PaperQuestion } from './tutor-rules';
 
 /** What `GET /statements/{id}` answers: a StatementSummary. No questions, no options,
  *  and no answer key — `StatementOcrResponse.from` withholds `isCorrect` from anyone
@@ -128,4 +129,28 @@ export async function getStatementTitle(id: number): Promise<string | null> {
   if (!Number.isInteger(id) || id <= 0) return null;
   const result = await apiGet<{ title?: string | null }>(`/statements/${id}`);
   return result.ok && result.data?.title ? result.data.title : null;
+}
+
+/**
+ * The paper's questions, for the tutor's "which question?" picker.
+ *
+ * `GET /statements/{id}/questions` withholds the answer key from a student, so this
+ * carries no more than the catalog screen already shows. Like the title, a failure
+ * here is not fatal: the tutor falls back to the whole paper.
+ */
+export async function getStatementQuestions(id: number): Promise<PaperQuestion[]> {
+  if (!Number.isInteger(id) || id <= 0) return [];
+  const result = await apiGet<{ id?: number; number?: number | null; text?: string | null }[]>(
+    `/statements/${id}/questions`,
+  );
+  if (!result.ok || !Array.isArray(result.data)) return [];
+  return result.data
+    .filter((question) => Number.isInteger(question.id) && (question.id as number) > 0)
+    .map((question) => ({
+      id: question.id as number,
+      number: Number.isInteger(question.number) ? (question.number as number) : 0,
+      text: (question.text ?? '').trim(),
+    }))
+    .sort((a, b) => a.number - b.number)
+    .slice(0, 50);
 }

@@ -5,6 +5,7 @@ import {
   formatDelta,
   formatDuration,
   formatScore,
+  givenAnswers,
   inOrder,
   optionTag,
   toReview,
@@ -72,4 +73,23 @@ test('a diferença mostra o sinal', () => {
 test('a etiqueta da opção é a da prova, ou a letra pela posição', () => {
   assert.equal(optionTag({ id: 1, optionLabel: 'B', optionText: 'x' }, 0), 'B');
   assert.equal(optionTag({ id: 1, optionLabel: ' ', optionText: 'x' }, 2), 'C');
+});
+
+test('o que o aluno respondeu viaja para o tutor pelo número da questão', () => {
+  const list = [
+    q({ number: 1, isCorrect: true, selectedOptionId: 1, options: [{ id: 1, optionText: 'Certa' }] }),
+    q({ number: 2, isCorrect: false, selectedOptionId: 9, options: [{ id: 9, optionText: '/24' }] }),
+    q({ number: 3, isCorrect: false, selectedOptionId: null, answerText: 'porque sim' }),
+  ];
+  assert.deepEqual([...givenAnswers(list)], [[2, '/24'], [3, 'porque sim']]);
+});
+
+test('uma questão em branco não leva resposta nenhuma', () => {
+  assert.equal(givenAnswers([q({ number: 4, isCorrect: false })]).size, 0);
+  assert.equal(givenAnswers([q({ number: 5, isCorrect: false, answerText: '   ' })]).size, 0);
+});
+
+test('uma resposta por corrigir não é tratada como erro do aluno', () => {
+  const list = [q({ number: 6, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answerText: 'texto' })];
+  assert.equal(givenAnswers(list).size, 0);
 });

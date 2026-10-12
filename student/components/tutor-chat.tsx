@@ -7,6 +7,7 @@ import { Column, Page, PageHeader } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { BASE_PATH } from '@/lib/base-path';
@@ -15,11 +16,15 @@ import { fullName } from '@/lib/profile';
 import {
   MAX_MESSAGE,
   SUGGESTIONS,
+  answerTo,
   applyEvent,
+  buildTurnPayload,
   describeHttpFailure,
   parseRetryAfter,
   parseSse,
   type ChatMessage,
+  type ChatMode,
+  type PaperQuestion,
 } from '@/lib/tutor-rules';
 
 /** What survives a reload, per paper: the session id (the backend keeps the history on
@@ -72,25 +77,45 @@ class HttpFailure extends Error {
  * paper this screen asks for one instead of pretending to chat. The answer streams in
  * over server-sent events, read with `fetch` because `EventSource` cannot POST.
  *
- * Not here yet, on purpose: the three modes, "fonte da resposta" and "Fazer exercício
- * semelhante". They are BE-19 (kixi#115), still open, and the response carries no
- * `sources` to show. The chips are plain questions, not modes.
+ * Each turn carries its mode and, when the student picked a question, that question
+ * with the answer they gave it (kixi#115). Sources arrive with the final SSE event
+ * and are kept on the tutor message, so a reload preserves the provenance shown.
  */
 export function TutorChat({
   statementId,
   paperTitle,
   initialDraft = '',
+  initialMode = 'CONCEPT',
+  initialQuestionNumber = null,
+  questions = [],
+  wrongAnswers = new Map(),
 }: {
   statementId?: number;
   paperTitle?: string | null;
   /** Written into the box but never sent: "estudar os erros" opens with the question
    *  ready, and sending it is the second click. */
   initialDraft?: string;
+  /** "Estudar os erros" arrives with the questions to review, so the mode it opens in
+   *  is explaining one; a bare tutor opens on concepts. */
+  initialMode?: ChatMode;
+  /** The first question to review, by number: preselected so the first turn is about it. */
+  initialQuestionNumber?: number | null;
+  /** The paper's questions, so "explicar questão" can name one. Without them the
+   *  mode still works, on the whole paper. */
+  questions?: PaperQuestion[];
+  /** What the student answered wrongly, by question number, from the result screen. */
+  wrongAnswers?: Map<number, string>;
 }) {
   const me = useMe();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState(initialDraft);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<ChatMode>(initialMode);
+  const [questionId, setQuestionId] = useState<number | null>(
+    initialQuestionNumber == null
+      ? null
+      : questions.find((question) => question.number === initialQuestionNumber)?.id ?? null,
+  );
   const [notice, setNotice] = useState<string | null>(null);
   const sessionId = useRef<number | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -136,6 +161,14 @@ export function TutorChat({
     const controller = new AbortController();
     abort.current = controller;
 
+    const selected = questions.find((question) => question.id === questionId) ?? null;
+    const payload = buildTurnPayload({
+      content: text,
+      mode,
+      questionId: selected?.id,
+      wrongAnswer: answerTo(wrongAnswers, selected?.number ?? null),
+    });
+
     const tutorId = nextId.current + (repeat ? 0 : 1);
     setMessages((prev) => {
       const base = repeat ? prev.filter((m) => !(m.role === 'tutor' && m.failed && m.text === '')) : prev;
@@ -149,7 +182,7 @@ export function TutorChat({
       const res = await fetch(`${BASE_PATH}/api/tutor/sessions/${id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')));
@@ -227,6 +260,8 @@ export function TutorChat({
   }
 
   const limit = draft.length > MAX_MESSAGE;
+  const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
+  const selectedAnswer = answerTo(wrongAnswers, selectedQuestion?.number ?? null);
 
   return (
     <Page>
@@ -263,6 +298,21 @@ export function TutorChat({
                       <TriangleAlert className="size-3.5" aria-hidden />{m.failed}
                     </div>
                   )}
+                  {m.role === 'tutor' && m.sources && m.sources.length > 0 && !m.streaming && (
+                    <details className="mt-3 border-t pt-2 text-xs">
+                      <summary className="cursor-pointer font-semibold">Fonte da resposta</summary>
+                      <div className="mt-2 grid gap-2 text-muted-foreground">
+                        {m.sources.map((source, index) => (
+                          <div key={`${source.statementId}-${source.questionId}-${index}`}>
+                            <p className="font-medium text-foreground">
+                              {source.questionNumber ? `Questão ${source.questionNumber}` : source.title ?? 'Enunciado'}
+                            </p>
+                            <p>{source.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               </div>
             ))}
@@ -270,6 +320,48 @@ export function TutorChat({
           </div>
 
           <div className="grid gap-2.5 border-t p-3.5 md:px-5">
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Modo do tutor">
+              {([
+                ['CONCEPT', 'Conceito'],
+                ['EXPLAIN_QUESTION', 'Explicar questão'],
+                ['SIMILAR_EXERCISES', 'Exercícios semelhantes'],
+              ] as const).map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={mode === value ? 'default' : 'outline'}
+                  size="sm"
+                  aria-pressed={mode === value}
+                  onClick={() => setMode(value)}
+                  disabled={busy}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {mode === 'EXPLAIN_QUESTION' && questions.length > 0 && (
+              <div className="grid gap-1.5">
+                <label htmlFor="tutor-question" className="text-xs font-medium text-muted-foreground">
+                  Qual questão queres que eu explique?
+                </label>
+                <NativeSelect
+                  id="tutor-question"
+                  value={questionId ?? ''}
+                  onChange={(e) => setQuestionId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={busy}
+                >
+                  <option value="">A prova toda</option>
+                  {questions.map((question) => (
+                    <option key={question.id} value={question.id}>
+                      Questão {question.number}: {question.text.slice(0, 60)}
+                    </option>
+                  ))}
+                </NativeSelect>
+                {selectedAnswer && (
+                  <p className="text-xs text-muted-foreground">Incluo a tua resposta: {selectedAnswer}</p>
+                )}
+              </div>
+            )}
             {notice && (
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 <TriangleAlert className="size-4 shrink-0" aria-hidden />

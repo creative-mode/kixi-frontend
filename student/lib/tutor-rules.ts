@@ -5,7 +5,8 @@
  *  `ChatStreamEvent` discriminated by `type`:
  *
  *  - `delta { content }`   a fragment of the answer, in order;
- *  - `final { messageId, model }`  the answer is complete and stored;
+ *  - `final { messageId, model, sources }`  the answer is complete and stored, and
+ *                                  `sources` says what it was built from (kixi#115);
  *  - `error { code, message }`     the provider failed AFTER the stream began, so the
  *                                  HTTP status was already 200 — the only place a
  *                                  mid-answer failure can travel.
@@ -15,9 +16,54 @@
  *  spent), 503 (no provider key configured). `EventSource` cannot POST, so the client
  *  reads the body with `fetch` and this parser. */
 
+export type ChatMode = 'EXPLAIN_QUESTION' | 'SIMILAR_EXERCISES' | 'CONCEPT';
+
+export interface ChatSource {
+  type: string;
+  statementId: number | null;
+  questionId: number | null;
+  questionNumber: number | null;
+  title: string | null;
+  text: string;
+}
+
+/** What the screen sends with a turn (kixi#115). `questionId` and `wrongAnswer` are
+ *  the context the modes work from; absent means "the whole paper, no question". */
+export interface TurnPayload {
+  content: string;
+  mode: ChatMode;
+  questionId?: number;
+  wrongAnswer?: string;
+}
+
+/** A question of the paper, as far as the tutor needs it. */
+export interface PaperQuestion {
+  id: number;
+  number: number;
+  text: string;
+}
+
+/** The payload of one turn, with only what is set. The proxy route validates it
+ *  again, so a malformed value here is an error the student sees, not a 500. */
+export function buildTurnPayload(turn: TurnPayload): Record<string, unknown> {
+  const payload: Record<string, unknown> = { content: turn.content.trim(), mode: turn.mode };
+  if (turn.questionId !== undefined) payload.questionId = turn.questionId;
+  const wrongAnswer = turn.wrongAnswer?.trim();
+  if (wrongAnswer) payload.wrongAnswer = wrongAnswer.slice(0, MAX_WRONG_ANSWER);
+  return payload;
+}
+
+/** Same cap as `ChatSendRequest.wrongAnswer` in the backend. */
+export const MAX_WRONG_ANSWER = 2000;
+
+/** How much of an answer a link carries, and how many. Well under the 2000 the
+ *  turn itself accepts: the text is context for the explanation, not the essay. */
+const MAX_WRONG_ANSWER_IN_LINK = 500;
+const MAX_WRONG_ANSWERS_IN_LINK = 10;
+
 export type StreamEvent =
   | { type: 'delta'; content: string }
-  | { type: 'final'; messageId: number | null; model: string | null }
+  | { type: 'final'; messageId: number | null; model: string | null; sources?: ChatSource[] }
   | { type: 'error'; code: string; message: string };
 
 /** Splits what has arrived so far into complete events and the unfinished remainder.
@@ -63,6 +109,7 @@ function toEvent(payload: unknown): StreamEvent | null {
       type: 'final',
       messageId: typeof p.messageId === 'number' ? p.messageId : null,
       model: typeof p.model === 'string' ? p.model : null,
+      sources: Array.isArray(p.sources) ? p.sources.filter(isSource) : [],
     };
   }
   if (p.type === 'error') {
@@ -75,6 +122,12 @@ function toEvent(payload: unknown): StreamEvent | null {
   return null;
 }
 
+function isSource(value: unknown): value is ChatSource {
+  if (!value || typeof value !== 'object') return false;
+  const source = value as Record<string, unknown>;
+  return typeof source.type === 'string' && typeof source.text === 'string';
+}
+
 export type Role = 'student' | 'tutor';
 
 export interface ChatMessage {
@@ -85,6 +138,8 @@ export interface ChatMessage {
   streaming?: boolean;
   /** The answer broke off; `text` is what arrived. */
   failed?: string;
+  /** What the answer was built from, as the final event reported it. */
+  sources?: ChatSource[];
 }
 
 /** Applies one event to the answer being written, which is always the last message. */
@@ -93,7 +148,7 @@ export function applyEvent(messages: ChatMessage[], event: StreamEvent): ChatMes
   if (!last || last.role !== 'tutor') return messages;
   const head = messages.slice(0, -1);
   if (event.type === 'delta') return [...head, { ...last, text: last.text + event.content, streaming: true }];
-  if (event.type === 'final') return [...head, { ...last, streaming: false }];
+  if (event.type === 'final') return [...head, { ...last, streaming: false, sources: event.sources ?? [] }];
   return [...head, { ...last, streaming: false, failed: translateChatError(event.code, event.message) }];
 }
 
@@ -169,8 +224,55 @@ export function studyPrompt(numbers: number[]): string {
   return `Errei ${list} desta prova. Explica-me, passo a passo, onde posso ter errado.`;
 }
 
-/** Prompts offered as chips. They are plain questions, because the backend does not
- *  have the tutor's modes yet (BE-19, kixi#115): there is nothing to select. */
+/** The wrong answers the result screen hands to the tutor (`?respostas=`), keyed by
+ *  question number.
+ *
+ *  JSON rather than a hand-rolled `2=A,3=B` split: an answer is the student's own
+ *  text and may well contain commas, equals signs and accents, and a delimiter the
+ *  student can type is a delimiter that breaks. The value comes from the address
+ *  bar, so anything that is not a pair of a positive integer and a string is
+ *  dropped instead of trusted.
+ *
+ *  Capped tighter than the wire, because this rides in a URL: a link is not a place
+ *  to keep an essay, and twenty long answers would make an address bar give up. */
+export function parseWrongAnswers(raw: string | string[] | undefined): Map<number, string> {
+  const text = Array.isArray(raw) ? raw[0] : raw;
+  if (!text) return new Map();
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(decodeURIComponent(text));
+  } catch {
+    return new Map();
+  }
+  if (!Array.isArray(decoded)) return new Map();
+  const answers = new Map<number, string>();
+  for (const entry of decoded.slice(0, MAX_WRONG_ANSWERS_IN_LINK)) {
+    if (!Array.isArray(entry) || entry.length !== 2) continue;
+    const [number, answer] = entry as [unknown, unknown];
+    if (!Number.isInteger(number) || (number as number) <= 0) continue;
+    if (typeof answer !== 'string') continue;
+    const trimmed = answer.trim().slice(0, MAX_WRONG_ANSWER_IN_LINK);
+    if (trimmed) answers.set(number as number, trimmed);
+  }
+  return answers;
+}
+
+/** The same map as the query string the result screen builds. */
+export function wrongAnswersParam(answers: Map<number, string>): string {
+  const pairs = [...answers.entries()]
+    .slice(0, MAX_WRONG_ANSWERS_IN_LINK)
+    .map(([number, answer]) => [number, answer.trim().slice(0, MAX_WRONG_ANSWER_IN_LINK)]);
+  return pairs.length === 0 ? '' : `&respostas=${encodeURIComponent(JSON.stringify(pairs))}`;
+}
+
+/** The answer the student gave to one question, or nothing: a question they were not
+ *  wrong on has no answer to send, and the backend accepts a turn without one. */
+export function answerTo(answers: Map<number, string>, questionNumber: number | null): string | undefined {
+  if (questionNumber == null) return undefined;
+  return answers.get(questionNumber);
+}
+
+/** Prompts offered as chips; the selected mode is sent alongside each prompt. */
 export const SUGGESTIONS = [
   'Explica-me a primeira questão passo a passo',
   'Quais são os conceitos principais desta prova?',

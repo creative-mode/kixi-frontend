@@ -779,6 +779,30 @@ export async function mockHandle(
     return json(summaryOf(row));
   }
 
+  // GET /statements/{id}/questions — o QuestionResponse de um aluno: sem `modelAnswer`
+  // e sem `needsReview`, que é o que o `QuestionController` faz com quem não escreve
+  // o enunciado. O tutor lê esta lista para o selector de «explicar questão».
+  const questionsOf = pathname.match(/^\/statements\/(\d+)\/questions$/);
+  if (questionsOf && method === 'GET') {
+    const row = findVisible(db.statements, Number(questionsOf[1]));
+    if (!row) return problem(404, 'Statement not found');
+    const ids = QUESTIONS_BY_STATEMENT[row.id] ?? [];
+    return json(
+      ids
+        .map((id) => db.questions.find((q) => q.id === id))
+        .filter((q): q is MockQuestion => Boolean(q))
+        .map((question) => ({
+          id: question.id,
+          statementId: row.id,
+          number: question.number,
+          text: question.text,
+          questionType: question.questionType,
+          maxScore: question.maxScore,
+          orderIndex: question.orderIndex,
+        })),
+    );
+  }
+
   if (pathname === '/simulations' && method === 'GET') {
     const mine = db.simulations.filter((s) => s.accountId === account.id);
     return json(mine.map((s) => simulationResponse(db, s)));
@@ -961,6 +985,27 @@ export async function mockHandle(
     if (content.length > 4000) return validationError({ content: 'content must be at most 4000 characters' });
     if (content.includes('[[sem-chave]]')) return problem(503, 'The AI provider is not configured');
 
+    // Os modos e o contexto (#115), com as mesmas regras do `ChatSendRequest`: um
+    // valor que o servidor rejeitaria tem de dar erro aqui também, senão o CI
+    // aprova um ecrã que em produção devolve 400.
+    const mode = body.mode ?? null;
+    if (mode !== null && !['EXPLAIN_QUESTION', 'SIMILAR_EXERCISES', 'CONCEPT'].includes(String(mode))) {
+      return validationError({ mode: 'mode must be a known tutor mode' });
+    }
+    const questionId = body.questionId ?? null;
+    if (questionId !== null && (!Number.isInteger(Number(questionId)) || Number(questionId) <= 0)) {
+      return validationError({ questionId: 'questionId must be positive' });
+    }
+    const wrongAnswer = body.wrongAnswer ?? null;
+    if (wrongAnswer !== null && String(wrongAnswer).length > 2000) {
+      return validationError({ wrongAnswer: 'wrongAnswer must be at most 2000 characters' });
+    }
+    const askedQuestion =
+      questionId === null
+        ? null
+        : db.questions.find((q) => q.id === Number(questionId) && (QUESTIONS_BY_STATEMENT[session.statementId] ?? []).includes(q.id));
+    if (questionId !== null && !askedQuestion) return problem(404, 'Question is not part of this statement.');
+
     db.chatSent[account.id] = (db.chatSent[account.id] ?? 0) + 1;
     if (content.includes('[[limite]]') || db.chatSent[account.id] > 30) {
       return new Response(
@@ -990,7 +1035,32 @@ export async function mockHandle(
           controller.enqueue(sse('delta', { content: piece }));
           await new Promise((resolve) => setTimeout(resolve, 15));
         }
-        controller.enqueue(sse('final', { messageId: db.chatSent[account.id], model: 'mock' }));
+        controller.enqueue(sse('final', {
+          messageId: db.chatSent[account.id],
+          model: 'mock',
+          sources: [
+            {
+              // `ChatSourceType` no backend: o valor viaja em maiúsculas, como o enum.
+              type: 'STATEMENT',
+              statementId: session.statementId,
+              questionId: null,
+              questionNumber: null,
+              title: statement?.title ?? null,
+              text: statement?.title ?? 'Enunciado da prova',
+            },
+            // A fonte que o modo «explicar questão» promete: a questão nomeada.
+            ...(askedQuestion
+              ? [{
+                  type: String(mode) === 'SIMILAR_EXERCISES' ? 'SIMILAR_QUESTION' : 'QUESTION',
+                  statementId: session.statementId,
+                  questionId: askedQuestion.id,
+                  questionNumber: askedQuestion.number,
+                  title: statement?.title ?? null,
+                  text: askedQuestion.text,
+                }]
+              : []),
+          ],
+        }));
         controller.close();
       },
     });

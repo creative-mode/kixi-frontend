@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  MAX_WRONG_ANSWER,
+  answerTo,
   applyEvent,
+  buildTurnPayload,
   describeHttpFailure,
   formatWait,
   parseQuestionNumbers,
   parseRetryAfter,
   parseSse,
+  parseWrongAnswers,
   studyPrompt,
+  wrongAnswersParam,
   type ChatMessage,
 } from './tutor-rules.ts';
 
@@ -34,11 +39,17 @@ test('um evento estragado não leva os outros', () => {
 });
 
 test('final e erro trazem o que o backend envia', () => {
-  const events = parseSse(ev('final', { messageId: 9, model: 'm' }) + ev('error', { code: 'X', message: 'y' })).events;
+  const sources = [{ type: 'STATEMENT', statementId: 7, questionId: null, questionNumber: null, title: 'Prova', text: 'Enunciado' }];
+  const events = parseSse(ev('final', { messageId: 9, model: 'm', sources }) + ev('error', { code: 'X', message: 'y' })).events;
   assert.deepEqual(events, [
-    { type: 'final', messageId: 9, model: 'm' },
+    { type: 'final', messageId: 9, model: 'm', sources },
     { type: 'error', code: 'X', message: 'y' },
   ]);
+});
+
+test('um final sem fontes é um final antigo, não um evento quebrado', () => {
+  const [event] = parseSse(ev('final', { messageId: 9, model: 'm' })).events;
+  assert.deepEqual(event, { type: 'final', messageId: 9, model: 'm', sources: [] });
 });
 
 test('as deltas acumulam na resposta do tutor e o final fecha-a', () => {
@@ -93,4 +104,64 @@ test('o pedido de estudar os erros lê-se bem no singular e no plural', () => {
   assert.match(studyPrompt([2]), /a questão 2 desta prova/);
   assert.match(studyPrompt([1, 3]), /as questões 1 e 3 desta prova/);
   assert.match(studyPrompt([1, 2, 5]), /as questões 1, 2 e 5/);
+});
+
+test('a resposta do aluno vai com o contexto, não com o texto da mensagem', () => {
+  assert.deepEqual(
+    buildTurnPayload({ content: 'Porquê?', mode: 'EXPLAIN_QUESTION', questionId: 41, wrongAnswer: ' A ' }),
+    { content: 'Porquê?', mode: 'EXPLAIN_QUESTION', questionId: 41, wrongAnswer: 'A' },
+  );
+});
+
+test('sem contexto, o turno leva só o conteúdo e o modo', () => {
+  assert.deepEqual(buildTurnPayload({ content: '  o que é TCP?  ', mode: 'CONCEPT' }), {
+    content: 'o que é TCP?',
+    mode: 'CONCEPT',
+  });
+});
+
+test('uma resposta errada vazia não viaja: o campo é opcional', () => {
+  const payload = buildTurnPayload({ content: 'x', mode: 'CONCEPT', questionId: 2, wrongAnswer: '   ' });
+  assert.equal('wrongAnswer' in payload, false);
+  assert.equal(payload.questionId, 2);
+});
+
+test('a resposta errada é limitada ao mesmo tamanho que o backend aceita', () => {
+  const payload = buildTurnPayload({ content: 'x', mode: 'CONCEPT', wrongAnswer: 'z'.repeat(5000) });
+  assert.equal((payload.wrongAnswer as string).length, MAX_WRONG_ANSWER);
+});
+
+test('o link não carrega um treatise: corta o que é contexto e o que é número', () => {
+  const many = new Map(Array.from({ length: 30 }, (_, i) => [i + 1, 'z'.repeat(2000)]));
+  const parsed = parseWrongAnswers(wrongAnswersParam(many).slice('&respostas='.length));
+  assert.equal(parsed.size, 10);
+  assert.equal(parsed.get(1)?.length, 500);
+  // e o endereço não fica com dezenas de milhares de caracteres
+  assert.ok(wrongAnswersParam(many).length < 12_000);
+});
+
+test('as respostas erradas sobrevivem a uma ida e volta pelo endereço', () => {
+  const answers = new Map([[2, 'escolhi a opção C, porque me pareceu mais simples = 3']]);
+  const param = wrongAnswersParam(answers);
+  assert.ok(param.startsWith('&respostas='));
+  assert.deepEqual([...parseWrongAnswers(param.slice('&respostas='.length))], [...answers]);
+});
+
+test('uma resposta com vírgula, igual ou acentos não parte o mapa ao meio', () => {
+  const raw = encodeURIComponent(JSON.stringify([[3, 'a, b = c; d']]));
+  assert.equal(parseWrongAnswers(raw).get(3), 'a, b = c; d');
+});
+
+test('o que vier da barra de endereços e não for um par é ignorado', () => {
+  assert.equal(parseWrongAnswers('isto não é json').size, 0);
+  assert.equal(parseWrongAnswers(encodeURIComponent('{"2":"A"}')).size, 0);
+  const mixed = encodeURIComponent(JSON.stringify([[0, 'A'], [-1, 'B'], ['2', 'C'], [2, '  '], [4, 'D']]));
+  assert.deepEqual([...parseWrongAnswers(mixed)], [[4, 'D']]);
+});
+
+test('a resposta de uma questão que o aluno não errou não é inventada', () => {
+  const answers = new Map([[2, 'A']]);
+  assert.equal(answerTo(answers, 2), 'A');
+  assert.equal(answerTo(answers, 5), undefined);
+  assert.equal(answerTo(answers, null), undefined);
 });
