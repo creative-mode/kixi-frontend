@@ -147,6 +147,18 @@ type Store = {
   posts: MockPost[];
   nextPost: number;
   postReactions: { postId: number; accountId: number; type: string }[];
+  /** Resoluções partilhadas (#119/#32), uma por simulação - partilhar de novo substitui
+   *  a anterior em vez de duplicar, como o `unique(account_id, statement_id)` real. */
+  solutionShares: MockSolutionShare[];
+  nextShare: number;
+};
+
+type MockSolutionShare = {
+  id: number;
+  simulationId: number;
+  anonymous: boolean;
+  displayName: string | null;
+  consentAt: string;
 };
 
 type MockPost = {
@@ -364,6 +376,22 @@ function seed(): Store {
         startedAt: toLocalDateTime(new Date(Date.now() - 20 * 60 * 1000)),
         finishedAt: null, timeSpentSeconds: null,
       },
+      // Duas tentativas de outras contas na mesma prova (#119/#32): sem elas a
+      // comunidade tinha sempre sampleSize=1 e nenhuma distribuição real para mostrar.
+      // Não são contas de verdade (não há linha em `accounts`) - a comunidade só
+      // precisa da nota, nunca da identidade.
+      {
+        id: 3, accountId: 101, statementId: 1, status: 'FINISHED', finalScore: 12.0,
+        startedAt: toLocalDateTime(new Date(Date.now() - 48 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 47 * 3600 * 1000)),
+        timeSpentSeconds: 2800,
+      },
+      {
+        id: 4, accountId: 102, statementId: 1, status: 'FINISHED', finalScore: 8.5,
+        startedAt: toLocalDateTime(new Date(Date.now() - 24 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 23 * 3600 * 1000)),
+        timeSpentSeconds: 3600,
+      },
     ],
     // Uma resposta já guardada na tentativa 2, para se ver a sala a retomar o que
     // ficou em vez de recomeçar: um POST novo na mesma pergunta daria 409.
@@ -387,7 +415,7 @@ function seed(): Store {
         scoreObtained: null, isCorrect: null, reviewStatus: null, answeredAt: null,
       },
     ],
-    nextSimulation: 3,
+    nextSimulation: 5,
     nextAnswer: 5,
     chatSessions: [],
     chatSent: {},
@@ -439,6 +467,10 @@ function seed(): Store {
     ],
     nextPost: 2,
     postReactions: [],
+    solutionShares: [
+      { id: 1, simulationId: 3, anonymous: true, displayName: null, consentAt: toLocalDateTime(new Date(Date.now() - 46 * 3600 * 1000)) },
+    ],
+    nextShare: 2,
   };
 }
 
@@ -959,6 +991,85 @@ export async function mockHandle(
     const row = findVisible(db.statements, Number(detail[1]));
     if (!row) return problem(404, 'Statement not found');
     return json(summaryOf(row));
+  }
+
+  // ── comunidade e partilha de resoluções (#119/#32) ──────────────────────────
+  const community = pathname.match(/^\/statements\/(\d+)\/community$/);
+  if (community && method === 'GET') {
+    const statementId = Number(community[1]);
+    const finished = db.simulations.filter((s) => s.statementId === statementId && s.status === 'FINISHED');
+    const mine = finished.find((s) => s.accountId === account.id) ?? null;
+    const scores = finished.map((s) => s.finalScore).filter((v): v is number => v != null);
+    const mean = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+    return json({
+      statementId,
+      sampleSize: scores.length,
+      meanScore: mean,
+      medianScore: mean,
+      scoreDistribution: scores.length
+        ? [
+            { index: 0, from: 0, to: 10, count: scores.filter((s) => s < 10).length },
+            { index: 1, from: 10, to: 15, count: scores.filter((s) => s >= 10 && s < 15).length },
+            { index: 2, from: 15, to: null, count: scores.filter((s) => s >= 15).length },
+          ]
+        : [],
+      questions: [],
+      avgTimeSpentSeconds: null,
+      timeSampleSize: 0,
+      mine: mine ? { simulationId: mine.id, finalScore: mine.finalScore } : null,
+    });
+  }
+
+  const solutionsMatch = pathname.match(/^\/statements\/(\d+)\/community\/solutions$/);
+  if (solutionsMatch && method === 'GET') {
+    const statementId = Number(solutionsMatch[1]);
+    const institutionId = filter('institutionId');
+    const shares = db.solutionShares.filter((sh) => {
+      const sim = db.simulations.find((s) => s.id === sh.simulationId);
+      if (!sim || sim.statementId !== statementId) return false;
+      if (institutionId === undefined) return true;
+      return db.institutionByAccount[sim.accountId] === institutionId;
+    });
+    return json({
+      content: shares.map((sh) => {
+        const sim = db.simulations.find((s) => s.id === sh.simulationId);
+        const schoolId = sim ? db.institutionByAccount[sim.accountId] : undefined;
+        const school = schoolId ? db.institutions.find((i) => i.id === schoolId) : undefined;
+        return {
+          shareId: sh.id,
+          institution: !sh.anonymous && school ? { id: school.id, code: school.code } : null,
+          authorName: sh.anonymous ? null : sh.displayName,
+          finalScore: sim?.finalScore ?? null,
+          timeSpentSeconds: sim?.timeSpentSeconds ?? null,
+          answers: [],
+        };
+      }),
+      page: 0, size: shares.length, totalElements: shares.length, totalPages: 1,
+    });
+  }
+
+  const shareMatch = pathname.match(/^\/simulations\/(\d+)\/share$/);
+  if (shareMatch && method === 'POST') {
+    const simulationId = Number(shareMatch[1]);
+    const sim = db.simulations.find((s) => s.id === simulationId && s.accountId === account.id);
+    if (!sim) return problem(404, 'Simulation not found');
+    if (sim.status !== 'FINISHED') return problem(409, 'Only a finished simulation can be shared');
+    const anonymous = body.anonymous !== false;
+    const displayName = text('displayName') || null;
+    db.solutionShares = db.solutionShares.filter((sh) => sh.simulationId !== simulationId);
+    const share = { id: db.nextShare++, simulationId, anonymous, displayName, consentAt: toLocalDateTime(new Date()) };
+    db.solutionShares.push(share);
+    return json(
+      { shareId: share.id, simulationId, anonymous, displayName, consentAt: share.consentAt },
+      201,
+    );
+  }
+  if (shareMatch && method === 'DELETE') {
+    const simulationId = Number(shareMatch[1]);
+    const sim = db.simulations.find((s) => s.id === simulationId && s.accountId === account.id);
+    if (!sim) return problem(404, 'Simulation not found');
+    db.solutionShares = db.solutionShares.filter((sh) => sh.simulationId !== simulationId);
+    return new Response(null, { status: 204 });
   }
 
   if (pathname === '/simulations' && method === 'GET') {

@@ -4,6 +4,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ErrorState } from '@/components/states';
 import { StatementDetailView } from '@/components/statement-detail';
 import { getStatementDetail } from '@/lib/statement-detail';
+import { getCommunityStats, getSharedSolutions } from '@/lib/community';
+import { getCatalogNames } from '@/lib/catalog';
 
 export const metadata = { title: 'Prova · Kixi' };
 
@@ -60,11 +62,32 @@ export default async function StatementDetailPage({ params }: { params: Promise<
   if (result.kind === 'partial') {
     return (
       <>
-        <StatementDetailView summary={result.summary} attempts={null} current={null} />
+        <StatementDetailView summary={result.summary} attempts={null} current={null} community={null} />
         <HistoryUnavailable message={result.message} />
       </>
     );
   }
 
-  return <StatementDetailView summary={result.summary} attempts={result.attempts} current={result.current} />;
+  // A comunidade (#32/#119) só se pede com uma tentativa corrigida: sem nota própria
+  // não há "tu vs. a média" para mostrar, e pedir ia gastar um round-trip em vão.
+  const community = result.current?.label === 'corrected'
+    ? await (async () => {
+        const [stats, solutions, names] = await Promise.all([
+          getCommunityStats(id),
+          getSharedSolutions(id),
+          getCatalogNames(),
+        ]);
+        return {
+          stats: stats.ok ? stats.data : null,
+          solutions: solutions.ok ? solutions.data.content : [],
+          schools: names.schools,
+        };
+      })()
+    : null;
+
+  return (
+    <StatementDetailView
+      summary={result.summary} attempts={result.attempts} current={result.current} community={community}
+    />
+  );
 }

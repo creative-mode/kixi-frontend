@@ -98,3 +98,4 @@ async function request<T>(
 export const apiGet = <T>(path: string, query?: Query) => request<T>('GET', path, undefined, query);
 export const apiPost = <T>(path: string, body: object) => request<T>('POST', path, body);
 export const apiPut = <T>(path: string, body: object) => request<T>('PUT', path, body);
+export const apiDelete = <T>(path: string) => request<T>('DELETE', path);
