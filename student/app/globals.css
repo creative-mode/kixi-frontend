@@ -11,3 +11,29 @@
   :focus-visible { outline-color: var(--ring); }
   button:not(:disabled), [role='button']:not(:disabled), [role='tab'], [role='switch'], summary { cursor: pointer; }
 }
+
+/*
+ * `prefers-reduced-motion` (FE-25). O app do gestor já tinha isto; o aluno, que é
+ * o que a maioria usa no telemóvel, ficava sem nada.
+ *
+ * A excepção é `.animate-spin`: todos os usos são spinners de carga, e um anel
+ * parado deixa de comunicar "está a carregar" e passa a parecer uma falha. 16 px de
+ * rotação não são movimento vestibular, pelo que vale a pena manter. Se algum dia
+ * `.animate-spin` passar a ser enfeite, isto tem de ser revisto.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-spin {
+    animation-duration: 0.7s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
