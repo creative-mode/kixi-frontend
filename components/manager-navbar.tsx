@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Home,
   Sparkles,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,13 @@ const allNavLinks = [
     label: "Montar prova",
     description: "Prova no modelo da escola, pronta a imprimir",
     icon: FilePen,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/assign",
+    label: "Atribuir",
+    description: "Professor, turma e disciplina numa só tela",
+    icon: UserCheck,
     color: "bg-accent text-primary",
   },
   ...NAV_KEYS.map((k) => {
