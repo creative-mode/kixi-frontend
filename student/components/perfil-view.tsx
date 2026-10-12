@@ -1,27 +1,28 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Check, LogOut, MessageCircle } from 'lucide-react';
+import { Award, Check, LogOut, MessageCircle } from 'lucide-react';
 import { sairAction } from '@/lib/auth-actions';
 import { Column, Page } from '@/components/page';
 import { Mastery } from '@/components/mastery';
 import { UserAvatar } from '@/components/user-avatar';
 import { ProfileEditor } from '@/components/profile-editor';
 import { Button } from '@/components/ui/button';
+import { Badge as Pill } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setTheme, useNightTheme } from '@/lib/theme';
+import { setReduceMotion, useReduceMotion } from '@/lib/motion';
 import { result, topicsToReview } from '@/lib/data';
+import type { CatalogItem } from '@/lib/catalog';
+import type { Badge, Stats } from '@/lib/stats';
 import type { Me } from '@/lib/types';
 
-const TABS = ['Atividade', 'Desempenho', 'Guardados'] as const;
-const DEFS = [
-  { key: 'time', label: '+25% de tempo nas provas', hint: 'Ajuste de tempo para quem precisa.', def: true },
-  { key: 'motion', label: 'Reduzir movimento', hint: 'Menos animações na interface.', def: false },
-];
+const TABS = ['Atividade', 'Desempenho', 'Medalhas', 'Histórico', 'Guardados'] as const;
 // A activity feed still comes from lib/data.ts; it needs the student's own simulations
 // to be real, which arrives with the statements and results work.
 const ACTIVITY = [
@@ -30,14 +31,30 @@ const ACTIVITY = [
   { t: 'Concluíste a P2 · Sistemas Operativos', m: 'Nota 16,4 · há 1 semana', icon: Check },
 ];
 
-export function PerfilView({ me }: { me: Me | null }) {
+/** XP necessário para o nível atual terminar, só para desenhar a barra — o backend
+ *  é quem decide quando o nível sobe; isto nunca é recalculado para o alterar. 100
+ *  XP por nível é a única suposição aqui, e é só estética. */
+function levelProgress(xp: number, level: number): number {
+  const into = xp - (level - 1) * 100;
+  return Math.max(0, Math.min(100, into));
+}
+
+export function PerfilView({
+  me,
+  stats,
+  badges,
+  history,
+}: {
+  me: Me | null;
+  stats: Stats | null;
+  badges: Badge[];
+  history: CatalogItem[];
+}) {
   const [editing, setEditing] = useState(false);
   const night = useNightTheme();
-  const [on, setOn] = useState<Record<string, boolean>>(Object.fromEntries(DEFS.map((d) => [d.key, d.def])));
+  const reduceMotion = useReduceMotion();
 
   const close = useCallback(() => setEditing(false), []);
-
-  const toggle = (key: string, next: boolean) => setOn((s) => ({ ...s, [key]: next }));
 
   const name = fullName(me) || 'Aluno';
   const context = contextLine(me);
@@ -87,6 +104,28 @@ export function PerfilView({ me }: { me: Me | null }) {
           {editing && me && <ProfileEditor me={me} onDone={close} />}
         </Card>
 
+        {stats && (
+          <Card>
+            <CardContent className="grid gap-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground">
+                    <Award className="size-[18px]" />
+                  </span>
+                  <div className="leading-snug">
+                    <b className="block text-sm">Nível {stats.level}</b>
+                    <span className="text-[13px] text-muted-foreground">{stats.xp} XP</span>
+                  </div>
+                </div>
+                <Pill variant="outline">
+                  🔥 {stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos
+                </Pill>
+              </div>
+              <Progress value={levelProgress(stats.xp, stats.level)} aria-label={`Progresso para o nível ${stats.level + 1}`} />
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs defaultValue="Atividade">
           <TabsList aria-label="Perfil">{TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
           <TabsContent value="Atividade">
@@ -104,6 +143,53 @@ export function PerfilView({ me }: { me: Me | null }) {
               <CardContent className="grid gap-3.5">{[...result.topics, ...topicsToReview.filter((t) => !result.topics.some((r) => r.label === t.label))].map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}</CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="Medalhas">
+            {badges.length === 0 ? (
+              <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
+                <b className="text-foreground">Ainda não desbloqueaste medalhas</b>
+                <span>Termina a primeira simulação para ganhar a primeira.</span>
+              </Card>
+            ) : (
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                {badges.map((b) => (
+                  <Card key={b.code} className="flex-row items-center gap-3.5 px-5 py-3.5">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground">
+                      <Award className="size-5" />
+                    </span>
+                    <div className="leading-snug">
+                      <b className="block text-sm">{b.name}</b>
+                      <span className="text-[13px] text-muted-foreground">{b.description}</span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          <TabsContent value="Desempenho">
+            <Card><CardHeader><CardTitle>Domínio por tema</CardTitle></CardHeader>
+              <CardContent className="grid gap-3.5">{[...result.topics, ...topicsToReview.filter((t) => !result.topics.some((r) => r.label === t.label))].map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}</CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="Histórico">
+            {history.length === 0 ? (
+              <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
+                <b className="text-foreground">Ainda não terminaste nenhuma prova</b>
+                <span>As provas concluídas aparecem aqui, com a nota.</span>
+              </Card>
+            ) : (
+              <Card className="gap-0 divide-y py-0">
+                {history.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3.5 px-5 py-3.5">
+                    <div className="leading-snug">
+                      <b className="block text-sm">{item.title}</b>
+                      <span className="text-[13px] text-muted-foreground">{[item.kind, item.subject, item.school].filter(Boolean).join(' · ')}</span>
+                    </div>
+                    <Pill variant="success">{item.score}</Pill>
+                  </div>
+                ))}
+              </Card>
+            )}
+          </TabsContent>
           <TabsContent value="Guardados">
             <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground"><b className="text-foreground">Ainda não guardaste nada</b><span>Guarda publicações do início para as encontrares aqui.</span></Card>
           </TabsContent>
@@ -115,12 +201,22 @@ export function PerfilView({ me }: { me: Me | null }) {
               <Label htmlFor="def-night" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Tema escuro</span><span className="text-[13px] font-normal text-muted-foreground">Fundo escuro, para estudar à noite.</span></Label>
               <Switch id="def-night" checked={night} onCheckedChange={setTheme} />
             </div>
-            {DEFS.map((d) => (
-              <div key={d.key} className="flex items-center justify-between gap-4 py-3.5 last:pb-0">
-                <Label htmlFor={`def-${d.key}`} className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">{d.label}</span><span className="text-[13px] font-normal text-muted-foreground">{d.hint}</span></Label>
-                <Switch id={`def-${d.key}`} checked={on[d.key]} onCheckedChange={(v) => toggle(d.key, v)} />
+            <div className="flex items-center justify-between gap-4 py-3.5">
+              <Label htmlFor="def-motion" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Reduzir movimento</span><span className="text-[13px] font-normal text-muted-foreground">Menos animações na interface.</span></Label>
+              <Switch id="def-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
+            </div>
+            {/* Issue #107: o tempo extra é do aluno, mas só um administrador o liga —
+                é uma decisão da escola, não uma preferência de interface, por isso
+                aparece aqui como estado e não como interruptor. */}
+            <div className="flex items-center justify-between gap-4 py-3.5 last:pb-0">
+              <div className="grid gap-0.5 leading-snug">
+                <span className="text-[15px]">+25% de tempo nas provas</span>
+                <span className="text-[13px] font-normal text-muted-foreground">Definido pela escola, não por ti.</span>
               </div>
-            ))}
+              <Pill variant={me?.accessibility_extra_time ? 'success' : 'secondary'}>
+                {me?.accessibility_extra_time ? 'Ativo' : 'Inativo'}
+              </Pill>
+            </div>
           </CardContent>
         </Card>
 

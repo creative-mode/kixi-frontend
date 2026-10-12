@@ -137,6 +137,28 @@ type Store = {
   /** Salas de prova e convites (BE-16), com as regras em ./exam-rooms. */
   rooms: MockRoom[];
   participants: MockParticipant[];
+  /** Gamificação (#118): um UserStatsResponse por conta. */
+  userStats: Record<number, MockUserStats>;
+  /** Medalhas desbloqueadas por conta (UserBadgeResponse[]). */
+  userBadges: Record<number, MockUserBadge[]>;
+};
+
+type MockUserStats = {
+  accountId: number;
+  xp: number;
+  level: number;
+  streak: number;
+  longestStreak: number;
+  freePauses: number;
+  lastActivityDate: string | null;
+};
+
+type MockUserBadge = {
+  code: string;
+  name: string;
+  description: string;
+  subjectId: number | null;
+  unlockedAt: string;
 };
 
 const G = globalThis as unknown as { __kixiStudentMock?: Store };
@@ -364,6 +386,23 @@ function seed(): Store {
       { roomId: 2, accountId: 3, simulationId: null, joinedAt: null },
       { roomId: 3, accountId: 3, simulationId: null, joinedAt: null },
     ],
+    // Consistente com a única simulação terminada da semente (RED, 16,4/20): XP de
+    // uma prova, nível 1, sequência de 1 dia (hoje), e a medalha que esse resultado
+    // já desbloqueia. streak_30_days e topic_mastered ficam por desbloquear.
+    userStats: {
+      3: {
+        accountId: 3, xp: 120, level: 1, streak: 1, longestStreak: 3, freePauses: 1,
+        lastActivityDate: toLocalDateTime(new Date()).slice(0, 10),
+      },
+    },
+    userBadges: {
+      3: [
+        {
+          code: 'FIRST_SIMULATION', name: 'Primeira prova', description: 'Concluiu a primeira simulação.',
+          subjectId: null, unlockedAt: toLocalDateTime(new Date(Date.now() - 71 * 3600 * 1000)),
+        },
+      ],
+    },
   };
 }
 
@@ -717,6 +756,20 @@ export async function mockHandle(
   const staff = account.roles.some((role) => role === 'ADMIN' || role === 'TEACHER');
 
   if (pathname === '/me' && method === 'GET') return json(meResponse(db, account));
+
+  // Gamificação (#118): quem nunca terminou uma simulação não tem XP nenhum, não um
+  // 404 — a mesma razão de user_stats não ter linha a menos que algo a tenha criado.
+  if (pathname === '/me/stats' && method === 'GET') {
+    const stats = db.userStats[account.id] ?? {
+      accountId: account.id, xp: 0, level: 1, streak: 0, longestStreak: 0, freePauses: 1,
+      lastActivityDate: null,
+    };
+    return json(stats);
+  }
+
+  if (pathname === '/me/badges' && method === 'GET') {
+    return json(db.userBadges[account.id] ?? []);
+  }
 
   if (pathname === '/me' && method === 'PUT') {
     const first = text('first_name');
