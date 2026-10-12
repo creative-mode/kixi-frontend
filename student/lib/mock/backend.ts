@@ -292,19 +292,27 @@ function seed(): Store {
     account(1, 'admin', 'admin@kixi.ao', 'ADMIN', 'Ana', 'Costa'),
     account(2, 'professor', 'professor@kixi.ao', 'TEACHER', 'Bruno', 'Mendes'),
     account(3, '12345', 'aluno@kixi.ao', 'STUDENT', 'Abner', 'Ede'),
+    // Colegas para o ranking (#117/#31) ter com quem comparar: Nuno e Sara na
+    // mesma turma do aluno 3, Inês na mesma escola mas noutra turma.
+    account(4, 'nuno.dias', 'nuno.dias@kixi.ao', 'STUDENT', 'Nuno', 'Dias'),
+    account(5, 'sara.pinto', 'sara.pinto@kixi.ao', 'STUDENT', 'Sara', 'Pinto'),
+    account(6, 'ines.lopes', 'ines.lopes@kixi.ao', 'STUDENT', 'Inês', 'Lopes'),
   ];
 
   return {
     accounts,
-    nextAccount: 4,
+    nextAccount: 7,
     institutions,
     courses,
     schoolYears,
     classes,
     enrollments: [
       { id: 1, accountId: 3, classId: 1, schoolYearId: 1, status: 'ACTIVE' },
+      { id: 2, accountId: 4, classId: 1, schoolYearId: 1, status: 'ACTIVE' },
+      { id: 3, accountId: 5, classId: 1, schoolYearId: 1, status: 'ACTIVE' },
+      { id: 4, accountId: 6, classId: 2, schoolYearId: 1, status: 'ACTIVE' },
     ],
-    nextEnrollment: 2,
+    nextEnrollment: 5,
     subjects: [
       { id: 1, code: 'RED', name: 'Redes de Computadores' },
       { id: 2, code: 'SO', name: 'Sistemas Operativos' },
@@ -392,6 +400,26 @@ function seed(): Store {
         finishedAt: toLocalDateTime(new Date(Date.now() - 23 * 3600 * 1000)),
         timeSpentSeconds: 3600,
       },
+      // Tentativas dos colegas matriculados (#117/#31), para o ranking de turma e
+      // de escola teres uma distribuição real em vez de uma lista com um nome só.
+      {
+        id: 5, accountId: 4, statementId: 1, status: 'FINISHED', finalScore: 18.0,
+        startedAt: toLocalDateTime(new Date(Date.now() - 50 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 49 * 3600 * 1000)),
+        timeSpentSeconds: 2600,
+      },
+      {
+        id: 6, accountId: 5, statementId: 1, status: 'FINISHED', finalScore: 11.5,
+        startedAt: toLocalDateTime(new Date(Date.now() - 30 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 29 * 3600 * 1000)),
+        timeSpentSeconds: 3300,
+      },
+      {
+        id: 7, accountId: 6, statementId: 1, status: 'FINISHED', finalScore: 19.5,
+        startedAt: toLocalDateTime(new Date(Date.now() - 10 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 9 * 3600 * 1000)),
+        timeSpentSeconds: 2200,
+      },
     ],
     // Uma resposta já guardada na tentativa 2, para se ver a sala a retomar o que
     // ficou em vez de recomeçar: um POST novo na mesma pergunta daria 409.
@@ -415,7 +443,7 @@ function seed(): Store {
         scoreObtained: null, isCorrect: null, reviewStatus: null, answeredAt: null,
       },
     ],
-    nextSimulation: 5,
+    nextSimulation: 8,
     nextAnswer: 5,
     chatSessions: [],
     chatSent: {},
@@ -837,6 +865,101 @@ export async function mockHandle(
 
   if (pathname === '/me/badges' && method === 'GET') {
     return json(db.userBadges[account.id] ?? []);
+  }
+
+  // ── ranking (#117/#31) ──────────────────────────────────────────────────────
+  // Espelha o LeaderboardController real: o grupo nunca vem de um parâmetro do
+  // pedido, só da própria matrícula do chamador - não há combinação de query
+  // que alcance o grupo de outra conta. "friends" chega com o kixi#121 (PR #204,
+  // ainda em revisão); até lá o próprio backend real responde 404 a esse scope.
+  if (pathname === '/leaderboard' && method === 'GET') {
+    const scope = search.get('scope') ?? 'class';
+    const period = search.get('period') ?? 'all';
+    const statementId = filter('statementId');
+    if (!['class', 'school', 'friends'].includes(scope)) {
+      return problem(400, 'scope must be class, school or friends');
+    }
+    if (statementId !== undefined && !db.statements.some((s) => s.id === statementId)) {
+      return problem(404, 'Statement not found');
+    }
+    if (scope === 'friends') {
+      return problem(404, 'The friends ranking is not available yet; it arrives with friendships (issue #121)');
+    }
+
+    const mine = db.enrollments.find((e) => e.accountId === account.id && e.status === 'ACTIVE');
+    const empty = { scope, groupId: null, statementId: statementId ?? null, period, totalStudents: 0, rankedStudents: 0, smallGroup: true, myPosition: null, myAverage: null, entries: [] };
+    if (!mine) return json(empty);
+    const klass = db.classes.find((c) => c.id === mine.classId);
+    if (!klass) return json(empty);
+    const groupId = scope === 'class' ? mine.classId : klass.institutionId;
+
+    const members = db.enrollments.filter((e) => {
+      if (e.status !== 'ACTIVE' || e.schoolYearId !== mine.schoolYearId) return false;
+      if (scope === 'class') return e.classId === groupId;
+      return db.classes.find((c) => c.id === e.classId)?.institutionId === groupId;
+    });
+
+    const since = period === 'month' ? Date.now() - 30 * 24 * 3600 * 1000 : null;
+    const averages = members
+      .map((e) => {
+        const sims = db.simulations.filter(
+          (s) =>
+            s.accountId === e.accountId &&
+            s.status === 'FINISHED' &&
+            s.finalScore != null &&
+            (statementId === undefined || s.statementId === statementId) &&
+            (since === null || (s.finishedAt != null && new Date(s.finishedAt).getTime() >= since)),
+        );
+        if (sims.length === 0) return null;
+        const average = sims.reduce((sum, s) => sum + (s.finalScore ?? 0), 0) / sims.length;
+        return { accountId: e.accountId, average };
+      })
+      .filter((row): row is { accountId: number; average: number } => row !== null)
+      .sort((a, b) => b.average - a.average)
+      .map((row, i) => ({ ...row, position: i + 1 }));
+
+    const totalStudents = members.length;
+    const rankedStudents = averages.length;
+    const smallGroup = Math.min(totalStudents, rankedStudents) < 10;
+    const myRow = averages.find((r) => r.accountId === account.id) ?? null;
+
+    // Pódio (top 5, só em grupos grandes) + 2 vizinhos de cada lado da própria
+    // posição - nunca a tabela toda, e os últimos lugares de um grupo pequeno não
+    // entram mesmo que caiam na janela de vizinhos.
+    const NEIGHBOURS = 2;
+    const PODIUM = 5;
+    const visible = new Set<number>();
+    if (!smallGroup) for (let i = 0; i < Math.min(PODIUM, averages.length); i++) visible.add(i);
+    if (myRow) {
+      const idx = myRow.position - 1;
+      for (let i = Math.max(0, idx - NEIGHBOURS); i <= Math.min(averages.length - 1, idx + NEIGHBOURS); i++) {
+        // Em grupo pequeno, os últimos lugares não entram só por caírem na janela
+        // de vizinhos - a não ser que seja a própria posição do aluno.
+        const tail = smallGroup && i >= averages.length - NEIGHBOURS;
+        if (tail && i !== idx) continue;
+        visible.add(i);
+      }
+    }
+
+    const maskedName = (id: number) => {
+      const a = db.accounts.find((x) => x.id === id);
+      return a ? `${a.firstName} ${a.lastName.charAt(0)}.` : 'Aluno';
+    };
+    const entries = [...visible].sort((a, b) => a - b).map((i) => {
+      const row = averages[i];
+      return {
+        position: row.position,
+        accountId: row.accountId === account.id ? account.id : null,
+        displayName: maskedName(row.accountId),
+        average: row.average,
+        me: row.accountId === account.id,
+      };
+    });
+
+    return json({
+      scope, groupId, statementId: statementId ?? null, period, totalStudents, rankedStudents,
+      smallGroup, myPosition: myRow?.position ?? null, myAverage: myRow?.average ?? null, entries,
+    });
   }
 
   // ── feed social da turma/escola (#120/#30) ──────────────────────────────────

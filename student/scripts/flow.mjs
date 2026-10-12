@@ -454,6 +454,21 @@ async function main() {
       },
     );
 
+    await passo(
+      'o ranking liga-se ao backend, não às linhas fixas de lib/data.ts',
+      'GET', '/aluno/ranking', {},
+      async (r) => {
+        // #117/#31: esta conta é desta corrida, sozinha na sua turma (curso TLP-ITEL,
+        // #31 não partilha semente com a 12B) - por isso a janela do backend é só ela
+        // própria, em 1.º de 1. A prova é não mostrar as linhas fixas de lib/data.ts
+        // (Mariana Costa, Paulo Neto, ...), que não dependem de nota nenhuma.
+        const html = await r.text();
+        if (html.includes('Mariana Costa')) return 'ainda mostra as linhas fixas de lib/data.ts';
+        const falta = ['Turma', 'Escola', 'Amigos', '1.º de 1'].find((t) => !html.includes(t));
+        return falta ? `não encontrei "${falta}"` : null;
+      },
+    );
+
     // 5 · logout, e o cookie tem mesmo de desaparecer
     const perfil = await (await fetch(`${BASE}/aluno/perfil`, { headers: cabecalhos() })).text();
     await passo(
