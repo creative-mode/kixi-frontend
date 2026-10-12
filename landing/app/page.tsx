@@ -8,7 +8,7 @@ export default function Landing() {
     <>
       <a href="#conteudo" className="skip">Saltar para o conteúdo</a>
       <Header />
-      <main id="conteudo">
+      <main id="conteudo" tabIndex={-1}>
         <Presentation />
         <div className="hatch" aria-hidden="true" />
         <Audiences />

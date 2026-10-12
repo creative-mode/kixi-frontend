@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import {
   LayoutDashboard,
   LogOut,
@@ -122,7 +122,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
   if (isPublicPage) return null;
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link
@@ -139,6 +139,9 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
             </div>
             <button
               onClick={() => setIsOpen(!isOpen)}
+              aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
+              aria-expanded={isOpen}
+              aria-controls="manager-menu"
               className="p-2 rounded-md border border-transparent hover:border-border hover:bg-accent transition-colors relative group"
             >
               <div className="relative w-6 h-6 flex items-center justify-center">
@@ -174,6 +177,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            id="manager-menu"
             initial={{ opacity: 0, y: "-100%" }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "-100%" }}
@@ -248,6 +252,6 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </MotionConfig>
   );
 }
