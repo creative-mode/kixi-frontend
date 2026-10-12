@@ -58,6 +58,10 @@ jobs:
       # exercem um único redirect, e foi um redirect que partiu o login no PR #98.
       - run: npm run build
       - run: npm run test:flow
+      # Contraste, alvos de toque, movimento e skip-link. Não é o Lighthouse — o
+      # critério da FE-25 pede a nota, que exige Chrome — mas é o que não quebra em
+      # silêncio entre auditorias.
+      - run: npm run test:a11y
 
   landing:
     name: Typecheck da landing
