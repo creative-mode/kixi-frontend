@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Award, Check, LogOut, MessageCircle } from 'lucide-react';
+import { Award, Check, Flame, LogOut, MessageCircle } from 'lucide-react';
 import { sairAction } from '@/lib/auth-actions';
 import { Column, Page } from '@/components/page';
 import { Mastery } from '@/components/mastery';
@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setTheme, useNightTheme } from '@/lib/theme';
 import { setReduceMotion, useReduceMotion } from '@/lib/motion';
+import { levelProgress } from '@/lib/gamification-rules';
 import { result, topicsToReview } from '@/lib/data';
 import type { CatalogItem } from '@/lib/catalog';
 import type { Badge, Stats } from '@/lib/stats';
@@ -30,14 +31,6 @@ const ACTIVITY = [
   { t: 'Perguntaste na turma sobre subnetting', m: '3 respostas · há 4 dias', icon: MessageCircle },
   { t: 'Concluíste a P2 · Sistemas Operativos', m: 'Nota 16,4 · há 1 semana', icon: Check },
 ];
-
-/** XP necessário para o nível atual terminar, só para desenhar a barra — o backend
- *  é quem decide quando o nível sobe; isto nunca é recalculado para o alterar. 100
- *  XP por nível é a única suposição aqui, e é só estética. */
-function levelProgress(xp: number, level: number): number {
-  const into = xp - (level - 1) * 100;
-  return Math.max(0, Math.min(100, into));
-}
 
 export function PerfilView({
   me,
@@ -118,7 +111,8 @@ export function PerfilView({
                   </div>
                 </div>
                 <Pill variant="outline">
-                  🔥 {stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos
+                  <Flame className="size-3" />
+                  {stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos
                 </Pill>
               </div>
               <Progress value={levelProgress(stats.xp, stats.level)} aria-label={`Progresso para o nível ${stats.level + 1}`} />
