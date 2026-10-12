@@ -347,11 +347,12 @@ async function main() {
       return falta ? `não encontrei "${falta}"` : null;
     });
 
-    await passo('o social não aparece sem o endpoint de comunidade', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
-      // A tarefa é escondê-lo enquanto o kixi#119 estiver fechado. Um botão morto
-      // ensina o aluno a desconfiar do ecrã.
+    await passo('a comunidade não aparece sem tentativa corrigida', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
+      // #32/#119: a comunidade compara desempenhos, e esta conta (acabada de
+      // registar-se) nunca fez esta prova - mostrá-la sem nota própria era um
+      // ecrã a comparar o aluno com ninguém.
       const html = await r.text();
-      return html.includes('Ver como outros') ? 'o CTA social está visível' : null;
+      return html.includes('Comunidade') ? 'a secção da comunidade está visível' : null;
     });
 
     // A conta deste fluxo acabou de registar-se, por isso não tem tentativas: o que se
@@ -436,7 +437,10 @@ async function main() {
       'GET', '/aluno/inicio', {},
       async (r) => {
         const html = await r.text();
-        const falta = ['Início', 'Partilhar resultado'].find((t) => !html.includes(t));
+        // "Partilhar resultado" saiu do compositor com o #30: o backend só deixa o
+        // aluno criar publicações do tipo doubt/topic à mão (PostType.isManual()),
+        // nunca milestone - por isso o atalho deixou de fingir que essa opção existe.
+        const falta = ['Início', 'Fazer uma pergunta'].find((t) => !html.includes(t));
         return falta ? `não encontrei "${falta}"` : null;
       },
     );
@@ -447,6 +451,21 @@ async function main() {
       async (r) => {
         const html = await r.text();
         return html.includes('Salas de prova') ? 'a secção apareceu sem haver salas' : null;
+      },
+    );
+
+    await passo(
+      'o ranking liga-se ao backend, não às linhas fixas de lib/data.ts',
+      'GET', '/aluno/ranking', {},
+      async (r) => {
+        // #117/#31: esta conta é desta corrida, sozinha na sua turma (curso TLP-ITEL,
+        // #31 não partilha semente com a 12B) - por isso a janela do backend é só ela
+        // própria, em 1.º de 1. A prova é não mostrar as linhas fixas de lib/data.ts
+        // (Mariana Costa, Paulo Neto, ...), que não dependem de nota nenhuma.
+        const html = await r.text();
+        if (html.includes('Mariana Costa')) return 'ainda mostra as linhas fixas de lib/data.ts';
+        const falta = ['Turma', 'Escola', 'Amigos', '1.º de 1'].find((t) => !html.includes(t));
+        return falta ? `não encontrei "${falta}"` : null;
       },
     );
 

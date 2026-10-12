@@ -254,6 +254,9 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { label: 'Turma', value: (r) => <strong>{r.code}</strong>, className: 'w-24' },
       { label: 'Classe', value: (r) => `${r.grade}.ª`, className: 'w-24' },
       { label: 'Curso', value: (r) => r.course?.name ?? '—' },
+      // Só leitura e herdada: vem do curso no backend (ClassResponse.institutionId),
+      // por isso não há campo no formulário — a escola escolhe-se no Curso.
+      { label: 'Escola', value: (r, l) => l?.[`institutionId:${r.institutionId}`] ?? r.institution?.name ?? '—' },
       { label: 'Ano letivo', value: (r) => (r.schoolYear ? `${r.schoolYear.startYear}–${r.schoolYear.endYear}` : '—') },
     ],
     titleOf: (r) => `${r.code}`,
@@ -262,6 +265,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     canEdit: false,
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
+    lookups: { institutionId: 'institutions' },
   },
   roles: {
     key: 'roles',
