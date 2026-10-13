@@ -19,6 +19,8 @@ export interface RawSimulation {
 }
 
 export interface Mastery {
+  /** A prova: duas provas podem ter o mesmo título, por isso a lista não se chaveia pelo rótulo. */
+  id: number;
   label: string;
   value: number;
 }
@@ -68,7 +70,7 @@ export function buildPerformance(simulations: RawSimulation[]): Performance {
   const mastery: Mastery[] = [];
   for (const s of latestByStatement.values()) {
     const value = percentOf(s);
-    if (value !== null) mastery.push({ label: s.statement?.title?.trim() || 'Prova', value });
+    if (value !== null) mastery.push({ id: s.statement?.id ?? s.id, label: s.statement?.title?.trim() || 'Prova', value });
   }
   mastery.sort((a, b) => a.value - b.value || a.label.localeCompare(b.label, 'pt'));
 

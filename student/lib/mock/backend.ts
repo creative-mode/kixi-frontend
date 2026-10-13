@@ -986,7 +986,7 @@ export async function mockHandle(
   }
 
   if (pathname === '/feed/posts' && method === 'POST') {
-    const type = text('type');
+    const type = text('type').toLowerCase();
     const classId = Number(body.classId);
     const content = text('content');
     if (!['doubt', 'topic'].includes(type)) return problem(400, 'Post type is required');
@@ -1021,7 +1021,7 @@ export async function mockHandle(
   const reactionMatch = pathname.match(/^\/feed\/posts\/(\d+)\/reactions$/);
   if (reactionMatch && method === 'POST') {
     const postId = Number(reactionMatch[1]);
-    const type = text('reaction');
+    const type = text('reaction').toLowerCase();
     if (!['applause', 'strength'].includes(type)) return problem(400, 'Reaction type is required');
     if (!db.posts.some((p) => p.id === postId)) return problem(404, 'Post not found');
     const existing = db.postReactions.findIndex(

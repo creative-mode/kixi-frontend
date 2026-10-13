@@ -38,13 +38,14 @@ export async function createPost(
   content: string,
   title?: string,
 ): Promise<Result<FeedPost>> {
-  return apiPost<FeedPost>('/feed/posts', { type, classId, content, title: title || undefined });
+  // O backend lê o enum pelo nome ('DOUBT'); as respostas é que trazem o valor em minúsculas.
+  return apiPost<FeedPost>('/feed/posts', { type: type.toUpperCase(), classId, content, title: title || undefined });
 }
 
 /** Alterna a reação do aluno (sempre 'applause' aqui: só há uma forma de aplaudir
  *  na interface, mesmo que o backend aceite 'strength' também). */
 export async function toggleReaction(postId: number, reaction: ReactionType = 'applause') {
-  return apiPost<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction });
+  return apiPost<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction: reaction.toUpperCase() });
 }
 
 /** Não há GET para listar comentários (só a contagem em cada FeedPost) - por isso só

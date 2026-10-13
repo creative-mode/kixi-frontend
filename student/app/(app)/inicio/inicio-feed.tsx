@@ -236,7 +236,7 @@ export function InicioFeed({
             {reviewTopics.length === 0 ? (
               <p className="text-sm text-muted-foreground">Quando terminares uma prova, as que correram pior aparecem aqui.</p>
             ) : (
-              reviewTopics.map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)
+              reviewTopics.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)
             )}
             <Button asChild variant="outline" size="sm"><Link href="/tutor">Rever com o tutor</Link></Button>
           </CardContent>

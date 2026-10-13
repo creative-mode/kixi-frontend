@@ -140,7 +140,7 @@ export function PerfilView({
               <CardContent className="grid gap-3.5">
                 {performance.mastery.length === 0
                   ? <p className="text-sm text-muted-foreground">Entrega uma prova para veres aqui o teu domínio.</p>
-                  : performance.mastery.map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}
+                  : performance.mastery.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}
               </CardContent>
             </Card>
           </TabsContent>
@@ -171,7 +171,7 @@ export function PerfilView({
               <CardContent className="grid gap-3.5">
                 {performance.mastery.length === 0
                   ? <p className="text-sm text-muted-foreground">Entrega uma prova para veres aqui o teu domínio.</p>
-                  : performance.mastery.map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}
+                  : performance.mastery.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}
               </CardContent>
             </Card>
           </TabsContent>

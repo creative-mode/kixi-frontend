@@ -42,7 +42,7 @@ test('uma prova refeita conta pela tentativa mais recente', () => {
     sim(1, 1, 8, 20, '2026-10-01T10:00:00'),
     sim(2, 1, 16, 20, '2026-10-09T10:00:00'),
   ]);
-  assert.deepEqual(p.mastery, [{ label: 'P1', value: 80 }]);
+  assert.deepEqual(p.mastery, [{ id: 1, label: 'P1', value: 80 }]);
   assert.equal(p.activity.length, 2);
 });
 
@@ -53,4 +53,12 @@ test('o domínio começa pela prova mais fraca', () => {
     sim(3, 3, 12, 20, '2026-10-03T10:00:00'),
   ]);
   assert.deepEqual(p.mastery.map((m) => m.value), [30, 60, 90]);
+});
+
+test('duas provas com o mesmo título continuam a ser duas, com ids diferentes', () => {
+  const p = buildPerformance([
+    sim(1, 1, 10, 20, '2026-10-01T10:00:00', 'Teste'),
+    sim(2, 2, 12, 20, '2026-10-02T10:00:00', 'Teste'),
+  ]);
+  assert.deepEqual(p.mastery.map((m) => m.id), [1, 2]);
 });
