@@ -27,14 +27,20 @@ function samplePdf(): Buffer {
   return Buffer.from(pdf);
 }
 
-async function managerLogin(page: Page, username: string) {
+// Admin e professor não aterram no mesmo sítio: o admin vai ao dashboard, o professor
+// vai ao seu âmbito. E o "Dashboard" não se pode procurar por texto — o Next injecta um
+//#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
+async function managerLogin(page: Page, username: string, landing: RegExp, heading: string) {
   await page.goto('/manager/login');
   await page.getByLabel('Username ou email').fill(username);
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
-  await expect(page).toHaveURL(/\/manager\/?$/);
-  await expect(page.getByText('Dashboard', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(landing);
+  await expect(page.getByRole('heading', { name: heading })).toBeVisible();
 }
+
+const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
+const TEACHER_LANDING = { landing: /\/manager\/professor\/?$/, heading: 'Início' } as const;
 
 test.describe('jornadas críticas do Kixi', () => {
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
@@ -49,7 +55,7 @@ test.describe('jornadas críticas do Kixi', () => {
     // autenticação de uma aplicação com a sessão da outra.
     const managerContext = await browser.newContext();
     const managerPage = await managerContext.newPage();
-    await managerLogin(managerPage, ADMIN_USERNAME);
+    await managerLogin(managerPage, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await managerContext.close();
   });
 
@@ -84,20 +90,24 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     await expect(page.getByText(/^Questão 1 de \d+$/)).toBeVisible();
     // Resposta deliberadamente errada para o resultado oferecer a ligação ao tutor.
-    await page.locator('input[type="radio"]').last().check();
+    // Clica-se na linha da opção, não no input: o radio é `sr-only` e o círculo
+    // visível é um `<span>` sobreposto, por isso `.check()` no input nunca chega lá.
+    await page.locator('label:has(input[type="radio"])').last().click();
     await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
     await page.getByRole('button', { name: 'Entregar', exact: true }).first().click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
-    await expect(page.getByRole('heading', { name: 'Revisão questão a questão' })).toBeVisible();
+    // O `CardTitle` da revisão é um `div`, não um heading, por isso não aparece em
+    // `getByRole('heading')`. O alvo estável é o `aria-label` que o card já traz.
+    await expect(page.getByLabel('Revisão questão a questão')).toBeVisible();
     await page.getByRole('link', { name: 'Estudar os erros com o tutor' }).click();
     await expect(page).toHaveURL(/\/aluno\/tutor\?statementId=/);
     await expect(page.getByRole('heading', { name: 'Tutor' })).toBeVisible();
   });
 
   test('professor: OCR, revisão, gabarito, publicação e sala', async ({ page }) => {
-    await managerLogin(page, TEACHER_USERNAME);
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     await page.goto('/manager/statements/import');
     await page.getByLabel('Escolher ficheiros').setInputFiles({
       name: 'ocr-sample.pdf',
@@ -125,7 +135,7 @@ test.describe('jornadas críticas do Kixi', () => {
 
   test('admin: cria escola e turma e regressa ao dashboard', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
-    await managerLogin(page, ADMIN_USERNAME);
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
 
     await page.goto('/manager/institutions/new');
     await page.getByLabel('Código').fill(`E2E${id}`);
