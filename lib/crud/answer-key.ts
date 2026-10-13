@@ -27,3 +27,16 @@ export function answerKeyIssues(questions: AnswerKeyQuestion[], totalMaxScore: n
   }
   return out;
 }
+
+/**
+ * A cotação total quando o professor a deixa em branco: a soma das cotações das questões.
+ *
+ * Uma prova sem total não tem escala, e sem escala a nota não vira percentagem: o ranking
+ * e o resultado do aluno deixam-na de fora sem dizer porquê. O backend não a soma ao
+ * guardar uma revisão, por isso é aqui que ela se preenche. Sem cotações (soma zero)
+ * continua `null`, porque um total de 0 seria uma escala inválida.
+ */
+export function sumOfScores(questions: { maxScore: number }[]): number | null {
+  const total = questions.reduce((a, q) => a + cents(q.maxScore), 0);
+  return total > 0 ? total / 100 : null;
+}
