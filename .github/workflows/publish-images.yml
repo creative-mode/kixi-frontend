@@ -1,0 +1,72 @@
+name: Publicar imagens (GHCR)
+
+# As imagens saem da branch de produção. Para publicar fora de um push (ex.: reenviar
+# uma imagem), dispara-se à mão sobre a PRD.
+on:
+  push:
+    branches: [PRD]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: "Imagem: ${{ matrix.name }}"
+    runs-on: ubuntu-latest
+    # Um disparo manual noutra branch não pode publicar a "latest" de produção.
+    if: github.ref == 'refs/heads/PRD'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gateway
+            dockerfile: docker/gateway.Dockerfile
+            build_args: ""
+          - name: manager
+            dockerfile: docker/app.Dockerfile
+            build_args: |
+              APP_DIR=.
+              PORT=3002
+          - name: student
+            dockerfile: docker/app.Dockerfile
+            build_args: |
+              APP_DIR=student
+              PORT=3003
+              NEXT_PUBLIC_MANAGER_URL=${{ vars.NEXT_PUBLIC_MANAGER_URL }}
+          - name: landing
+            dockerfile: docker/app.Dockerfile
+            build_args: |
+              APP_DIR=landing
+              PORT=3004
+              NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.name }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build_args }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
