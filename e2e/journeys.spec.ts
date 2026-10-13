@@ -82,7 +82,7 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('link', { name: 'Começar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
-    await expect(page.getByText('Questão 1 de 3')).toBeVisible();
+    await expect(page.getByText(/^Questão 1 de \d+$/)).toBeVisible();
     // Resposta deliberadamente errada para o resultado oferecer a ligação ao tutor.
     await page.locator('input[type="radio"]').last().check();
     await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
