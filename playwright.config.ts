@@ -21,6 +21,5 @@ export default defineConfig({
         url: `${baseURL}/healthz`,
         reuseExistingServer: !process.env.CI,
         timeout: 600_000,
-        teardown: 'docker compose down',
       },
 });
