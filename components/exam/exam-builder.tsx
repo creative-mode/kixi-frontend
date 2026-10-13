@@ -76,11 +76,10 @@ export function ExamBuilder() {
   const classOptions = (choices?.classes ?? []).filter(
     (c) => !choices?.assignments || !subjectId || choices.assignments.some((a) => a.classId === c.value && a.subjectId === subjectId),
   );
-  // Uma turma escolhida que deixou de servir (outra escola ou disciplina) não fica por trás.
-  useEffect(() => {
-    if (classId && !classOptions.some((c) => String(c.value) === classId)) setClassId('');
-  }, [classOptions, classId]);
-  const classChosen = admin === true || classId !== '';
+  // Uma turma escolhida que deixou de servir (outra escola ou disciplina) conta como não escolhida:
+  // deriva-se em vez de se limpar num efeito, e o select volta a "Escolher…" porque o valor não existe.
+  const chosenClassId = classOptions.some((c) => String(c.value) === classId) ? classId : '';
+  const classChosen = admin === true || chosenClassId !== '';
 
   /**
    * `true` publica a prova, `false` deixa-a guardada à espera.
@@ -98,9 +97,9 @@ export function ExamBuilder() {
       subjectId: subjectIds[draft.subject],
       // A turma é o único âmbito que o cliente nomeia; o curso vem dela.
       // O ano letivo também: sem ele a prova não entra em nenhum ranking.
-      ...(classId ? (() => {
-        const chosen = classOptions.find((c) => String(c.value) === classId);
-        return { classId: Number(classId), courseId: chosen?.courseId ?? null, schoolYearId: chosen?.schoolYearId ?? null };
+      ...(chosenClassId ? (() => {
+        const chosen = classOptions.find((c) => String(c.value) === chosenClassId);
+        return { classId: Number(chosenClassId), courseId: chosen?.courseId ?? null, schoolYearId: chosen?.schoolYearId ?? null };
       })() : {}),
       title: `${draft.kind} – ${draft.subject}`,
       examType: draft.kind,
@@ -172,7 +171,7 @@ export function ExamBuilder() {
                     </NativeSelect>
                   </Field>
                   <Field label={admin ? 'Turma (opcional)' : 'Turma'}>
-                    <NativeSelect value={classId} onChange={(e) => setClassId(e.target.value)} disabled={!choices}>
+                    <NativeSelect value={chosenClassId} onChange={(e) => setClassId(e.target.value)} disabled={!choices}>
                       <option value="">Escolher…</option>
                       {classOptions.map((c) => <option key={c.value} value={String(c.value)}>{c.label}</option>)}
                     </NativeSelect>
