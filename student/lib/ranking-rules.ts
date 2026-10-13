@@ -7,6 +7,7 @@ export const SCOPE_LABEL: Record<RankingScope, string> = {
   class: 'Turma',
   school: 'Escola',
   friends: 'Amigos',
+  global: 'Global',
 };
 
 export function formatAverage(value: number | null): string {
