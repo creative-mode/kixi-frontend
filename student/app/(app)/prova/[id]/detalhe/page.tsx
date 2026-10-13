@@ -81,6 +81,9 @@ export default async function StatementDetailPage({ params }: { params: Promise<
           stats: stats.ok ? stats.data : null,
           solutions: solutions.ok ? solutions.data.content : [],
           schools: names.schools,
+          // 409: há uma sala desta prova por fechar. Não é "ainda sem dados", e o aluno
+          // merece saber porquê (a comunidade abre quando as salas fecham).
+          locked: !stats.ok && stats.status === 409,
         };
       })()
     : null;

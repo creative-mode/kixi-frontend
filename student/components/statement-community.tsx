@@ -21,6 +21,7 @@ export function StatementCommunity({
   stats,
   solutions,
   schools,
+  locked = false,
 }: {
   statementId: number;
   /** A tentativa terminada do aluno - quem ainda não terminou não vê esta secção. */
@@ -28,6 +29,8 @@ export function StatementCommunity({
   stats: CommunityStats | null;
   solutions: SharedSolution[];
   schools: Named[];
+  /** A prova tem uma sala por fechar: o backend recusa a comunidade até ela fechar. */
+  locked?: boolean;
 }) {
   const [list, setList] = useState(solutions);
   const [institutionId, setInstitutionId] = useState<number | undefined>(undefined);
@@ -40,7 +43,11 @@ export function StatementCommunity({
       <Card>
         <CardHeader><CardTitle>Comunidade</CardTitle></CardHeader>
         <CardContent>
-          <EmptyState title="Ainda não há dados da comunidade" message="Aparecem aqui quando outros alunos também terminarem esta prova." />
+          {locked ? (
+            <EmptyState title="A comunidade abre mais tarde" message="Esta prova ainda tem uma sala por fechar. Quando fechar, vês aqui como a turma se saiu." />
+          ) : (
+            <EmptyState title="Ainda não há dados da comunidade" message="Aparecem aqui quando outros alunos também terminarem esta prova." />
+          )}
         </CardContent>
       </Card>
     );
