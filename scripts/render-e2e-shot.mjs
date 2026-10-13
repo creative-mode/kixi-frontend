@@ -68,7 +68,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1000, height: 400 }, deviceScaleFactor: 2 });
 await page.setContent(html);
 
-// O reporter escreve linhas largas (`... › nome da jornada (2.6s)`). Medir o `pre` e
+// O reporter escreve linhas largas (`... > nome da jornada (2.6s)`). Medir o `pre` e
 // alargar a janela ao conteúdo, senão os tempos ficam cortados e a imagem mente.
 // A folga cobre o padding do corpo (40 de cada lado), a borda da janela e o resto.
 const tamanho = await page.evaluate(() => {
