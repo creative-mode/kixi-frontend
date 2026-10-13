@@ -25,7 +25,7 @@ import type { CatalogItem } from '@/lib/catalog';
 import type { Badge, Stats } from '@/lib/stats';
 import type { Me } from '@/lib/types';
 
-const TABS = ['Atividade', 'Desempenho', 'Medalhas', 'Histórico', 'Guardados'] as const;
+const TABS = ['Atividade', 'Desempenho', 'Medalhas', 'Histórico'] as const;
 
 export function PerfilView({
   me,
@@ -194,9 +194,6 @@ export function PerfilView({
                 ))}
               </Card>
             )}
-          </TabsContent>
-          <TabsContent value="Guardados">
-            <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground"><b className="text-foreground">Ainda não guardaste nada</b><span>Guarda publicações do início para as encontrares aqui.</span></Card>
           </TabsContent>
         </Tabs>
 
