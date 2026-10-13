@@ -30,7 +30,7 @@ function samplePdf(): Buffer {
 async function managerLogin(page: Page, username: string) {
   await page.goto('/manager/login');
   await page.getByLabel('Username ou email').fill(username);
-  await page.getByLabel('Palavra-passe').fill(PASSWORD);
+  await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
   await expect(page).toHaveURL(/\/manager\/?$/);
   await expect(page.getByText('Dashboard', { exact: true })).toBeVisible();
@@ -40,7 +40,7 @@ test.describe('jornadas críticas do Kixi', () => {
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
-    await page.getByLabel('Palavra-passe').fill(PASSWORD);
+    await page.locator('#password').fill(PASSWORD);
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     await expect(page.getByRole('heading', { name: 'Início' })).toBeVisible();
@@ -79,7 +79,7 @@ test.describe('jornadas críticas do Kixi', () => {
     // not assume a fixed class-to-statement mapping.
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await page.getByRole('link', { name: 'Simular' }).click();
+    await page.getByRole('link', { name: 'Começar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     await expect(page.getByText('Questão 1 de 3')).toBeVisible();
