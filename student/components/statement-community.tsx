@@ -93,7 +93,7 @@ export function StatementCommunity({
         {shared && <Alert variant="success">A tua resolução está partilhada, de forma anónima.</Alert>}
 
         <div className="grid gap-1">
-          <p className="text-sm text-muted-foreground">{stats.sampleSize} aluno{stats.sampleSize === 1 ? '' : 's'} já terminou{stats.sampleSize === 1 ? '' : 'aram'} esta prova</p>
+          <p className="text-sm text-muted-foreground">{stats.sampleSize === 1 ? '1 aluno já terminou' : `${stats.sampleSize} alunos já terminaram`} esta prova</p>
           {comparison && <p className="font-semibold">{comparison}</p>}
         </div>
 
