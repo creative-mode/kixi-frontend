@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import {
   LayoutDashboard,
   LogOut,
@@ -11,12 +11,17 @@ import {
   Menu as MenuIcon,
   ChevronRight,
   FilePen,
+  DoorOpen,
+  TrendingUp,
+  Home,
+  Sparkles,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
+import { resetTeacherScope } from "@/hooks/use-teacher-scope";
 import { UserDisplay } from "./user-display";
-import { fetchCurrentUser } from "@/lib/auth";
 import { KixiLogo } from "./kixi-logo";
 
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
@@ -30,10 +35,31 @@ const allNavLinks = [
     color: "bg-accent text-primary",
   },
   {
+    href: "/exam-rooms",
+    label: "Salas de Prova",
+    description: "Provas ao vivo para a turma, com notas no fim",
+    icon: DoorOpen,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/desempenho",
+    label: "Desempenho",
+    description: "Questões mais falhadas, alunos em risco e evolução",
+    icon: TrendingUp,
+    color: "bg-accent text-primary",
+  },
+  {
     href: "/exam-builder",
     label: "Montar prova",
     description: "Prova no modelo da escola, pronta a imprimir",
     icon: FilePen,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/assign",
+    label: "Atribuir",
+    description: "Professor, turma e disciplina numa só tela",
+    icon: UserCheck,
     color: "bg-accent text-primary",
   },
   ...NAV_KEYS.map((k) => {
@@ -42,14 +68,34 @@ const allNavLinks = [
   }),
 ];
 
-export function ManagerNavbar() {
+// Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
+// lista mandava o professor de volta ao início.
+const TEACHER_HREFS = ["/desempenho", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+
+const teacherHomeLink = {
+  href: "/professor",
+  label: "Início",
+  description: "Atalhos e resumo da sua atividade",
+  icon: Home,
+  color: "bg-accent text-primary",
+};
+
+// FE-18 (#29): só do professor. O ADMIN não dá aulas; muda o estilo nas atribuições.
+const teacherTutorLink = {
+  href: "/professor/tutor",
+  label: "Estilo do tutor",
+  description: "Como o tutor de IA explica aos seus alunos",
+  icon: Sparkles,
+  color: "bg-accent text-primary",
+};
+
+export function ManagerNavbar({ roles }: { roles: string[] }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [teacherOnly, setTeacherOnly] = useState(false);
-  useEffect(() => {
-    fetchCurrentUser().then((u) => setTeacherOnly(!!u && !u.roles.includes('ADMIN') && u.roles.includes('TEACHER')));
-  }, []);
-  // O professor só vê o exam builder.
-  const navLinks = teacherOnly ? allNavLinks.filter((l) => l.href === '/exam-builder') : allNavLinks;
+  const isAdmin = roles.includes("ADMIN");
+  const isTeacher = roles.includes("TEACHER");
+  const navLinks = isTeacher && !isAdmin
+    ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
+    : allNavLinks;
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)
@@ -76,7 +122,7 @@ export function ManagerNavbar() {
   if (isPublicPage) return null;
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link
@@ -93,6 +139,9 @@ export function ManagerNavbar() {
             </div>
             <button
               onClick={() => setIsOpen(!isOpen)}
+              aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
+              aria-expanded={isOpen}
+              aria-controls="manager-menu"
               className="p-2 rounded-md border border-transparent hover:border-border hover:bg-accent transition-colors relative group"
             >
               <div className="relative w-6 h-6 flex items-center justify-center">
@@ -128,6 +177,7 @@ export function ManagerNavbar() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            id="manager-menu"
             initial={{ opacity: 0, y: "-100%" }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "-100%" }}
@@ -193,7 +243,7 @@ export function ManagerNavbar() {
                 <div className="md:hidden">
                   <UserDisplay />
                 </div>
-                <Button variant="destructive" size="lg" className="ml-auto" onClick={() => logoutAction()}>
+                <Button variant="destructive" size="lg" className="ml-auto" onClick={() => { resetTeacherScope(); logoutAction(); }}>
                   <LogOut size={18} />
                   Sair do sistema
                 </Button>
@@ -202,6 +252,6 @@ export function ManagerNavbar() {
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </MotionConfig>
   );
 }

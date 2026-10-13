@@ -1,6 +1,5 @@
-/** Dados de exemplo. Ainda não há ligação à API do backend. */
-
-export const me = { name: 'Abner Ede', turma: '12B', escola: 'ITEL', curso: 'Informática' };
+/** Dados de exemplo do conteúdo. O perfil do aluno já vem do backend (GET /me);
+ *  o que fica aqui é o que depende de simulações, provas reais e do tutor. */
 
 export type PostKind = 'resultado' | 'duvida' | 'dica';
 

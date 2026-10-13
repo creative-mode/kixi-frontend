@@ -6,11 +6,12 @@ import { Bell, Camera, ChevronsUpDown, House, FileText, MessageCircle, Search, U
 import { Logo } from './brand';
 import { UserAvatar } from './user-avatar';
 import { Button } from '@/components/ui/button';
-import { me } from '@/lib/data';
+import { contextLine, fullName, photoUrl } from '@/lib/profile';
+import { useMe } from '@/lib/me-context';
 
 const ITEMS = [
   { href: '/inicio', label: 'Início', icon: House, also: [] as string[] },
-  { href: '/provas', label: 'Provas', icon: FileText, also: ['/prova', '/resultado'] },
+  { href: '/provas', label: 'Provas', icon: FileText, also: ['/prova', '/resultado', '/sala'] },
   { href: '/ranking', label: 'Turma', icon: Users, also: [] as string[] },
   { href: '/tutor', label: 'Tutor', icon: MessageCircle, also: [] as string[] },
   { href: '/perfil', label: 'Perfil', icon: User, also: [] as string[] },
@@ -18,10 +19,19 @@ const ITEMS = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const me = useMe();
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
+  const name = fullName(me) || 'Aluno';
+  const context = contextLine(me);
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[256px_minmax(0,1fr)]">
+      <a
+        href="#conteudo"
+        className="sr-only left-3 top-3 z-50 rounded-md bg-card px-4 py-3 text-[15px] font-semibold shadow-md focus:not-sr-only focus:absolute"
+      >
+        Saltar para o conteudo
+      </a>
       <aside className="sticky top-0 hidden h-dvh flex-col gap-5 border-r bg-sidebar p-4 text-sidebar-foreground md:flex">
         <Link href="/inicio" aria-label="Kixi, início" className="inline-flex px-2.5 py-1"><Logo size={26} wordmark /></Link>
         <nav aria-label="Principal" className="grid gap-0.5">
@@ -34,8 +44,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="mt-auto grid gap-3">
           <Button asChild><Link href="/provas"><Camera />Carregar prova</Link></Button>
           <Link href="/perfil" className="flex items-center gap-2.5 rounded-md p-2 hover:bg-secondary">
-            <UserAvatar name={me.name} size={36} />
-            <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{me.name}</span><span className="text-xs text-muted-foreground">{me.escola} · Turma {me.turma}</span></span>
+            <UserAvatar name={name} src={photoUrl(me)} size={36} />
+            <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{name}</span>{context && <span className="block truncate text-xs text-muted-foreground">{context}</span>}</span>
             <ChevronsUpDown className="size-4 text-muted-foreground" />
           </Link>
         </div>
@@ -49,7 +59,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="icon" aria-label="Notificações"><Bell /></Button>
           </div>
         </header>
-        {children}
+        <main id="conteudo" tabIndex={-1} className="outline-none">
+          {children}
+        </main>
       </div>
 
       <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-card px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] md:hidden">
