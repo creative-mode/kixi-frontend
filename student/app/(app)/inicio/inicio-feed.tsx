@@ -14,14 +14,17 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { EmptyState } from '@/components/states';
 import { cn } from '@/lib/utils';
-import { ranking, topicsToReview, upcoming } from '@/lib/data';
 import { useMe } from '@/lib/me-context';
 import { contextLine, fullName } from '@/lib/profile';
 import { sinceLabel } from '@/lib/attempt-history';
 import { authorLabel, canPublish, postTypeLabel } from '@/lib/feed-rules';
 import { addCommentAction, publishPostAction, reportPostAction, toggleReactionAction } from '@/lib/feed-actions';
 import { SalasDeProva } from '@/components/salas-de-prova';
-import type { Invitation } from '@/lib/exam-room-rules';
+import { phaseOf, sortInvitations, type Invitation } from '@/lib/exam-room-rules';
+import { parseServerTime } from '@/lib/exam-rules';
+import { formatAverage } from '@/lib/ranking-rules';
+import type { Mastery as MasteryItem } from '@/lib/performance-rules';
+import type { RankingEntry } from '@/lib/ranking';
 import type { FeedPost } from '@/lib/feed';
 
 const SHORTCUTS = [
@@ -145,12 +148,18 @@ export function InicioFeed({
   classId,
   posts,
   feedError,
+  reviewTopics = [],
+  classTop = [],
 }: {
   invitations?: Invitation[];
   myAccountId: number | null;
   classId: number | null;
   posts: FeedPost[];
   feedError?: string | null;
+  /** As provas com pior nota do aluno, para rever (GET /simulations). */
+  reviewTopics?: MasteryItem[];
+  /** O topo da turma (GET /leaderboard?scope=class): já mascarado e já decidido pelo backend. */
+  classTop?: RankingEntry[];
 }) {
   const me = useMe();
   const [text, setText] = useState('');
@@ -171,7 +180,19 @@ export function InicioFeed({
     });
   };
 
-  const top = ranking.Turma.rows.slice(0, 3);
+  const upcoming = sortInvitations(invitations)
+    .filter((inv) => ['scheduled', 'lobby', 'live'].includes(phaseOf(inv)))
+    .slice(0, 3)
+    .map((inv) => {
+      const when = new Date(parseServerTime(inv.startsAt));
+      return {
+        key: inv.roomId,
+        day: String(when.getDate()),
+        month: when.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', ''),
+        title: inv.statementTitle ?? 'Sala de prova',
+        meta: `${when.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })} · ${inv.durationMinutes} min`,
+      };
+    });
 
   return (
     <Page variant="feed">
@@ -212,29 +233,38 @@ export function InicioFeed({
       <Rail>
         <Card className="gap-4"><CardHeader><CardTitle>Para rever</CardTitle></CardHeader>
           <CardContent className="grid gap-3.5">
-            {topicsToReview.map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}
+            {reviewTopics.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Quando terminares uma prova, as que correram pior aparecem aqui.</p>
+            ) : (
+              reviewTopics.map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)
+            )}
             <Button asChild variant="outline" size="sm"><Link href="/tutor">Rever com o tutor</Link></Button>
           </CardContent>
         </Card>
 
         <Card className="gap-4"><CardHeader><CardTitle>Na tua turma</CardTitle></CardHeader>
           <CardContent className="grid gap-3">
-            <ol className="grid gap-2.5">
-              {top.map((r) => (
-                <li key={r.name} className="flex items-center gap-2.5 text-sm">
-                  <span className="w-5 text-center font-semibold text-muted-foreground tabular-nums">{r.rank}</span>
-                  <UserAvatar name={r.name} size={28} /><span className="min-w-0 flex-1 truncate">{r.name}</span><span className="text-muted-foreground tabular-nums">{r.score}</span>
-                </li>
-              ))}
-            </ol>
+            {classTop.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Ainda não há provas corrigidas na turma.</p>
+            ) : (
+              <ol className="grid gap-2.5">
+                {classTop.map((r) => (
+                  <li key={r.position} className="flex items-center gap-2.5 text-sm">
+                    <span className="w-5 text-center font-semibold text-muted-foreground tabular-nums">{r.position}</span>
+                    <UserAvatar name={r.displayName} size={28} /><span className="min-w-0 flex-1 truncate">{r.me ? 'Tu' : r.displayName}</span><span className="text-muted-foreground tabular-nums">{formatAverage(r.average)}%</span>
+                  </li>
+                ))}
+              </ol>
+            )}
             <Button asChild variant="link" size="sm" className="justify-start px-0"><Link href="/ranking">Ver a turma toda</Link></Button>
           </CardContent>
         </Card>
 
         <Card className="gap-4 md:col-span-2 xl:col-span-1"><CardHeader><CardTitle>Próximas provas</CardTitle></CardHeader>
           <CardContent className="grid gap-3.5">
+            {upcoming.length === 0 && <p className="text-sm text-muted-foreground">Sem salas de prova marcadas para ti.</p>}
             {upcoming.map((u) => (
-              <div className="flex items-center gap-3" key={u.title}>
+              <div className="flex items-center gap-3" key={u.key}>
                 <div className="grid size-11 shrink-0 place-items-center rounded-md bg-accent text-center text-[15px] leading-none font-bold text-accent-foreground"><span>{u.day}<small className="mt-0.5 block text-[10px] font-semibold opacity-80">{u.month}</small></span></div>
                 <div className="leading-tight"><div className="text-sm font-semibold">{u.title}</div><div className="text-[13px] text-muted-foreground">{u.meta}</div></div>
               </div>

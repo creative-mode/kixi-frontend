@@ -3,6 +3,7 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { apiFetch } from '@/lib/mock/fetch';
+import { API_BASE } from '@/lib/constants';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
 
 interface LoginResponse {
@@ -22,8 +23,9 @@ export async function loginAction(formData: FormData) {
   }
 
   try {
-    const backendUrl =
-      process.env.BACKEND_AUTH_URL ?? 'http://localhost:8080/api/v1/auth/login';
+    // Derivado de BACKEND_API_URL, a única variável que o resto do gestor e o docker-compose definem.
+    // Uma variável própria com omissão fixa mandava o login para outro serviço (porta 8080).
+    const backendUrl = `${API_BASE.replace(/\/$/, '')}/auth/login`;
 
     const response = await apiFetch(backendUrl, {
       method: 'POST',
