@@ -6,7 +6,10 @@
     "dev": "next dev -p 3003",
     "build": "next build",
     "start": "next start -p 3003",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "node --test 'lib/**/*.test.ts'",
+    "test:flow": "node scripts/flow.mjs",
+    "test:a11y": "node scripts/a11y.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",

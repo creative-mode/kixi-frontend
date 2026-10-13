@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { deleteRow, listOptions, listRows } from '@/app/actions/crud';
 import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
+import { answerInScope, classInScope, simulationInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { AccountRoles } from './account-roles';
 import { InstitutionMembers } from './institution-members';
 import { TeacherAccess } from './teacher-access';
@@ -26,6 +27,8 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   // id -> display name per FK field (entity.lookups), for flat API responses
   const [labels, setLabels] = useState<Record<string, string>>({});
+  // Teachers only see records tied to their own classes/subjects (admins see all).
+  const scope = useTeacherScope();
 
   const load = useCallback(async () => {
     setError(null);
@@ -60,11 +63,21 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
     };
   }, [entityKey, entity]);
 
+  const scoped = useMemo(() => {
+    // Sem scope resolvido fica null, e a lista continua no esqueleto: devolver
+    // `rows` aqui mostrava a escola inteira até o scope chegar.
+    if (!rows || !scope) return null;
+    if (entityKey === 'classes') return rows.filter((r) => classInScope(scope, r));
+    if (entityKey === 'simulations') return rows.filter((r) => simulationInScope(scope, r));
+    if (entityKey === 'simulation-answers') return rows.filter((r) => answerInScope(scope, r));
+    return rows;
+  }, [rows, scope, entityKey]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q || !rows) return rows;
-    return rows.filter((r) => JSON.stringify(Object.values(r)).toLowerCase().includes(q));
-  }, [rows, query]);
+    if (!q || !scoped) return scoped;
+    return scoped.filter((r) => JSON.stringify(Object.values(r)).toLowerCase().includes(q));
+  }, [scoped, query]);
 
   function askDelete(row: Row) {
     const copy = entity.deleteCopy;
@@ -116,7 +129,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
             <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Pesquisar em ${entity.plural.toLowerCase()}…`} className="pl-9" aria-label="Pesquisar" />
           </div>
-          <span className="ml-auto text-sm text-muted-foreground">{rows ? `${shown?.length ?? 0} de ${rows.length}` : ''}</span>
+          <span className="ml-auto text-sm text-muted-foreground">{rows ? `${shown?.length ?? 0} de ${scoped?.length ?? 0}` : ''}</span>
         </div>
         <CardContent className="p-0">
           <Table>
@@ -129,16 +142,24 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows === null ? (
-                <TableRowsSkeleton cols={cols} />
-              ) : error ? (
+              {error ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-12 text-center">
                     <p className="mb-3 text-sm text-destructive">{error}</p>
                     <Button size="sm" variant="outline" onClick={load}>Tentar de novo</Button>
                   </TableCell>
                 </TableRow>
-              ) : shown && shown.length === 0 ? (
+              ) : scope?.error ? (
+                <TableRow>
+                  <TableCell colSpan={cols} className="py-12 text-center">
+                    <p className="text-sm text-destructive">
+                      Não foi possível determinar as suas turmas, por isso a lista fica vazia: {scope.error}
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ) : shown === null ? (
+                <TableRowsSkeleton cols={cols} />
+              ) : shown.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-16 text-center text-muted-foreground">
                     <p className="mb-3 text-sm">{query ? 'Nada corresponde à pesquisa.' : `Ainda não há ${entity.plural.toLowerCase()}.`}</p>
@@ -152,7 +173,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                   </TableCell>
                 </TableRow>
               ) : (
-                shown?.map((row) => (
+                shown.map((row) => (
                   <TableRow key={rowId(entity, row)} className="border-border transition-colors hover:bg-accent/50">
                     {entity.columns.map((c) => (
                       <TableCell key={c.label} className={c.className}>{c.value(row, labels)}</TableCell>

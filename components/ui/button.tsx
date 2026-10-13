@@ -19,11 +19,14 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-10 px-4 py-2 has-[>svg]:px-3',
-        sm: 'h-9 gap-1.5 px-3 has-[>svg]:px-2.5',
+        // Alvos de toque de 44 px (FE-25) so em ecra pequeno. Acima de `md`
+        // volta a `h-9`/`h-10`, porque subir sempre parte a densidade das
+        // tabelas, e a issue so pede o telemovel e o tablet do gestor.
+        default: 'h-11 px-4 py-2 has-[>svg]:px-3 md:h-10',
+        sm: 'h-11 gap-1.5 px-3 has-[>svg]:px-2.5 md:h-9',
         lg: 'h-11 px-6 text-[15px] has-[>svg]:px-4',
-        icon: 'size-10',
-        'icon-sm': 'size-9',
+        icon: 'size-11 md:size-10',
+        'icon-sm': 'size-11 md:size-9',
         'icon-lg': 'size-11',
       },
     },

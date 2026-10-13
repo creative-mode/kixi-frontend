@@ -5,6 +5,10 @@ import 'server-only';
 // Same contracts as scripts/mock-api.mjs (paths, DTOs, soft delete, HS256 JWT). State lives in memory per server process.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from 'node:crypto';
+import { approvalProblem } from './gate';
+import { examRooms, liveStream, luandaClock } from './exam-rooms';
+import { assignmentsFrom, teacherCanWrite } from '../crud/teacher-scope';
+import { canWriteProblem, updateProblem } from './statement-write';
 
 const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -49,6 +53,22 @@ function add(table, data) {
 }
 
 const roleId = (n) => db.roles.find((r) => r.name === n).id;
+
+// Salas de Prova: regras em ./exam-rooms.ts, com testes.
+const rooms = examRooms({
+  db,
+  add,
+  clock: luandaClock,
+  // StatementWriteAccessService.checkCanWrite, com as atribuições do professor.
+  canWriteStatement: (statementId, accountId, admin) => {
+    if (admin) return true;
+    const st = db.statements.find((x) => x.id === statementId && !x.deletedAt);
+    const teacher = db.teachers.find((t) => t.accountId === accountId && !t.deletedAt);
+    if (!st || !teacher) return false;
+    return teacherCanWrite(assignmentsFrom(db['teaching-assignments'].filter((a) => a.teacherId === teacher.id)), st);
+  },
+  isStudent: (accountId) => db.accountRoles.some((r) => r.accountId === accountId && r.roleId === roleId('STUDENT')),
+});
 function seedAccount(username, email, roleName, firstName, lastName) {
   const a = add('accounts', { username, email, passwordHash: hash(SEED_PASSWORD), emailVerified: true, active: true, lastLogin: null });
   db.accountRoles.push({ accountId: a.id, roleId: roleId(roleName) });
@@ -88,14 +108,30 @@ add('statements', {
 });
 
   const itel = add('institutions', { code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: '/manager/exam/itel.png' });
+  // A escola da turma é herdada do curso (como no backend): o seed liga-os aqui.
+  crs.institutionId = itel.id;
+  cls.institutionId = itel.id;
   for (const sub of db.subjects) db.institutionSubjects.push({ institutionId: itel.id, subjectId: sub.id });
+  cls.institutionId = itel.id;
   const helena = add('teachers', { accountId: teacherAcc.id, firstName: 'Helena', lastName: 'Gomes', email: 'professor@kixi.ao', photo: null, specialty: 'Redes', employeeNumber: 'P-001' });
   db.institutionTeachers.push({ institutionId: itel.id, teacherId: helena.id });
-  add('teachers', { accountId: null, firstName: 'Carlos', lastName: 'Mendes', email: 'carlos@itel.ao', photo: null, specialty: 'Sistemas Operativos', employeeNumber: 'P-002' });
+  const carlos = add('teachers', { accountId: null, firstName: 'Carlos', lastName: 'Mendes', email: 'carlos@itel.ao', photo: null, specialty: 'Sistemas Operativos', employeeNumber: 'P-002' });
+  db.institutionTeachers.push({ institutionId: itel.id, teacherId: carlos.id });
+  // Segundo professor com login próprio, para testar o filtro por professor.
+  const carlosAcc = add('accounts', { username: 'carlos', email: 'carlos@itel.ao', passwordHash: hash(SEED_PASSWORD), emailVerified: true, active: true, lastLogin: null });
+  db.accountRoles.push({ accountId: carlosAcc.id, roleId: roleId('TEACHER') });
+  carlos.accountId = carlosAcc.id;
   const stUser = db.users.find((u) => u.accountId === student.id);
   if (stUser) db.institutionStudents.push({ institutionId: itel.id, userId: stUser.id });
   add('enrollments', { accountId: student.id, classId: cls.id, schoolYearId: sy.id, status: 'ACTIVE' });
   add('teaching-assignments', { teacherId: helena.id, classId: cls.id, subjectId: redes.id, schoolYearId: sy.id, tutorStyle: null });
+  // Turma e disciplina só do Carlos (11A · Sistemas Operativos), para as listas dele diferirem das da Helena.
+  const cls11 = add('classes', { code: '11A', grade: 11, course: crs, schoolYear: sy });
+  add('statements', {
+    title: 'P1 · Sistemas Operativos (11A)', examType: 'P1', durationMinutes: 90, variant: 'A', instructions: 'Leia atentamente.', totalMaxScore: 20, visible: true, needsReview: false,
+    source: 'MANUAL', ocrConfidence: null, ocrRequestId: null, schoolYearId: sy.id, termId: 1, subjectId: db.subjects[1].id, classId: cls11.id, questions: [],
+  });
+  add('teaching-assignments', { teacherId: carlos.id, classId: cls11.id, subjectId: db.subjects[1].id, schoolYearId: sy.id, tutorStyle: null });
 
   seedExtras();
 }
@@ -126,7 +162,10 @@ const RES = {
   subjects: { table: 'subjects', key: 'code', req: ['code', 'name'], pick: (b) => ({ code: b.code, name: b.name, short_name: b.short_name ?? null }) },
   classes: {
     table: 'classes', req: ['code', 'grade', 'courseId', 'schoolYearId'], noUpdate: true,
-    pick: (b) => ({ code: b.code, grade: b.grade, course: db.courses.find((c) => c.id === b.courseId), schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId) }),
+    pick: (b) => {
+      const course = db.courses.find((c) => c.id === b.courseId);
+      return { code: b.code, grade: b.grade, course, schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId), institutionId: course?.institutionId ?? null };
+    },
     validate: (b) => (!db.courses.find((c) => c.id === b.courseId) ? 'course not found' : !db['school-years'].find((s) => s.id === b.schoolYearId) ? 'school year not found' : null),
   },
   sessions: {
@@ -190,7 +229,14 @@ function authorize(auth: any, method: string, path: string) {
   const has = (...r) => r.some((x) => roles.includes(x));
   if (path.startsWith('/api/v1/auth/')) return 200;
   if (!auth) return 401;
-  if (/^\/api\/v1\/(accounts|users|roles|sessions|teachers)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/(accounts|users|roles|sessions)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/teachers(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  // Como no backend: a lista de atribuições é de ADMIN; o `/me` é o único
+  // ponto que um professor pode ler.
+  if (/^\/api\/(v1\/)?teaching-assignments\/me$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
+  // creative-mode/kixi#206: o professor escreve o estilo do tutor das suas; o handler confirma que são dele.
+  if (method === 'PUT' && /^\/api\/v1\/teaching-assignments\/\d+\/tutor-style$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
+  if (/^\/api\/(v1\/)?teaching-assignments(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   if (/^\/api\/v1\/institutions(\/|$)/.test(path)) {
     const readable = method === 'GET' && (path === '/api/v1/institutions' || path === '/api/v1/institutions/mine' || /^\/api\/v1\/institutions\/\d+(\/subjects)?$/.test(path));
     return readable || has('ADMIN') ? 200 : 403;
@@ -199,16 +245,69 @@ function authorize(auth: any, method: string, path: string) {
     if (/^\/api\/v1\/statements\/(review|from-ocr|trash|stats)$/.test(path) || /\/trash$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
     return 200;
   }
+  // Escrever num enunciado é do ADMIN ou de um professor affiliated à instituição
+  // dona dele (`StatementWriteAccessService`). Só o papel não chega: um professor
+  // de outra escola não mexe no enunciado de uma que não é sua. O mesmo vale para
+  // as perguntas e opções, que são filhas do enunciado.
+  if (/^\/api\/v1\/questions\/\d+\/correct-option$/.test(path) || /^\/api\/v1\/statements\/\d+\/questions(\/|$)/.test(path)) {
+    if (!has('ADMIN', 'TEACHER')) return 403;
+    if (has('ADMIN')) return 200;
+    // `Number(undefined)` é NaN e não undefined, por isso o ?? não serviria aqui.
+    const fromPath = path.match(/^\/api\/v1\/statements\/(\d+)/);
+    const questionId = Number(path.match(/questions\/(\d+)/)?.[1]);
+    const statementId = fromPath
+      ? Number(fromPath[1])
+      : db.statements.find((s: any) => s.questions.some((q: any) => q.id === questionId))?.id;
+    const teacher = db.teachers.find((t: any) => t.accountId === Number(auth.sub) && !t.deletedAt);
+    const statement = db.statements.find((s: any) => s.id === statementId);
+    if (!statement) return 403;
+    const affiliated = db.institutionTeachers.some((l: any) => l.institutionId === statement.institutionId && l.teacherId === teacher?.id);
+    return affiliated ? 200 : 403;
+  }
   if (/^\/api\/(v1\/)?simulations/.test(path) && method !== 'DELETE' && !/restore/.test(path)) return has('ADMIN', 'TEACHER', 'STUDENT') ? 200 : 403;
+  // Como no backend: o SecurityConfig só pede sessão, e cada acção decide no ExamRoomController.
+  if (/^\/api\/(v1\/)?exam-rooms(\/|$)/.test(path)) return 200;
   return has('ADMIN', 'TEACHER') ? 200 : 403;
 }
 
+/** Reescreve `is_correct` em todas as opções da pergunta, como
+ *  `QuestionOptionRepository.setCorrectOption`, para a resposta se manter singular.
+ *  Ignora linhas removidas: um `isCorrect` numa opção apagada não é resposta nenhuma. */
+function markCorrect(q, optionId) {
+  for (const o of q.options ?? []) if (!o.deletedAt) o.isCorrect = o.id === Number(optionId);
+  return { ...(q.options ?? []).find((o) => o.id === Number(optionId)) };
+}
+
+const pick = (row, keys) => Object.fromEntries(keys.map((k) => [k, row[k] ?? null]));
+const nonNull = (row) => Object.fromEntries(Object.entries(row).filter(([, v]) => v != null));
+
+/** `StatementController.StatementSummary`: sem instruções, sem questões e sem courseId. */
 function mapStatement(s) {
-  const summary = { ...s };
-  delete summary.questions;
-  delete summary.instructions;
-  delete summary.ocrRequestId;
-  return summary;
+  return pick(s, ['id', 'title', 'examType', 'durationMinutes', 'variant', 'totalMaxScore', 'visible', 'needsReview', 'source', 'ocrConfidence', 'schoolYearId', 'termId', 'subjectId', 'classId', 'institutionId']);
+}
+/** `StatementOcrResponse` (o `/full`): sem institutionId nem courseId, e as questões sem
+ *  modelAnswer. A chave de respostas e a revisão só vão para o staff. NON_NULL. */
+function mapStatementFull(s, staff) {
+  const live = (xs) => (xs ?? []).filter((x) => !x.deletedAt).sort((a, b) => (a.orderIndex ?? a.number ?? 0) - (b.orderIndex ?? b.number ?? 0));
+  return nonNull({
+    ...pick(s, ['id', 'title', 'examType', 'durationMinutes', 'variant', 'instructions', 'totalMaxScore', 'visible', 'source', 'ocrRequestId', 'schoolYearId', 'termId', 'subjectId', 'classId']),
+    needsReview: staff ? s.needsReview : null,
+    ocrConfidence: staff ? s.ocrConfidence : null,
+    questions: live(s.questions).map((q) => nonNull({
+      ...pick(q, ['id', 'number', 'text', 'questionType', 'maxScore', 'orderIndex', 'ocrConfidence', 'pageIndex']),
+      needsReview: staff ? q.needsReview : null,
+      options: live(q.options).map((o) => nonNull({ ...pick(o, ['id', 'optionLabel', 'optionText', 'orderIndex']), isCorrect: staff ? o.isCorrect : null, ocrConfidence: staff ? o.ocrConfidence : null })),
+    })),
+  });
+}
+/** `QuestionResponse` (GET /statements/{id}/questions): com modelAnswer para o staff, sem opções. */
+function mapQuestion(q, statementId, staff) {
+  return nonNull({
+    ...pick(q, ['id', 'number', 'text', 'questionType', 'maxScore', 'orderIndex', 'pageIndex', 'createdAt', 'updatedAt', 'deletedAt']),
+    statementId,
+    modelAnswer: staff ? q.modelAnswer : null,
+    needsReview: staff ? q.needsReview : null,
+  });
 }
 function mapSimulation(s) {
   const acc = db.accounts.find((a) => a.id === s.accountId);
@@ -269,6 +368,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return json(201, loginResponse(acc));
     }
 
+
     // ── account roles ──
     let m = path.match(/^\/api\/v1\/accounts\/(\d+)\/roles(?:\/(\d+))?$/);
     if (m) {
@@ -299,11 +399,28 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     // ── institutions: affiliations and teacher access ──
     const isAdmin = (auth?.roles ?? []).includes('ADMIN');
     const activeInst = (id) => db.institutions.find((i) => i.id === Number(id) && !i.deletedAt);
+    const writeWorld = () => ({
+      institutions: db.institutions, teachers: db.teachers, institutionTeachers: db.institutionTeachers,
+      institutionSubjects: db.institutionSubjects, assignments: db['teaching-assignments'],
+    });
+    /** `StatementWriteAccessService.requireCanWrite`, para as rotas de questão, opção e gabarito. */
+    const denyWrite = (st) => {
+      const p = st ? canWriteProblem(writeWorld(), Number(auth.sub), isAdmin, st) : null;
+      return p ? problem(p.status, p.message) : null;
+    };
     if (path === '/api/v1/institutions/mine' && method === 'GET') {
       if (isAdmin) return json(200, db.institutions.filter((i) => !i.deletedAt));
       const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
       const ids = new Set(db.institutionTeachers.filter((l) => l.teacherId === t?.id).map((l) => l.institutionId));
       return json(200, db.institutions.filter((i) => !i.deletedAt && ids.has(i.id)));
+    }
+    // Espelha `TeachingAssignmentService.findMineForAccount`: procura o registo
+    // de professor pela conta autenticada. Um ADMIN não tem registo de
+    // professor, por isso recebe `[]` — como recebe o backend, não a lista toda.
+    if (/^\/api\/(v1\/)?teaching-assignments\/me$/.test(path) && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      const mine = t ? db['teaching-assignments'].filter((a) => a.teacherId === t.id) : [];
+      return json(200, mine.filter((a) => !a.deletedAt));
     }
     if ((m = path.match(/^\/api\/v1\/institutions\/(\d+)\/(subjects|teachers|students)(?:\/(\d+))?$/))) {
       const inst = activeInst(m[1]);
@@ -368,10 +485,14 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         if (!db.institutionTeachers.some((l) => l.institutionId === inst.id && l.teacherId === t.id)) return problem(403, 'Teacher is not affiliated with this institution');
       }
       if (!db.institutionSubjects.some((l) => l.institutionId === inst.id && l.subjectId === Number(b.subjectId))) return problem(422, 'Subject is not taught by this institution');
-      let qid = 0;
+      // Ids vêm da sequência global, como no backend. A versão anterior reiniciava a
+      // contagem em cada enunciado, o que fazia dois enunciados diferentes terem
+      // perguntas com o mesmo id — e `PUT /questions/{id}/correct-option`, que só leva
+      // o id da pergunta, passava a resolver a pergunta do enunciado errado.
       const questions = b.questions.map((q, i) => ({
-        id: ++qid + i * 100, number: i + 1, text: q.text, maxScore: q.maxScore ?? null, questionType: q.options?.length ? 'multiple_choice' : 'open',
-        options: (q.options ?? []).map((o, j) => ({ id: j + 1, label: o.label, text: o.text, isCorrect: !!o.correct })),
+        id: nextId('questions'), statementId: null, number: i + 1, orderIndex: i, text: q.text, maxScore: q.maxScore ?? null,
+        questionType: q.options?.length ? 'multiple_choice' : 'open', pageIndex: null, modelAnswer: q.modelAnswer ?? null, needsReview: false,
+        options: (q.options ?? []).map((o, j) => ({ id: nextId('options'), questionId: null, optionLabel: o.label, optionText: o.text, isCorrect: !!o.correct, orderIndex: j, deletedAt: null })),
       }));
       const row = add('statements', {
         title: b.title, examType: b.examType, durationMinutes: b.durationMinutes ?? null, variant: b.variant ?? null, instructions: b.instructions ?? null,
@@ -379,6 +500,10 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         ocrConfidence: null, ocrRequestId: null, schoolYearId: b.schoolYearId ?? null, termId: b.termId ?? null, subjectId: Number(b.subjectId),
         classId: b.classId ?? null, courseId: b.courseId ?? null, institutionId: inst.id, questions,
       });
+      for (const q of questions) {
+        q.statementId = row.id;
+        for (const o of q.options) o.questionId = q.id;
+      }
       return json(201, mapStatement(row));
     }
 
@@ -400,12 +525,198 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const sub = m[2];
       if (!s) return problem(404, 'Statement not found');
       if (!sub && method === 'GET') return s.deletedAt || (!isStaff && !s.visible) ? problem(404, 'Statement not found') : json(200, mapStatement(s));
-      if (sub === '/full' && method === 'GET') return s.deletedAt || (!isStaff && !s.visible) ? problem(404, 'Statement not found') : json(200, s);
+      if (sub === '/full' && method === 'GET') return s.deletedAt || (!isStaff && !s.visible) ? problem(404, 'Statement not found') : json(200, mapStatementFull(s, isStaff));
       if (!sub && method === 'DELETE') { s.deletedAt = now(); return json(204); }
       if (sub === '/restore' && method === 'POST') { s.deletedAt = null; return json(204); }
       if (sub === '/purge' && method === 'DELETE') { db.statements = db.statements.filter((x) => x.id !== id); return json(204); }
-      if (sub === '/approve' && method === 'POST') { s.needsReview = false; return json(200, mapStatement(s)); }
+      if (sub === '/approve' && method === 'POST') {
+        // O gate do BE-08, nas mesmas duas regras de `StatementService`: uma pergunta
+        // com opções e sem resposta marcada, e um total que não bate com a soma.
+        const blocked = approvalProblem(s);
+        if (blocked) return problem(422, blocked);
+        s.needsReview = false;
+        return json(200, mapStatement(s));
+      }
       if (sub === '/visibility' && method === 'PATCH') { s.visible = url.searchParams.get('visible') === 'true'; return json(200, mapStatement(s)); }
+      // PUT do enunciado = StatementRequest: só metadados. As questões não vão aqui (o
+      // backend descarta-as em silêncio) e têm as rotas de questão/opção abaixo.
+      if (!sub && method === 'PUT') {
+        if (s.deletedAt) return problem(404, 'Statement not found');
+        const b = readBody();
+        const numOrNull = (v) => (v == null || v === '' ? null : Number(v));
+        if (b.institutionId == null) return problem(400, 'The institution is required');
+        if (b.subjectId == null) return problem(400, 'The subject is required');
+        const title = String(b.title ?? '').trim();
+        if (title.length < 3 || title.length > 500) return problem(400, 'The title must be between 3 and 500 characters');
+        if (!String(b.examType ?? '').trim()) return problem(400, 'The exam type is required');
+        if (b.durationMinutes != null && !(Number(b.durationMinutes) > 0)) return problem(400, 'The duration must be greater than zero');
+        if (b.totalMaxScore != null && !(Number(b.totalMaxScore) >= 0)) return problem(400, 'The total score cannot be negative');
+        if (!db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt)) return problem(404, 'Subject not found');
+        if (b.classId != null && !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt)) return problem(404, 'Class not found');
+        // As regras do StatementService.update: turma obrigatória ao professor, quem pode
+        // mexer neste enunciado, e se pode apontá-lo para esta escola, disciplina e turma.
+        const blocked = updateProblem(writeWorld(), Number(auth.sub), isAdmin, s, {
+          institutionId: Number(b.institutionId), subjectId: Number(b.subjectId), classId: numOrNull(b.classId),
+        });
+        if (blocked) return problem(blocked.status, blocked.message);
+        Object.assign(s, {
+          institutionId: Number(b.institutionId), subjectId: Number(b.subjectId), title, examType: String(b.examType).trim(),
+          durationMinutes: numOrNull(b.durationMinutes), variant: b.variant || null, instructions: b.instructions || null,
+          // Como o apply() do servidor: grava o que vier, e null apaga o total.
+          totalMaxScore: numOrNull(b.totalMaxScore),
+          schoolYearId: numOrNull(b.schoolYearId), termId: numOrNull(b.termId), classId: numOrNull(b.classId), courseId: numOrNull(b.courseId),
+          updatedAt: now(),
+        });
+        return json(200, mapStatement(s));
+      }
+    }
+
+    // ── questions (BE-08) ──
+    if ((m = path.match(/^\/api\/v1\/statements\/(\d+)\/questions(?:\/(trash|reorder|\d+(?:\/(restore|purge))?))?$/))) {
+      const s = db.statements.find((x) => x.id === Number(m[1]));
+      if (!s) return problem(404, 'Statement not found');
+      if (method !== 'GET') { const denied = denyWrite(s); if (denied) return denied; }
+      const sub = m[2];
+      const live = () => s.questions.filter((q) => !q.deletedAt).sort((a, b) => a.number - b.number);
+      const nextNumber = () => Math.max(0, ...s.questions.map((q) => q.number)) + 1;
+
+      if (!sub && method === 'GET') return json(200, live().map((q) => mapQuestion(q, s.id, isStaff)));
+      if (sub === 'trash' && method === 'GET') return json(200, s.questions.filter((q) => q.deletedAt).map((q) => ({ ...q })));
+
+      if (sub === 'reorder' && method === 'PUT') {
+        // `QuestionReorderRequest` tem de nomear todas as perguntas activas, uma vez
+        // cada: mais curto deixa perguntas numa ordem que ninguém escolheu, mais longo
+        // nomeia uma que não lá está. Ambos são recusados em vez de adivinhados.
+        const b = readBody();
+        const ids = b.questionIds;
+        if (!Array.isArray(ids) || ids.length === 0) return problem(400, 'The list of question ids is required');
+        const current = live();
+        if (ids.length !== current.length || new Set(ids).size !== ids.length || ids.some((id) => !current.some((q) => q.id === Number(id)))) {
+          return problem(422, 'The reorder must name every active question of the statement exactly once');
+        }
+        ids.forEach((id, i) => { const q = current.find((x) => x.id === Number(id)); q.orderIndex = i; });
+        current.forEach((q, i) => { q.number = i + 1; });
+        return json(200, live().map((q) => ({ ...q })));
+      }
+
+      if (sub && /^\d+$/.test(sub) && method === 'GET') {
+        const q = s.questions.find((x) => x.id === Number(sub));
+        if (!q || q.deletedAt) return problem(404, 'Question not found');
+        return json(200, { ...q });
+      }
+
+      if (!sub && method === 'POST') {
+        const b = readBody();
+        if (!b.text || !String(b.text).trim()) return problem(400, 'The question text is required');
+        // `QuestionRequest.maxScore` é @NotNull, e a razão está escrita no DTO: uma
+        // edição que o omita guardaria NULL, encolheria a soma em silêncio e deixaria
+        // o enunciado impossível de aprovar — devolvendo 200 à edição que o fez.
+        if (b.maxScore == null) return problem(400, 'The question score is required');
+        const q = { id: nextId('questions'), statementId: s.id, number: nextNumber(), text: String(b.text).trim(), questionType: b.questionType ?? 'open', maxScore: Number(b.maxScore), orderIndex: live().length, pageIndex: b.pageIndex ?? null, modelAnswer: b.modelAnswer ?? null, needsReview: false, options: [] };
+        s.questions.push(q);
+        return json(201, { ...q });
+      }
+
+      if (sub && /^\d+$/.test(sub)) {
+        const q = s.questions.find((x) => x.id === Number(sub));
+        if (!q || q.deletedAt) return problem(404, 'Question not found');
+        if (method === 'DELETE') { q.deletedAt = now(); return json(204); }
+        if (method === 'PUT') {
+          const b = readBody();
+          if (b.text != null && !String(b.text).trim()) return problem(400, 'The question text is required');
+          // Omitir a cotação também viola o @NotNull: um PUT que a omita guardaria
+          // NULL, encolheria a soma em silêncio e deixaria o enunciado impossível de
+          // aprovar para sempre — com a edição que o fez a devolver 200.
+          if (!Object.keys(b).includes('maxScore')) return problem(400, 'The question score is required');
+          if (b.maxScore === null) return problem(400, 'The question score is required');
+          if (b.text != null) q.text = String(b.text).trim();
+          if (b.maxScore != null) q.maxScore = Number(b.maxScore);
+          if (b.questionType != null) q.questionType = b.questionType;
+          if (b.pageIndex != null) q.pageIndex = Number(b.pageIndex);
+          // Como o setModelAnswer(blankToNull(...)) do servidor: vazio ou null apaga.
+          if ('modelAnswer' in b) q.modelAnswer = b.modelAnswer && String(b.modelAnswer).trim() ? String(b.modelAnswer) : null;
+          return json(200, { ...q });
+        }
+      }
+    }
+
+    // ── question options (BE-08) ──
+    if ((m = path.match(/^\/api\/v1\/statements\/(\d+)\/questions\/(\d+)\/options(?:\/(trash|reorder|\d+(?:\/(restore|purge))?))?$/))) {
+      const s = db.statements.find((x) => x.id === Number(m[1]));
+      const q = s?.questions.find((x) => x.id === Number(m[2]) && !x.deletedAt);
+      if (!s || !q) return problem(404, 'Question not found');
+      if (method !== 'GET') { const denied = denyWrite(s); if (denied) return denied; }
+      const sub = m[3];
+      q.options ??= [];
+      const liveOpts = () => q.options.filter((o) => !o.deletedAt).sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+      const nextOrder = () => liveOpts().length;
+
+      if (!sub && method === 'GET') return json(200, liveOpts().map((o) => ({ ...o })));
+      if (sub === 'trash' && method === 'GET') return json(200, q.options.filter((o) => o.deletedAt).map((o) => ({ ...o })));
+
+      if (sub === 'reorder' && method === 'PUT') {
+        const b = readBody();
+        const ids = b.optionIds;
+        if (!Array.isArray(ids) || ids.length === 0) return problem(400, 'The list of option ids is required');
+        const current = liveOpts();
+        if (ids.length !== current.length || new Set(ids).size !== ids.length || ids.some((id) => !current.some((o) => o.id === Number(id)))) {
+          return problem(422, 'The reorder must name every active option of the question exactly once');
+        }
+        ids.forEach((id, i) => { const o = current.find((x) => x.id === Number(id)); o.orderIndex = i; });
+        return json(200, liveOpts().map((o) => ({ ...o })));
+      }
+
+      if (sub && /^\d+$/.test(sub) && method === 'GET') {
+        const o = q.options.find((x) => x.id === Number(sub));
+        if (!o || o.deletedAt) return problem(404, 'Option not found');
+        return json(200, { ...o });
+      }
+
+      if (!sub && method === 'POST') {
+        const b = readBody();
+        if (!b.optionLabel || !String(b.optionLabel).trim()) return problem(400, 'The option label is required');
+        if (!b.optionText || !String(b.optionText).trim()) return problem(400, 'The option text is required');
+        // `optionLabel` é identidade única por pergunta e o índice não conhece as linhas
+        // removidas: uma etiqueta fica tomada para sempre. `isCorrect` passa pelo mesmo
+        // rewrite na criação e na edição, para a resposta se manter singular.
+        const label = String(b.optionLabel).trim();
+        if (q.options.some((o) => o.optionLabel === label && !o.deletedAt)) return problem(409, `The option label ${label} is already used in this question`);
+        const o = { id: nextId('options'), questionId: q.id, optionLabel: label, optionText: String(b.optionText).trim(), isCorrect: false, orderIndex: nextOrder() };
+        q.options.push(o);
+        return json(201, b.isCorrect ? markCorrect(q, o.id) : { ...o });
+      }
+
+      if (sub && /^\d+$/.test(sub)) {
+        const o = q.options.find((x) => x.id === Number(sub));
+        if (!o || o.deletedAt) return problem(404, 'Option not found');
+        if (method === 'PUT') {
+          const b = readBody();
+          if (!b.optionText || !String(b.optionText).trim()) return problem(400, 'The option text is required');
+          o.optionText = String(b.optionText).trim();
+          // `isCorrect` é honrado na edição também. Já só era honrado na criação e
+          // descartado em silêncio no PUT: o corpo pedia a opção correcta, recebia
+          // um 200, e nada mudava.
+          if (b.isCorrect) markCorrect(q, o.id);
+          return json(200, { ...o });
+        }
+        if (method === 'DELETE') { o.deletedAt = now(); return json(204); }
+      }
+    }
+
+    // ── correct option (BE-08) ──
+    if ((m = path.match(/^\/api\/v1\/questions\/(\d+)\/correct-option$/)) && method === 'PUT') {
+      const b = readBody();
+      if (!b.optionId) return problem(400, 'The option id is required');
+      const q = db.statements.flatMap((s) => s.questions).find((x) => x.id === Number(m[1]) && !x.deletedAt);
+      if (!q) return problem(404, 'Question not found');
+      const denied = denyWrite(db.statements.find((x) => x.questions.includes(q)));
+      if (denied) return denied;
+      const o = (q.options ?? []).find((x) => x.id === Number(b.optionId) && !x.deletedAt);
+      // A opção tem de pertencer à pergunta do path: o query que a marca reescreve
+      // is_correct em todas as opções dessa pergunta, e um id estrangeiro deixaria a
+      // pergunta sem resposta nenhuma em vez de falhar.
+      if (!o) return problem(404, 'Option not found');
+      return json(200, markCorrect(q, o.id));
     }
 
     // ── question images (multipart upload) ──
@@ -440,11 +751,43 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const title = String(files[0].name ?? 'Prova importada').replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Prova importada';
       const sy = db['school-years'][0];
       const s = add('statements', {
-        title, examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
+        title, examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 6, visible: false, needsReview: true,
         source: 'OCR', ocrConfidence: 0.82, ocrRequestId: `req-${Date.now()}`, schoolYearId: sy?.id ?? null, termId: null, subjectId: null, classId: null,
         questions: [1, 2, 3].map((n) => ({ id: 1000 + nextId('questions'), number: n, questionType: 'MULTIPLE_CHOICE', text: `Questão ${n} extraída de ${files.length} ficheiro(s). Reveja o texto.`, maxScore: 2, needsReview: true, options: ['A', 'B', 'C', 'D'].map((l, i) => ({ id: 1000 + nextId('options'), optionLabel: l, optionText: `Opção ${l}`, isCorrect: i === 0 })) })),
       });
       return json(201, s);
+    }
+
+    // ── exam rooms (BE-16/BE-17) ──
+    if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades))?$/))) {
+      const me = Number(auth.sub);
+      const roles = auth.roles ?? [];
+      const admin = roles.includes('ADMIN');
+      const staff = admin || roles.includes('TEACHER');
+      const out = (o) => (o.ok ? json(o.status, o.body) : problem(o.problem.status, o.problem.detail));
+      const [, target, action] = m;
+      const id = Number(target);
+      if (!target && !action && method === 'POST') {
+        return staff ? out(rooms.create(readBody(), me, admin)) : problem(403, 'Only teachers or ADMIN can create exam rooms');
+      }
+      if (target === 'owned' && method === 'GET') return json(200, staff ? rooms.owned(me) : []);
+      if (target === 'mine' && method === 'GET') return json(200, rooms.mine(me));
+      if (Number.isFinite(id) && method === 'POST') {
+        if (action === 'join') return out(rooms.join(id, me));
+        if (!staff) return problem(403, 'Only teachers or ADMIN can manage exam rooms');
+        if (action === 'participants') return out(rooms.addParticipant(id, readBody(), me, admin));
+        const next = { open: 'OPEN', start: 'RUNNING', close: 'CLOSED' }[action];
+        if (next) return out(rooms.transition(id, me, admin, next));
+      }
+      if (Number.isFinite(id) && method === 'GET' && staff) {
+        if (action === 'grades') return out(rooms.grades(id, me, admin));
+        if (action === 'live') {
+          const first = rooms.live(id, me, admin);
+          return first.ok ? liveStream(() => rooms.live(id, me, admin)) : out(first);
+        }
+      }
+      if (Number.isFinite(id) && method === 'GET' && !staff) return problem(403, 'Only teachers or ADMIN can view exam room progress');
+      return problem(405, 'Method not allowed');
     }
 
     // ── simulations (note: /api/simulations, restore is PUT, purge is /permanent) ──
@@ -466,7 +809,41 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       if (m[2] === 'permanent' && method === 'DELETE') { db.simulations = db.simulations.filter((x) => x !== sim); return json(204); }
     }
 
-    if (path.startsWith('/api/v1/analytics') && method === 'GET') { const a = analytics(path, url); if (a) return a; }
+    if (path.startsWith('/api/v1/analytics') && method === 'GET') { const a = analytics(path, url, auth); if (a) return a; }
+
+    // ── turmas por escola/curso (ClassController: ?institutionId=&courseId=) ──
+    if (path === '/api/v1/classes' && method === 'GET' && (url.searchParams.has('institutionId') || url.searchParams.has('courseId'))) {
+      const inst = url.searchParams.get('institutionId');
+      const course = url.searchParams.get('courseId');
+      return json(200, db.classes.filter((c) => !c.deletedAt && (!inst || c.institutionId === Number(inst)) && (!course || c.course?.id === Number(course))));
+    }
+    // ── as atribuições do professor com sessão (TeachingAssignmentController.listMine) ──
+    if (path === '/api/v1/teaching-assignments/me' && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      return json(200, t ? db['teaching-assignments'].filter((a) => !a.deletedAt && a.teacherId === t.id) : []);
+    }
+
+    // ── o estilo do tutor de uma atribuição (TeachingAssignmentController.updateTutorStyle, kixi#206) ──
+    m = path.match(/^\/api\/v1\/teaching-assignments\/(\d+)\/tutor-style$/);
+    if (m && method === 'PUT') {
+      const a = db['teaching-assignments'].find((x) => x.id === Number(m[1]) && !x.deletedAt);
+      if (!a) return problem(404, 'Teaching assignment not found');
+      const admin = (auth?.roles ?? []).includes('ADMIN');
+      const t = db.teachers.find((x) => x.id === a.teacherId && !x.deletedAt);
+      if (!admin && (!t || t.accountId !== Number(auth.sub))) return problem(403, 'Only the assigned teacher or ADMIN can change this tutor style');
+      const raw = readBody().tutorStyle;
+      const style = typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+      if (style && style.length > 100) return problem(400, 'The tutor style must not exceed 100 characters');
+      a.tutorStyle = style;
+      return json(200, a);
+    }
+
+    // ── teaching-assignments/me: como no backend, só as atribuições da conta.
+    if (path === '/api/v1/teaching-assignments/me' && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      if (!t) return json(200, []);
+      return json(200, db['teaching-assignments'].filter((a) => !a.deletedAt && a.teacherId === t.id));
+    }
 
     // ── generic CRUD (/api/v1/<resource>) ──
     m = path.match(/^\/api\/v1\/([a-z-]+)(?:\/(trash|active|[^/]+?))?(?:\/(restore|purge|login))?$/);
@@ -528,7 +905,11 @@ function seedExtras() {
   const student = db.accounts.find((a: any) => a.username === '12345');
   const sy = db['school-years'][0];
   add('simulations', { accountId: student.id, statementId: 1, schoolYearId: sy.id, startedAt: now(), finishedAt: now(), timeSpentSeconds: 3120, finalScore: 15.5, status: 'COMPLETED' });
-  const opts = (labels: string[], correct: number) => labels.map((t, i) => ({ id: i + 1, optionLabel: 'ABCD'[i], optionText: t, isCorrect: i === correct }));
+  // Ids pela mesma sequência global que o resto do mock. Antes eram `si * 10 + i + 1`
+  // e `i + 1`, que reiniciavam por enunciado: um enunciado criado depois vinha com
+  // perguntas de id 1 e colidia com as da semente, e `PUT /questions/{id}/correct-option`
+  // — que só recebe o id da pergunta — resolvia a do enunciado errado.
+  const opts = (labels: string[], correct: number) => labels.map((t, i) => ({ id: nextId('options'), questionId: null, optionLabel: 'ABCD'[i], optionText: t, isCorrect: i === correct, orderIndex: i, deletedAt: null }));
   const qs = [
     ['Qual é o endereço de broadcast da rede 192.168.10.0/26?', ['192.168.10.31', '192.168.10.63', '192.168.10.64', '192.168.10.127'], 1],
     ['Quantos hosts úteis tem uma sub-rede /27?', ['30', '32', '62', '14'], 0],
@@ -537,15 +918,22 @@ function seedExtras() {
     ['Para que serve uma VLAN?', ['Aumentar a banda', 'Segmentar a rede logicamente', 'Cifrar tráfego', 'Balancear carga'], 1],
     ['Qual é a máscara de um /24?', ['255.255.0.0', '255.255.255.0', '255.255.255.128', '255.0.0.0'], 1],
   ];
-  db.statements.forEach((st: any, si: number) => {
-    st.questions = qs.map(([text, o, c]: any, i: number) => ({ id: si * 10 + i + 1, number: i + 1, text, questionType: 'MULTIPLE_CHOICE', maxScore: 20 / qs.length, needsReview: st.needsReview && i === 2, options: opts(o, c) }));
+  db.statements.forEach((st: any) => {
+    st.institutionId = st.institutionId ?? 1;
+    st.questions = qs.map(([text, o, c]: any, i: number) => ({ id: nextId('questions'), statementId: st.id, number: i + 1, orderIndex: i, text, questionType: 'MULTIPLE_CHOICE', maxScore: 20 / qs.length, needsReview: st.needsReview && i === 2, options: opts(o, c) }));
+    st.questions.forEach((q: any) => q.options.forEach((opt: any) => { opt.questionId = q.id; }));
   });
   for (const [qid, opt] of [[1, 2], [2, 1], [3, 2]]) {
-    const q = db.statements[0].questions.find((x: any) => x.id === qid);
-    const o = q.options.find((x: any) => x.id === opt);
-    add('simulation-answers', { simulationId: 1, questionId: qid, selectedOptionId: opt, answerText: null, answeredAt: now(), isCorrect: o.isCorrect, scoreObtained: o.isCorrect ? q.maxScore : 0 });
+    const q = db.statements[0].questions.find((x: any, i: number) => i + 1 === qid);
+    const o = q.options.find((x: any) => x.optionLabel === 'ABCD'[opt - 1]);
+    add('simulation-answers', { simulationId: 1, questionId: q.id, selectedOptionId: o.id, answerText: null, answeredAt: now(), isCorrect: o.isCorrect, scoreObtained: o.isCorrect ? q.maxScore : 0 });
   }
-  for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
+  // Matriculados na turma da Helena: com o aluno da semente são cinco, o que a
+  // #24 pede para correr uma sala de prova de ponta a ponta.
+  for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) {
+    const acc = seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
+    add('enrollments', { accountId: acc.id, classId: db.classes[0].id, schoolYearId: sy.id, status: 'ACTIVE' });
+  }
 }
 
 const INSTITUTIONS = [
@@ -554,11 +942,56 @@ const INSTITUTIONS = [
   { id: 3, code: 'IMIL', name: 'Instituto Médio Industrial de Luanda', courses: 3, classes: 9, students: 238, finishedSimulations: 410, averageScorePercent: 66.1, averageTimeSeconds: 2940 },
 ];
 
-function analytics(path: string, url: URL) {
+function analytics(path: string, url: URL, auth: any) {
   const active = db.statements.filter((s: any) => !s.deletedAt);
+  // Como o BE-15: o professor só vê as turmas das suas atribuições.
+  const admin = (auth?.roles ?? []).includes('ADMIN');
+  const teacher = db.teachers.find((t: any) => t.accountId === Number(auth?.sub) && !t.deletedAt);
+  const myClasses = new Set(db['teaching-assignments'].filter((a: any) => !a.deletedAt && a.teacherId === teacher?.id).map((a: any) => a.classId));
+  const inScope = (classId: number) => admin || myClasses.has(classId);
+  const classMatch = path.match(/^\/api\/v1\/analytics\/classes\/(\d+)\/(students|weekly|questions)$/);
+  if (classMatch) {
+    const cid = Number(classMatch[1]);
+    if (!db.classes.find((c: any) => c.id === cid && !c.deletedAt)) return problem(404, 'Class not found');
+    if (!inScope(cid)) return problem(403, 'Class is outside your teaching assignments');
+    if (classMatch[2] === 'students') {
+      const ids = db.enrollments.filter((e: any) => e.classId === cid && !e.deletedAt && e.status === 'ACTIVE').map((e: any) => e.accountId);
+      const rows = ids.map((id: number, i: number) => {
+        const u = db.users.find((x: any) => x.accountId === id);
+        const avg = [42.5, null, 68.0, 81.3, 55.0][i % 5];
+        const finished = avg == null ? 0 : 2 + (i % 3);
+        return { accountId: id, name: u ? `${u.firstName} ${u.lastName}` : `Conta ${id}`, finishedSimulations: finished, averageScorePercent: avg, lastFinishedAt: avg == null ? null : new Date(Date.now() - i * 86400000).toISOString(), status: avg == null ? 'NO_ACTIVITY' : avg < 50 ? 'AT_RISK' : 'OK' };
+      });
+      return json(200, rows.sort((a: any, b: any) => (a.averageScorePercent ?? -1) - (b.averageScorePercent ?? -1)));
+    }
+    if (classMatch[2] === 'weekly') {
+      const weeks = Math.min(Math.max(Number(url.searchParams.get('weeks') ?? 8), 1), 52);
+      const monday = new Date();
+      monday.setUTCHours(0, 0, 0, 0);
+      monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+      return json(200, Array.from({ length: weeks }, (_, i) => {
+        const d = new Date(monday.getTime() - (weeks - 1 - i) * 7 * 86400000);
+        const finished = ((i * 7) % 5) + (i > 1 ? 3 : 0);
+        return { weekStart: d.toISOString().slice(0, 10), finished, averageScorePercent: finished ? Math.round((55 + i * 2.5) * 10) / 10 : null };
+      }));
+    }
+    // O par turma+disciplina, como o scope do backend: SO na turma da Helena é de outro professor.
+    const mine = db['teaching-assignments'].filter((a: any) => !a.deletedAt && a.teacherId === teacher?.id);
+    const ownsPair = (s: any) => admin || mine.some((a: any) => a.classId === s.classId && a.subjectId === s.subjectId);
+    const qs = active.filter((s: any) => s.classId === cid && ownsPair(s)).flatMap((s: any) => s.questions.filter((q: any) => q.options?.length).map((q: any) => ({ s, q })));
+    return json(200, qs.map(({ s, q }: any, i: number) => {
+      const attempts = 12;
+      const correct = (i * 5 + 3) % attempts;
+      return { id: q.id, number: q.number, text: q.text, questionType: q.questionType, maxScore: q.maxScore, statementId: s.id, statementTitle: s.title, attempts, correct, correctPercent: Math.round((correct / attempts) * 1000) / 10 };
+    }).sort((a: any, b: any) => a.correctPercent - b.correctPercent).slice(0, Number(url.searchParams.get('limit') ?? 10)));
+  }
+  // Filtros como no backend: só estreitam. Os dados aqui são de demonstração.
+  const classFilter = Number(url.searchParams.get('classId') ?? 0);
+  const instFilter = Number(url.searchParams.get('institutionId') ?? 0);
+  const instName = INSTITUTIONS.find((i) => i.id === instFilter)?.name;
   if (path === '/api/v1/analytics/overview') {
     return json(200, {
-      scope: 'ADMIN', institutions: INSTITUTIONS.length, classes: INSTITUTIONS.reduce((n, i) => n + i.classes, 0),
+      scope: admin ? 'ADMIN' : 'TEACHER', institutions: INSTITUTIONS.length, classes: INSTITUTIONS.reduce((n, i) => n + i.classes, 0),
       students: INSTITUTIONS.reduce((n, i) => n + i.students, 0), teachers: 38,
       statements: { total: active.length, published: active.filter((s: any) => s.visible).length, needingReview: active.filter((s: any) => s.needsReview).length, missingAnswerKey: 1 },
       simulations: { total: 2870, finished: 2650, inProgress: 140, cancelled: 80, uniqueStudents: 904 },
@@ -577,14 +1010,14 @@ function analytics(path: string, url: URL) {
     }
     return json(200, out);
   }
-  if (path === '/api/v1/analytics/institutions') return json(200, INSTITUTIONS);
+  if (path === '/api/v1/analytics/institutions') return json(200, INSTITUTIONS.filter((i) => !instFilter || i.id === instFilter));
   if (path === '/api/v1/analytics/classes') {
     return json(200, [
-      { id: 1, code: '12B', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'ITEL', students: 31, teachers: 4, statements: 6, finishedSimulations: 128, averageScorePercent: 76.4, averageTimeSeconds: 3010 },
-      { id: 2, code: '12A', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'ITEL', students: 29, teachers: 4, statements: 5, finishedSimulations: 104, averageScorePercent: 72.9, averageTimeSeconds: 3180 },
-      { id: 3, code: '11C', grade: 11, course: 'Redes e Telecomunicações', institution: 'ISPTEC', students: 34, teachers: 3, statements: 4, finishedSimulations: 88, averageScorePercent: 64.2, averageTimeSeconds: 3600 },
-      { id: 4, code: '13A', grade: 13, course: 'Eletrónica', institution: 'IMIL', students: 26, teachers: 3, statements: 3, finishedSimulations: 52, averageScorePercent: 58.7, averageTimeSeconds: 2880 },
-    ]);
+      { id: 1, code: '12B', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'Instituto de Telecomunicações', students: 31, teachers: 4, statements: 6, finishedSimulations: 128, averageScorePercent: 76.4, averageTimeSeconds: 3010 },
+      { id: 2, code: '12A', grade: 12, course: 'Informática e Sistemas Multimédia', institution: 'Instituto de Telecomunicações', students: 29, teachers: 4, statements: 5, finishedSimulations: 104, averageScorePercent: 72.9, averageTimeSeconds: 3180 },
+      { id: 3, code: '11C', grade: 11, course: 'Redes e Telecomunicações', institution: 'Instituto Superior Politécnico de Tecnologias e Ciências', students: 34, teachers: 3, statements: 4, finishedSimulations: 88, averageScorePercent: 64.2, averageTimeSeconds: 3600 },
+      { id: 4, code: '13A', grade: 13, course: 'Eletrónica', institution: 'Instituto Médio Industrial de Luanda', students: 26, teachers: 3, statements: 3, finishedSimulations: 52, averageScorePercent: 58.7, averageTimeSeconds: 2880 },
+    ].filter((c) => inScope(c.id) && (!classFilter || c.id === classFilter) && (!instFilter || c.institution === instName)));
   }
   const m = path.match(/^\/api\/v1\/analytics\/statements\/(\d+)\/questions$/);
   if (m) {
@@ -598,7 +1031,7 @@ function analytics(path: string, url: URL) {
   }
   if (path === '/api/v1/analytics/statements') {
     const limit = Number(url.searchParams.get('limit') ?? 50);
-    return json(200, active.slice(0, limit).map((s: any, i: number) => ({
+    return json(200, active.filter((s: any) => !classFilter || s.classId === classFilter).slice(0, limit).map((s: any, i: number) => ({
       id: s.id, title: s.title, examType: s.examType, classCode: '12B', subject: db.subjects.find((x: any) => x.id === s.subjectId)?.short_name ?? null,
       published: s.visible, needsReview: s.needsReview, answerKeyComplete: !s.needsReview, questions: s.questions.length,
       finishedSimulations: 60 - i * 11, uniqueStudents: 44 - i * 8, averageScorePercent: [78.2, 71.5, 64.9, null][i] ?? 70, passRatePercent: [88.6, 79.1, 66.7, null][i] ?? 70, averageTimeSeconds: 3100 + i * 240,
