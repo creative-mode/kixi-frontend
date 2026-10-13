@@ -90,7 +90,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
             <p className="text-sm font-medium">Arraste os ficheiros para aqui</p>
             <p className="max-w-prose text-xs text-muted-foreground">JPG, PNG, PDF, WEBP, BMP ou TIFF, até 15 MB cada, no máximo 10 e 50 MB no total. As páginas são lidas pela ordem em que as adicionar. Uma foto de frente e bem iluminada lê melhor.</p>
             <input ref={inputRef} type="file" multiple accept={OCR_ACCEPT} className="sr-only" onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} aria-label="Escolher ficheiros da prova" />
-            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy}>Escolher ficheiros</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy} data-testid="gestor-statements-import-ficheiro">Escolher ficheiros</Button>
           </div>
 
           {files.length > 0 && (
@@ -113,7 +113,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
             </div>
           ) : null}
           <div className="flex justify-end gap-2">
-            <Button type="submit" disabled={busy || files.length === 0}>
+            <Button type="submit" disabled={busy || files.length === 0} data-testid="gestor-statements-import-submeter">
               {busy ? (<><Spinner className="size-4" />A ler a prova…</>) : (<><ScanText size={16} aria-hidden />Ler e preencher</>)}
             </Button>
           </div>
