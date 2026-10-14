@@ -41,11 +41,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="mt-auto grid gap-3">
-          <Link href="/perfil" className="flex items-center gap-2.5 rounded-md p-2 hover:bg-secondary">
+        <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+          <Link href="/perfil" className="flex min-w-0 items-center gap-2.5 rounded-md p-2 hover:bg-secondary">
             <UserAvatar name={name} src={photoUrl(me)} size={36} />
             <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-sm font-semibold">{name}</span>{context && <span className="block truncate text-xs text-muted-foreground">{context}</span>}</span>
-            <ChevronsUpDown className="size-4 text-muted-foreground" />
+            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
           </Link>
         </div>
       </aside>

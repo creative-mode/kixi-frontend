@@ -122,7 +122,7 @@ export function Presentation() {
     return (
       <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
         <div className="wrap">
-          <h1 id="hero-title" className="sr-only">A prova não é o fim. É onde o estudo começa.</h1>
+          <h1 id="hero-title" className="sr-only">E se estudar fosse... divertido?</h1>
           <div className="still-plate"><Cartridge explode={1} callouts className="pres__svg" /></div>
           <ol className="pres__list">
             {SCENES.map((s, i) => (
@@ -166,7 +166,7 @@ export function Presentation() {
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
         <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
-          <h1 id="hero-title" className="pres__hero-title">Tu não és carneiro, só estudas do jeito errado.</h1>
+          <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
         </div>
         <div className="pres__text">
                     <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
