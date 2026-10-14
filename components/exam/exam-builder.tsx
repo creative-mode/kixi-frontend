@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
-import { createManualStatement, institutionLinks, myInstitutions, publishManualStatement } from '@/app/actions/crud';
+import { createManualStatement, institutionLinks, myInstitutions, publishManualStatement, reviewChoices, type ReviewChoices } from '@/app/actions/crud';
+import { fetchCurrentUser } from '@/lib/auth';
 import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { ExamSheet } from './exam-sheet';
@@ -26,6 +27,9 @@ export function ExamBuilder() {
   const [draft, setDraft] = useState<ExamDraft>(EMPTY_DRAFT);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [admin, setAdmin] = useState<boolean | null>(null);
+  const [choices, setChoices] = useState<ReviewChoices | null>(null);
+  const [classId, setClassId] = useState('');
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
@@ -38,6 +42,7 @@ export function ExamBuilder() {
     return () => window.clearTimeout(task);
   }, []);
   useEffect(() => { if (ready) saveDraft(draft); }, [draft, ready]);
+  useEffect(() => { fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN'))); }, []);
 
   const school = useMemo(() => schools.find((s) => s.id === draft.schoolId) ?? schools[0], [schools, draft.schoolId]);
   const schoolId = school?.id;
@@ -54,6 +59,28 @@ export function ExamBuilder() {
     });
   }, [schoolId]);
 
+  // As turmas que se podem escolher: as da escola e, para o professor, só as que lhe estão
+  // atribuídas. O backend recusa o resto ("A teacher must choose the class they teach").
+  useEffect(() => {
+    if (!schoolId || admin == null) return;
+    let alive = true;
+    reviewChoices(Number(schoolId), !admin).then((r) => {
+      if (!alive) return;
+      if (!r.ok) toast.error(r.error);
+      else setChoices(r.data);
+    });
+    return () => { alive = false; };
+  }, [schoolId, admin]);
+
+  const subjectId = draft.subject ? subjectIds[draft.subject] : undefined;
+  const classOptions = (choices?.classes ?? []).filter(
+    (c) => !choices?.assignments || !subjectId || choices.assignments.some((a) => a.classId === c.value && a.subjectId === subjectId),
+  );
+  // Uma turma escolhida que deixou de servir (outra escola ou disciplina) conta como não escolhida:
+  // deriva-se em vez de se limpar num efeito, e o select volta a "Escolher…" porque o valor não existe.
+  const chosenClassId = classOptions.some((c) => String(c.value) === classId) ? classId : '';
+  const classChosen = admin === true || chosenClassId !== '';
+
   /**
    * `true` publica a prova, `false` deixa-a guardada à espera.
    *
@@ -68,6 +95,12 @@ export function ExamBuilder() {
     const payload = {
       institutionId: Number(school.id),
       subjectId: subjectIds[draft.subject],
+      // A turma é o único âmbito que o cliente nomeia; o curso vem dela.
+      // O ano letivo também: sem ele a prova não entra em nenhum ranking.
+      ...(chosenClassId ? (() => {
+        const chosen = classOptions.find((c) => String(c.value) === chosenClassId);
+        return { classId: Number(chosenClassId), courseId: chosen?.courseId ?? null, schoolYearId: chosen?.schoolYearId ?? null };
+      })() : {}),
       title: `${draft.kind} – ${draft.subject}`,
       examType: draft.kind,
       instructions: draft.rules.filter(Boolean).join('\n') || null,
@@ -88,6 +121,7 @@ export function ExamBuilder() {
   const total = totalScore(draft.items);
   const problemas = problems(draft.items);
   const ready2print = !!school && !!draft.subject && draft.items.some((i) => i.text.trim());
+  const canSave = ready2print && classChosen;
 
   return (
     <div className="mx-auto max-w-7xl p-6 md:p-8 lg:p-10">
@@ -98,10 +132,10 @@ export function ExamBuilder() {
           <p className="mt-1 text-muted-foreground">A prova segue o modelo oficial. Só o logótipo, o nome da escola e a disciplina mudam.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => save(false)} disabled={!ready2print || saving} title={ready2print ? undefined : 'Escolha a disciplina e escreva pelo menos uma questão'}>
+          <Button variant="outline" onClick={() => save(false)} disabled={!canSave || saving} title={canSave ? undefined : 'Escolha a disciplina e a turma e escreva pelo menos uma questão'}>
             <Save aria-hidden /> Guardar
           </Button>
-          <Button onClick={() => save(true)} disabled={!ready2print || saving || problemas.length > 0} title={problemas.length > 0 ? 'A prova ainda não pode ser publicada' : ready2print ? undefined : 'Escolha a disciplina e escreva pelo menos uma questão'}>
+          <Button onClick={() => save(true)} disabled={!canSave || saving || problemas.length > 0} title={problemas.length > 0 ? 'A prova ainda não pode ser publicada' : canSave ? undefined : 'Escolha a disciplina e a turma e escreva pelo menos uma questão'}>
             {saving ? <Spinner className="size-4" /> : <Check aria-hidden />}
             Publicar
           </Button>
@@ -134,6 +168,12 @@ export function ExamBuilder() {
                     <NativeSelect value={draft.subject} onChange={(e) => set('subject', e.target.value)}>
                       <option value="">Escolher…</option>
                       {(school?.subjects ?? []).map((x) => <option key={x} value={x}>{x}</option>)}
+                    </NativeSelect>
+                  </Field>
+                  <Field label={admin ? 'Turma (opcional)' : 'Turma'}>
+                    <NativeSelect value={chosenClassId} onChange={(e) => setClassId(e.target.value)} disabled={!choices}>
+                      <option value="">Escolher…</option>
+                      {classOptions.map((c) => <option key={c.value} value={String(c.value)}>{c.label}</option>)}
                     </NativeSelect>
                   </Field>
                 </>

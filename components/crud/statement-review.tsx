@@ -21,7 +21,7 @@ import {
   type StatementInput,
 } from '@/app/actions/crud';
 import { fetchCurrentUser } from '@/lib/auth';
-import { answerKeyIssues } from '@/lib/crud/answer-key';
+import { answerKeyIssues, sumOfScores } from '@/lib/crud/answer-key';
 import type { Row } from '@/lib/crud/entities';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
@@ -87,7 +87,7 @@ function invalid({ header, questions }: Draft, admin: boolean): string | null {
   return null;
 }
 
-function toStatementInput(h: HeaderDraft, courseId: number | null): StatementInput {
+function toStatementInput(h: HeaderDraft, courseId: number | null, fallbackTotal: number | null): StatementInput {
   return {
     institutionId: Number(h.institutionId),
     subjectId: Number(h.subjectId),
@@ -97,7 +97,8 @@ function toStatementInput(h: HeaderDraft, courseId: number | null): StatementInp
     variant: h.variant.trim() || null,
     instructions: h.instructions.trim() || null,
     // Vai sempre: o PUT grava o que receber, e omitir apagava o total (e a verificação da soma no approve).
-    totalMaxScore: numOrNull(h.totalMaxScore),
+    // Em branco, vale a soma das cotações: sem total a prova fica sem escala e fora do ranking.
+    totalMaxScore: numOrNull(h.totalMaxScore) ?? fallbackTotal,
     schoolYearId: numOrNull(h.schoolYearId),
     termId: numOrNull(h.termId),
     classId: numOrNull(h.classId),
@@ -245,7 +246,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       return false;
     }
     setSaving(true);
-    const res = await saveStatementReview(id, toStatementInput(header, courseId), questionEdits(original.questions, questions));
+    const res = await saveStatementReview(id, toStatementInput(header, courseId, sumOfScores(questions.map((q) => ({ maxScore: score(q.maxScore) })))), questionEdits(original.questions, questions));
     if (!res.ok) {
       setSaving(false);
       toast.error(res.error);
