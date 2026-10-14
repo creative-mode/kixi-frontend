@@ -51,6 +51,21 @@ A origem tem de trazer a porta quando a traz. Atrás do gateway o Next vê o hos
 a porta interna da app; se a origem não a trouxer, o redirect saía em
 `https://kixi.ao:3002/...` e nenhuma visita sem sessão chegava ao gestor.
 
+## Contra o backend real (sem mocks)
+
+```bash
+# no repositório do backend: sobe Postgres + API em :8081 (ver o README de lá)
+export JWT_SECRET=<o mesmo APP_JWT_SECRET do backend>
+export KIXI_MOCK=false BACKEND_API_URL=http://localhost:8081/api/v1 APP_ORIGIN=http://localhost:3000
+npm run dev:all             # http://localhost:3000
+```
+
+- O login do gestor usa só `BACKEND_API_URL`; não há uma variável própria para o endereço de autenticação.
+- Os dados vêm todos do backend: um professor só vê as turmas e disciplinas que lhe foram atribuídas, e
+  precisa de estar afiliado à instituição. Um aluno só entra no ranking com simulações do ano letivo da sua turma.
+- O tutor responde com `GROQ_API_KEY` no backend; sem ela o backend responde 503 e o ecrã diz que não consegue falar com o tutor.
+- Em WSL com o repositório em `/mnt/c`, o `next dev` não vê as edições: reinicie o servidor depois de alterar ficheiros.
+
 ## Scripts úteis
 
 ```bash

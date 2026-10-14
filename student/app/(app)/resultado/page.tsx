@@ -2,11 +2,13 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Check, Clock, MessageCircle, X } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
+import { PublishResult } from '@/components/publish-result';
 import { RefazerSimulacao } from '@/components/refazer-simulacao';
 import { ErrorState } from '@/components/states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { getMe } from '@/lib/me';
 import { getResultView } from '@/lib/result';
 import {
   formatDelta,
@@ -101,6 +103,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   }
 
   const { result, statementId, comparison } = view;
+  const me = await getMe();
+  const classId = me?.currentClass?.id ?? null;
   const questions = inOrder(result.questions);
   const score = formatScore(result.finalScore);
   const time = formatDuration(result.timeSpentSeconds);
@@ -154,6 +158,22 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             </ul>
           )}
         </Card>
+
+        {classId != null && result.finalScore != null && (
+          <PublishResult
+            classId={classId}
+            simulationId={result.simulationId}
+            card={{
+              schoolName: me?.school?.name ?? null,
+              statementTitle: view.title,
+              finalScore: result.finalScore,
+              maxScore: view.totalMaxScore,
+              correctAnswers: result.correctAnswers ?? null,
+              totalQuestions: result.totalQuestions ?? null,
+              timeSpentSeconds: result.timeSpentSeconds ?? null,
+            }}
+          />
+        )}
 
         <div className="flex flex-wrap items-start gap-2.5">
           {statementId != null && <RefazerSimulacao statementId={statementId} />}
