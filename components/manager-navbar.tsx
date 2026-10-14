@@ -185,7 +185,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
             className="fixed inset-0 z-40 bg-background pt-24 pb-8 overflow-y-auto"
           >
             <div className="container mx-auto px-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto items-stretch">
                 {navLinks.map((link, index) => {
                   const Icon = link.icon;
                   const isActive = link.href === "/" ? pathname === "/" : pathname === link.href || pathname.startsWith(`${link.href}/`);
@@ -196,11 +196,12 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 + 0.2 }}
+                      className="w-full h-full"
                     >
                       <Link
                         href={link.href}
                         className={cn(
-                          "group flex items-start gap-4 p-6 rounded-md border transition-colors duration-200",
+                          "group flex items-start gap-4 p-6 rounded-md border transition-colors duration-200 h-full",
                           isActive
                             ? "bg-accent border-primary"
                             : "bg-card hover:bg-accent border-border hover:border-primary"
@@ -208,23 +209,23 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
                       >
                         <div
                           className={cn(
-                            "p-3 rounded-md",
+                            "p-3 rounded-md shrink-0",
                             link.color
                           )}
                         >
                           <Icon size={24} />
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-semibold text-lg">
                               {link.label}
                             </span>
                             <ChevronRight
                               size={16}
-                              className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-muted-foreground"
+                              className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-muted-foreground shrink-0"
                             />
                           </div>
-                          <p className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                          <p className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors min-h-[2.5rem] line-clamp-2">
                             {link.description}
                           </p>
                         </div>
