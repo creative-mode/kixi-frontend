@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useSyncExternalStore } from 'react';
 import { loginAction } from '@/app/actions/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,14 @@ function noticeFor(reason: string | null) {
   return null;
 }
 
+/** `false` no servidor e na primeira renderização do cliente, `true` depois de a página estar hidratada. */
+const noopSubscribe = () => () => {};
+function useHydrated() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+
 function LoginContent() {
+  const hydrated = useHydrated();
   const [isLoading, setIsLoading] = useState(false);
   const [show, setShow] = useState(false);
   const router = useRouter();
@@ -76,7 +83,10 @@ function LoginContent() {
             <span>{notice}</span>
           </div>
         ) : null}
-        <form onSubmit={handleSubmit} className="grid gap-5">
+        {/* Antes de o JavaScript hidratar, o envio nativo de um formulário sem `method` é um GET: a palavra-passe
+            iria no endereço (histórico, logs de proxies). `method="post"` tira-a do URL e o botão fica desativado
+            até a página estar pronta (com o botão por defeito desativado, o Enter também não submete). */}
+        <form method="post" onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
             <Label htmlFor="usernameOrEmail">Username ou email</Label>
             <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username email" autoFocus />
@@ -90,7 +100,7 @@ function LoginContent() {
               </button>
             </div>
           </div>
-          <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+          <Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated}>
             {isLoading ? (<><Spinner className="size-4" />A entrar...</>) : 'Entrar'}
           </Button>
         </form>

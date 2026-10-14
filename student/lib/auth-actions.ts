@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { BACKEND, COOKIE, managerUrl } from './session';
 import { MOCK, mockPost } from './mock/backend';
 import { problem } from './api';
+import { authFailureMessage, forwardedFor, retryAfterSeconds } from './auth-rules';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
@@ -58,11 +59,14 @@ async function post(
   payload: object,
 ): Promise<{ data?: LoginResponse; error?: string }> {
   try {
+    // O backend só vê o contentor do front como origem do pedido: sem isto, o limite de
+    // tentativas por endereço contaria a escola inteira como um só cliente.
+    const clientIp = forwardedFor((await headers()).get('x-forwarded-for'));
     const res = MOCK
       ? await mockPost(path, payload as Record<string, unknown>)
       : await fetch(`${BACKEND}${path}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(clientIp ? { 'X-Forwarded-For': clientIp } : {}) },
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(10000),
           cache: 'no-store',
@@ -72,7 +76,8 @@ async function post(
       if (path === '/auth/login' && (res.status === 400 || res.status === 401)) {
         return { error: 'Utilizador ou palavra-passe incorretos.' };
       }
-      return { error: (await problem(res)).message };
+      const friendly = authFailureMessage(path, res.status, retryAfterSeconds(res.headers.get('retry-after')));
+      return { error: friendly ?? (await problem(res)).message };
     }
 
     const data = (await res.json()) as LoginResponse;
