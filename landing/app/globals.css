@@ -100,7 +100,15 @@ a { color: inherit; }
   .pres__text { grid-row: 1; grid-column: 1; position: relative; z-index: 2; }
   .pres__art { grid-row: 1 / -1; grid-column: 1; height: calc(100svh - 72px); }
   .pres__art .pres__block, .pres__art .pres__cart { inset: 46% 0 4% 6%; width: auto; height: auto; }
-  .pres__art .gb { height: 92%; }
+  /* A consola é dimensionada pela largura (a altura segue a proporção do desenho) e encostada ao topo do palco;
+     desce só o necessário para ficar logo abaixo do título (~112 px: o título ocupa ~2 linhas). Como a caixa
+     segue a proporção do desenho não sobra margem transparente, e o espaço fica igual em qualquer proporção de
+     ecrã. Antes descia 50svh e deixava um buraco de ~240 px no telemóvel. */
+  .pres__art .gb { inset: 0 0 auto 0; margin: 0 auto; width: min(100%, calc((100svh - 72px) * .561)); height: auto; max-height: none; --ht: calc(72px + 112px); }
+}
+/* Num tablet o título cabe numa linha (mais curto): a consola sobe menos para não lhe encostar. */
+@media (min-width: 600px) and (max-width: 959px) {
+  .pres__art .gb { --ht: calc(72px + 92px); }
 }
 @media (min-width: 960px) {
   .pres__stick { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: var(--gutter); }
