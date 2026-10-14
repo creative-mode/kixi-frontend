@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { apiFetch } from '@/lib/mock/fetch';
 import { API_BASE } from '@/lib/constants';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
+import { forwardedFor, loginLimitMessage } from '@/lib/auth-rules';
 
 interface LoginResponse {
   accessToken: string;
@@ -27,9 +28,12 @@ export async function loginAction(formData: FormData) {
     // Uma variável própria com omissão fixa mandava o login para outro serviço (porta 8080).
     const backendUrl = `${API_BASE.replace(/\/$/, '')}/auth/login`;
 
+    // O backend só vê o contentor do front como origem: sem o IP real, o limite de tentativas por
+    // endereço contaria todos os utilizadores como um só.
+    const clientIp = forwardedFor((await headers()).get('x-forwarded-for'));
     const response = await apiFetch(backendUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(clientIp ? { 'X-Forwarded-For': clientIp } : {}) },
       body: JSON.stringify({ usernameOrEmail, password }),
       signal: AbortSignal.timeout(10000),
     });
@@ -37,6 +41,9 @@ export async function loginAction(formData: FormData) {
     if (response.status === 400 || response.status === 401) {
       return { error: 'Utilizador ou palavra-passe incorretos.' };
     }
+
+    const limited = loginLimitMessage(response.status, response.headers.get('retry-after'));
+    if (limited) return { error: limited };
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
