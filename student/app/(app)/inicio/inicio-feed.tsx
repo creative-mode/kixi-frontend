@@ -12,12 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { SimulationCard } from '@/components/simulation-card';
 import { EmptyState } from '@/components/states';
 import { cn } from '@/lib/utils';
 import { useMe } from '@/lib/me-context';
 import { contextLine, fullName } from '@/lib/profile';
 import { sinceLabel } from '@/lib/attempt-history';
-import { authorLabel, canPublish, postTypeLabel } from '@/lib/feed-rules';
+import { REFLECTION_LABEL, authorLabel, canPublish, postTypeLabel } from '@/lib/feed-rules';
 import { addCommentAction, publishPostAction, reportPostAction, toggleReactionAction } from '@/lib/feed-actions';
 import { SalasDeProva } from '@/components/salas-de-prova';
 import { phaseOf, sortInvitations, type Invitation } from '@/lib/exam-room-rules';
@@ -89,7 +90,11 @@ function Post({ post, myAccountId, myName }: { post: FeedPost; myAccountId: numb
           <Badge variant="secondary">{postTypeLabel(post.type)}</Badge>
         </header>
         {post.title && <h3 className="font-semibold">{post.title}</h3>}
-        <p className="max-w-[62ch] leading-relaxed">{post.content}</p>
+        {post.simulation && <SimulationCard card={post.simulation} />}
+        {post.simulation && post.content && (
+          <p className="-mb-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">{REFLECTION_LABEL}</p>
+        )}
+        {post.content && <p className="max-w-[62ch] leading-relaxed">{post.content}</p>}
       </CardContent>
 
       <div className="flex flex-wrap items-center gap-0.5 border-t px-2 py-1">

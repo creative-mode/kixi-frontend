@@ -175,6 +175,12 @@ type MockPost = {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend. */
+  simulation?: {
+    simulationId: number; statementTitle: string | null; schoolName: string | null;
+    finalScore: number | null; maxScore: number | null;
+    correctAnswers: number | null; totalQuestions: number | null; timeSpentSeconds: number | null;
+  };
 };
 
 type MockUserStats = {
@@ -989,15 +995,33 @@ export async function mockHandle(
     const type = text('type').toLowerCase();
     const classId = Number(body.classId);
     const content = text('content');
-    if (!['doubt', 'topic'].includes(type)) return problem(400, 'Post type is required');
+    const isSimulation = type === 'simulation';
+    if (!['doubt', 'topic', 'simulation'].includes(type)) return problem(400, 'Post type is required');
     if (!Number.isInteger(classId)) return problem(400, 'classId is required');
-    if (content.length < 5 || content.length > 2000) return problem(400, 'Content cannot be empty');
+    if (isSimulation ? content.length > 2000 : content.length < 5 || content.length > 2000) {
+      return problem(400, 'Content cannot be empty');
+    }
     const enrolled = db.enrollments.some(
       (e) => e.accountId === account.id && e.classId === classId && e.status === 'ACTIVE',
     );
     if (!enrolled) return problem(403, 'Not in your scope');
     const klass = db.classes.find((c) => c.id === classId);
     if (!klass) return problem(404, 'Class not found');
+    let simulation: MockPost['simulation'];
+    if (isSimulation) {
+      const sim = db.simulations.find((x) => x.id === Number(body.simulationId) && x.accountId === account.id);
+      if (!sim) return problem(404, 'Simulation not found');
+      if (sim.status !== 'FINISHED') return problem(409, 'Simulation is not finished');
+      if (db.posts.some((p) => p.simulation?.simulationId === sim.id)) return problem(409, 'This simulation was already published');
+      const statement = db.statements.find((x) => x.id === sim.statementId);
+      simulation = {
+        simulationId: sim.id,
+        statementTitle: statement?.title ?? null,
+        schoolName: db.institutions.find((i) => i.id === klass.institutionId)?.name ?? null,
+        finalScore: sim.finalScore, maxScore: statement?.totalMaxScore ?? null,
+        correctAnswers: null, totalQuestions: null, timeSpentSeconds: sim.timeSpentSeconds,
+      };
+    }
     const now = toLocalDateTime(new Date());
     const post: MockPost = {
       id: db.nextPost++,
@@ -1013,6 +1037,7 @@ export async function mockHandle(
       commentCount: 0,
       createdAt: now,
       updatedAt: now,
+      ...(simulation ? { simulation } : {}),
     };
     db.posts.unshift(post);
     return json({ ...post, hasReacted: false }, 201);
