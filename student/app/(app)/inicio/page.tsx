@@ -1,6 +1,8 @@
 import { listInvitations } from '@/lib/exam-room';
 import { getMe } from '@/lib/me';
 import { getFeed } from '@/lib/feed';
+import { getPerformance } from '@/lib/performance';
+import { getLeaderboard } from '@/lib/ranking';
 import { InicioFeed } from './inicio-feed';
 
 /**
@@ -20,9 +22,11 @@ export default async function InicioPage() {
   const me = await getMe();
   const classId = me?.currentClass?.id ?? null;
 
-  const [invitations, feed] = await Promise.all([
+  const [invitations, feed, performance, leaderboard] = await Promise.all([
     listInvitations(),
     classId ? getFeed(classId) : Promise.resolve(null),
+    getPerformance(),
+    classId ? getLeaderboard('class') : Promise.resolve(null),
   ]);
 
   return (
@@ -32,6 +36,8 @@ export default async function InicioPage() {
       classId={classId}
       posts={feed?.ok ? feed.data : []}
       feedError={feed && !feed.ok ? feed.message : null}
+      reviewTopics={performance.mastery.slice(0, 3)}
+      classTop={leaderboard?.ok ? leaderboard.data.entries.slice(0, 3) : []}
     />
   );
 }

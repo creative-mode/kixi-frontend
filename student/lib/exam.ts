@@ -90,13 +90,23 @@ export async function listSimulations(): Promise<SimulationSummary[]> {
 }
 
 /** Starts an attempt. The server starts the clock itself (SimulationService.java:95),
- *  so the body carries only the account and the statement: `startedAt` and `status`
- *  in the request are ignored, and sending them would be a claim the backend drops. */
+ *  so the body carries the account, the statement and the statement's school year:
+ *  `startedAt` and `status` in the request are ignored, and sending them would be a
+ *  claim the backend drops.
+ *
+ *  The school year is not optional in practice. The simulation stores whatever it is
+ *  given and the leaderboard only counts simulations of the cohort's year, so an attempt
+ *  started without it never appears in any ranking, with no error to say why. */
 export async function startSimulation(
   statementId: number,
   accountId: number,
+  schoolYearId?: number | null,
 ): Promise<Result<Simulation>> {
-  return apiPost<Simulation>('/simulations', { accountId, statementId });
+  return apiPost<Simulation>('/simulations', {
+    accountId,
+    statementId,
+    ...(schoolYearId ? { schoolYearId } : {}),
+  });
 }
 
 /** The student variant of a statement is the same for every student and only changes

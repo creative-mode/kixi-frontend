@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatAverage, myPositionLabel, smallGroupNote, SCOPE_LABEL } from './ranking-rules.ts';
 
-test('os rótulos das abas são os três scopes do backend', () => {
+test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
   assert.equal(SCOPE_LABEL.school, 'Escola');
   assert.equal(SCOPE_LABEL.friends, 'Amigos');
+  assert.equal(SCOPE_LABEL.global, 'Global');
 });
 
 test('a média formata-se com uma casa decimal, e sem nota dá um traço', () => {

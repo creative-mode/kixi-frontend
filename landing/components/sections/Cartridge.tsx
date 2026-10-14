@@ -106,7 +106,7 @@ const TH = [
   { z: 18, h: 6 }, // tutor
   { z: 0, h: 18 }, // dash
 ];
-const GAP = 108;
+const GAP = 130;
 const SPREAD = 150;
 
 function Layer({ i, bars, a, yaw, on }: { i: number; bars: number; a: number; yaw: number; on: boolean }) {
@@ -206,7 +206,7 @@ export function Cartridge({
   const lo = Math.floor(f);
   const hi = Math.min(4, lo + 1);
   const camY = lerp(centre(lo), centre(hi), f - lo);
-  const vbH = lerp(bottom - top, 360, zoom);
+  const vbH = lerp(bottom - top, 420, zoom);
   const cy = lerp((top + bottom) / 2, camY, zoom);
   const vbW = lerp(lerp(540, 790, explode), 560, zoom);
   const cx = lerp(lerp(269, 400, explode), X0 + C0[0], zoom);

@@ -27,7 +27,7 @@ export function StatementDetailView({
   current: AttemptRow | null;
   /** Null sem tentativa corrigida (#32/#119): a comunidade compara desempenhos, e sem
    *  um próprio não há "tu vs. a média" para mostrar. */
-  community: { stats: CommunityStats | null; solutions: SharedSolution[]; schools: Named[] } | null;
+  community: { stats: CommunityStats | null; solutions: SharedSolution[]; schools: Named[]; locked?: boolean } | null;
 }) {
   const id = summary.id;
   const duration = summary.durationMinutes;
@@ -98,7 +98,7 @@ export function StatementDetailView({
           </div>
         </Card>
 
-        {community && current && <StatementCommunity statementId={id} simulationId={current.id} stats={community.stats} solutions={community.solutions} schools={community.schools} />}
+        {community && current && <StatementCommunity statementId={id} simulationId={current.id} stats={community.stats} solutions={community.solutions} schools={community.schools} locked={community.locked} />}
 
         <Card className="gap-0 py-0">
           <CardHeader className="flex flex-row items-center gap-2.5 pb-3">

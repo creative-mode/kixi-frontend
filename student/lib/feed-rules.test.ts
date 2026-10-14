@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorLabel, canPublish, postTypeLabel } from './feed-rules.ts';
+import { authorLabel, canPublish, canPublishReflection, postTypeLabel, scorePercent } from './feed-rules.ts';
 
 test('a própria conta é "Tu", outra conta é um colega sem nome', () => {
   assert.equal(authorLabel(3, 3), 'Tu');
@@ -26,4 +26,21 @@ test('publicar exige pelo menos 5 caracteres depois de aparar espaços', () => {
 test('publicar recusa mais de 2000 caracteres', () => {
   assert.equal(canPublish('a'.repeat(2001)), false);
   assert.equal(canPublish('a'.repeat(2000)), true);
+});
+
+test('o cartão de uma prova simulada tem rótulo próprio', () => {
+  assert.equal(postTypeLabel('simulation'), 'Prova simulada');
+});
+
+test('a reflexão que acompanha o resultado é opcional, mas tem o mesmo limite', () => {
+  assert.equal(canPublishReflection(''), true);
+  assert.equal(canPublishReflection('a'.repeat(2000)), true);
+  assert.equal(canPublishReflection('a'.repeat(2001)), false);
+});
+
+test('a percentagem só existe com nota e cotação positiva', () => {
+  assert.equal(scorePercent(14.5, 20), 73);
+  assert.equal(scorePercent(null, 20), null);
+  assert.equal(scorePercent(10, null), null);
+  assert.equal(scorePercent(10, 0), null);
 });

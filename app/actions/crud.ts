@@ -284,7 +284,7 @@ export type ReviewChoice = { value: number; label: string };
 export type ReviewChoices = {
   subjects: ReviewChoice[];
   /** Com o curso da turma: o PUT do enunciado substitui o `courseId`, e é daqui que ele vem. */
-  classes: (ReviewChoice & { courseId: number | null })[];
+  classes: (ReviewChoice & { courseId: number | null; schoolYearId: number | null })[];
   /** As turma+disciplina do professor (`/teaching-assignments/me`); null para o administrador. */
   assignments: { classId: number; subjectId: number }[] | null;
 };
@@ -309,7 +309,12 @@ export async function reviewChoices(institutionId: number, teacher: boolean): Pr
       subjects: ((await subjects.json()) as Row[]).map((r) => ({ value: Number(r.id), label: String(r.name ?? r.code) })),
       classes: classRows
         .filter((c) => !assignments || assignments.some((a) => a.classId === Number(c.id)))
-        .map((c) => ({ value: Number(c.id), label: ENTITIES.classes.titleOf(c), courseId: c.course?.id ?? c.courseId ?? null })),
+        .map((c) => ({
+          value: Number(c.id),
+          label: ENTITIES.classes.titleOf(c),
+          courseId: c.course?.id ?? c.courseId ?? null,
+          schoolYearId: c.schoolYear?.id ?? c.schoolYearId ?? null,
+        })),
       assignments,
     });
   });

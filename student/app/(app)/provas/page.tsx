@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Camera, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -188,12 +188,6 @@ export default async function Provas({ searchParams }: { searchParams: Params })
         <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
 
         <SalasDeProva invitations={invitations} />
-
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border-[1.5px] border-dashed border-input bg-card px-5 py-4">
-          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Camera className="size-5" /></span>
-          <p className="min-w-[200px] flex-1 text-sm text-muted-foreground"><b className="block text-[15px] text-foreground">Carregar uma prova</b>Tira uma foto ou envia o PDF. O Kixi lê as questões e cria a simulação.</p>
-          <Button variant="outline">Escolher ficheiro</Button>
-        </div>
 
         <Filters
           values={{
