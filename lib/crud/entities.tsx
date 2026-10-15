@@ -217,14 +217,16 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 255, placeholder: 'Técnico de Informática e Sistemas Multimédia' },
       // A turma herda a escola do curso: a escola escolhe-se aqui, não na turma.
       // O backend (kixi#145) exige institutionId e devolve-o sem o nome (evita ciclo academic→institutions).
-      { name: 'institutionId', label: 'Escola', type: 'select', required: true, optionsFrom: 'institutions' },
+      { name: 'institutionId', label: 'Escola', type: 'select', required: true, optionsFrom: 'institutions', createOnly: true, hint: 'Um curso pertence a uma escola e não muda de escola. O código só tem de ser único dentro dela.' },
       { name: 'description', label: 'Descrição', type: 'textarea', max: 5000 },
     ],
     columns: [
       { label: 'Código', value: (r) => <code className="font-mono text-xs">{r.code}</code>, className: 'w-28' },
       { label: 'Nome', value: (r) => <strong>{r.name}</strong> },
+      { label: 'Escola', value: (r, l) => l?.[`institutionId:${r.institutionId}`] ?? '—' },
       { label: 'Descrição', value: (r) => dim(r.description ? String(r.description).slice(0, 70) : null) },
     ],
+    lookups: { institutionId: 'institutions' },
     titleOf: (r) => r.name,
     canCreate: true,
     canEdit: true,
@@ -261,11 +263,13 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     ],
     titleOf: (r) => `${r.code}`,
     canCreate: true,
-    // the backend exposes no PUT for classes: to change one, remove it and create it again
-    canEdit: false,
+    // só o ADMIN edita (a rota não está nas do professor). Mudar curso/classe/ano de uma turma com
+    // matrículas ou professores é recusado pelo backend (409); o código muda sempre.
+    canEdit: true,
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
     lookups: { institutionId: 'institutions' },
+    toForm: (r) => ({ code: r.code, grade: r.grade, courseId: r.course?.id ?? '', schoolYearId: r.schoolYear?.id ?? '' }),
   },
   roles: {
     key: 'roles',

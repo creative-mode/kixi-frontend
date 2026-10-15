@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Archive, Edit, Plus, Search, Trash2 } from 'lucide-react';
+import { Archive, Edit, Network, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,6 +29,8 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   const [labels, setLabels] = useState<Record<string, string>>({});
   // Teachers only see records tied to their own classes/subjects (admins see all).
   const scope = useTeacherScope();
+  // A estrutura académica (turmas incluídas) só o ADMIN altera: o professor só consulta, sem botões que falhariam com 403.
+  const readOnly = entityKey === 'classes' && !!scope?.restricted;
 
   const load = useCallback(async () => {
     setError(null);
@@ -105,14 +107,14 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
         entity={entity}
         actions={
           <>
-            {entity.trashable !== false ? (
+            {entity.trashable !== false && !readOnly ? (
               <Button asChild variant="outline">
                 <Link href={`/${entity.path}/trash`}>
                   <Archive size={16} className="mr-2" /> Lixeira
                 </Link>
               </Button>
             ) : null}
-            {entity.canCreate ? (
+            {entity.canCreate && !readOnly ? (
               <Button asChild>
                 <Link href={`/${entity.path}/new`}>
                   <Plus size={16} className="mr-2" /> {newLabel(entity)}
@@ -163,7 +165,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                 <TableRow>
                   <TableCell colSpan={cols} className="py-16 text-center text-muted-foreground">
                     <p className="mb-3 text-sm">{query ? 'Nada corresponde à pesquisa.' : `Ainda não há ${entity.plural.toLowerCase()}.`}</p>
-                    {!query && entity.canCreate ? (
+                    {!query && entity.canCreate && !readOnly ? (
                       <Button asChild size="sm">
                         <Link href={`/${entity.path}/new`}>
                           <Plus size={14} className="mr-1" /> Criar {entity.singular.toLowerCase()}
@@ -181,16 +183,23 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         {entityKey === 'accounts' ? <AccountRoles account={row} /> : null}
+                        {entityKey === 'institutions' ? (
+                          <Button variant="ghost" size="sm" asChild aria-label={`Estrutura de ${row.name}`} title="Cursos, turmas, disciplinas e professores">
+                            <Link href={`/institutions/${row.id}/structure`}><Network size={16} /></Link>
+                          </Button>
+                        ) : null}
                         {entityKey === 'institutions' ? <InstitutionMembers institution={row} /> : null}
                         {entityKey === 'teachers' ? <TeacherAccess teacher={row} onChange={load} /> : null}
-                        {entity.canEdit ? (
+                        {entity.canEdit && !readOnly ? (
                           <Button variant="ghost" size="sm" asChild aria-label="Editar">
                             <Link href={`/${entity.path}/${rowId(entity, row)}/edit`}><Edit size={16} /></Link>
                           </Button>
                         ) : null}
-                        <Button variant="ghost" size="sm" aria-label="Mover para a lixeira" className="hover:bg-danger-soft hover:text-destructive" onClick={() => askDelete(row)}>
-                          <Trash2 size={16} />
-                        </Button>
+                        {readOnly ? null : (
+                          <Button variant="ghost" size="sm" aria-label="Mover para a lixeira" className="hover:bg-danger-soft hover:text-destructive" onClick={() => askDelete(row)}>
+                            <Trash2 size={16} />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -200,9 +209,6 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
           </Table>
         </CardContent>
       </Card>
-      {entityKey === 'classes' ? (
-        <p className="mt-3 text-xs text-muted-foreground">As turmas não se editam: para mudar uma, mova-a para a lixeira e crie outra.</p>
-      ) : null}
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );

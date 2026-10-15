@@ -1,0 +1,81 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
+import type { CurriculumEntry, InstitutionStructure, SubjectOfferings, TeacherOverview } from '@/lib/academic/types';
+
+/** Estrutura académica (issue #178): leitura agregada e as escritas que o assistente faz por cima do CRUD genérico. */
+const id = (v: string | number) => {
+  const s = String(v);
+  if (!/^[A-Za-z0-9_.-]+$/.test(s)) throw new Error('Identificador inválido');
+  return encodeURIComponent(s);
+};
+
+async function read<T>(path: string): Promise<Result<T>> {
+  return guard(async () => {
+    const res = await call(path);
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as T);
+  });
+}
+
+export async function getStructure(institutionId: number, schoolYearId?: number): Promise<Result<InstitutionStructure>> {
+  const q = schoolYearId ? `?schoolYearId=${id(schoolYearId)}` : '';
+  return read(`/api/v1/institutions/${id(institutionId)}/structure${q}`);
+}
+
+/** `teacherId` omitido = o professor com sessão. */
+export async function getTeacherOverview(teacherId?: number): Promise<Result<TeacherOverview>> {
+  return read(teacherId ? `/api/v1/teachers/${id(teacherId)}/overview` : '/api/v1/teachers/me/overview');
+}
+
+export async function getSubjectOfferings(code: string): Promise<Result<SubjectOfferings>> {
+  return read(`/api/v1/subjects/${id(code)}/offerings`);
+}
+
+export async function listCurriculum(courseId: number): Promise<Result<CurriculumEntry[]>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/courses/${id(courseId)}/subjects`);
+    if (!res.ok) return fail(await message(res));
+    const rows = (await res.json()) as (Omit<CurriculumEntry, 'linkId'> & { id: number })[];
+    return ok(rows.map(({ id: linkId, ...r }) => ({ ...r, linkId })));
+  });
+}
+
+export async function addToCurriculum(courseId: number, subjectId: number, grade: number | null): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/courses/${id(courseId)}/subjects`, { method: 'POST', body: JSON.stringify({ subjectId, grade }) });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/institutions');
+    return ok(undefined);
+  });
+}
+
+export async function removeFromCurriculum(courseId: number, linkId: number): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/courses/${id(courseId)}/subjects/${id(linkId)}`, { method: 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/institutions');
+    return ok(undefined);
+  });
+}
+
+/** Atribui um professor a (turma, disciplina). O ano vem da turma; o backend recusa quem não é da escola ou disciplina fora do currículo (422). */
+export async function assignTeacher(input: { teacherId: number; classId: number; subjectId: number; schoolYearId: number }): Promise<Result> {
+  return guard(async () => {
+    const res = await call('/api/v1/teaching-assignments', {
+      method: 'POST',
+      body: JSON.stringify({ teacherId: input.teacherId, classId: input.classId, subjectId: input.subjectId, schoolYearId: input.schoolYearId, tutorStyle: null }),
+    });
+    if (!res.ok) return fail(await message(res));
+    return ok(undefined);
+  });
+}
+
+export async function unassignTeacher(assignmentId: number): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/teaching-assignments/${id(assignmentId)}`, { method: 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    return ok(undefined);
+  });
+}

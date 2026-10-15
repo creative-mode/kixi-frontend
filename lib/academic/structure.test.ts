@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { curriculumLabel, gradeLabel, isComplete, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from './structure.ts';
+
+test('rótulos do currículo', () => {
+  assert.equal(gradeLabel(null), 'todas as classes');
+  assert.equal(curriculumLabel({ name: 'Redes', grade: 12 }), 'Redes · 12.ª classe');
+});
+
+test('subjectsToAdd tira o que já está no currículo e o que «todas as classes» já cobre', () => {
+  const all = [{ id: 1 }, { id: 2 }, { id: 3 }];
+  const cur = [{ subjectId: 1, grade: null }, { subjectId: 2, grade: 12 }];
+  assert.deepEqual(subjectsToAdd(all, cur, null).map((s) => s.id), [2, 3]); // 2 só para a 12.ª: ainda se pode pôr em todas
+  assert.deepEqual(subjectsToAdd(all, cur, 12).map((s) => s.id), [3]); // 1 está em todas, 2 já está na 12.ª
+  assert.deepEqual(subjectsToAdd(all, cur, 11).map((s) => s.id), [2, 3]);
+});
+
+test('professores a atribuir e a afiliar', () => {
+  const teachers = [{ id: 1, firstName: 'A', lastName: 'B', assignments: 0 }, { id: 2, firstName: 'C', lastName: 'D', assignments: 1 }];
+  assert.deepEqual(teachersToAssign(teachers, { teachers: [{ id: 1, firstName: 'A', lastName: 'B', assignmentId: 9 }] }).map((t) => t.id), [2]);
+  assert.deepEqual(teachersToAffiliate([{ id: 1 }, { id: 2 }, { id: 3 }], teachers).map((t) => t.id), [3]);
+});
+
+test('avisos agrupados e completude', () => {
+  const w = [
+    { code: 'COURSE_WITHOUT_CURRICULUM', message: 'x' },
+    { code: 'TEACHER_WITHOUT_ASSIGNMENTS', message: 'y' },
+  ] as const;
+  const g = warningsOf([...w]);
+  assert.equal(g.noCurriculum.length, 1);
+  assert.equal(g.total, 2);
+  assert.equal(isComplete([...w]), false);
+  assert.equal(isComplete([w[1]]), true);
+  assert.equal(isComplete([]), true);
+});
