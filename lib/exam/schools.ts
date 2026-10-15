@@ -1,4 +1,4 @@
-import { labelsFor, type DraftQuestion } from './draft';
+import { kindOf, labelsFor, trueFalseOptions, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft';
 
 export interface School {
   id: string;
@@ -18,6 +18,13 @@ export interface ExamDraft {
   grade: string;
   phase: string;
   items: ExamItem[];
+  /** Título do enunciado; vazio quer dizer «tipo – disciplina», como sempre foi. */
+  title: string;
+  /** Duração da prova em minutos; vazio deixa o enunciado sem duração. */
+  duration: number | '';
+  /** Série/variante (A, B…) e ano letivo tal como vêm no cabeçalho da prova. */
+  variant: string;
+  schoolYear: string;
   rules: string[];
   note: string;
   place: string;
@@ -43,6 +50,10 @@ export const EMPTY_DRAFT: ExamDraft = {
   grade: '12ª Classe',
   phase: '1ª Fase',
   items: [{ text: '', points: '', options: [] }],
+  title: '',
+  duration: '',
+  variant: '',
+  schoolYear: '',
   rules: ['O trabalho deve ser realizado em grupo.', 'Cotação: de 0 a 20 valores.'],
   note: '',
   place: 'Luanda',
@@ -81,33 +92,66 @@ export const saveSchools = (s: School[]) => write(SCHOOLS_KEY, s);
  * com a folha de rascunho de um professor a perder-se no primeiro clique depois da
  * actualização. Cada campo é normalizado aqui, e o que não se reconhece perde-se.
  */
-function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
-  const rawOptions = Array.isArray(raw?.options) ? raw.options : [];
+function normalizeOptions(raw: unknown): DraftOption[] {
+  const rawOptions = (Array.isArray(raw) ? raw : []) as Partial<DraftOption>[];
   // Só as opções sem rótulo recebem um, e `labelsFor` salta os que já estão
   // tomados: um rascunho meio etiquetado não pode dar duas opções com o mesmo
   // rótulo, que é uma violação do `UNIQUE (question_id, option_label)`.
   const labels = labelsFor(rawOptions);
-  const options = rawOptions.map((o, i) => ({
+  return rawOptions.map((o, i) => ({
     label: labels[i],
     text: typeof o?.text === 'string' ? o.text : '',
     correct: o?.correct === true,
   }));
+}
+
+const LEAF_KINDS: readonly LeafKind[] = ['open', 'multiple_choice', 'true_false'];
+const KIND_VALUES: readonly QuestionKind[] = ['open', 'multiple_choice', 'true_false', 'group'];
+
+/** Uma alínea como o app a guarda; um tipo desconhecido volta a derivar-se das opções. */
+function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
+  const options = normalizeOptions(raw?.options);
+  const kind = LEAF_KINDS.includes(raw?.kind as LeafKind) ? (raw?.kind as LeafKind) : (kindOf({ options }) as LeafKind);
   return {
     text: typeof raw?.text === 'string' ? raw.text : '',
     points: typeof raw?.points === 'number' ? raw.points : '',
-    options,
+    options: kind === 'true_false' && options.length !== 2 ? trueFalseOptions() : options,
+    kind,
+    ...(raw?.review === true ? { review: true } : {}),
   };
 }
 
-export const loadDraft = (): ExamDraft => {
-  const saved = read<Partial<ExamDraft>>(DRAFT_KEY, {});
+function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
+  const items = Array.isArray(raw?.items) ? raw.items.map(normalizeSubItem) : undefined;
+  const options = normalizeOptions(raw?.options);
+  const wanted = KIND_VALUES.includes(raw?.kind as QuestionKind) ? (raw?.kind as QuestionKind) : undefined;
+  // Um grupo sem alíneas guardadas não é um grupo: o rascunho antigo nunca as teve.
+  const kind = wanted === 'group' && !items?.length ? undefined : wanted;
+  return {
+    text: typeof raw?.text === 'string' ? raw.text : '',
+    points: typeof raw?.points === 'number' ? raw.points : '',
+    options: kind === 'group' ? [] : options,
+    ...(kind ? { kind } : {}),
+    ...(kind === 'group' ? { items } : {}),
+    ...(raw?.review === true ? { review: true } : {}),
+  };
+}
+
+/** O rascunho guardado, qualquer que seja a versão que o escreveu. Pura, para se poder testar. */
+export function normalizeDraft(saved: Partial<ExamDraft>): ExamDraft {
   return {
     ...EMPTY_DRAFT,
     ...saved,
     items: Array.isArray(saved.items) && saved.items.length > 0 ? saved.items.map(normalizeItem) : EMPTY_DRAFT.items.map(normalizeItem),
+    title: typeof saved.title === 'string' ? saved.title : '',
+    duration: typeof saved.duration === 'number' ? saved.duration : '',
+    variant: typeof saved.variant === 'string' ? saved.variant : '',
+    schoolYear: typeof saved.schoolYear === 'string' ? saved.schoolYear : '',
     rules: Array.isArray(saved.rules) ? saved.rules.map((r) => (typeof r === 'string' ? r : '')) : EMPTY_DRAFT.rules,
   };
-};
+}
+
+export const loadDraft = (): ExamDraft => normalizeDraft(read<Partial<ExamDraft>>(DRAFT_KEY, {}));
 export const saveDraft = (d: ExamDraft) => write(DRAFT_KEY, d);
 
 /** Lê uma imagem e reduz-a (máx. 320px) para caber no armazenamento local. */
