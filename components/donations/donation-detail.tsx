@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { BASE_PATH } from '@/lib/constants';
 import { getDonation, reviewDonation } from '@/app/actions/donations';
 import { canOpenInBuilder, canReview, fileSize, isImage, type DonationDetail } from '@/lib/donations/model';
 import { DonationStatusBadge } from './donations-list';
@@ -90,7 +91,7 @@ export function DonationDetailView({ id }: { id: number }) {
             <CardHeader><CardTitle>Ficheiros ({donation.files.length})</CardTitle></CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               {donation.files.map((file) => {
-                const src = `/api/donations/${donation.id}/files/${file.id}`;
+                const src = `${BASE_PATH}/api/donations/${donation.id}/files/${file.id}`;
                 return (
                   <figure key={file.id} className="grid gap-2 rounded-lg border p-3">
                     {isImage(file.contentType) ? (
