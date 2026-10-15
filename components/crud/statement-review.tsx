@@ -1,5 +1,6 @@
 'use client';
 
+import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { displayNumber, isGroup } from '@/lib/exam/display';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Check, Eye, TriangleAlert } from 'lucide-react';
@@ -207,11 +208,11 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       setChoices(r.data);
       // O que vinha do OCR ou de outra escola e aqui não se pode escolher fica em branco,
       // em vez de um select a mostrar "—" com um valor escondido que o servidor recusaria.
-      const mine = r.data.assignments;
-      setHeader((h) => h && {
-        ...h,
-        subjectId: r.data.subjects.some((x) => String(x.value) === h.subjectId && (!mine || mine.some((a) => a.subjectId === x.value))) ? h.subjectId : '',
-        classId: r.data.classes.some((x) => String(x.value) === h.classId) ? h.classId : '',
+      setHeader((h) => {
+        if (!h) return h;
+        const classId = r.data.classes.some((x) => String(x.value) === h.classId) ? h.classId : '';
+        const subjectId = subjectChoices(r.data, classId ? Number(classId) : null).some((x) => String(x.value) === h.subjectId) ? h.subjectId : '';
+        return { ...h, subjectId, classId };
       });
     });
     return () => {
@@ -223,14 +224,9 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
   if (!header || !questions || !original || admin == null) return <DetailSkeleton />;
 
-  const assigned = choices?.assignments;
-  const subjects = (choices?.subjects ?? []).filter(
-    // Ao professor, só as disciplinas que dá na turma escolhida (ou em alguma, sem turma).
-    (s) => !assigned || assigned.some((a) => a.subjectId === s.value && (!header.classId || a.classId === Number(header.classId))),
-  );
-  const classes = (choices?.classes ?? []).filter(
-    (c) => !assigned || !header.subjectId || assigned.some((a) => a.classId === c.value && a.subjectId === Number(header.subjectId)),
-  );
+  // Disciplinas do currículo da turma escolhida (ou de qualquer turma sem turma); ao professor, só as que dá.
+  const subjects = choices ? subjectChoices(choices, header.classId ? Number(header.classId) : null) : [];
+  const classes = choices ? classChoices(choices, header.subjectId ? Number(header.subjectId) : null) : [];
   const courseId = choices?.classes.find((c) => c.value === Number(header.classId))?.courseId ?? null;
 
   const issues = answerKeyIssues(questions.map((q) => ({ ...q, maxScore: score(q.maxScore) })), numOrNull(header.totalMaxScore));

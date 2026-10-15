@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { classChoices, mergeCurricula, subjectChoices, type CurriculumChoices } from './curriculum.ts';
+
+const merged = mergeCurricula([
+  { classId: 1, subjects: [{ subjectId: 10, name: 'Redes' }, { subjectId: 11, name: 'SO' }] }, // 12B
+  { classId: 2, subjects: [{ subjectId: 10, name: 'Redes' }] }, // 11A
+]);
+const base = (assignments: CurriculumChoices['assignments']): CurriculumChoices => ({
+  ...merged, classes: [{ value: 1, label: '12B' }, { value: 2, label: '11A' }], assignments,
+});
+
+test('mergeCurricula une as disciplinas e guarda o currículo por turma', () => {
+  assert.deepEqual(merged.subjects.map((s) => s.label), ['Redes', 'SO']);
+  assert.deepEqual(merged.curriculum, { 1: [10, 11], 2: [10] });
+});
+
+test('o administrador vê as disciplinas do currículo da turma escolhida', () => {
+  assert.deepEqual(subjectChoices(base(null), 2).map((s) => s.label), ['Redes']);
+  assert.deepEqual(subjectChoices(base(null), 1).map((s) => s.label), ['Redes', 'SO']);
+  assert.deepEqual(subjectChoices(base(null)).map((s) => s.label), ['Redes', 'SO']);
+});
+
+test('as turmas oferecidas são as que têm a disciplina no currículo', () => {
+  assert.deepEqual(classChoices(base(null), 11).map((k) => k.label), ['12B']);
+  assert.deepEqual(classChoices(base(null), 10).map((k) => k.label), ['12B', '11A']);
+  assert.deepEqual(classChoices(base(null)).map((k) => k.label), ['12B', '11A']);
+});
+
+test('o professor só vê o que dá, dentro do currículo', () => {
+  const t = base([{ classId: 1, subjectId: 10 }, { classId: 2, subjectId: 10 }]);
+  assert.deepEqual(subjectChoices(t, 1).map((s) => s.label), ['Redes']); // SO está no currículo mas não é dele
+  assert.deepEqual(classChoices(t, 11), []);
+  assert.deepEqual(classChoices(t, 10).map((k) => k.label), ['12B', '11A']);
+  // atribuição fora do currículo (resíduo antigo) não abre nada
+  assert.deepEqual(subjectChoices(base([{ classId: 2, subjectId: 11 }]), 2), []);
+});

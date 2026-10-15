@@ -239,6 +239,8 @@ function seed(): Store {
   const institutions: Institution[] = [
     { id: 1, code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: null },
     { id: 2, code: 'ISPTEC', name: 'Instituto Superior Politécnico', short_name: 'ISPTEC', logo: null },
+    // Escola criada mas ainda sem turmas: não aparece no onboarding (onlyWithClassesInYear).
+    { id: 3, code: 'IMIL', name: 'Instituto Médio Industrial de Luanda', short_name: 'IMIL', logo: null },
   ];
   // A course belongs to one school, and a class always sits in the school of its course.
   const courses: Course[] = [
@@ -1133,7 +1135,13 @@ export async function mockHandle(
     return json(meResponse(db, account));
   }
 
-  if (pathname === '/institutions' && method === 'GET') return json(db.institutions);
+  if (pathname === '/institutions' && method === 'GET') {
+    // `?onlyWithClassesInYear=<id>`: só as escolas com pelo menos uma turma nesse ano letivo.
+    const year = filter('onlyWithClassesInYear');
+    if (year === undefined) return json(db.institutions);
+    const open = new Set(db.classes.filter((c) => c.schoolYearId === year).map((c) => c.institutionId));
+    return json(db.institutions.filter((i) => open.has(i.id)));
+  }
 
   if (pathname === '/subjects' && method === 'GET') return json(db.subjects);
 

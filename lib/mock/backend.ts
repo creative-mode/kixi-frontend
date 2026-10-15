@@ -11,6 +11,7 @@ import { assignmentsFrom, teacherCanWrite } from '../crud/teacher-scope';
 import { canWriteProblem, updateProblem } from './statement-write';
 import { buildQuestions } from './manual-questions';
 import { OGI_EXTRACTION } from './ogi-extraction';
+import { addToCurriculum, buildStructure, removeFromCurriculum, subjectOfferings, subjectsOfClass, teacherOverview, validateAssignment, type AcademicWorld } from './academic';
 
 const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -44,7 +45,7 @@ G.__kixiMock.db ??= {
   roles: [], accounts: [], users: [], accountRoles: [], 'school-years': [], terms: [], subjects: [], courses: [],
   classes: [], statements: [], simulations: [], 'simulation-answers': [], sessions: [], 'question-images': [],
   institutions: [], teachers: [], institutionSubjects: [], institutionTeachers: [], institutionStudents: [],
-  enrollments: [], 'teaching-assignments': [],
+  enrollments: [], 'teaching-assignments': [], courseSubjects: [],
 };
 const db: any = G.__kixiMock.db;
 function add(table, data) {
@@ -117,8 +118,21 @@ add('statements', {
   cls.institutionId = itel.id;
   for (const sub of db.subjects) db.institutionSubjects.push({ institutionId: itel.id, subjectId: sub.id });
   cls.institutionId = itel.id;
+  // Currículo do ITEL: as disciplinas atuais valem para todas as classes do curso.
+  for (const sub of db.subjects) add('courseSubjects', { courseId: crs.id, subjectId: sub.id, grade: null });
+  // Segunda escola, com um curso de MESMO código (único só por escola) e a disciplina Redes em comum.
+  const imil = add('institutions', { code: 'IMIL', name: 'Instituto Médio Industrial de Luanda', short_name: 'IMIL', logo: null });
+  const imilCrs = add('courses', { code: 'TISM', name: 'Técnico de Informática (IMIL)', description: 'Curso técnico do IMIL', institutionId: imil.id });
+  const imilCls = add('classes', { code: '10A', grade: 10, course: imilCrs, schoolYear: sy, institutionId: imil.id });
+  for (const sub of [redes, db.subjects[2]]) {
+    add('courseSubjects', { courseId: imilCrs.id, subjectId: sub.id, grade: null });
+    db.institutionSubjects.push({ institutionId: imil.id, subjectId: sub.id });
+  }
   const helena = add('teachers', { accountId: teacherAcc.id, firstName: 'Helena', lastName: 'Gomes', email: 'professor@kixi.ao', photo: null, specialty: 'Redes', employeeNumber: 'P-001' });
   db.institutionTeachers.push({ institutionId: itel.id, teacherId: helena.id });
+  // A Helena dá aulas nas duas escolas.
+  db.institutionTeachers.push({ institutionId: imil.id, teacherId: helena.id });
+  add('teaching-assignments', { teacherId: helena.id, classId: imilCls.id, subjectId: redes.id, schoolYearId: sy.id, tutorStyle: null });
   const carlos = add('teachers', { accountId: null, firstName: 'Carlos', lastName: 'Mendes', email: 'carlos@itel.ao', photo: null, specialty: 'Sistemas Operativos', employeeNumber: 'P-002' });
   db.institutionTeachers.push({ institutionId: itel.id, teacherId: carlos.id });
   // Segundo professor com login próprio, para testar o filtro por professor.
@@ -155,6 +169,12 @@ const strip = (row: any) => {
 };
 const missing = (body: any, fields: string[]) => fields.filter((f: string) => body[f] === undefined || body[f] === null || body[f] === '');
 
+const academicWorld = (): AcademicWorld => ({
+  institutions: db.institutions, courses: db.courses, classes: db.classes, subjects: db.subjects, teachers: db.teachers,
+  courseSubjects: db.courseSubjects, institutionSubjects: db.institutionSubjects, institutionTeachers: db.institutionTeachers,
+  assignments: db['teaching-assignments'], enrollments: db.enrollments, schoolYears: db['school-years'],
+});
+
 // resource definitions: table, id field (id | code), required request fields, response mapper, optional update
 const RES = {
   'school-years': { table: 'school-years', req: ['startYear', 'endYear'], pick: (b) => ({ startYear: b.startYear, endYear: b.endYear }) },
@@ -163,15 +183,23 @@ const RES = {
     table: 'courses', req: ['code', 'name', 'institutionId'],
     pick: (b) => ({ code: b.code, name: b.name, description: b.description ?? null, institutionId: Number(b.institutionId) }),
     validate: (b) => (!b.institutionId ? 'school is required' : !db.institutions.find((s) => s.id === Number(b.institutionId) && !s.deletedAt) ? 'school not found' : null),
+    // V50: o código do curso é único por escola (antes era global).
+    unique: (b, id) => (db.courses.some((c) => !c.deletedAt && c.id !== id && c.institutionId === Number(b.institutionId) && c.code === b.code) ? 'Já existe um curso com este código nesta escola.' : null),
   },
   subjects: { table: 'subjects', key: 'code', req: ['code', 'name'], pick: (b) => ({ code: b.code, name: b.name, short_name: b.short_name ?? null }) },
   classes: {
-    table: 'classes', req: ['code', 'grade', 'courseId', 'schoolYearId'], noUpdate: true,
+    table: 'classes', req: ['code', 'grade', 'courseId', 'schoolYearId'],
     pick: (b) => {
       const course = db.courses.find((c) => c.id === b.courseId);
       return { code: b.code, grade: b.grade, course, schoolYear: db['school-years'].find((s) => s.id === b.schoolYearId), institutionId: course?.institutionId ?? null };
     },
     validate: (b) => (!db.courses.find((c) => c.id === b.courseId) ? 'course not found' : !db['school-years'].find((s) => s.id === b.schoolYearId) ? 'school year not found' : null),
+    // Mudar o curso, a classe ou o ano de uma turma com matrículas ou professores deixaria os registos incoerentes.
+    updateGuard: (b, row) => {
+      const changed = b.courseId !== row.course?.id || b.grade !== row.grade || b.schoolYearId !== row.schoolYear?.id;
+      const used = db.enrollments.some((e) => !e.deletedAt && e.classId === row.id) || db['teaching-assignments'].some((a) => !a.deletedAt && a.classId === row.id);
+      return changed && used ? 'A turma tem matrículas ou professores atribuídos: só o código se pode alterar.' : null;
+    },
   },
   sessions: {
     table: 'sessions', admin: true, req: ['accountId', 'token', 'ipAddress'],
@@ -216,6 +244,7 @@ const RES = {
   'teaching-assignments': {
     table: 'teaching-assignments', req: ['teacherId', 'classId', 'subjectId', 'schoolYearId'],
     pick: (b) => ({ teacherId: Number(b.teacherId), classId: Number(b.classId), subjectId: Number(b.subjectId), schoolYearId: Number(b.schoolYearId), tutorStyle: b.tutorStyle || null }),
+    rule: (b) => validateAssignment(academicWorld(), b),
     validate: (b) => (!db.teachers.find((x) => x.id === Number(b.teacherId) && !x.deletedAt) ? 'teacher not found' : !db.classes.find((x) => x.id === Number(b.classId) && !x.deletedAt) ? 'class not found' : !db.subjects.find((x) => x.id === Number(b.subjectId) && !x.deletedAt) ? 'subject not found' : !db['school-years'].find((s) => s.id === Number(b.schoolYearId)) ? 'school year not found' : null),
     unique: (b, id) => (db['teaching-assignments'].some((a) => !a.deletedAt && a.id !== id && a.teacherId === Number(b.teacherId) && a.classId === Number(b.classId) && a.subjectId === Number(b.subjectId) && a.schoolYearId === Number(b.schoolYearId)) ? 'Assignment already exists' : null),
   },
@@ -235,7 +264,12 @@ function authorize(auth: any, method: string, path: string) {
   if (path.startsWith('/api/v1/auth/')) return 200;
   if (!auth) return 401;
   if (/^\/api\/v1\/(accounts|users|roles|sessions)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (method === 'GET' && path === '/api/v1/teachers/me/overview') return has('TEACHER') ? 200 : 403;
   if (/^\/api\/v1\/teachers(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  // V50: a estrutura académica (anos, períodos, disciplinas, cursos, turmas, currículo) só o ADMIN altera.
+  if (method !== 'GET' && /^\/api\/v1\/(school-years|terms|subjects|courses|classes)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/subjects\/[^/]+\/offerings$/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/donations(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   // Como no backend: a lista de atribuições é de ADMIN; o `/me` é o único
   // ponto que um professor pode ler.
   if (/^\/api\/(v1\/)?teaching-assignments\/me$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
@@ -325,6 +359,23 @@ function mapSimulation(s) {
     statement: st ? { id: st.id, examType: st.examType, variant: st.variant, title: st.title, durationMinutes: st.durationMinutes, totalMaxScore: st.totalMaxScore } : null,
     schoolYear: db['school-years'].find((y) => y.id === s.schoolYearId) ?? null,
   };
+}
+
+
+// Doações do mock: três, para a lista, o filtro e a revisão terem com que trabalhar.
+const PIXEL = ['iVBORw0KGgoAAA', 'ANSUhEUgAAAAE', 'AAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ', 'AA', 'AABJRU5ErkJg', 'g=='].join('');
+function donationStore() {
+  G.__kixiDonations ??= [
+    ['KD-7F3K-92QX', 'pending', 'ITEL', 'Matemática', 'Exame'],
+    ['KD-ABCD-2345', 'pending', 'Escola 5 de Abril', 'OGI', 'Prova'],
+    ['KD-HJ4K-MN56', 'approved', 'Liceu do Kilamba', 'Física', 'Teste'],
+  ].map(([reference, status, institutionName, subjectName, examType], i) => ({
+    id: i + 1, reference, status, donorName: i === 0 ? 'Ana Silva' : null, donorEmail: i === 0 ? 'ana@example.com' : null,
+    institutionName, subjectName, classGrade: '12ª Classe', schoolYear: '2024/2025', examType, notes: i === 0 ? 'Prova do 1º trimestre' : null,
+    consentAt: '2026-10-15T10:00:00', consentVersion: '2026-10-v1', reviewNote: null, reviewedAt: null, statementId: null, createdAt: `2026-10-1${i + 1}T09:30:00`,
+    files: [{ id: i * 10 + 1, originalName: `prova-${i + 1}.png`, contentType: 'image/png', sizeBytes: 70, base64: PIXEL }],
+  }));
+  return G.__kixiDonations;
 }
 
 export async function handle(method: string, rawUrl: string, authorization: string | null, bodyText: string): Promise<Response> {
@@ -473,6 +524,51 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         if (acc) acc.deletedAt = now();
         t.accountId = null;
         return json(204);
+      }
+    }
+
+    // ── doações de enunciados (só ADMIN; o `POST` público vive na landing, não aqui) ──
+    if ((m = path.match(/^\/api\/v1\/donations(?:\/(\d+))?(?:\/(files\/(\d+)|review|extract|link-statement))?$/))) {
+      const store = donationStore();
+      const donation = m[1] ? store.find((d) => d.id === Number(m[1])) : null;
+      const summary = (d) => ({ id: d.id, reference: d.reference, status: d.status, institutionName: d.institutionName, subjectName: d.subjectName, examType: d.examType, classGrade: d.classGrade, schoolYear: d.schoolYear, fileCount: d.files.length, createdAt: d.createdAt });
+      const detail = (d) => ({ ...d, files: d.files.map(({ id, originalName, contentType, sizeBytes }) => ({ id, originalName, contentType, sizeBytes })) });
+      if (!m[1] && method === 'GET') {
+        const wanted = url.searchParams.get('status');
+        if (wanted && !['pending', 'approved', 'rejected', 'converted'].includes(wanted)) return problem(400, `Unknown status: ${wanted}`);
+        const page = Number(url.searchParams.get('page') ?? 1);
+        const limit = Number(url.searchParams.get('limit') ?? 20);
+        if (!(page >= 1) || !(limit >= 1 && limit <= 50)) return problem(400, 'page or limit out of range');
+        const rows = store.filter((d) => !wanted || d.status === wanted).sort((a, b) => b.id - a.id);
+        const counts = Object.fromEntries(['pending', 'approved', 'rejected', 'converted'].map((k) => [k, store.filter((d) => d.status === k).length]));
+        return json(200, { items: rows.slice((page - 1) * limit, page * limit).map(summary), total: rows.length, page, limit, counts });
+      }
+      if (!donation) return problem(404, `Donation not found: ${m[1]}`);
+      if (!m[2] && method === 'GET') return json(200, detail(donation));
+      if (m[3] && method === 'GET') {
+        const file = donation.files.find((x) => x.id === Number(m[3]));
+        if (!file) return problem(404, 'Donation file not found');
+        return new Response(Buffer.from(file.base64, 'base64'), { status: 200, headers: { 'Content-Type': file.contentType, 'Content-Disposition': `attachment; filename="${file.originalName}"`, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store' } });
+      }
+      if (m[2] === 'review' && method === 'PATCH') {
+        const b = readBody();
+        const decision = String(b.status ?? '').toLowerCase();
+        if (!['approved', 'rejected'].includes(decision)) return problem(400, 'status must be approved or rejected');
+        if (donation.status === 'converted') return problem(409, 'A converted donation can no longer be reviewed');
+        Object.assign(donation, { status: decision, reviewNote: b.note ?? null, reviewedAt: now() });
+        return json(200, detail(donation));
+      }
+      if (m[2] === 'extract' && method === 'POST') {
+        if (!donation.files.length) return problem(409, 'This donation has no files');
+        return json(200, { ...OGI_EXTRACTION, request_id: `req-${Date.now()}`, processing_time_ms: 900 });
+      }
+      if (m[2] === 'link-statement' && method === 'POST') {
+        const b = readBody();
+        if (donation.status === 'rejected') return problem(409, 'A rejected donation cannot become a statement');
+        if (donation.status === 'converted') return donation.statementId === b.statementId ? json(200, detail(donation)) : problem(409, 'This donation was already converted into another statement');
+        if (!db.statements.find((x) => x.id === b.statementId && !x.deletedAt)) return problem(404, `Statement not found: ${b.statementId}`);
+        Object.assign(donation, { status: 'converted', statementId: b.statementId, reviewedAt: donation.reviewedAt ?? now() });
+        return json(200, detail(donation));
       }
     }
 
@@ -826,6 +922,67 @@ export async function handle(method: string, rawUrl: string, authorization: stri
 
     if (path.startsWith('/api/v1/analytics') && method === 'GET') { const a = analytics(path, url, auth); if (a) return a; }
 
+    // ── estrutura académica (V50): currículo, estrutura da escola, visão do professor, onde se leciona ──
+    if ((m = path.match(/^\/api\/v1\/courses\/(\d+)\/subjects(?:\/(\d+))?$/))) {
+      const cid = Number(m[1]);
+      const course = db.courses.find((c) => c.id === cid && !c.deletedAt);
+      if (!course) return problem(404, 'Course not found');
+      const w = academicWorld();
+      if (method === 'GET' && !m[2]) {
+        return json(200, w.courseSubjects.filter((l) => l.courseId === cid && !l.deletedAt).map((l) => {
+          const sb = db.subjects.find((x) => x.id === l.subjectId);
+          return { id: l.id, courseId: cid, subjectId: sb.id, code: sb.code, name: sb.name, shortName: sb.short_name ?? null, grade: l.grade };
+        }));
+      }
+      if (method === 'POST' && !m[2]) {
+        const b = readBody();
+        if (!b.subjectId) return problem(400, 'The subject is required');
+        const r = addToCurriculum(w, cid, Number(b.subjectId), b.grade == null || b.grade === '' ? null : Number(b.grade), () => nextId('courseSubjects'));
+        if (r.problem) return problem(r.problem.status, r.problem.message);
+        const sb = db.subjects.find((x) => x.id === r.link.subjectId);
+        return json(201, { id: r.link.id, courseId: cid, subjectId: sb.id, code: sb.code, name: sb.name, shortName: sb.short_name ?? null, grade: r.link.grade });
+      }
+      if (method === 'DELETE' && m[2]) {
+        const p = removeFromCurriculum(w, cid, Number(m[2]));
+        return p ? problem(p.status, p.message) : json(204);
+      }
+    }
+    if ((m = path.match(/^\/api\/v1\/classes\/(\d+)\/subjects$/)) && method === 'GET') {
+      const k = db.classes.find((c) => c.id === Number(m[1]) && !c.deletedAt);
+      if (!k) return problem(404, 'Class not found');
+      const w = academicWorld();
+      return json(200, subjectsOfClass(w, k).map((sb) => ({
+        subjectId: sb.id, code: sb.code, name: sb.name,
+        teachers: db['teaching-assignments'].filter((a) => !a.deletedAt && a.classId === k.id && a.subjectId === sb.id).map((a) => {
+          const t = db.teachers.find((x) => x.id === a.teacherId);
+          return { id: t.id, firstName: t.firstName, lastName: t.lastName, assignmentId: a.id };
+        }),
+      })));
+    }
+    if ((m = path.match(/^\/api\/v1\/institutions\/(\d+)\/structure$/)) && method === 'GET') {
+      const yr = url.searchParams.get('schoolYearId');
+      const st = buildStructure(academicWorld(), Number(m[1]), yr ? Number(yr) : null);
+      return st ? json(200, st) : problem(404, 'Institution not found');
+    }
+    if (path === '/api/v1/teachers/me/overview' && method === 'GET') {
+      const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
+      return t ? json(200, teacherOverview(academicWorld(), t.id)) : problem(404, 'Teacher not found');
+    }
+    if ((m = path.match(/^\/api\/v1\/teachers\/(\d+)\/overview$/)) && method === 'GET') {
+      const o = teacherOverview(academicWorld(), Number(m[1]));
+      return o ? json(200, o) : problem(404, 'Teacher not found');
+    }
+    if ((m = path.match(/^\/api\/v1\/subjects\/([^/]+)\/offerings$/)) && method === 'GET') {
+      const o = subjectOfferings(academicWorld(), decodeURIComponent(m[1]));
+      return o ? json(200, o) : problem(404, 'Subject not found');
+    }
+    // só escolas com turmas no ano (onboarding do aluno)
+    if (path === '/api/v1/institutions' && method === 'GET' && url.searchParams.has('onlyWithClassesInYear')) {
+      const y = Number(url.searchParams.get('onlyWithClassesInYear'));
+      const ids = new Set(db.classes.filter((c) => !c.deletedAt && c.schoolYear?.id === y).map((c) => c.institutionId));
+      return json(200, db.institutions.filter((i) => !i.deletedAt && ids.has(i.id)));
+    }
+
     // ── turmas por escola/curso (ClassController: ?institutionId=&courseId=) ──
     if (path === '/api/v1/classes' && method === 'GET' && (url.searchParams.has('institutionId') || url.searchParams.has('courseId'))) {
       const inst = url.searchParams.get('institutionId');
@@ -880,6 +1037,8 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         // validação (400) e conflito de unicidade (409) têm estados próprios.
         const verr = def.validate?.(b);
         if (verr) return problem(400, verr);
+        const rerr = def.rule?.(b);
+        if (rerr) return problem(rerr.status, rerr.message);
         const uerr = def.unique?.(b, null);
         if (uerr) return problem(409, uerr);
         if (def.key && rows.some((r) => !r.deletedAt && r[def.key] === b[def.key])) return problem(409, `${def.key} already exists`);
@@ -895,6 +1054,10 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         if (miss.length) return problem(400, `${miss.join(', ')} is required`);
         const verr2 = def.validate?.(b);
         if (verr2) return problem(400, verr2);
+        const rerr2 = def.rule?.(b);
+        if (rerr2) return problem(rerr2.status, rerr2.message);
+        const guard2 = def.updateGuard?.(b, row);
+        if (guard2) return problem(409, guard2);
         const uerr2 = def.unique?.(b, row.id);
         if (uerr2) return problem(409, uerr2);
         Object.assign(row, def.pick(b), { updatedAt: now() });

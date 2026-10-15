@@ -25,7 +25,7 @@ test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enu
 });
 
 test('a gestão dá 403, para ele saber porque não entra', () => {
-  for (const p of ['/accounts', '/accounts/1/edit', '/roles', '/institutions', '/teachers', '/teaching-assignments', '/school-year/new']) {
+  for (const p of ['/accounts', '/accounts/1/edit', '/roles', '/institutions', '/teachers', '/teaching-assignments', '/school-year/new', '/donations', '/donations/3', '/donations/3/files/1']) {
     assert.equal(teacherRoute(p), 'forbidden', p);
   }
 });
@@ -50,4 +50,10 @@ test('lixeiras, formulários e o resto voltam ao início dele', () => {
   ]) {
     assert.equal(teacherRoute(p), 'home', p);
   }
+});
+
+test('isStructureEntity: a estrutura académica é só do ADMIN', async () => {
+  const { isStructureEntity } = await import('./roles.ts');
+  for (const k of ['classes', 'courses', 'subjects', 'school-years', 'terms', 'institutions']) assert.equal(isStructureEntity(k), true, k);
+  for (const k of ['statements', 'simulations', 'accounts']) assert.equal(isStructureEntity(k), false, k);
 });
