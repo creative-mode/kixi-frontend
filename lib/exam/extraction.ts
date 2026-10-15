@@ -9,8 +9,8 @@
  * para o do construtor; as alíneas vêm em `subitems_content`. O gabarito nunca vem do OCR: um
  * verdadeiro/falso fica com as duas opções e nenhuma marcada, para o professor decidir.
  */
-import { labelAt, trueFalseOptions, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft';
-import { KINDS, type ExamDraft } from './schools';
+import { labelAt, trueFalseOptions, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
+import { KINDS, type ExamDraft } from './schools.ts';
 
 export interface ExtractionOption { option_label?: string | null; option_text?: string | null }
 export interface ExtractionSubitem { label?: string | null; text?: string | null; cotacao?: number | null; type?: string | null }

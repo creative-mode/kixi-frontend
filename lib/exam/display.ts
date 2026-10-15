@@ -2,8 +2,11 @@
  * Como se mostram as questões de um enunciado que tem alíneas, a partir do que `GET /statements/{id}/full` devolve.
  *
  * O backend guarda cada alínea como uma questão com `parentId` e `label`, e dá-lhe o número `pai * 100 + índice`
- * (301, 302…) para a ordem por número pôr a alínea a seguir ao pai. Esse número não é para mostrar: o que o
- * professor e o aluno leem é `3a`. Por isso nunca se imprime `number` de uma alínea.
+ * (301, 302…) só para ser único. Esse número não é para mostrar: o que o professor e o aluno leem é `3a`, por isso
+ * nunca se imprime `number` de uma alínea.
+ *
+ * A ordem das questões é a do servidor (a ordem em que chegaram quando a prova foi guardada, com cada alínea a
+ * seguir ao pai): o front não reordena por `number`, que não é uma ordem.
  */
 
 export interface TreeQuestion {
@@ -12,20 +15,6 @@ export interface TreeQuestion {
   parentId?: number | null;
   label?: string | null;
   questionType?: string | null;
-}
-
-/** As questões com cada alínea logo a seguir ao pai, pela ordem do número. Uma alínea cujo pai não está na
- *  lista (apagado, ou filtrado) é tratada como questão de topo, para não desaparecer. */
-export function orderWithGroups<T extends TreeQuestion>(questions: readonly T[]): T[] {
-  const ids = new Set(questions.map((q) => q.id));
-  const children = new Map<number, T[]>();
-  const top: T[] = [];
-  for (const q of questions) {
-    if (q.parentId != null && ids.has(q.parentId)) children.set(q.parentId, [...(children.get(q.parentId) ?? []), q]);
-    else top.push(q);
-  }
-  const byNumber = (a: T, b: T) => a.number - b.number;
-  return top.sort(byNumber).flatMap((q) => [q, ...(children.get(q.id) ?? []).sort(byNumber)]);
 }
 
 /** O número a mostrar: `5` para uma questão, `3a` para a alínea a da 3. */

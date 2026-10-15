@@ -17,7 +17,7 @@
  *    second POST for the same question is a 409 (SimulationAnswerService.java:97).
  */
 
-import { isItem, topNumber } from './question-number';
+import { isItem, topNumber } from './question-number.ts';
 
 export type SimulationStatus = 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
 
@@ -84,37 +84,16 @@ export function isGroup(question: ExamQuestion): boolean {
   return (question.questionType ?? '').toLowerCase() === 'group';
 }
 
-/** Questions in the order the student walks them: by `number`, falling back to
- *  `orderIndex` and then to the array position when a statement leaves one unset.
+/** The questions in the order the student walks them: the order the server sends, which is the order of the paper
+ *  (`order_index`, with every alínea right after its parent). The front does not sort by `number`: for an alínea
+ *  that number (301, 302…) only exists to be unique, and sorting by it would put 3a after the last question.
  *
- *  Com alíneas, cada uma vem a seguir ao seu pai (o número interno 301 ordena-se com o 3, não depois do 6)
- *  e o pai sai da lista, porque não há nada a responder nele: o aluno percorre só as folhas. Cada alínea
- *  leva consigo o enunciado comum e o número da questão inteira para o ecrã os mostrar. */
+ *  The parent leaves the list because there is nothing to answer in it: the student walks the leaves. Each alínea
+ *  carries the common statement and the number of the whole question, for the screen to show them. */
 export function orderQuestions(questions: ExamQuestion[]): ExamQuestion[] {
   const byId = new Map(questions.map((q) => [q.id, q]));
   const groups = questions.filter(isGroup);
-  const keyOf = (q: ExamQuestion) => {
-    const n = Number(q.number);
-    return Number.isFinite(n) && isItem(q) ? topNumber(n) : n;
-  };
-
-  const sorted = questions
-    .map((question, index) => ({ question, index }))
-    .sort((a, b) => {
-      const ak = keyOf(a.question);
-      const bk = keyOf(b.question);
-      if (Number.isFinite(ak) && Number.isFinite(bk) && ak !== bk) return ak - bk;
-      const an = Number(a.question.number);
-      const bn = Number(b.question.number);
-      if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
-      const ao = Number(a.question.orderIndex);
-      const bo = Number(b.question.orderIndex);
-      if (Number.isFinite(ao) && Number.isFinite(bo) && ao !== bo) return ao - bo;
-      return a.index - b.index;
-    })
-    .map(({ question }) => question);
-
-  return sorted
+  return questions
     .filter((q) => !isGroup(q))
     .map((q) => {
       if (!isItem(q)) return q;

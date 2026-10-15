@@ -9,7 +9,7 @@
  *  - the result only exists once the simulation is FINISHED (409 before), which is
  *    also what keeps the answer key out of the room. */
 
-import { isItem, topNumber } from './question-number';
+import { isItem, topNumber } from './question-number.ts';
 
 export interface ResultOption {
   id: number;
@@ -61,11 +61,10 @@ export function verdict(q: ResultQuestion): Verdict {
   return q.isCorrect === false ? 'wrong' : 'pending';
 }
 
-/** The questions in the order of the paper. Uma alínea (301) fica a seguir à sua questão (3), não depois da
- *  última: ordena-se pelo número da questão inteira e só depois pelo da alínea. */
+/** The questions in the order of the paper: the order the server sends (each alínea right after its question).
+ *  Not sorted by `number`: for an alínea that number (301) only exists to be unique. */
 export function inOrder(questions: ResultQuestion[] | undefined): ResultQuestion[] {
-  const whole = (q: ResultQuestion) => (isItem(q) ? topNumber(q.number) : q.number);
-  return [...(questions ?? [])].sort((a, b) => whole(a) - whole(b) || a.number - b.number);
+  return [...(questions ?? [])];
 }
 
 /** Se o ecrã deve mostrar o enunciado comum acima desta questão: só na primeira alínea de cada questão,

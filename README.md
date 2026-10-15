@@ -74,7 +74,7 @@ A prova nasce no **construtor** (`/manager/exam-builder`) e é dada numa **sala*
 2. **Rever.** Cada questão é dissertativa, de escolha múltipla, verdadeiro/falso ou **com alíneas** (a, b, c…, cada uma com o seu tipo, cotação e resposta). O OCR não adivinha o gabarito: as respostas de escolha múltipla e de verdadeiro/falso marcam-se aqui. Sem cotação no papel, «Distribuir 20 valores» reparte por igual sem tocar nas já preenchidas.
 3. **Publicar** e **criar a sala** com essa prova (`/exam-rooms/new?statementId=…` abre com a turma e a prova escolhidas). Os alunos entram na sala e fazem a simulação.
 
-Uma questão com alíneas é, no backend, uma questão `group` (só o enunciado comum) com uma questão por alínea (`parentId` e `label`). O número interno de uma alínea é `pai * 100 + índice` (301, 302…), para a ordem por número a pôr a seguir ao pai: **nunca se mostra**, mostra-se `3a`. `lib/exam/display.ts` (manager) e `student/lib/question-number.ts` (aluno) tratam disso.
+Uma questão com alíneas é, no backend, uma questão `group` (só o enunciado comum) com uma questão por alínea (`parentId` e `label`). O número interno de uma alínea é `pai * 100 + índice` (301, 302…), só para ser único: **nunca se mostra**, mostra-se `3a`. A ordem das questões é a do servidor (cada alínea a seguir ao pai); o front não reordena por `number`. `lib/exam/display.ts` (manager) e `student/lib/question-number.ts` (aluno) tratam disso.
 
 ## Scripts úteis
 

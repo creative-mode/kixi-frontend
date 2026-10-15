@@ -1,6 +1,6 @@
 'use client';
 
-import { displayNumber, isGroup, orderWithGroups } from '@/lib/exam/display';
+import { displayNumber, isGroup } from '@/lib/exam/display';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Check, Eye, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -58,7 +58,7 @@ function toDraft(s: Row): Draft {
       schoolYearId: str(s.schoolYearId),
       termId: str(s.termId),
     },
-    questions: orderWithGroups<Row & { id: number; number: number }>(s.questions ?? []).map((q: Row) => ({
+    questions: (s.questions ?? []).map((q: Row) => ({
       id: Number(q.id),
       number: q.number,
       parentId: q.parentId ?? null,

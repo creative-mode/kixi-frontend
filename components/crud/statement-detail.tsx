@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Check, DoorOpen, Eye, EyeOff, FilePen, Trash2 } from 'lucide-react';
-import { displayNumber, isGroup, orderWithGroups, type TreeQuestion } from '@/lib/exam/display';
+import { displayNumber, isGroup, type TreeQuestion } from '@/lib/exam/display';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -105,7 +105,8 @@ export function StatementDetail({ id }: { id: number }) {
   }
 
   const entity = ENTITIES.statements;
-  const questions = orderWithGroups<Row & TreeQuestion>(s?.questions ?? []);
+  // A ordem é a do servidor: cada alínea vem a seguir ao pai.
+  const questions: (Row & TreeQuestion)[] = s?.questions ?? [];
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
       <PageHead

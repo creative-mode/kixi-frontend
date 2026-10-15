@@ -32,10 +32,12 @@ test('uma resposta aberta por corrigir não é um erro', () => {
   assert.deepEqual(toReview(list).map((x) => x.number), [2]);
 });
 
-test('as questões seguem a ordem da prova, sem mexer na lista recebida', () => {
+test('as questões seguem a ordem do servidor, que é a da prova, sem mexer na lista recebida', () => {
+  // A ordem da prova é a em que as questões chegam (order_index): o número não é uma ordem.
   const list = [q({ number: 2 }), q({ number: 1 })];
-  assert.deepEqual(inOrder(list).map((x) => x.number), [1, 2]);
-  assert.deepEqual(list.map((x) => x.number), [2, 1]);
+  const out = inOrder(list);
+  assert.deepEqual(out.map((x) => x.number), [2, 1]);
+  assert.notEqual(out, list);
   assert.deepEqual(inOrder(undefined), []);
 });
 
@@ -80,13 +82,16 @@ test('a etiqueta da opção é a da prova, ou a letra pela posição', () => {
 
 
 const rq = (questionId: number, number: number, extra: Partial<ResultQuestion> = {}): ResultQuestion => ({ questionId, number, text: `Q${number}`, ...extra });
+/** Na ordem do servidor: cada alínea já vem a seguir à sua questão. */
 const COM_ALINEAS = [
-  rq(9, 502, { parentId: 50, label: 'b', parentText: 'Dados da Q5' }), rq(4, 4), rq(1, 1), rq(3, 302, { parentId: 30, label: 'b', parentText: 'Diga V ou F' }),
-  rq(2, 301, { parentId: 30, label: 'a', parentText: 'Diga V ou F' }), rq(8, 501, { parentId: 50, label: 'a', parentText: 'Dados da Q5' }),
+  rq(1, 1), rq(2, 301, { parentId: 30, label: 'a', parentText: 'Diga V ou F' }), rq(3, 302, { parentId: 30, label: 'b', parentText: 'Diga V ou F' }),
+  rq(4, 4), rq(8, 501, { parentId: 50, label: 'a', parentText: 'Dados da Q5' }), rq(9, 502, { parentId: 50, label: 'b', parentText: 'Dados da Q5' }),
 ];
 
-test('as alíneas ficam a seguir à sua questão e não depois da última', () => {
+test('a ordem do resultado é a do servidor e não se reordena por número', () => {
   assert.deepEqual(inOrder(COM_ALINEAS).map((q) => q.number), [1, 301, 302, 4, 501, 502]);
+  // sem reordenar: 301 não passa para depois do 4
+  assert.deepEqual(inOrder([rq(1, 5), rq(2, 301, { parentId: 3 }), rq(3, 2)]).map((q) => q.number), [5, 301, 2]);
 });
 
 test('o enunciado comum mostra-se uma vez, na primeira alínea de cada questão', () => {

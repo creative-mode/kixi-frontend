@@ -53,22 +53,15 @@ test('uma questão é de escolha quando tem opções, não quando o tipo diz "mu
   assert.equal(isChoice(wrongText), true);
 });
 
-test('ordena por número, e pelo índice quando o número não serve', () => {
-  const unordered = [choice(3, 3, [{ id: 1 }]), choice(1, 1, [{ id: 1 }]), open(2, 2)];
-  assert.deepEqual(orderQuestions(unordered).map((q) => q.number), [1, 2, 3]);
-
-  const noNumber = [
+test('mantém a ordem do servidor: não reordena por número', () => {
+  // A ordem da prova é a em que as questões chegam (order_index): o número não é uma ordem.
+  const emOrdem = [choice(3, 3, [{ id: 1 }]), choice(1, 1, [{ id: 1 }]), open(2, 2)];
+  assert.deepEqual(orderQuestions(emOrdem).map((q) => q.number), [3, 1, 2]);
+  const semNumero = [
     { id: 9, number: Number.NaN, orderIndex: 2, text: 'b', options: [] },
     { id: 8, number: Number.NaN, orderIndex: 1, text: 'a', options: [] },
   ];
-  assert.deepEqual(orderQuestions(noNumber).map((q) => q.id), [8, 9]);
-
-  // Nem número nem índice: a ordem do enunciado é a do servidor, não uma reordenação.
-  const bare = [
-    { id: 7, number: Number.NaN, orderIndex: null, text: 'segunda', options: [] },
-    { id: 6, number: Number.NaN, orderIndex: null, text: 'primeira', options: [] },
-  ];
-  assert.deepEqual(orderQuestions(bare).map((q) => q.text), ['segunda', 'primeira']);
+  assert.deepEqual(orderQuestions(semNumero).map((q) => q.id), [9, 8]);
 });
 
 test('escolha envia a opção e nunca texto', () => {
@@ -267,15 +260,15 @@ function leaf(id: number, number: number, parentId: number, label: string, type 
 }
 const grupo = (id: number, number: number, text: string): ExamQuestion => ({ id, number, text, questionType: 'group', options: [] });
 
-/** Q1 aberta; Q2 (grupo V/F, alíneas a, b); Q3 aberta; Q4 (grupo, alíneas a, b). Fora de ordem de propósito. */
+/** Q1 aberta; Q2 (grupo V/F, alíneas a, b); Q3 aberta; Q4 (grupo, alíneas a, b). Na ordem do servidor. */
 function ogi(): ExamQuestion[] {
   return [
-    leaf(23, 402, 40, 'b', 'open'), open(1, 1), leaf(21, 201, 20, 'a'), grupo(40, 4, 'Dados comuns da Q4'), open(3, 3),
-    leaf(22, 202, 20, 'b'), leaf(24, 401, 40, 'a', 'open'), grupo(20, 2, 'Diga quais são verdadeiras ou falsas'),
+    open(1, 1), grupo(20, 2, 'Diga quais são verdadeiras ou falsas'), leaf(21, 201, 20, 'a'), leaf(22, 202, 20, 'b'),
+    open(3, 3), grupo(40, 4, 'Dados comuns da Q4'), leaf(24, 401, 40, 'a', 'open'), leaf(23, 402, 40, 'b', 'open'),
   ];
 }
 
-test('com alíneas, cada uma vem a seguir ao seu pai e não depois da última questão', () => {
+test('com alíneas, a ordem é a do servidor: cada alínea já vem a seguir ao pai', () => {
   assert.deepEqual(orderQuestions(ogi()).map((q) => q.number), [1, 201, 202, 3, 401, 402]);
 });
 
@@ -309,7 +302,7 @@ test('o enunciado comum que o servidor manda vale mais do que o do pai, e sem pa
 
 test('um grupo sem alíneas desaparece e uma lista sem grupos fica igual', () => {
   assert.deepEqual(orderQuestions([grupo(1, 1, 'vazio'), open(2, 2)]).map((q) => q.id), [2]);
-  const simples = [choice(2, 2, [{ id: 1 }]), open(1, 1)];
+  const simples = [open(1, 1), choice(2, 2, [{ id: 1 }])];
   assert.deepEqual(orderQuestions(simples).map((q) => q.number), [1, 2]);
 });
 

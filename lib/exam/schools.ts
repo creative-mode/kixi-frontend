@@ -1,4 +1,4 @@
-import { kindOf, labelsFor, trueFalseOptions, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft';
+import { kindOf, labelsFor, trueFalseOptions, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
 
 export interface School {
   id: string;
