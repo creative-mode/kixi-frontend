@@ -47,7 +47,7 @@ export default function Donate() {
       <footer className="footer" data-theme="dark">
         <div className="wrap footer__in">
           <Logo size={28} wordmark />
-          <p className="footer__copy">© 2026 @creativemode</p>
+          <p className="footer__copy">&copy; 2026 @creativemode</p>
         </div>
       </footer>
     </>

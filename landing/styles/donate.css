@@ -23,7 +23,7 @@
   background: var(--paper); border: 1.6px solid var(--lp-ink); border-radius: 0;
 }
 .dn-field textarea { resize: vertical; min-height: 96px; }
-.dn-field [aria-invalid="true"] { border-color: #b3261e; background: #fff5f4; }
+.dn-field [aria-invalid="true"] { border-color: #b3261e; background: #fdf3f2; }
 .dn-help { margin: 0; font-size: 14px; color: var(--lp-dim); }
 .dn-help--small { font-size: 13px; }
 .dn-err { margin: 0; font-size: 13px; font-weight: 600; color: #b3261e; }

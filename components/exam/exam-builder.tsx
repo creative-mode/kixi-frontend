@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, DoorOpen, FileText, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, DoorOpen, FileText, Gift, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,8 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
 import { createManualStatement, institutionLinks, myInstitutions, publishManualStatement, reviewChoices, type ReviewChoices } from '@/app/actions/crud';
+import { extractDonation, getDonation, linkDonationStatement } from '@/app/actions/donations';
+import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { distributeScore, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
@@ -26,7 +28,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /** A prova que acabou de ser guardada: serve para dizer onde está e para a poder dar a uma turma. */
 interface SavedExam { id: number; title: string; published: boolean; snapshot: string }
 
-export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
+export function ExamBuilder({ openImport = false, donationId = null }: { openImport?: boolean; donationId?: number | null }) {
   const [schools, setSchools] = useState<School[]>([]);
   const [subjectIds, setSubjectIds] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<ExamDraft>(EMPTY_DRAFT);
@@ -38,6 +40,8 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
   const [importOpen, setImportOpen] = useState(openImport);
   const [notes, setNotes] = useState<string[]>([]);
   const [saved, setSaved] = useState<SavedExam | null>(null);
+  const [donation, setDonation] = useState<DonationDetail | null>(null);
+  const [reading, setReading] = useState(false);
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
@@ -50,6 +54,11 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
     return () => window.clearTimeout(task);
   }, []);
   useEffect(() => { if (ready) saveDraft(draft); }, [draft, ready]);
+  // Uma doação aberta no construtor: os dados dela, para o administrador ver de onde vem a prova.
+  useEffect(() => {
+    if (donationId === null) return;
+    getDonation(donationId).then((res) => (res.ok ? setDonation(res.data) : toast.error(res.error)));
+  }, [donationId]);
   useEffect(() => { fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN'))); }, []);
 
   const school = useMemo(() => schools.find((s) => s.id === draft.schoolId) ?? schools[0], [schools, draft.schoolId]);
@@ -122,6 +131,13 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
     setSaved({ id: Number(res.data.id), title: String(res.data.title ?? payload.title), published: publish, snapshot: JSON.stringify(draft) });
+    // A prova nasceu de uma doação: liga-as, e a doação passa a «convertida». Falhar aqui não
+    // desfaz a prova (já existe); avisa-se para a ligação se refazer na doação.
+    if (donationId !== null) {
+      const linked = await linkDonationStatement(donationId, Number(res.data.id));
+      if (linked.ok) setDonation(linked.data);
+      else toast.error(`A prova ficou criada, mas não ficou ligada à doação: ${linked.error}`);
+    }
     toast.success(publish ? 'Prova publicada. Os alunos já a podem simular.' : 'Prova guardada. Fica oculta até a publicar.');
   }
 
@@ -142,6 +158,16 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
     setSaved(null);
     setImportOpen(false);
     toast.success(`Prova lida (${names}): ${imported.items.length} questões. Reveja o que o OCR percebeu.`);
+  }
+
+  /** O OCR sobre os ficheiros da doação: o mesmo caminho do importador, sem ficheiros novos. */
+  async function readDonation() {
+    if (donationId === null) return;
+    setReading(true);
+    const res = await extractDonation(donationId);
+    setReading(false);
+    if (!res.ok) return void toast.error(res.error);
+    applyImport(res.data, donation?.reference ?? `doação ${donationId}`);
   }
 
   const setItem = (i: number, patch: Partial<ExamDraft['items'][number]>) => set('items', draft.items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -199,6 +225,27 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
                 <Button variant="ghost" onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { setDraft({ ...EMPTY_DRAFT, schoolId: draft.schoolId }); setNotes([]); setSaved(null); } }}>
                   <Plus aria-hidden />Nova prova
                 </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {donationId !== null && (
+            <Card className="print:hidden" role="region" aria-label="Doação de origem">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Gift className="size-4 text-primary" aria-hidden />Doação {donation?.reference ?? `#${donationId}`}</CardTitle>
+                <CardDescription>
+                  {donation
+                    ? `${donation.subjectName} · ${donation.examType} · ${donation.institutionName}. ${donation.files.length} ficheiro(s).`
+                    : 'A carregar a doação…'}
+                  {' '}O OCR lê os ficheiros e preenche o construtor; ao guardar, a doação fica ligada à prova.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Button onClick={readDonation} disabled={!donation || reading || !ready}>
+                  {reading ? <Spinner className="size-4" /> : <ScanText aria-hidden />}
+                  {reading ? 'A ler a prova…' : 'Ler os ficheiros com o OCR'}
+                </Button>
+                <Button asChild variant="outline"><Link href={`/donations/${donationId}`}>Ver a doação</Link></Button>
               </CardContent>
             </Card>
           )}

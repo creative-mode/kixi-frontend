@@ -235,7 +235,7 @@ function authorize(auth: any, method: string, path: string) {
   if (path.startsWith('/api/v1/auth/')) return 200;
   if (!auth) return 401;
   if (/^\/api\/v1\/(accounts|users|roles|sessions)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
-  if (/^\/api\/v1\/teachers(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
+  if (/^\/api\/v1\/(teachers|donations)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   // Como no backend: a lista de atribuições é de ADMIN; o `/me` é o único
   // ponto que um professor pode ler.
   if (/^\/api\/(v1\/)?teaching-assignments\/me$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
@@ -325,6 +325,23 @@ function mapSimulation(s) {
     statement: st ? { id: st.id, examType: st.examType, variant: st.variant, title: st.title, durationMinutes: st.durationMinutes, totalMaxScore: st.totalMaxScore } : null,
     schoolYear: db['school-years'].find((y) => y.id === s.schoolYearId) ?? null,
   };
+}
+
+
+// Doações do mock: três, para a lista, o filtro e a revisão terem com que trabalhar.
+const PIXEL = ['iVBORw0KGgoAAA', 'ANSUhEUgAAAAE', 'AAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ', 'AA', 'AABJRU5ErkJg', 'g=='].join('');
+function donationStore() {
+  G.__kixiDonations ??= [
+    ['KD-7F3K-92QX', 'pending', 'ITEL', 'Matemática', 'Exame'],
+    ['KD-ABCD-2345', 'pending', 'Escola 5 de Abril', 'OGI', 'Prova'],
+    ['KD-HJ4K-MN56', 'approved', 'Liceu do Kilamba', 'Física', 'Teste'],
+  ].map(([reference, status, institutionName, subjectName, examType], i) => ({
+    id: i + 1, reference, status, donorName: i === 0 ? 'Ana Silva' : null, donorEmail: i === 0 ? 'ana@example.com' : null,
+    institutionName, subjectName, classGrade: '12ª Classe', schoolYear: '2024/2025', examType, notes: i === 0 ? 'Prova do 1º trimestre' : null,
+    consentAt: '2026-10-15T10:00:00', consentVersion: '2026-10-v1', reviewNote: null, reviewedAt: null, statementId: null, createdAt: `2026-10-1${i + 1}T09:30:00`,
+    files: [{ id: i * 10 + 1, originalName: `prova-${i + 1}.png`, contentType: 'image/png', sizeBytes: 70, base64: PIXEL }],
+  }));
+  return G.__kixiDonations;
 }
 
 export async function handle(method: string, rawUrl: string, authorization: string | null, bodyText: string): Promise<Response> {
@@ -473,6 +490,51 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         if (acc) acc.deletedAt = now();
         t.accountId = null;
         return json(204);
+      }
+    }
+
+    // ── doações de enunciados (só ADMIN; o `POST` público vive na landing, não aqui) ──
+    if ((m = path.match(/^\/api\/v1\/donations(?:\/(\d+))?(?:\/(files\/(\d+)|review|extract|link-statement))?$/))) {
+      const store = donationStore();
+      const donation = m[1] ? store.find((d) => d.id === Number(m[1])) : null;
+      const summary = (d) => ({ id: d.id, reference: d.reference, status: d.status, institutionName: d.institutionName, subjectName: d.subjectName, examType: d.examType, classGrade: d.classGrade, schoolYear: d.schoolYear, fileCount: d.files.length, createdAt: d.createdAt });
+      const detail = (d) => ({ ...d, files: d.files.map(({ id, originalName, contentType, sizeBytes }) => ({ id, originalName, contentType, sizeBytes })) });
+      if (!m[1] && method === 'GET') {
+        const wanted = url.searchParams.get('status');
+        if (wanted && !['pending', 'approved', 'rejected', 'converted'].includes(wanted)) return problem(400, `Unknown status: ${wanted}`);
+        const page = Number(url.searchParams.get('page') ?? 1);
+        const limit = Number(url.searchParams.get('limit') ?? 20);
+        if (!(page >= 1) || !(limit >= 1 && limit <= 50)) return problem(400, 'page or limit out of range');
+        const rows = store.filter((d) => !wanted || d.status === wanted).sort((a, b) => b.id - a.id);
+        const counts = Object.fromEntries(['pending', 'approved', 'rejected', 'converted'].map((k) => [k, store.filter((d) => d.status === k).length]));
+        return json(200, { items: rows.slice((page - 1) * limit, page * limit).map(summary), total: rows.length, page, limit, counts });
+      }
+      if (!donation) return problem(404, `Donation not found: ${m[1]}`);
+      if (!m[2] && method === 'GET') return json(200, detail(donation));
+      if (m[3] && method === 'GET') {
+        const file = donation.files.find((x) => x.id === Number(m[3]));
+        if (!file) return problem(404, 'Donation file not found');
+        return new Response(Buffer.from(file.base64, 'base64'), { status: 200, headers: { 'Content-Type': file.contentType, 'Content-Disposition': `attachment; filename="${file.originalName}"`, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store' } });
+      }
+      if (m[2] === 'review' && method === 'PATCH') {
+        const b = readBody();
+        const decision = String(b.status ?? '').toLowerCase();
+        if (!['approved', 'rejected'].includes(decision)) return problem(400, 'status must be approved or rejected');
+        if (donation.status === 'converted') return problem(409, 'A converted donation can no longer be reviewed');
+        Object.assign(donation, { status: decision, reviewNote: b.note ?? null, reviewedAt: now() });
+        return json(200, detail(donation));
+      }
+      if (m[2] === 'extract' && method === 'POST') {
+        if (!donation.files.length) return problem(409, 'This donation has no files');
+        return json(200, { ...OGI_EXTRACTION, request_id: `req-${Date.now()}`, processing_time_ms: 900 });
+      }
+      if (m[2] === 'link-statement' && method === 'POST') {
+        const b = readBody();
+        if (donation.status === 'rejected') return problem(409, 'A rejected donation cannot become a statement');
+        if (donation.status === 'converted') return donation.statementId === b.statementId ? json(200, detail(donation)) : problem(409, 'This donation was already converted into another statement');
+        if (!db.statements.find((x) => x.id === b.statementId && !x.deletedAt)) return problem(404, `Statement not found: ${b.statementId}`);
+        Object.assign(donation, { status: 'converted', statementId: b.statementId, reviewedAt: donation.reviewedAt ?? now() });
+        return json(200, detail(donation));
       }
     }
 
