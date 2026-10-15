@@ -6,6 +6,7 @@ import { API_HOST } from '@/lib/constants';
 import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
 import { apiFetch } from '@/lib/mock/fetch';
 import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
+import { mergeCurricula } from '@/lib/exam/curriculum';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -287,28 +288,34 @@ export type ReviewChoices = {
   classes: (ReviewChoice & { courseId: number | null; schoolYearId: number | null })[];
   /** As turma+disciplina do professor (`/teaching-assignments/me`); null para o administrador. */
   assignments: { classId: number; subjectId: number }[] | null;
+  /** turma → disciplinas do currículo do curso dela (`/classes/{id}/subjects`). */
+  curriculum: Record<number, number[]>;
 };
 
 /**
  * As disciplinas e turmas que se podem escolher para um enunciado desta escola, com a
- * mesma regra que o backend aplica ao gravar: disciplina da escola, turma da escola, e
- * para o professor só o que lhe está atribuído.
+ * mesma regra que o backend aplica ao gravar: turma da escola, disciplina do currículo do
+ * curso dessa turma, e para o professor só o que lhe está atribuído.
  */
 export async function reviewChoices(institutionId: number, teacher: boolean): Promise<Result<ReviewChoices>> {
   return guard(async () => {
     const inst = safeId(institutionId);
-    const [subjects, classes, mine] = await Promise.all([
-      call(`/api/v1/institutions/${inst}/subjects`),
+    const [classes, mine] = await Promise.all([
       call(`/api/v1/classes?institutionId=${inst}`),
       teacher ? call('/api/v1/teaching-assignments/me') : Promise.resolve(null),
     ]);
-    for (const r of [subjects, classes, mine]) if (r && !r.ok) return fail(await message(r));
+    for (const r of [classes, mine]) if (r && !r.ok) return fail(await message(r));
     const assignments = mine ? ((await mine.json()) as Row[]).map((a) => ({ classId: Number(a.classId), subjectId: Number(a.subjectId) })) : null;
-    const classRows = (await classes.json()) as Row[];
+    const classRows = ((await classes.json()) as Row[]).filter((c) => !assignments || assignments.some((a) => a.classId === Number(c.id)));
+    const perClass = await Promise.all(classRows.map(async (c) => {
+      const r = await call(`/api/v1/classes/${safeId(c.id)}/subjects`);
+      return { classId: Number(c.id), subjects: r.ok ? ((await r.json()) as { subjectId: number; name: string }[]) : [] };
+    }));
+    const merged = mergeCurricula(perClass);
     return ok({
-      subjects: ((await subjects.json()) as Row[]).map((r) => ({ value: Number(r.id), label: String(r.name ?? r.code) })),
+      subjects: merged.subjects,
+      curriculum: merged.curriculum,
       classes: classRows
-        .filter((c) => !assignments || assignments.some((a) => a.classId === Number(c.id)))
         .map((c) => ({
           value: Number(c.id),
           label: ENTITIES.classes.titleOf(c),
