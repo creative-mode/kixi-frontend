@@ -157,17 +157,17 @@ export function DonationForm() {
   if (phase === 'done' && reference) {
     return (
       <div className="dn-console" data-state="done">
-        <div className="dn-lcd dn-done" role="status" aria-live="polite" tabIndex={-1}>
+        <div className="dn-screenwrap"><div className="dn-lcd dn-done" role="status" aria-live="polite" tabIndex={-1}>
           <h2 className="dn-done__title">Recebido. Obrigado!</h2>
           <p className="dn-done__ref" aria-label={`Referência ${reference}`}>{reference}</p>
           <p className="dn-done__text">
             Guarda este código: é com ele que falas connosco sobre esta doação. Vamos rever o enunciado antes de o publicar.
           </p>
-        </div>
+        </div></div>
         <div className="dn-pad">
-          <button
+          <span className="kx-btn-wrap kx-scope"><button
             type="button"
-            className="dn-pad__a"
+            className="kx-btn kx-btn--a"
             onClick={() => {
               setFiles([]);
               setErrors({});
@@ -179,8 +179,8 @@ export function DonationForm() {
               formRef.current?.reset();
             }}
           >
-            Doar outro enunciado
-          </button>
+            <span className="kx-btn__label">Doar outro enunciado</span>
+          </button></span>
         </div>
       </div>
     );
@@ -198,7 +198,7 @@ export function DonationForm() {
         <p className="dn-pips" aria-label={`Passo ${step + 1} de ${STEPS.length}`}>{STEPS.map((name, i) => <span key={name} className={i <= step ? 'is-on' : ''} />)}</p>
       </div>
 
-      <div className="dn-lcd">
+      <div className="dn-screenwrap"><div className="dn-lcd">
         <noscript>
           <p className="dn-err">Este formulário precisa de JavaScript para enviar os ficheiros.</p>
         </noscript>
@@ -344,23 +344,27 @@ export function DonationForm() {
             <span>{progress < 100 ? `A enviar… ${progress}%` : 'A processar…'}</span>
           </div>
         )}
-      </div>
+      </div></div>
 
       <div className="dn-pad">
         {step > 0 && (
-          <button type="button" className="dn-pad__b" onClick={() => goTo(step - 1)} disabled={sending}>
-            Voltar
-          </button>
+          <span className="kx-btn-wrap kx-scope">
+            <button type="button" className="kx-btn kx-btn--secondary" onClick={() => goTo(step - 1)} disabled={sending}>
+              <span className="kx-btn__label">Voltar</span>
+            </button>
+          </span>
         )}
-        {last ? (
-          <button key="enviar" type="submit" className="dn-pad__a" disabled={sending}>
-            {sending ? 'A enviar…' : 'Doar'}
-          </button>
-        ) : (
-          <button key="continuar" type="button" className="dn-pad__a" onClick={next} disabled={sending}>
-            Continuar
-          </button>
-        )}
+        <span className="kx-btn-wrap kx-scope dn-pad__next">
+          {last ? (
+            <button key="enviar" type="submit" className="kx-btn kx-btn--a" disabled={sending}>
+              <span className="kx-btn__label">{sending ? 'A enviar…' : 'Doar'}</span>
+            </button>
+          ) : (
+            <button key="continuar" type="button" className="kx-btn kx-btn--a" onClick={next} disabled={sending}>
+              <span className="kx-btn__label">Continuar</span>
+            </button>
+          )}
+        </span>
       </div>
     </form>
   );
