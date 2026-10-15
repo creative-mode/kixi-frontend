@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { displayNumber } from '@/lib/question-number';
 
 const CELL = {
   done: 'border-transparent bg-accent text-accent-foreground',
@@ -406,10 +407,21 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
 
           <Card className="gap-5 p-5 md:p-6" aria-labelledby="q-text">
             <div className="flex justify-between gap-3 text-[13px] font-semibold text-muted-foreground">
-              <span>Questão {index + 1} de {questions.length}</span>
+              {/* Uma alínea lê-se «3a», não «a 7.ª de 10»: o número interno nunca aparece. */}
+              <span>Questão {displayNumber(current)} <span className="font-normal">({index + 1} de {questions.length})</span></span>
               <span>{current.maxScore != null ? `${current.maxScore} valores` : ''}</span>
             </div>
-            <p id="q-text" className="max-w-[60ch] text-[17px] leading-relaxed md:text-[19px]">{current.text}</p>
+            {current.parentText ? (
+              // O enunciado comum da questão: o aluno lê-o acima de cada alínea, sem ter de voltar atrás.
+              <div className="grid gap-1 rounded-lg border border-dashed bg-secondary/60 px-4 py-3" data-testid="enunciado-comum">
+                <p className="text-xs font-semibold text-muted-foreground">Questão {current.parentNumber ?? ''}</p>
+                <p className="max-w-[60ch] text-[15px] leading-relaxed">{current.parentText}</p>
+              </div>
+            ) : null}
+            <p id="q-text" className="max-w-[60ch] text-[17px] leading-relaxed md:text-[19px]">
+              {current.label ? <span className="mr-2 font-semibold text-muted-foreground">{current.label})</span> : null}
+              {current.text}
+            </p>
 
             {isChoice(current) ? (
               <fieldset className="grid gap-2.5" aria-labelledby="q-text" disabled={closed}>
@@ -524,11 +536,11 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                     key={question.id}
                     type="button"
                     aria-current={i === index}
-                    aria-label={`Questão ${i + 1}, ${CELL_LABEL[status]}`}
+                    aria-label={`Questão ${displayNumber(question)}, ${CELL_LABEL[status]}`}
                     onClick={() => { sairDaQuestao(); setIndex(i); }}
                     className={cn('grid aspect-square place-items-center rounded-md border text-[13px] font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=true]:outline-2 aria-[current=true]:outline-offset-1 aria-[current=true]:outline-primary', CELL[status])}
                   >
-                    {i + 1}
+                    {displayNumber(question)}
                   </button>
                 );
               })}

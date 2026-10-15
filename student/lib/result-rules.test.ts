@@ -10,7 +10,9 @@ import {
   toReview,
   verdict,
   type ResultQuestion,
+  showsContext,
 } from './result-rules.ts';
+import { wholeNumbers } from './question-number.ts';
 
 const q = (over: Partial<ResultQuestion>): ResultQuestion => ({ questionId: 1, number: 1, text: 'x', ...over });
 
@@ -72,4 +74,32 @@ test('a diferença mostra o sinal', () => {
 test('a etiqueta da opção é a da prova, ou a letra pela posição', () => {
   assert.equal(optionTag({ id: 1, optionLabel: 'B', optionText: 'x' }, 0), 'B');
   assert.equal(optionTag({ id: 1, optionLabel: ' ', optionText: 'x' }, 2), 'C');
+});
+
+// ── questões com alíneas ─────────────────────────────────────────────────────
+
+
+const rq = (questionId: number, number: number, extra: Partial<ResultQuestion> = {}): ResultQuestion => ({ questionId, number, text: `Q${number}`, ...extra });
+const COM_ALINEAS = [
+  rq(9, 502, { parentId: 50, label: 'b', parentText: 'Dados da Q5' }), rq(4, 4), rq(1, 1), rq(3, 302, { parentId: 30, label: 'b', parentText: 'Diga V ou F' }),
+  rq(2, 301, { parentId: 30, label: 'a', parentText: 'Diga V ou F' }), rq(8, 501, { parentId: 50, label: 'a', parentText: 'Dados da Q5' }),
+];
+
+test('as alíneas ficam a seguir à sua questão e não depois da última', () => {
+  assert.deepEqual(inOrder(COM_ALINEAS).map((q) => q.number), [1, 301, 302, 4, 501, 502]);
+});
+
+test('o enunciado comum mostra-se uma vez, na primeira alínea de cada questão', () => {
+  const lista = inOrder(COM_ALINEAS);
+  assert.deepEqual(lista.map((_, i) => showsContext(lista, i)), [false, true, false, false, true, false]);
+});
+
+test('sem enunciado comum não há contexto a mostrar, e a primeira da lista mostra-o se o tiver', () => {
+  assert.equal(showsContext([rq(1, 1)], 0), false);
+  assert.equal(showsContext([rq(1, 301, { parentText: 'x' })], 0), true);
+});
+
+test('o tutor recebe as questões inteiras que o aluno errou', () => {
+  const erradas = [rq(1, 301, { isCorrect: false }), rq(2, 302, { isCorrect: false }), rq(3, 6, { isCorrect: false })];
+  assert.deepEqual(wholeNumbers(toReview(erradas)), [3, 6]);
 });

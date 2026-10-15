@@ -66,6 +66,9 @@ export interface MockQuestion {
   maxScore: number;
   orderIndex: number;
   options: { id: number; optionLabel: string; optionText: string; isCorrect: boolean; orderIndex: number }[];
+  /** Só numa alínea: a questão a que pertence e a letra. O número é `pai * 100 + índice`, como no backend. */
+  parentId?: number | null;
+  label?: string | null;
 }
 
 export type MockAnswerStatus = 'PENDING_REVIEW' | 'AUTO_GRADED';

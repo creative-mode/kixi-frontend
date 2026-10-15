@@ -13,6 +13,7 @@ import {
   cellState,
   formatClock,
   isChoice,
+  isGroup,
   orderQuestions,
   backoffMs,
   isTransient,
@@ -256,4 +257,66 @@ test('só se repete o que pode correr melhor: rede e 5xx, não uma recusa', () =
   assert.equal(isTransient(400), false);
   assert.equal(isTransient(409), false);
   assert.deepEqual([1, 2, 3, 4, 9].map(backoffMs), [1000, 2000, 4000, 8000, 8000]);
+});
+
+// ── questões com alíneas ─────────────────────────────────────────────────────
+
+
+function leaf(id: number, number: number, parentId: number, label: string, type = 'true_false'): ExamQuestion {
+  return { id, number, text: `Alínea ${number}`, questionType: type, parentId, label, options: type === 'open' ? [] : [{ id: id * 10, optionText: 'Verdadeiro' }, { id: id * 10 + 1, optionText: 'Falso' }] };
+}
+const grupo = (id: number, number: number, text: string): ExamQuestion => ({ id, number, text, questionType: 'group', options: [] });
+
+/** Q1 aberta; Q2 (grupo V/F, alíneas a, b); Q3 aberta; Q4 (grupo, alíneas a, b). Fora de ordem de propósito. */
+function ogi(): ExamQuestion[] {
+  return [
+    leaf(23, 402, 40, 'b', 'open'), open(1, 1), leaf(21, 201, 20, 'a'), grupo(40, 4, 'Dados comuns da Q4'), open(3, 3),
+    leaf(22, 202, 20, 'b'), leaf(24, 401, 40, 'a', 'open'), grupo(20, 2, 'Diga quais são verdadeiras ou falsas'),
+  ];
+}
+
+test('com alíneas, cada uma vem a seguir ao seu pai e não depois da última questão', () => {
+  assert.deepEqual(orderQuestions(ogi()).map((q) => q.number), [1, 201, 202, 3, 401, 402]);
+});
+
+test('a questão com alíneas sai da lista: o aluno só percorre as folhas', () => {
+  const lista = orderQuestions(ogi());
+  assert.equal(lista.length, 6);
+  assert.ok(lista.every((q) => !isGroup(q)));
+});
+
+test('cada alínea leva o enunciado comum e o número da questão inteira', () => {
+  const lista = orderQuestions(ogi());
+  const a = lista.find((q) => q.id === 21)!;
+  assert.equal(a.parentText, 'Diga quais são verdadeiras ou falsas');
+  assert.equal(a.parentNumber, 2);
+  const b4 = lista.find((q) => q.id === 23)!;
+  assert.equal(b4.parentText, 'Dados comuns da Q4');
+  assert.equal(b4.parentNumber, 4);
+  // as de topo não levam contexto
+  assert.equal(lista.find((q) => q.id === 1)!.parentText, undefined);
+});
+
+test('o enunciado comum que o servidor manda vale mais do que o do pai, e sem pai o número chega', () => {
+  const comPai = [leaf(5, 301, 99, 'a', 'open')];
+  const [sozinha] = orderQuestions([{ ...comPai[0], parentText: 'Do servidor' }]);
+  assert.equal(sozinha.parentText, 'Do servidor');
+  assert.equal(sozinha.parentNumber, 3);
+  const [semPai] = orderQuestions(comPai);
+  assert.equal(semPai.parentText, null);
+  assert.equal(semPai.parentNumber, 3);
+});
+
+test('um grupo sem alíneas desaparece e uma lista sem grupos fica igual', () => {
+  assert.deepEqual(orderQuestions([grupo(1, 1, 'vazio'), open(2, 2)]).map((q) => q.id), [2]);
+  const simples = [choice(2, 2, [{ id: 1 }]), open(1, 1)];
+  assert.deepEqual(orderQuestions(simples).map((q) => q.number), [1, 2]);
+});
+
+test('verdadeiro/falso responde-se por opção, como qualquer escolha', () => {
+  const a = leaf(21, 201, 20, 'a');
+  assert.equal(isChoice(a), true);
+  assert.deepEqual(answerRequest(7, a, { optionId: 211 }), { simulationId: 7, questionId: 21, selectedOptionId: 211, answerText: null });
+  // e uma opção de outra questão não vale
+  assert.equal(answerRequest(7, a, { optionId: 9999 }).selectedOptionId, null);
 });

@@ -9,6 +9,8 @@
  *  - the result only exists once the simulation is FINISHED (409 before), which is
  *    also what keeps the answer key out of the room. */
 
+import { isItem, topNumber } from './question-number';
+
 export interface ResultOption {
   id: number;
   optionLabel?: string | null;
@@ -20,6 +22,11 @@ export interface ResultQuestion {
   questionId: number;
   number: number;
   text: string;
+  /** Só numa alínea: a questão a que pertence, a letra e o enunciado comum (`parentText`). */
+  parentId?: number | null;
+  label?: string | null;
+  parentText?: string | null;
+  questionType?: string | null;
   maxScore?: number | null;
   correctOptionId?: number | null;
   modelAnswer?: string | null;
@@ -54,9 +61,20 @@ export function verdict(q: ResultQuestion): Verdict {
   return q.isCorrect === false ? 'wrong' : 'pending';
 }
 
-/** The questions in the order of the paper. */
+/** The questions in the order of the paper. Uma alínea (301) fica a seguir à sua questão (3), não depois da
+ *  última: ordena-se pelo número da questão inteira e só depois pelo da alínea. */
 export function inOrder(questions: ResultQuestion[] | undefined): ResultQuestion[] {
-  return [...(questions ?? [])].sort((a, b) => a.number - b.number);
+  const whole = (q: ResultQuestion) => (isItem(q) ? topNumber(q.number) : q.number);
+  return [...(questions ?? [])].sort((a, b) => whole(a) - whole(b) || a.number - b.number);
+}
+
+/** Se o ecrã deve mostrar o enunciado comum acima desta questão: só na primeira alínea de cada questão,
+ *  para não o repetir em todas. */
+export function showsContext(questions: readonly ResultQuestion[], index: number): boolean {
+  const q = questions[index];
+  if (!q?.parentText) return false;
+  const previous = questions[index - 1];
+  return !previous || !isItem(previous) || topNumber(previous.number) !== topNumber(q.number);
 }
 
 /** Questions the student should look at again: everything that is not right and not
