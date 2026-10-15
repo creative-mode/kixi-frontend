@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Logo } from '@/components/kixi';
+import { Sprite } from '@/components/sections/Bug';
 import { DonationForm } from '@/components/donate/DonationForm';
 import '@/styles/donate.css';
 
@@ -19,37 +20,37 @@ export const metadata: Metadata = {
 
 export default function Donate() {
   return (
-    <>
+    <div className="dn-stage">
       <a href="#conteudo" className="skip">Saltar para o conteúdo</a>
-      <header className="site-header">
-        <div className="wrap site-header__in">
-          <Link href="/doar" aria-label="Kixi, doação de enunciados" className="site-header__logo">
-            <Logo size={28} wordmark />
-          </Link>
-        </div>
+      <header className="dn-top">
+        <Link href="/doar" aria-label="Kixi, doação de enunciados" className="site-header__logo">
+          <Logo size={28} wordmark />
+        </Link>
+        <span className="dn-top__tag">DOAÇÃO</span>
       </header>
       <main id="conteudo" tabIndex={-1} className="dn-main">
-        <div className="wrap dn-wrap">
-          <p className="dn-eyebrow">Doação de enunciados</p>
-          <h1 className="dn-title">Uma prova antiga pode ajudar muitos alunos.</h1>
+        <section className="dn-pitch" aria-labelledby="dn-h1">
+          <div className="dn-sprites" aria-hidden="true">
+            <Sprite kind="fly" width={34} className="dn-sprite dn-sprite--a" />
+            <Sprite kind="moth" width={44} className="dn-sprite dn-sprite--b" />
+            <Sprite kind="ship" width={52} className="dn-sprite dn-sprite--c" />
+          </div>
+          <p className="dn-eyebrow">Jogador 1, insere o cartucho</p>
+          <h1 id="dn-h1" className="dn-title">
+            Cada prova antiga<span> é um nível novo.</span>
+          </h1>
           <p className="dn-lead">
-            O Kixi transforma provas em simulações com correção na hora. Para isso precisa de provas reais.
-            Se tens um teste, uma prova ou um exame, uma foto ou um PDF chega: nós tratamos do resto.
+            O Kixi transforma provas em simulações com correção na hora. Uma foto ou um PDF chega: nós tratamos do resto.
           </p>
           <ol className="dn-steps" aria-label="Como funciona">
-            <li><strong>Envias</strong> as fotos ou o PDF.</li>
-            <li><strong>Revemos</strong> o enunciado.</li>
-            <li><strong>Publicamos</strong> para os alunos estudarem.</li>
+            <li><strong>Envias</strong> as fotos ou o PDF</li>
+            <li><strong>Revemos</strong> o enunciado</li>
+            <li><strong>Publicamos</strong> para estudar</li>
           </ol>
-          <DonationForm />
-        </div>
+          <p className="dn-credit">&copy; 2026 @creativemode</p>
+        </section>
+        <DonationForm />
       </main>
-      <footer className="footer" data-theme="dark">
-        <div className="wrap footer__in">
-          <Logo size={28} wordmark />
-          <p className="footer__copy">&copy; 2026 @creativemode</p>
-        </div>
-      </footer>
-    </>
+    </div>
   );
 }
