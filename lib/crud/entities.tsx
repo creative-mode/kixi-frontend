@@ -487,7 +487,8 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     ],
     titleOf: (r) => `Atribuição #${r.id ?? ''}`,
     canCreate: true,
-    canEdit: true,
+    // Mudar o professor, a turma ou a disciplina de uma atribuição revalida a estrutura da escola: retira-se e atribui-se de novo.
+    canEdit: false,
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
     lookups: { teacherId: 'teachers', classId: 'classes', subjectId: 'subjects', schoolYearId: 'school-years' },

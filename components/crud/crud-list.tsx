@@ -14,6 +14,8 @@ import { answerInScope, classInScope, simulationInScope, useTeacherScope } from 
 import { AccountRoles } from './account-roles';
 import { InstitutionMembers } from './institution-members';
 import { TeacherAccess } from './teacher-access';
+import { TeacherSchools } from '@/components/academic/teacher-overview';
+import { SubjectWhere } from '@/components/academic/subject-offerings';
 import { Confirm, type ConfirmState } from './confirm';
 import { PageHead } from './page-head';
 import { TableRowsSkeleton } from './loading';
@@ -189,7 +191,14 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                           </Button>
                         ) : null}
                         {entityKey === 'institutions' ? <InstitutionMembers institution={row} /> : null}
+                        {entityKey === 'teachers' ? <TeacherSchools teacherId={row.id} name={`${row.firstName} ${row.lastName}`} /> : null}
                         {entityKey === 'teachers' ? <TeacherAccess teacher={row} onChange={load} /> : null}
+                        {entityKey === 'subjects' ? <SubjectWhere code={row.code} name={row.name} /> : null}
+                        {entityKey === 'courses' && row.institutionId ? (
+                          <Button variant="ghost" size="sm" asChild aria-label={`Currículo e turmas de ${row.name}`} title="Currículo e turmas">
+                            <Link href={`/institutions/${row.institutionId}/structure`}><Network size={16} /></Link>
+                          </Button>
+                        ) : null}
                         {entity.canEdit && !readOnly ? (
                           <Button variant="ghost" size="sm" asChild aria-label="Editar">
                             <Link href={`/${entity.path}/${rowId(entity, row)}/edit`}><Edit size={16} /></Link>

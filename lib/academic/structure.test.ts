@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { curriculumLabel, gradeLabel, isComplete, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from './structure.ts';
+import { curriculumLabel, gradeLabel, groupAssignments, isComplete, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from './structure.ts';
 
 test('rótulos do currículo', () => {
   assert.equal(gradeLabel(null), 'todas as classes');
@@ -32,4 +32,15 @@ test('avisos agrupados e completude', () => {
   assert.equal(isComplete([...w]), false);
   assert.equal(isComplete([w[1]]), true);
   assert.equal(isComplete([]), true);
+});
+
+test('groupAssignments junta as disciplinas por turma', () => {
+  const y = { startYear: 2025, endYear: 2026 };
+  const g = groupAssignments([
+    { classId: 1, classCode: '12B', grade: 12, courseName: 'Info', subjectName: 'Redes', schoolYear: y },
+    { classId: 1, classCode: '12B', grade: 12, courseName: 'Info', subjectName: 'OGI', schoolYear: y },
+    { classId: 2, classCode: '11A', grade: 11, courseName: 'Info', subjectName: 'Redes', schoolYear: y },
+  ]);
+  assert.deepEqual(g.map((x) => [x.classCode, x.subjects]), [['12B', ['Redes', 'OGI']], ['11A', ['Redes']]]);
+  assert.equal(g[0].schoolYear, '2025–2026');
 });

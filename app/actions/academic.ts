@@ -79,3 +79,25 @@ export async function unassignTeacher(assignmentId: number): Promise<Result> {
     return ok(undefined);
   });
 }
+
+export interface ClassOption { id: number; code: string; grade: number; courseName: string; schoolYear: string }
+
+/** Turmas de uma escola (a turma herda a escola do curso), para o seletor em cascata. */
+export async function classesOfInstitution(institutionId: number): Promise<Result<ClassOption[]>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/classes?institutionId=${id(institutionId)}`);
+    if (!res.ok) return fail(await message(res));
+    const rows = (await res.json()) as { id: number; code: string; grade: number; course?: { name: string }; schoolYear?: { startYear: number; endYear: number } }[];
+    return ok(rows.map((c) => ({
+      id: c.id, code: c.code, grade: c.grade, courseName: c.course?.name ?? '',
+      schoolYear: c.schoolYear ? `${c.schoolYear.startYear}–${c.schoolYear.endYear}` : '',
+    })));
+  });
+}
+
+export interface ClassSubjectOption { subjectId: number; code: string; name: string; teachers: { id: number; firstName: string; lastName: string; assignmentId: number }[] }
+
+/** Disciplinas que a turma dá (currículo do curso para a classe), com os professores já atribuídos. */
+export async function classSubjects(classId: number): Promise<Result<ClassSubjectOption[]>> {
+  return read(`/api/v1/classes/${id(classId)}/subjects`);
+}

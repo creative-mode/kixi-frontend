@@ -37,3 +37,16 @@ export function warningsOf(warnings: StructureWarning[]) {
 
 /** A estrutura está completa quando nenhuma disciplina de turma fica sem professor e nenhum curso sem currículo. */
 export const isComplete = (warnings: StructureWarning[]) => warnings.every((w) => w.code === 'TEACHER_WITHOUT_ASSIGNMENTS');
+
+export interface AssignmentLine { classId: number; classCode: string; grade: number; courseName: string; subjectName: string; schoolYear: { startYear: number; endYear: number } }
+
+/** Agrupa as atribuições por turma, para mostrar «12B · Redes, OGI» numa linha. */
+export function groupAssignments(items: AssignmentLine[]) {
+  const by = new Map<number, { key: number; classCode: string; grade: number; courseName: string; schoolYear: string; subjects: string[] }>();
+  for (const a of items) {
+    const g = by.get(a.classId) ?? { key: a.classId, classCode: a.classCode, grade: a.grade, courseName: a.courseName, schoolYear: `${a.schoolYear.startYear}–${a.schoolYear.endYear}`, subjects: [] };
+    g.subjects.push(a.subjectName);
+    by.set(a.classId, g);
+  }
+  return [...by.values()];
+}
