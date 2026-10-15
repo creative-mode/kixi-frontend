@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { Sprite } from '@/components/sections/Bug';
 import {
   ACCEPT_ATTR,
   CONSENT_TEXT_VERSION,
@@ -159,9 +158,7 @@ export function DonationForm() {
     return (
       <div className="dn-console" data-state="done">
         <div className="dn-lcd dn-done" role="status" aria-live="polite" tabIndex={-1}>
-          <Sprite kind="ship" width={64} className="dn-done__ship" />
-          <p className="dn-done__tag">NÍVEL DESBLOQUEADO</p>
-          <h2 className="dn-done__title">A tua doação chegou. Obrigado!</h2>
+          <h2 className="dn-done__title">Recebido. Obrigado!</h2>
           <p className="dn-done__ref" aria-label={`Referência ${reference}`}>{reference}</p>
           <p className="dn-done__text">
             Guarda este código: é com ele que falas connosco sobre esta doação. Vamos rever o enunciado antes de o publicar.
@@ -182,7 +179,7 @@ export function DonationForm() {
               formRef.current?.reset();
             }}
           >
-            <span>A</span> Doar outro enunciado
+            Doar outro enunciado
           </button>
         </div>
       </div>
@@ -197,15 +194,8 @@ export function DonationForm() {
 
   return (
     <form ref={formRef} className="dn-console" onSubmit={onSubmit} noValidate aria-busy={sending}>
-      <div className="dn-bezel">
-        <ol className="dn-pips" aria-label="Passos">
-          {STEPS.map((name, i) => (
-            <li key={name} className={i === step ? 'is-on' : i < step ? 'is-done' : ''} aria-current={i === step ? 'step' : undefined}>
-              <span className="dn-pips__n">{i + 1}</span>
-              <span className="dn-pips__t">{name}</span>
-            </li>
-          ))}
-        </ol>
+      <div className="dn-label">
+        <p className="dn-pips" aria-label={`Passo ${step + 1} de ${STEPS.length}`}>{STEPS.map((name, i) => <span key={name} className={i <= step ? 'is-on' : ''} />)}</p>
       </div>
 
       <div className="dn-lcd">
@@ -223,7 +213,6 @@ export function DonationForm() {
             onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
           >
             <label htmlFor={id('files')} className="dn-drop__label">
-              <Sprite kind="moth" width={40} className="dn-drop__sprite" />
               <span className="dn-drop__title">{files.length ? 'Juntar mais folhas' : 'Toca para escolher fotos ou PDF'}</span>
               <span className="dn-drop__hint">
                 JPG, PNG, WEBP ou PDF · até {MAX_FILES} ficheiros · {MAX_FILE_BYTES / (1024 * 1024)} MB cada
@@ -358,16 +347,18 @@ export function DonationForm() {
       </div>
 
       <div className="dn-pad">
-        <button type="button" className="dn-pad__b" onClick={() => goTo(step - 1)} disabled={step === 0 || sending}>
-          <span>B</span> Voltar
-        </button>
+        {step > 0 && (
+          <button type="button" className="dn-pad__b" onClick={() => goTo(step - 1)} disabled={sending}>
+            Voltar
+          </button>
+        )}
         {last ? (
           <button key="enviar" type="submit" className="dn-pad__a" disabled={sending}>
-            <span>A</span> {sending ? 'A enviar…' : 'Doar'}
+            {sending ? 'A enviar…' : 'Doar'}
           </button>
         ) : (
           <button key="continuar" type="button" className="dn-pad__a" onClick={next} disabled={sending}>
-            <span>A</span> Continuar
+            Continuar
           </button>
         )}
       </div>
