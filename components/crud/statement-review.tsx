@@ -28,6 +28,7 @@ import type { Row } from '@/lib/crud/entities';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
+import { QuestionImages } from './question-images';
 
 // O tipo tem várias grafias no backend (OCR escreve `development`, o exam builder `open`).
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', GROUP: 'Com alíneas', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', DEVELOPMENT: 'Desenvolvimento' };
@@ -417,6 +418,11 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                   <textarea value={q.modelAnswer} onChange={(e) => patchQ(q.id, { modelAnswer: e.target.value })} rows={2} className="rounded-md border border-border bg-card px-3 py-2" />
                 </label>
               )}
+              {/* #165: o mesmo controlo da vista de leitura — anexar figuras DURANTE a revisão.
+                  Grava de imediato (POST /api/v1/question-images), independente do Guardar revisão.
+                  Só para questões persistidas (id > 0): sem POST /statements/{id}/questions no
+                  backend, questão nova ainda não tem id e não pode receber imagens. */}
+              {q.id > 0 ? <QuestionImages questionId={q.id} /> : null}
             </div>
           ))}
         </CardContent>
