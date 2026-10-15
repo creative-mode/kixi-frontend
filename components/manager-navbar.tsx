@@ -16,6 +16,7 @@ import {
   Home,
   Sparkles,
   UserCheck,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,13 @@ const allNavLinks = [
     label: "Atribuir",
     description: "Professor, turma e disciplina numa só tela",
     icon: UserCheck,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/donations",
+    label: "Doações",
+    description: "Enunciados enviados pela página pública",
+    icon: Gift,
     color: "bg-accent text-primary",
   },
   ...NAV_KEYS.map((k) => {
