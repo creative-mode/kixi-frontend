@@ -13,7 +13,7 @@ import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { createRow, deleteRow, listRows, setInstitutionLink } from '@/app/actions/crud';
 import { addToCurriculum, assignTeacher, getStructure, removeFromCurriculum, unassignTeacher } from '@/app/actions/academic';
 import type { InstitutionStructure, StructureClass, StructureCourse } from '@/lib/academic/types';
-import { curriculumLabel, gradeLabel, isComplete, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from '@/lib/academic/structure';
+import { curriculumLabel, gradeLabel, isComplete, warningText, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from '@/lib/academic/structure';
 import type { Row } from '@/lib/crud/entities';
 
 type Opts = { subjects: Row[]; teachers: Row[]; years: Row[] };
@@ -96,7 +96,7 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
           <div className="rounded-md border border-warning/40 bg-warning-soft p-3 text-sm" data-testid="warnings">
             <p className="mb-1 flex items-center gap-2 font-semibold"><AlertTriangle size={16} /> {data.counts.courses === 0 ? 'Ainda não há cursos.' : `${w.total} ${w.total === 1 ? 'ponto por completar' : 'pontos por completar'}`}</p>
             <ul className="ml-6 list-disc space-y-0.5">
-              {data.warnings.slice(0, 8).map((x, i) => <li key={i}>{x.message}</li>)}
+              {data.warnings.slice(0, 8).map((x, i) => <li key={i}>{warningText(x, data)}</li>)}
               {data.warnings.length > 8 ? <li>… e mais {data.warnings.length - 8}.</li> : null}
             </ul>
           </div>

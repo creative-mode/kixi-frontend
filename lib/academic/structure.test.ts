@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { curriculumLabel, gradeLabel, groupAssignments, isComplete, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from './structure.ts';
+import { curriculumLabel, gradeLabel, groupAssignments, warningText, isComplete, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from './structure.ts';
 
 test('rótulos do currículo', () => {
   assert.equal(gradeLabel(null), 'todas as classes');
@@ -43,4 +43,15 @@ test('groupAssignments junta as disciplinas por turma', () => {
   ]);
   assert.deepEqual(g.map((x) => [x.classCode, x.subjects]), [['12B', ['Redes', 'OGI']], ['11A', ['Redes']]]);
   assert.equal(g[0].schoolYear, '2025–2026');
+});
+
+test('warningText compõe o português a partir do code e das referências', () => {
+  const s = {
+    courses: [{ id: 1, code: 'TISM', name: 'Info', curriculum: [], classes: [{ id: 7, code: '10A', grade: 10, studentCount: 0, subjects: [{ subjectId: 3, code: 'FIS', name: 'Física', teachers: [] }] }] }],
+    teachers: [{ id: 9, firstName: 'Ana', lastName: 'Lopes', assignments: 0 }],
+  };
+  assert.equal(warningText({ code: 'COURSE_WITHOUT_CURRICULUM', message: 'The course TISM has no subjects', courseId: 1 }, s), 'O curso TISM ainda não tem disciplinas no currículo.');
+  assert.equal(warningText({ code: 'CLASS_SUBJECT_WITHOUT_TEACHER', message: 'The subject FIS of class 10A has no teacher', classId: 7, subjectId: 3 }, s), 'Física na turma 10A ainda não tem professor.');
+  assert.equal(warningText({ code: 'TEACHER_WITHOUT_ASSIGNMENTS', message: 'x', teacherId: 9 }, s), 'Ana Lopes está afiliado mas ainda não dá nenhuma disciplina.');
+  assert.equal(warningText({ code: 'TEACHER_WITHOUT_ASSIGNMENTS', message: 'x', teacherId: 99 }, s), 'Um professor está afiliado mas ainda não dá nenhuma disciplina.');
 });

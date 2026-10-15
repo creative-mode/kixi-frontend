@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { deleteRow, listOptions, listRows } from '@/app/actions/crud';
 import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
 import { answerInScope, classInScope, simulationInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
+import { isStructureEntity } from '@/lib/roles';
 import { AccountRoles } from './account-roles';
 import { InstitutionMembers } from './institution-members';
 import { TeacherAccess } from './teacher-access';
@@ -32,7 +33,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   // Teachers only see records tied to their own classes/subjects (admins see all).
   const scope = useTeacherScope();
   // A estrutura académica (turmas incluídas) só o ADMIN altera: o professor só consulta, sem botões que falhariam com 403.
-  const readOnly = entityKey === 'classes' && !!scope?.restricted;
+  const readOnly = isStructureEntity(entityKey) && !!scope?.restricted;
 
   const load = useCallback(async () => {
     setError(null);
@@ -185,16 +186,16 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         {entityKey === 'accounts' ? <AccountRoles account={row} /> : null}
-                        {entityKey === 'institutions' ? (
+                        {entityKey === 'institutions' && !readOnly ? (
                           <Button variant="ghost" size="sm" asChild aria-label={`Estrutura de ${row.name}`} title="Cursos, turmas, disciplinas e professores">
                             <Link href={`/institutions/${row.id}/structure`}><Network size={16} /></Link>
                           </Button>
                         ) : null}
-                        {entityKey === 'institutions' ? <InstitutionMembers institution={row} /> : null}
-                        {entityKey === 'teachers' ? <TeacherSchools teacherId={row.id} name={`${row.firstName} ${row.lastName}`} /> : null}
+                        {entityKey === 'institutions' && !readOnly ? <InstitutionMembers institution={row} /> : null}
+                        {entityKey === 'teachers' && !readOnly ? <TeacherSchools teacherId={row.id} name={`${row.firstName} ${row.lastName}`} /> : null}
                         {entityKey === 'teachers' ? <TeacherAccess teacher={row} onChange={load} /> : null}
-                        {entityKey === 'subjects' ? <SubjectWhere code={row.code} name={row.name} /> : null}
-                        {entityKey === 'courses' && row.institutionId ? (
+                        {entityKey === 'subjects' && !readOnly ? <SubjectWhere code={row.code} name={row.name} /> : null}
+                        {entityKey === 'courses' && !readOnly && row.institutionId ? (
                           <Button variant="ghost" size="sm" asChild aria-label={`Currículo e turmas de ${row.name}`} title="Currículo e turmas">
                             <Link href={`/institutions/${row.institutionId}/structure`}><Network size={16} /></Link>
                           </Button>

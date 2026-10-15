@@ -1,4 +1,4 @@
-import type { ClassSubject, CurriculumEntry, StructureTeacher, StructureWarning } from './types.ts';
+import type { ClassSubject, CurriculumEntry, InstitutionStructure, StructureTeacher, StructureWarning } from './types.ts';
 
 /** «todas as classes» ou «12.ª classe», para a entrada do currículo. */
 export const gradeLabel = (grade: number | null) => (grade == null ? 'todas as classes' : `${grade}.ª classe`);
@@ -49,4 +49,24 @@ export function groupAssignments(items: AssignmentLine[]) {
     by.set(a.classId, g);
   }
   return [...by.values()];
+}
+
+/** Os avisos chegam com `code` e referências (o texto do backend é em inglês): o português compõe-se aqui. */
+export function warningText(w: StructureWarning, s: Pick<InstitutionStructure, 'courses' | 'teachers'>): string {
+  const course = w.courseId != null ? s.courses.find((c) => c.id === w.courseId) : undefined;
+  switch (w.code) {
+    case 'COURSE_WITHOUT_CURRICULUM':
+      return course ? `O curso ${course.code} ainda não tem disciplinas no currículo.` : 'Um curso ainda não tem disciplinas no currículo.';
+    case 'CLASS_SUBJECT_WITHOUT_TEACHER': {
+      const cls = s.courses.flatMap((c) => c.classes).find((k) => k.id === w.classId);
+      const subject = cls?.subjects.find((x) => x.subjectId === w.subjectId);
+      return `${subject?.name ?? 'Uma disciplina'}${cls ? ` na turma ${cls.code}` : ''} ainda não tem professor.`;
+    }
+    case 'TEACHER_WITHOUT_ASSIGNMENTS': {
+      const t = s.teachers.find((x) => x.id === w.teacherId);
+      return `${t ? `${t.firstName} ${t.lastName}` : 'Um professor'} está afiliado mas ainda não dá nenhuma disciplina.`;
+    }
+    default:
+      return w.message;
+  }
 }

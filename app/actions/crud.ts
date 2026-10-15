@@ -6,6 +6,7 @@ import { API_HOST } from '@/lib/constants';
 import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
 import { apiFetch } from '@/lib/mock/fetch';
 import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
+import { friendlyMessage } from '@/lib/crud/messages';
 import { mergeCurricula } from '@/lib/exam/curriculum';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
@@ -15,19 +16,7 @@ const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
 const fail = (error: string): Result<never> => ({ ok: false, error });
 
 async function message(res: Response): Promise<string> {
-  if (res.status === 401) return 'Sessão expirada. Inicie sessão novamente.';
-  if (res.status === 403) return 'Não tem permissão para esta operação.';
-  if (res.status === 404) return 'Registo não encontrado.';
-  const body = await res.text().catch(() => '');
-  try {
-    const j = JSON.parse(body);
-    const props = j.properties && typeof j.properties === 'object' ? Object.values(j.properties).filter((v) => typeof v === 'string') : [];
-    const detail = [j.detail, ...props].filter(Boolean).join(' · ');
-    if (res.status === 409) return detail || 'Já existe um registo com estes dados.';
-    return detail || j.title || `Erro ${res.status}`;
-  } catch {
-    return body || `Erro ${res.status}`;
-  }
+  return friendlyMessage(res.status, await res.text().catch(() => ''));
 }
 
 async function call(path: string, init: RequestInit = {}): Promise<Response> {
