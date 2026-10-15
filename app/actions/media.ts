@@ -1,9 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
 import type { Row } from '@/lib/crud/entities';
 import { ocrFilesProblem } from '@/lib/crud/ocr-files';
+import type { ExamExtraction } from '@/lib/exam/extraction';
 
 const MAX_IMAGE = 5 * 1024 * 1024;
 
@@ -50,8 +50,14 @@ export async function deleteQuestionImage(id: number): Promise<Result> {
   });
 }
 
-/** Sends one or more photos/scans of an exam to the OCR; the backend creates a statement waiting for review. */
-export async function importStatementOcr(form: FormData): Promise<Result<Row>> {
+/**
+ * Sends one or more photos/scans of an exam to the OCR and returns what it read, **without saving anything**.
+ *
+ * The exam builder turns the extraction into a draft the teacher reviews; the statement only exists once
+ * the teacher saves it there. That is the point of this route over the one that creates a statement
+ * waiting for review: the structure the OCR infers (types, alíneas) is corrected where it is edited.
+ */
+export async function extractExamOcr(form: FormData): Promise<Result<ExamExtraction>> {
   return guard(async () => {
     const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
     const problem = ocrFilesProblem(files);
@@ -59,9 +65,8 @@ export async function importStatementOcr(form: FormData): Promise<Result<Row>> {
     const out = new FormData();
     for (const f of files) out.append('files', f, f.name);
     // FE-11: o OCR pode demorar com PDFs grandes; aborta aos 3 min com erro legível.
-    const res = await call('/api/v1/statements/ocr/extract', { method: 'POST', body: out, signal: AbortSignal.timeout(180_000) });
+    const res = await call('/api/v1/ocr/extract/exam', { method: 'POST', body: out, signal: AbortSignal.timeout(180_000) });
     if (!res.ok) return fail(await message(res));
-    revalidatePath('/statements');
-    return ok((await res.json()) as Row);
+    return ok((await res.json()) as ExamExtraction);
   });
 }

@@ -9,6 +9,8 @@ import { approvalProblem } from './gate';
 import { examRooms, liveStream, luandaClock } from './exam-rooms';
 import { assignmentsFrom, teacherCanWrite } from '../crud/teacher-scope';
 import { canWriteProblem, updateProblem } from './statement-write';
+import { buildQuestions } from './manual-questions';
+import { OGI_EXTRACTION } from './ogi-extraction';
 
 const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -94,6 +96,8 @@ for (const [number, name] of [[1, '1.º Trimestre'], [2, '2.º Trimestre'], [3, 
 const redes = add('subjects', { code: 'RED', name: 'Redes de Computadores', short_name: 'Redes' });
 add('subjects', { code: 'SO', name: 'Sistemas Operativos', short_name: 'SO' });
 add('subjects', { code: 'MD', name: 'Matemática Discreta', short_name: 'MD' });
+// A disciplina da prova de OGI: o OCR lê a sigla «OGI» e o construtor tem de a encontrar por aqui.
+const ogi = add('subjects', { code: 'OGI', name: 'Organização e Gestão Industrial', short_name: 'OGI' });
 const crs = add('courses', { code: 'TISM', name: 'Técnico de Informática e Sistemas Multimédia', description: 'Curso técnico do ITEL' });
 const cls = add('classes', { code: '12B', grade: 12, course: crs, schoolYear: sy });
 for (const [title, examType, variant, subj] of [['P1 · Redes de Computadores', 'P1', 'A', redes], ['P2 · Sistemas Operativos', 'P2', 'A', db.subjects[1]], ['Exame · Matemática Discreta', 'EXAME', 'B', db.subjects[2]]]) {
@@ -125,6 +129,7 @@ add('statements', {
   if (stUser) db.institutionStudents.push({ institutionId: itel.id, userId: stUser.id });
   add('enrollments', { accountId: student.id, classId: cls.id, schoolYearId: sy.id, status: 'ACTIVE' });
   add('teaching-assignments', { teacherId: helena.id, classId: cls.id, subjectId: redes.id, schoolYearId: sy.id, tutorStyle: null });
+  add('teaching-assignments', { teacherId: helena.id, classId: cls.id, subjectId: ogi.id, schoolYearId: sy.id, tutorStyle: null });
   // Turma e disciplina só do Carlos (11A · Sistemas Operativos), para as listas dele diferirem das da Helena.
   const cls11 = add('classes', { code: '11A', grade: 11, course: crs, schoolYear: sy });
   add('statements', {
@@ -294,7 +299,7 @@ function mapStatementFull(s, staff) {
     needsReview: staff ? s.needsReview : null,
     ocrConfidence: staff ? s.ocrConfidence : null,
     questions: live(s.questions).map((q) => nonNull({
-      ...pick(q, ['id', 'number', 'text', 'questionType', 'maxScore', 'orderIndex', 'ocrConfidence', 'pageIndex']),
+      ...pick(q, ['id', 'number', 'text', 'questionType', 'maxScore', 'orderIndex', 'ocrConfidence', 'pageIndex', 'parentId', 'label']),
       needsReview: staff ? q.needsReview : null,
       options: live(q.options).map((o) => nonNull({ ...pick(o, ['id', 'optionLabel', 'optionText', 'orderIndex']), isCorrect: staff ? o.isCorrect : null, ocrConfidence: staff ? o.ocrConfidence : null })),
     })),
@@ -303,7 +308,7 @@ function mapStatementFull(s, staff) {
 /** `QuestionResponse` (GET /statements/{id}/questions): com modelAnswer para o staff, sem opções. */
 function mapQuestion(q, statementId, staff) {
   return nonNull({
-    ...pick(q, ['id', 'number', 'text', 'questionType', 'maxScore', 'orderIndex', 'pageIndex', 'createdAt', 'updatedAt', 'deletedAt']),
+    ...pick(q, ['id', 'number', 'text', 'questionType', 'maxScore', 'orderIndex', 'pageIndex', 'parentId', 'label', 'createdAt', 'updatedAt', 'deletedAt']),
     statementId,
     modelAnswer: staff ? q.modelAnswer : null,
     needsReview: staff ? q.needsReview : null,
@@ -489,14 +494,15 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       // contagem em cada enunciado, o que fazia dois enunciados diferentes terem
       // perguntas com o mesmo id — e `PUT /questions/{id}/correct-option`, que só leva
       // o id da pergunta, passava a resolver a pergunta do enunciado errado.
-      const questions = b.questions.map((q, i) => ({
-        id: nextId('questions'), statementId: null, number: i + 1, orderIndex: i, text: q.text, maxScore: q.maxScore ?? null,
-        questionType: q.options?.length ? 'multiple_choice' : 'open', pageIndex: null, modelAnswer: q.modelAnswer ?? null, needsReview: false,
-        options: (q.options ?? []).map((o, j) => ({ id: nextId('options'), questionId: null, optionLabel: o.label, optionText: o.text, isCorrect: !!o.correct, orderIndex: j, deletedAt: null })),
-      }));
+      // O contrato novo: `type` por questão e, num `group`, as alíneas em `items`.
+      // A construção e as regras vivem em ./manual-questions.ts, onde se testam.
+      if (b.durationMinutes != null && !(Number(b.durationMinutes) > 0)) return problem(400, 'The duration must be greater than zero');
+      const built = buildQuestions(b.questions, () => nextId('questions'), () => nextId('options'));
+      if (!built.ok) return problem(built.status, built.message);
+      const questions = built.questions;
       const row = add('statements', {
         title: b.title, examType: b.examType, durationMinutes: b.durationMinutes ?? null, variant: b.variant ?? null, instructions: b.instructions ?? null,
-        totalMaxScore: b.questions.reduce((a, q) => a + Number(q.maxScore ?? 0), 0), visible: !!b.visible, needsReview: false, source: 'manual',
+        totalMaxScore: built.total, visible: !!b.visible, needsReview: false, source: 'manual',
         ocrConfidence: null, ocrRequestId: null, schoolYearId: b.schoolYearId ?? null, termId: b.termId ?? null, subjectId: Number(b.subjectId),
         classId: b.classId ?? null, courseId: b.courseId ?? null, institutionId: inst.id, questions,
       });
@@ -741,6 +747,15 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const b = readBody();
       Object.assign(img, { caption: b.caption ?? null, orderIndex: b.orderIndex ?? img.orderIndex, updatedAt: now() });
       return json(200, img);
+    }
+
+    // ── OCR: extração estruturada, sem persistir (alimenta o construtor de provas) ──
+    // O mock não corre o motor: responde sempre com a prova de OGI lida como o contrato manda.
+    if (path === '/api/v1/ocr/extract/exam' && method === 'POST') {
+      const b = readBody();
+      const files = [b.files ?? b.file].flat().filter(Boolean);
+      if (!files.length) return problem(400, 'At least one file is required');
+      return json(200, { ...OGI_EXTRACTION, request_id: `req-${Date.now()}`, processing_time_ms: 1200 });
     }
 
     // ── OCR import: creates a statement waiting for review ──
