@@ -22,6 +22,7 @@ import {
 import { TableRowsSkeleton } from '@/components/crud/loading';
 import { listRows, listStatements } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
+import { MyAssignmentsCard } from '@/components/academic/teacher-overview';
 import { simulationInScope, statementInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 
 const simulations = ENTITIES.simulations;
@@ -100,6 +101,8 @@ export default function TeacherHome() {
         <h1 className="text-2xl leading-tight tracking-tight text-foreground">Início</h1>
         <p className="mt-1 text-muted-foreground">Atalhos e resumo da sua atividade.</p>
       </div>
+
+      {scope?.restricted ? <MyAssignmentsCard /> : null}
 
       <section aria-label="Atalhos rápidos" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SHORTCUTS.map(({ href, label, description, icon: Icon }) => (

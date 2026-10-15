@@ -2,6 +2,7 @@ import { EmptyState } from '@/components/states';
 import { OnboardingForm } from '@/components/onboarding-form';
 import { RefreshError } from '@/components/refresh-error';
 import { apiGet } from '@/lib/api';
+import { onboardingOptions } from '@/lib/onboarding-options';
 import { currentSchoolYear, schoolYearLabel } from '@/lib/school-year';
 import type { Class, Course, Institution, SchoolYear } from '@/lib/types';
 
@@ -25,20 +26,24 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const institutionId = one(params.escola);
   const courseId = one(params.curso);
 
-  const [institutions, years, courses, classes] = await Promise.all([
-    apiGet<Institution[]>('/institutions'),
-    apiGet<SchoolYear[]>('/school-years'),
+  // O ano letivo primeiro: só se oferecem escolas, cursos e turmas que têm turmas nesse ano
+  // (uma escola sem turmas no ano levava a um passo vazio sem saída).
+  const years = await apiGet<SchoolYear[]>('/school-years');
+  const year = currentSchoolYear(years.ok ? years.data : []);
+  const yearText = year ? schoolYearLabel(year) : undefined;
+
+  const [institutions, allCourses, allClasses] = await Promise.all([
+    apiGet<Institution[]>('/institutions', year ? { onlyWithClassesInYear: year.id } : undefined),
     // Asked for as soon as a school is chosen, and never before.
     institutionId === null
       ? Promise.resolve({ ok: true as const, data: [] as Course[] })
       : apiGet<Course[]>('/courses', { institutionId }),
-    // Asked for only once there is a school and a course to narrow by.
-    institutionId === null || courseId === null
+    institutionId === null
       ? Promise.resolve({ ok: true as const, data: [] as Class[] })
-      : apiGet<Class[]>('/classes', { institutionId, courseId }),
+      : apiGet<Class[]>('/classes', { institutionId }),
   ]);
 
-  const failed = [institutions, years, courses, classes].find((r) => !r.ok);
+  const failed = [institutions, years, allCourses, allClasses].find((r) => !r.ok);
   if (failed && !failed.ok) {
     return (
       <RefreshError
@@ -55,25 +60,21 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   if (schools.length === 0) {
     return (
       <EmptyState
-        title="Ainda não há escolas"
-        message="Nenhuma escola foi cadastrada ainda. Volta mais tarde ou pergunta ao teu professor."
+        title="Ainda não há turmas abertas"
+        message={`Nenhuma escola tem turmas${yearText ? ` no ano letivo ${yearText}` : ''} ainda. Volta mais tarde ou pergunta ao teu professor.`}
       />
     );
   }
 
-  const year = currentSchoolYear(years.ok ? years.data : []);
-  const yearText = year ? schoolYearLabel(year) : undefined;
-
-  // The backend has no school-year filter, so the year is applied here, on the server.
-  // The browser never receives a class from a year that has already ended, which is the
-  // whole point of narrowing on the server.
-  const forYear = year ? (classes.ok ? classes.data : []).filter((c) => c.schoolYear?.id === year.id) : [];
+  // The browser never receives a class from a year that has already ended, nor a course
+  // without classes in the year: the narrowing is on the server.
+  const { courses, classes } = onboardingOptions(allCourses.ok ? allCourses.data : [], allClasses.ok ? allClasses.data : [], year?.id ?? null, courseId);
 
   return (
     <OnboardingForm
       schools={schools}
-      courses={courses.ok ? courses.data : []}
-      classes={forYear}
+      courses={courses}
+      classes={classes}
       institutionId={institutionId}
       courseId={courseId}
       yearLabel={yearText}
