@@ -96,6 +96,8 @@ for (const [number, name] of [[1, '1.º Trimestre'], [2, '2.º Trimestre'], [3, 
 const redes = add('subjects', { code: 'RED', name: 'Redes de Computadores', short_name: 'Redes' });
 add('subjects', { code: 'SO', name: 'Sistemas Operativos', short_name: 'SO' });
 add('subjects', { code: 'MD', name: 'Matemática Discreta', short_name: 'MD' });
+// A disciplina da prova de OGI: o OCR lê a sigla «OGI» e o construtor tem de a encontrar por aqui.
+const ogi = add('subjects', { code: 'OGI', name: 'Organização e Gestão Industrial', short_name: 'OGI' });
 const crs = add('courses', { code: 'TISM', name: 'Técnico de Informática e Sistemas Multimédia', description: 'Curso técnico do ITEL' });
 const cls = add('classes', { code: '12B', grade: 12, course: crs, schoolYear: sy });
 for (const [title, examType, variant, subj] of [['P1 · Redes de Computadores', 'P1', 'A', redes], ['P2 · Sistemas Operativos', 'P2', 'A', db.subjects[1]], ['Exame · Matemática Discreta', 'EXAME', 'B', db.subjects[2]]]) {
@@ -127,6 +129,7 @@ add('statements', {
   if (stUser) db.institutionStudents.push({ institutionId: itel.id, userId: stUser.id });
   add('enrollments', { accountId: student.id, classId: cls.id, schoolYearId: sy.id, status: 'ACTIVE' });
   add('teaching-assignments', { teacherId: helena.id, classId: cls.id, subjectId: redes.id, schoolYearId: sy.id, tutorStyle: null });
+  add('teaching-assignments', { teacherId: helena.id, classId: cls.id, subjectId: ogi.id, schoolYearId: sy.id, tutorStyle: null });
   // Turma e disciplina só do Carlos (11A · Sistemas Operativos), para as listas dele diferirem das da Helena.
   const cls11 = add('classes', { code: '11A', grade: 11, course: crs, schoolYear: sy });
   add('statements', {

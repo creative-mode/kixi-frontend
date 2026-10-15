@@ -81,12 +81,12 @@ test('uma questão de escolha múltipla traz as opções do OCR e nenhuma respos
 test('escolha múltipla sem opções legíveis cai para aberta, e verdadeiro/falso sem alíneas é uma folha V/F', () => {
   const ex: ExamExtraction = { questions: [
     { type: 'multipla_escolha', text: 'Sem opções', options: [], confidence: 0.9 },
-    { type: 'verdadeiro_falso', text: 'A água ferve a 100 °C ( )', confidence: 0.9 },
+    { type: 'verdadeiro_falso', text: 'A água ferve a 100 graus ( )', confidence: 0.9 },
   ] };
   const [a, b] = draftFromExtraction(ex, { subjects: [] }).items;
   assert.equal(kindOf(a), 'open');
   assert.equal(kindOf(b), 'true_false');
-  assert.equal(b.text, 'A água ferve a 100 °C');
+  assert.equal(b.text, 'A água ferve a 100 graus');
 });
 
 test('confiança baixa marca a questão e as alíneas para rever, e conta-as', () => {

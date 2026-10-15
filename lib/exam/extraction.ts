@@ -66,7 +66,7 @@ const FIELD_NAMES: Record<string, string> = {
   examType: 'o tipo de prova', classGrade: 'a classe', variant: 'a série', schoolYear: 'o ano letivo', totalMaxScore: 'a cotação total',
 };
 
-const norm = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const norm = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const SMALL_WORDS = new Set(['e', 'de', 'da', 'do', 'das', 'dos', 'a', 'o', 'em', 'para']);
 const initials = (value: string) => norm(value).split(' ').filter((w) => w && !SMALL_WORDS.has(w)).map((w) => w[0]).join('');
 

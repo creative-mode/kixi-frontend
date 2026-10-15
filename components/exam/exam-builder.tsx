@@ -181,8 +181,8 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
         </div>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <div className="grid gap-4 print:hidden">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 print:hidden">
           {saved && (
             <Card className="border-primary/40 bg-accent/40" role="status" aria-live="polite">
               <CardHeader>
@@ -339,7 +339,7 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
           </Card>
         </div>
 
-        <div className="lg:sticky lg:top-24">
+        <div className="min-w-0 overflow-x-auto lg:sticky lg:top-24">
           <ExamSheet school={school} draft={draft} />
         </div>
       </div>
