@@ -74,12 +74,12 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-problem { margin: 8px 0 0; padding: 8px 10px; font-weight: 800; font-size: 13px; color: #5c0d0a; border: 2px solid #5c0d0a; }
 .dn-progress { position: relative; height: 32px; margin-top: 8px; border: 2px solid var(--lcd-3); overflow: hidden; }
 .dn-progress__bar { position: absolute; inset: 0 auto 0 0; background: var(--lcd-2); transition: width .2s linear; }
-.dn-progress span { position: relative; display: grid; place-items: center; height: 100%; font: 800 13px/1 var(--font-sans); mix-blend-mode: difference; color: #fff; }
+.dn-progress span { position: relative; display: grid; place-items: center; height: 100%; font: 800 13px/1 var(--font-sans); mix-blend-mode: difference; color: white; }
 
 /* os botões B e A */
 .dn-pad { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 2px; }
 .dn-pad button { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 18px 0 8px; font: 800 15px/1 var(--font-sans); color: var(--lp-ink); background: transparent; border: 0; cursor: pointer; }
-.dn-pad button span { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; font: 400 12px/1 var(--font-pixel); color: #fff; background: var(--btn-blue); box-shadow: 0 4px 0 #1b2a6b; transition: transform .08s steps(2, end); }
+.dn-pad button span { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; font: 400 12px/1 var(--font-pixel); color: white; background: var(--btn-blue); box-shadow: 0 4px 0 #1b2a6b; transition: transform .08s steps(2, end); }
 .dn-pad .dn-pad__a { margin-left: auto; }
 .dn-pad .dn-pad__a span { background: var(--btn); box-shadow: 0 4px 0 var(--btn-edge); }
 .dn-pad button:not(:disabled):active span { transform: translateY(3px); box-shadow: none; }
