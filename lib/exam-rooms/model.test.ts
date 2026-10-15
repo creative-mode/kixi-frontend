@@ -13,6 +13,7 @@ import {
   summarizeGrades,
   toLocalDateTime,
   wallMinutes,
+  preselectFromStatement,
 } from './model.ts';
 
 test('a hora de parede não passa pelo fuso do browser', () => {
@@ -111,4 +112,36 @@ test('CSV para o Excel em português', () => {
   assert.match(csv, /Aluno n\.º 1;1;Entregou;15,5;8;10;0;12\/10 10:30/);
   assert.match(csv, /Ana Silva;4;;;;;;/);
   assert.ok(gradesCsv([{ ...grades[0], displayName: 'Silva; "Zé"' }]).includes('"Silva; ""Zé""";1;'));
+});
+
+
+// ── abrir o assistente a partir de um enunciado ─────────────────────────────
+
+
+const ENUNCIADOS = [
+  { id: 7, classId: 12, durationMinutes: 90 },
+  { id: 8, classId: null, durationMinutes: null },
+  { id: 9, classId: 99, durationMinutes: 60 },
+];
+const TURMAS = [{ id: 12 }, { id: 13 }];
+
+test('vindo de um enunciado, o assistente escolhe a turma dele e a duração da prova', () => {
+  assert.deepEqual(preselectFromStatement(ENUNCIADOS, TURMAS, '7', false), { classId: '12', statementId: '7', durationMinutes: 90 });
+});
+
+test('um enunciado sem turma deixa a turma por escolher quando há várias, e usa-a quando há uma só (ADMIN)', () => {
+  assert.deepEqual(preselectFromStatement(ENUNCIADOS, TURMAS, '8', true), { classId: '', statementId: '', durationMinutes: null });
+  assert.deepEqual(preselectFromStatement(ENUNCIADOS, [{ id: 12 }], '8', true), { classId: '12', statementId: '8', durationMinutes: null });
+});
+
+test('um enunciado de uma turma que o utilizador não tem, ou que não existe, não se pré-seleciona', () => {
+  assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, '9', false), null);
+  assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, '1000', false), null);
+});
+
+test('um parâmetro que não é um número, ou ausente, não pré-seleciona nada', () => {
+  assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, 'abc', false), null);
+  assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, '7; drop', false), null);
+  assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, undefined, false), null);
+  assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, null, false), null);
 });

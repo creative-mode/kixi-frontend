@@ -1,5 +1,7 @@
-import { OcrImport } from '@/components/crud/ocr-import';
+import { redirect } from 'next/navigation';
 
+/** Importar uma prova passou a ser um passo do construtor: o OCR preenche o rascunho e é lá que se corrige.
+ *  O endereço fica para não partir os marcadores de quem já o tinha. */
 export default function ImportStatementPage() {
-  return <OcrImport />;
+  redirect('/exam-builder?importar=1');
 }

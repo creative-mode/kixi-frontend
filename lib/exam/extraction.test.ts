@@ -45,7 +45,7 @@ test('a sigla OGI encontra a disciplina da escola; sem ela, avisa e deixa a disc
   const com = draftFromExtraction(OGI_EXTRACTION, { subjects: SUBJECTS });
   assert.equal(com.patch.subject, 'Organização e Gestão Industrial');
   const sem = draftFromExtraction(OGI_EXTRACTION, { subjects: ['Matemática', 'Física'] });
-  assert.equal(sem.patch.subject, undefined);
+  assert.equal(sem.patch.subject, '');   // limpa a que o rascunho tinha: não é a desta prova
   assert.match(sem.notes.join(' '), /disciplina «OGI» não existe nesta escola/);
 });
 

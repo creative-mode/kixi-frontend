@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Eye, EyeOff, FilePen, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Check, DoorOpen, Eye, EyeOff, FilePen, Trash2 } from 'lucide-react';
+import { displayNumber, isGroup, orderWithGroups, type TreeQuestion } from '@/lib/exam/display';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,7 +17,7 @@ import { QuestionImages } from './question-images';
 import { DetailSkeleton } from './loading';
 import { StatementReview } from './statement-review';
 
-const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', multiple_choice: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', open: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento' };
+const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', multiple_choice: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', true_false: 'Verdadeiro/falso', OPEN: 'Resposta aberta', open: 'Resposta aberta', group: 'Com alíneas', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', development: 'Desenvolvimento' };
 const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
 
 /**
@@ -103,7 +105,7 @@ export function StatementDetail({ id }: { id: number }) {
   }
 
   const entity = ENTITIES.statements;
-  const questions: Row[] = s?.questions ?? [];
+  const questions = orderWithGroups<Row & TreeQuestion>(s?.questions ?? []);
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
       <PageHead
@@ -114,7 +116,12 @@ export function StatementDetail({ id }: { id: number }) {
         actions={
           s ? (
             <>
-              <Button size="sm" onClick={() => setReviewing(true)}>
+              {s.visible && !s.needsReview ? (
+                <Button size="sm" asChild>
+                  <Link href={`/exam-rooms/new?statementId=${id}`}><DoorOpen size={14} aria-hidden /> Criar sala</Link>
+                </Button>
+              ) : null}
+              <Button size="sm" variant={s.visible && !s.needsReview ? 'outline' : 'default'} onClick={() => setReviewing(true)}>
                 <FilePen size={14} /> Rever enunciado
               </Button>
               <Button
@@ -167,14 +174,15 @@ export function StatementDetail({ id }: { id: number }) {
             <CardContent className="space-y-4">
               {questions.length === 0 ? <p className="text-sm text-muted-foreground">Ainda sem questões.</p> : null}
               {questions.map((q) => (
-                <div key={q.id} className="rounded-lg border p-4">
+                <div key={q.id} className={`rounded-lg border p-4 ${q.parentId != null ? 'ml-6 border-dashed' : ''}`}>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <strong>Questão {q.number}</strong>
-                    <Badge variant="outline">{QUESTION_TYPES[q.questionType] ?? q.questionType}</Badge>
+                    <strong>{q.parentId != null ? 'Alínea' : 'Questão'} {displayNumber(q, questions)}</strong>
+                    <Badge variant="outline">{QUESTION_TYPES[q.questionType ?? ''] ?? q.questionType}</Badge>
                     {q.maxScore != null ? <span className="text-xs text-muted-foreground">{score(q.maxScore)} val.</span> : null}
                     {q.needsReview ? <Badge variant="secondary">A rever</Badge> : null}
                   </div>
                   <p className="text-sm">{q.text}</p>
+                  {isGroup(q) ? <p className="mt-2 text-xs text-muted-foreground">As respostas estão nas alíneas abaixo.</p> : null}
                   {q.options?.length ? (
                     <ul className="mt-3 grid gap-1.5 text-sm">
                       {q.options.map((o: Row) => (

@@ -181,8 +181,11 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   const name = (extraction.subject_name ?? '').trim();
   const subject = matchSubject(name, ctx.subjects);
   if (subject) patch.subject = subject;
-  else if (name) notes.push(`A disciplina «${name}» não existe nesta escola. Escolha-a na lista ou peça a um administrador que a associe à escola.`);
-  else notes.push('A prova não indica a disciplina. Escolha-a na lista.');
+  else if (name) {
+    // A disciplina que o rascunho tinha não é a desta prova: deixa-se por escolher em vez de a manter calada.
+    patch.subject = '';
+    notes.push(`A disciplina «${name}» não existe nesta escola. Escolha-a na lista ou peça a um administrador que a associe à escola.`);
+  } else notes.push('A prova não indica a disciplina. Escolha-a na lista.');
 
   const built = (extraction.questions ?? []).filter((q) => (q.text ?? '').trim() || (q.subitems_content ?? []).length > 0).map(questionFrom);
   const items = built.map((b) => b.question);
