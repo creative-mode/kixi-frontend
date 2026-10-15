@@ -10,17 +10,18 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-title span { color: var(--btn); }
 .dn-lead { display: none; }
 
-/* o cartucho: contorno de tinta, sulcos no topo e sombra em hachura (como o desenho da landing) */
-.dn-console { position: relative; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 0 16px 14px; width: 100%; max-width: 520px; justify-self: center; align-self: center; max-height: 100%;
-  background: var(--shell); border: 2px solid var(--lp-ink); color: var(--lcd-3); margin: 0 10px 10px 0; }
-.dn-console::before { content: ''; position: absolute; z-index: -1; inset: 10px -10px -10px 10px; border: 2px solid var(--lp-ink); background: repeating-linear-gradient(60deg, var(--lp-ink) 0 1px, transparent 1px 5px); }
-.dn-label { display: flex; align-items: center; justify-content: space-between; margin: 0 -16px; padding: 10px 16px; border-bottom: 2px solid var(--lp-ink); }
-.dn-pips { margin: 0; display: flex; gap: 8px; padding: 4px 8px; background: var(--shell); border: 2px solid var(--lp-ink); }
+/* o cartucho: a mesma moldura em degrau dos botões e cartões da landing (aresta de tinta + face), sem sombra */
+.dn-console { --edge: var(--lp-ink); position: relative; isolation: isolate; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 14px 16px 16px; width: 100%; max-width: 520px; justify-self: center; align-self: center; max-height: 100%;
+  background: var(--edge); clip-path: var(--kx-clip); color: var(--lcd-3); }
+.dn-console::before { content: ''; position: absolute; z-index: -1; inset: 2px; background: var(--shell); clip-path: var(--kx-clip); }
+.dn-label { display: flex; align-items: center; }
+.dn-pips { margin: 0; display: flex; gap: 6px; }
 .dn-pips span { width: 12px; height: 12px; border: 2px solid var(--lp-ink); }
 .dn-pips .is-on { background: var(--lp-ink); }
 
 /* o ecrã: único bloco a cores; só ele pode rolar, e só em ecrãs muito baixos */
-.dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 14px; background: var(--lcd-0); color: var(--lcd-3); border: 2px solid var(--lp-ink); scrollbar-width: none; }
+.dn-screenwrap { min-height: 0; display: grid; padding: 2px; background: var(--lp-ink); clip-path: var(--kx-clip); }
+.dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 16px; color: var(--lcd-3); background: var(--lcd-0); clip-path: var(--kx-clip); scrollbar-width: none; }
 .dn-lcd::-webkit-scrollbar { display: none; }
 .dn-screen { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 10px; align-content: start; }
 .dn-screen[hidden] { display: none; }
@@ -61,14 +62,9 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-progress__bar { position: absolute; inset: 0 auto 0 0; background: var(--lcd-2); transition: width .2s linear; }
 .dn-progress span { position: relative; display: grid; place-items: center; height: 100%; font: 800 13px/1 var(--font-sans); mix-blend-mode: difference; color: white; }
 
-/* uma ação principal; «Voltar» é só texto */
+/* os botões são os da landing (kx-btn); só a disposição é daqui */
 .dn-pad { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.dn-pad button { min-height: 48px; font: 800 15px/1 var(--font-sans); cursor: pointer; }
-.dn-pad__b { padding: 0 4px; color: var(--lp-ink); background: transparent; border: 0; text-decoration: underline; text-underline-offset: 4px; }
-.dn-pad__a { margin-left: auto; padding: 0 28px; color: white; background: var(--btn); border: 2px solid var(--lp-ink); box-shadow: 4px 4px 0 var(--lp-ink); transition: transform .08s steps(2, end), box-shadow .08s steps(2, end); }
-.dn-pad__a:not(:disabled):active { transform: translate(4px, 4px); box-shadow: none; }
-.dn-pad button:disabled { opacity: .4; cursor: not-allowed; }
-.dn-pad button:focus-visible { outline: 3px solid var(--lp-ink); outline-offset: 3px; }
+.dn-pad__next { margin-left: auto; }
 
 /* depois de enviar: a referência e nada mais */
 .dn-done { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; outline: none; }
