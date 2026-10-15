@@ -10,8 +10,9 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
-import { createManualStatement, institutionLinks, myInstitutions, publishManualStatement, reviewChoices, type ReviewChoices } from '@/app/actions/crud';
+import { createManualStatement, myInstitutions, publishManualStatement, reviewChoices, type ReviewChoices } from '@/app/actions/crud';
 import { fetchCurrentUser } from '@/lib/auth';
+import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { distributeScore, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
@@ -56,34 +57,30 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
   const schoolId = school?.id;
   const set = <K extends keyof ExamDraft>(k: K, v: ExamDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
-  // As disciplinas são as da escola escolhida.
-  useEffect(() => {
-    if (!schoolId) return;
-    institutionLinks(Number(schoolId), 'subjects').then((res) => {
-      if (!res.ok) return toast.error(res.error);
-      setSubjectIds(Object.fromEntries(res.data.map((x) => [x.name, x.id])));
-      setSchools((all) => all.map((x) => (x.id === schoolId ? { ...x, subjects: res.data.map((y) => y.name) } : x)));
-      setDraft((d) => (d.subject && !res.data.some((y) => y.name === d.subject) ? { ...d, subject: '' } : d));
-    });
-  }, [schoolId]);
-
-  // As turmas que se podem escolher: as da escola e, para o professor, só as que lhe estão
-  // atribuídas. O backend recusa o resto ("A teacher must choose the class they teach").
+  // Escola → turmas da escola (ao professor, as que lhe estão atribuídas) → disciplinas do currículo do
+  // curso dessas turmas (ao professor, as que dá). O backend recusa o resto ("A teacher must choose the class they teach").
   useEffect(() => {
     if (!schoolId || admin == null) return;
     let alive = true;
     reviewChoices(Number(schoolId), !admin).then((r) => {
       if (!alive) return;
-      if (!r.ok) toast.error(r.error);
-      else setChoices(r.data);
+      if (!r.ok) return void toast.error(r.error);
+      setChoices(r.data);
+      setSubjectIds(Object.fromEntries(r.data.subjects.map((x) => [x.label, x.value])));
+      // O OCR só acerta o nome da disciplina se ela estiver entre as da escola.
+      setSchools((all) => all.map((x) => (x.id === schoolId ? { ...x, subjects: r.data.subjects.map((y) => y.label) } : x)));
+      setDraft((d) => (d.subject && !r.data.subjects.some((y) => y.label === d.subject) ? { ...d, subject: '' } : d));
     });
     return () => { alive = false; };
   }, [schoolId, admin]);
 
-  const subjectId = draft.subject ? subjectIds[draft.subject] : undefined;
-  const classOptions = (choices?.classes ?? []).filter(
-    (c) => !choices?.assignments || !subjectId || choices.assignments.some((a) => a.classId === c.value && a.subjectId === subjectId),
-  );
+  // Só as disciplinas do currículo da turma escolhida (ou de qualquer turma, enquanto não há turma).
+  const subjectOptions = choices ? subjectChoices(choices, classId ? Number(classId) : null) : [];
+  // Trocar a turma por uma que não dá a disciplina escolhida deixa-a como não escolhida (deriva-se, não se limpa num efeito):
+  // assim nunca se grava um par turma+disciplina que o servidor recusa.
+  const subject = !choices || subjectOptions.some((o) => o.label === draft.subject) ? draft.subject : '';
+  const subjectId = subject ? subjectIds[subject] : undefined;
+  const classOptions = choices ? classChoices(choices, subjectId) : [];
   // Uma turma escolhida que deixou de servir (outra escola ou disciplina) conta como não escolhida:
   // deriva-se em vez de se limpar num efeito, e o select volta a "Escolher…" porque o valor não existe.
   const chosenClassId = classOptions.some((c) => String(c.value) === classId) ? classId : '';
@@ -98,18 +95,18 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
    * mensagem do servidor — que nomeia as questões em falta — aparece no ecrã.
    */
   async function save(publish: boolean) {
-    if (!school || !draft.subject) return;
+    if (!school || !subject) return;
     setSaving(true);
     const payload = {
       institutionId: Number(school.id),
-      subjectId: subjectIds[draft.subject],
+      subjectId: subjectIds[subject],
       // A turma é o único âmbito que o cliente nomeia; o curso vem dela.
       // O ano letivo também: sem ele a prova não entra em nenhum ranking.
       ...(chosenClassId ? (() => {
         const chosen = classOptions.find((c) => String(c.value) === chosenClassId);
         return { classId: Number(chosenClassId), courseId: chosen?.courseId ?? null, schoolYearId: chosen?.schoolYearId ?? null };
       })() : {}),
-      title: draft.title.trim() || `${draft.kind} – ${draft.subject}`,
+      title: draft.title.trim() || `${draft.kind} – ${subject}`,
       examType: draft.kind,
       ...(draft.duration !== '' ? { durationMinutes: draft.duration } : {}),
       ...(draft.variant.trim() ? { variant: draft.variant.trim() } : {}),
@@ -150,7 +147,7 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
   const moveItem = (i: number, direction: -1 | 1) => set('items', move(draft.items, i, direction));
   const total = totalScore(draft.items);
   const problemas = problems(draft.items);
-  const ready2print = !!school && !!draft.subject && draft.items.some((i) => i.text.trim());
+  const ready2print = !!school && !!subject && draft.items.some((i) => i.text.trim());
   const canSave = ready2print && classChosen;
   /** Depois de guardar, gravar outra vez sem mexer em nada criava um duplicado: só volta a ser possível ao editar. */
   const unchangedSinceSave = saved !== null && saved.snapshot === JSON.stringify(draft);
@@ -240,9 +237,9 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
                     </NativeSelect>
                   </Field>
                   <Field label="Disciplina">
-                    <NativeSelect value={draft.subject} onChange={(e) => set('subject', e.target.value)}>
+                    <NativeSelect value={subject} onChange={(e) => set('subject', e.target.value)}>
                       <option value="">Escolher…</option>
-                      {(school?.subjects ?? []).map((x) => <option key={x} value={x}>{x}</option>)}
+                      {subjectOptions.map((x) => <option key={x.value} value={x.label}>{x.label}</option>)}
                     </NativeSelect>
                   </Field>
                   <Field label={admin ? 'Turma (opcional)' : 'Turma'}>
@@ -259,7 +256,7 @@ export function ExamBuilder({ openImport = false }: { openImport?: boolean }) {
           <Card>
             <CardHeader><CardTitle>Cabeçalho</CardTitle></CardHeader>
             <CardContent className="grid gap-4">
-              <Field label="Título"><Input value={draft.title} onChange={(e) => set('title', e.target.value)} placeholder={draft.subject ? `${draft.kind} – ${draft.subject}` : 'Tipo – disciplina'} /></Field>
+              <Field label="Título"><Input value={draft.title} onChange={(e) => set('title', e.target.value)} placeholder={subject ? `${draft.kind} – ${subject}` : 'Tipo – disciplina'} /></Field>
               <div className="grid gap-4 sm:grid-cols-[1fr_1.5fr_1fr]">
                 <Field label="Classe"><Input value={draft.grade} onChange={(e) => set('grade', e.target.value)} /></Field>
                 <Field label="Tipo">

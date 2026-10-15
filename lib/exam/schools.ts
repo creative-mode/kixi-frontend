@@ -34,17 +34,9 @@ export interface ExamDraft {
 
 export const KINDS = ['Trabalho prático', 'Teste', 'Prova', 'Exame'] as const;
 
-export const SEED_SCHOOLS: School[] = [
-  {
-    id: 'itel',
-    name: 'Instituto de Telecomunicações',
-    logo: '/manager/exam/itel.png',
-    subjects: ['TLP e SI', 'Redes de Computadores', 'Sistemas Operativos', 'Programação'],
-  },
-];
-
 export const EMPTY_DRAFT: ExamDraft = {
-  schoolId: 'itel',
+  // a escola vem do backend (as afiliadas ao professor); vazio escolhe a primeira
+  schoolId: '',
   subject: '',
   kind: 'Trabalho prático',
   grade: '12ª Classe',
@@ -61,7 +53,6 @@ export const EMPTY_DRAFT: ExamDraft = {
   teacher: '',
 };
 
-const SCHOOLS_KEY = 'kixi-exam-schools';
 const DRAFT_KEY = 'kixi-exam-draft';
 
 function read<T>(key: string, fallback: T): T {
@@ -75,13 +66,6 @@ function read<T>(key: string, fallback: T): T {
 function write(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota / modo privado */ }
 }
-
-export const loadSchools = () => {
-  const saved = read<School[]>(SCHOOLS_KEY, []);
-  const ids = new Set(saved.map((s) => s.id));
-  return [...SEED_SCHOOLS.filter((s) => !ids.has(s.id)), ...saved];
-};
-export const saveSchools = (s: School[]) => write(SCHOOLS_KEY, s);
 
 /**
  * A pergunta como o app a guarda, seja ela de que versão do rascunho veio.

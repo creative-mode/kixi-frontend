@@ -73,3 +73,7 @@ export function teacherRoute(pathname: string): 'allow' | 'forbidden' | 'home' {
   if (ADMIN_ONLY_ROUTES.some((route) => isUnder(pathname, route))) return 'forbidden';
   return teacherMayOpen(pathname) ? 'allow' : 'home';
 }
+
+/** Estrutura académica: só o ADMIN a altera (o backend responde 403 ao professor), por isso o gestor não lhe mostra botões de escrita. */
+const STRUCTURE_ENTITIES = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'institutions', 'teaching-assignments'];
+export const isStructureEntity = (key: string) => STRUCTURE_ENTITIES.includes(key);
