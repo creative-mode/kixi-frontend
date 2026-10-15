@@ -331,6 +331,8 @@ function seed(): Store {
       { id: 1, title: 'Redes de Computadores', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
       { id: 2, title: 'Sistemas Operativos', examType: 'Prova', subjectId: 2, schoolYearId: 1, termId: 2, institutionId: 1, classId: 2, durationMinutes: 90, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
       { id: 3, title: 'Matemática Discreta', examType: 'Exame', subjectId: 3, schoolYearId: 1, termId: 3, institutionId: 2, classId: 6, durationMinutes: 120, totalMaxScore: 20, variant: 'B', source: 'OCR', needsReview: false, ocrConfidence: 0.87, visible: false },
+      // A prova de OGI com alíneas: V/F (2a, 2b) e uma composta (4a, 4b). Serve para o aluno ver o enunciado comum.
+      { id: 5, title: 'Organização e Gestão Industrial', examType: 'Exame', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 90, totalMaxScore: 20, variant: 'B', source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
       // Nunca publicada: tem de dar 404 como se não existisse.
       { id: 4, title: 'Rascunho por publicar', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 10, variant: null, source: 'OCR', needsReview: true, ocrConfidence: 0.62, visible: false },
     ],
@@ -375,6 +377,29 @@ function seed(): Store {
           { id: 52, optionLabel: 'B', optionText: 'Enlace, rede, física, transporte, sessão', isCorrect: false, orderIndex: 1 },
         ],
       },
+      // ── prova de OGI (enunciado 5): aberta, V/F com alíneas, aberta, composta com alíneas ──
+      { id: 101, number: 1, text: 'O que consiste o aprovisionamento em uma organização empresarial?', questionType: 'open', maxScore: 4, orderIndex: 0, options: [] },
+      { id: 102, number: 2, text: 'Para cada uma das questões abaixo, diga quais são verdadeiras (V) ou falsas (F):', questionType: 'group', maxScore: 0, orderIndex: 1, options: [] },
+      {
+        id: 103, number: 201, parentId: 102, label: 'a', text: 'Deve ser preocupação da organização comprar ao melhor preço possível estabelecido pelo produtor',
+        questionType: 'true_false', maxScore: 2, orderIndex: 2,
+        options: [
+          { id: 1031, optionLabel: 'A', optionText: 'Verdadeiro', isCorrect: true, orderIndex: 0 },
+          { id: 1032, optionLabel: 'B', optionText: 'Falso', isCorrect: false, orderIndex: 1 },
+        ],
+      },
+      {
+        id: 104, number: 202, parentId: 102, label: 'b', text: 'A escolha das matérias só deve ser feita após a determinação das possíveis aplicações',
+        questionType: 'true_false', maxScore: 2, orderIndex: 3,
+        options: [
+          { id: 1041, optionLabel: 'A', optionText: 'Verdadeiro', isCorrect: false, orderIndex: 0 },
+          { id: 1042, optionLabel: 'B', optionText: 'Falso', isCorrect: true, orderIndex: 1 },
+        ],
+      },
+      { id: 105, number: 3, text: 'Explique e esquematize as fases que abrange o planeamento dentro de uma organização.', questionType: 'open', maxScore: 4, orderIndex: 4, options: [] },
+      { id: 106, number: 4, text: 'Uma empresa utiliza o Lote Económico para repor o estoque de uma das suas peças. O lote previsto é de 6000 unidades diárias e a demanda é de 90 mil unidades mensais.', questionType: 'group', maxScore: 0, orderIndex: 5, options: [] },
+      { id: 107, number: 401, parentId: 106, label: 'a', text: 'Demonstre a expressão matemática para o cálculo do custo de manutenção de estoques.', questionType: 'open', maxScore: 4, orderIndex: 6, options: [] },
+      { id: 108, number: 402, parentId: 106, label: 'b', text: 'Calcule o custo de manutenção de estoques anual e mensal.', questionType: 'open', maxScore: 4, orderIndex: 7, options: [] },
     ],
     // One finished, one in progress, one untouched: the three card states. The
     // in-progress one carries a start in the past, so its deadline is real.
@@ -565,6 +590,8 @@ const QUESTIONS_BY_STATEMENT: Record<number, number[]> = {
   2: [1, 2, 3],
   // Três questões, para a sala de prova da semente ter o que responder.
   3: [1, 2, 4],
+  // OGI: as folhas e, no meio, os enunciados comuns (que o aluno não responde).
+  5: [101, 102, 103, 104, 105, 106, 107, 108],
 };
 
 /** StatementBasicResponse, as it nests inside SimulationResponse. */
@@ -699,11 +726,14 @@ function simulationResult(db: Store, row: SimulationRow) {
     questions: questions.map((question) => {
       const answer = answers.find((a) => a.questionId === question.id)!;
       const correct = question.options.find((o) => o.isCorrect);
+      const parent = question.parentId != null ? db.questions.find((q) => q.id === question.parentId) : undefined;
       return {
         questionId: question.id,
         number: question.number,
         text: question.text,
         questionType: question.questionType,
+        // As alíneas dizem a que questão pertencem e levam o enunciado comum (`parentText`).
+        ...(parent ? { parentId: parent.id, label: question.label ?? null, parentText: parent.text } : {}),
         maxScore: question.maxScore,
         modelAnswer: null,
         correctOptionId: correct?.id ?? null,

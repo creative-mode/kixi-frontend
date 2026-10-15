@@ -18,9 +18,11 @@ import {
   optionTag,
   verdict,
   type ResultQuestion,
+  showsContext,
   toReview,
   type Verdict,
 } from '@/lib/result-rules';
+import { displayNumber, topNumber, wholeNumbers } from '@/lib/question-number';
 
 export const metadata = { title: 'Resultado · Kixi' };
 
@@ -31,21 +33,29 @@ const VERDICT: Record<Verdict, { label: string; variant: 'success' | 'destructiv
   blank: { label: 'Sem resposta', variant: 'secondary' },
 };
 
-function Review({ question }: { question: ResultQuestion }) {
+function Review({ question, context }: { question: ResultQuestion; context: boolean }) {
   const v = verdict(question);
   const options = question.options ?? [];
+  const shown = displayNumber(question);
   return (
     <li className="grid gap-3 px-5 py-4">
+      {context && question.parentText ? (
+        // O enunciado comum da questão com alíneas, uma vez, acima da primeira alínea.
+        <div className="grid gap-1 rounded-lg border border-dashed bg-secondary/60 px-4 py-3">
+          <p className="text-xs font-semibold text-muted-foreground">Questão {topNumber(question.number)}</p>
+          <p className="text-sm leading-relaxed">{question.parentText}</p>
+        </div>
+      ) : null}
       <div className="flex items-start gap-3">
-        <span className="grid size-[34px] shrink-0 place-items-center rounded-md bg-secondary text-[13px] font-bold">
-          {question.number}
+        <span className="grid min-w-[34px] shrink-0 place-items-center rounded-md bg-secondary px-1.5 py-1.5 text-[13px] font-bold">
+          {shown}
         </span>
         <p className="min-w-0 flex-1 text-sm leading-snug font-semibold">{question.text}</p>
         <Badge variant={VERDICT[v].variant}>{VERDICT[v].label}</Badge>
       </div>
 
       {options.length > 0 ? (
-        <ul className="grid gap-1.5 pl-[46px]" aria-label={`Alternativas da questão ${question.number}`}>
+        <ul className="grid gap-1.5 pl-[46px]" aria-label={`Alternativas da questão ${shown}`}>
           {options.map((option, i) => {
             const chosen = option.id === question.selectedOptionId;
             const right = option.id === question.correctOptionId;
@@ -154,7 +164,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <p className="border-t px-5 py-4 text-sm text-muted-foreground">Não respondeste a nenhuma questão desta prova.</p>
           ) : (
             <ul className="divide-y border-t">
-              {questions.map((question) => <Review key={question.questionId} question={question} />)}
+              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} />)}
             </ul>
           )}
         </Card>
@@ -179,7 +189,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           {statementId != null && <RefazerSimulacao statementId={statementId} />}
           {statementId != null && hasMistakes && (
             <Button asChild>
-              <Link href={`/tutor?statementId=${statementId}&questoes=${toReview(result.questions).map((q) => q.number).join(',')}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
+              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>

@@ -173,30 +173,29 @@ export function ProvaSkeleton() {
   );
 }
 
-/** Onboarding: a mesma coluna do AuthShell, com o select e o botão no sítio certo. */
+/** Onboarding: só o conteúdo de dentro do cartão (passos, escolha e botão).
+ *
+ *  O `AuthShell` do onboarding está no `layout.tsx`, por isso o logo, o cartão e o título já estão
+ *  no ecrã enquanto a página carrega. Este esqueleto é o `children` desse cartão: desenhar aqui outro
+ *  ecrã completo (como o `AuthSkeleton`, que serve as páginas que trazem o seu próprio shell) dava
+ *  um cartão dentro do cartão, dois logos e conteúdo fora dos limites. */
 export function OnboardingSkeleton() {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
-      <span className="sr-only" role="status">A carregar os cursos…</span>
-      <Skeleton className="h-7 w-28" />
-      <div className="grid w-full max-w-[400px] gap-6 rounded-xl border bg-card p-6 shadow-xs sm:p-8">
-        <div className="grid gap-2"><Skeleton className="h-7 w-40" /><Skeleton className="h-3.5 w-3/4" /></div>
-        <div className="grid gap-6">
-          <div className="flex items-center gap-2">
-            <Skeleton className="size-6 rounded-full" />
-            <Skeleton className="h-3.5 w-12" />
-            <Skeleton className="h-px w-4 md:w-6" />
-            <Skeleton className="size-6 rounded-full" />
-            <Skeleton className="h-3.5 w-12" />
-            <Skeleton className="h-px w-4 md:w-6" />
-            <Skeleton className="size-6 rounded-full" />
-            <Skeleton className="h-3.5 w-10" />
-          </div>
-          <div className="grid gap-2"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-10 w-full" /><Skeleton className="h-3 w-48" /></div>
-          <Skeleton className="h-11 w-full" />
-        </div>
+    <div className="grid gap-6" role="status" aria-busy="true">
+      <span className="sr-only">A carregar os cursos…</span>
+      <div className="flex items-center gap-2" aria-hidden>
+        <Skeleton className="size-6 shrink-0 rounded-full" />
+        <Skeleton className="h-3.5 w-12" />
+        <Skeleton className="h-px w-4 md:w-6" />
+        <Skeleton className="size-6 shrink-0 rounded-full" />
+        <Skeleton className="h-3.5 w-12" />
+        <Skeleton className="h-px w-4 md:w-6" />
+        <Skeleton className="size-6 shrink-0 rounded-full" />
+        <Skeleton className="h-3.5 w-10" />
       </div>
-    </main>
+      <div className="grid gap-2" aria-hidden><Skeleton className="h-3.5 w-32" /><Skeleton className="h-10 w-full" /><Skeleton className="h-3 w-48 max-w-full" /></div>
+      <Skeleton className="h-11 w-full" aria-hidden />
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Archive, Check, Eye, EyeOff, FileSearch, ScanText, Trash2 } from 'lucide-react';
+import { Archive, Check, DoorOpen, Eye, EyeOff, FileSearch, ScanText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -72,7 +72,7 @@ export function StatementsManager() {
               </Button>
             ) : null}
             <Button asChild>
-              <Link href="/statements/import"><ScanText size={16} /> Importar prova</Link>
+              <Link href="/exam-builder?importar=1"><ScanText size={16} /> Importar prova</Link>
             </Button>
           </div>
         }
@@ -122,6 +122,11 @@ export function StatementsManager() {
                         <Button variant="ghost" size="sm" asChild aria-label="Ver questões" title="Ver questões">
                           <Link href={`/statements/${row.id}`}><FileSearch size={16} /></Link>
                         </Button>
+                        {row.visible && !row.needsReview ? (
+                          <Button variant="ghost" size="sm" asChild aria-label="Criar sala com este enunciado" title="Criar sala com este enunciado">
+                            <Link href={`/exam-rooms/new?statementId=${row.id}`}><DoorOpen size={16} /></Link>
+                          </Button>
+                        ) : null}
                         {row.needsReview ? (
                           <Button variant="ghost" size="sm" aria-label="Aprovar revisão" title="Aprovar revisão" onClick={() => act(approveStatement(row.id), 'Revisão aprovada')}>
                             <Check size={16} />

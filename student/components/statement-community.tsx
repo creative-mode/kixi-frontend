@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Share2, Users } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
+import { displayNumber } from '@/lib/question-number';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -115,7 +116,7 @@ export function StatementCommunity({
             <h3 className="text-sm font-semibold">% de acerto por questão</h3>
             {stats.questions.map((q) => (
               <div key={q.questionId} className="grid grid-cols-[80px_1fr_auto] items-center gap-2.5 text-sm">
-                <span className="text-muted-foreground">Questão {q.number ?? '—'}</span>
+                <span className="text-muted-foreground">Questão {displayNumber(q)}</span>
                 <Progress value={q.pctCorrect ?? 0} />
                 <span className="text-muted-foreground">{pctCorrectLabel(q.pctCorrect)}</span>
               </div>
