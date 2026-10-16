@@ -6,7 +6,7 @@
 // traduzidos para cores de verdade. Se a suite falhar, a imagem mostra a falha — que
 // é para ela servir de prova e não de decoração.
 
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

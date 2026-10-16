@@ -33,6 +33,8 @@ function samplePdf(): Buffer {
 async function managerLogin(page: Page, username: string, landing: RegExp, heading: string) {
   await page.goto('/manager/login');
   await page.getByLabel('Username ou email').fill(username);
+  // O campo da palavra-passe nao tem label associado, so `id`: e por isso que
+  // vai por `#` e nao por `getByLabel`. Os outros quatro campos usam label.
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
   await expect(page).toHaveURL(landing);
@@ -42,10 +44,28 @@ async function managerLogin(page: Page, username: string, landing: RegExp, headi
 const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
 const TEACHER_LANDING = { landing: /\/manager\/professor\/?$/, heading: 'Início' } as const;
 
+/**
+ * Recolhe o que a página reclamar, para que uma jornada não passe com o ecrã a
+ * dizer «algo falhou» por baixo. Um `pageerror` é sempre bug — mesmo quando o
+ * percurso principal deu certo — por isso a asserção vive no `afterEach`, e não
+ * dentro de cada teste.
+ */
+const erros: Error[] = [];
+
+test.beforeEach(async ({ page }) => {
+  erros.length = 0;
+  page.on('pageerror', (erro) => erros.push(erro));
+});
+
+test.afterEach(() => {
+  expect(erros, `a página lançou ${erros.length} erro(s): ${erros.map((e) => e.message).join(' | ')}`).toEqual([]);
+});
+
 test.describe('jornadas críticas do Kixi', () => {
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
+    // Sem label associado, so `id` (ver a razao em `managerLogin`).
     await page.locator('#password').fill(PASSWORD);
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
