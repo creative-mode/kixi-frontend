@@ -1,14 +1,19 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { buildPaper, containsLeaf, leafNumber, type PaperItem, type PaperMeta, type PaperQuestion } from '@/lib/folha-da-prova';
+import { buildPaper, containsLeaf, leafNumber, type PaperAnswer, type PaperItem, type PaperMark, type PaperMeta, type PaperQuestion, type PaperStamp } from '@/lib/folha-da-prova';
 import type { ExamOption, ExamQuestion } from '@/lib/exam-rules';
 import type { QuestionImage } from '@/lib/exam';
 import { BASE_PATH } from '@/lib/base-path';
 import { cn } from '@/lib/utils';
 
-/** O que o aluno tem escrito numa questão, para a folha o mostrar como o papel: a opção marcada e o texto. */
-export type PaperAnswer = { optionId: number | null; text: string };
+export type { PaperAnswer, PaperMark, PaperStamp };
+
+const fmt = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
+
+/** Verde e vermelho de caneta de correcção, escuros o bastante para se lerem sobre o branco do papel. */
+const INK = { correct: 'text-green-700', wrong: 'text-red-700', pending: 'text-amber-700', blank: 'text-neutral-500' } as const;
+const WASH = { correct: 'bg-green-50', wrong: 'bg-red-50', pending: 'bg-amber-50', blank: 'bg-neutral-50' } as const;
 
 const cell = 'border border-black';
 
@@ -25,6 +30,8 @@ export function FolhaDaProva({
   questions,
   images = {},
   answers,
+  marks,
+  stamp,
   current,
   onSelect,
   className,
@@ -34,6 +41,10 @@ export function FolhaDaProva({
   questions: readonly ExamQuestion[];
   images?: Record<number, QuestionImage[]>;
   answers?: Record<number, PaperAnswer>;
+  /** Na página de resultado: a correcção de cada questão. Sem isto a folha é a da sala, para responder. */
+  marks?: Record<number, PaperMark>;
+  /** Na página de resultado: a nota, estampada no topo. */
+  stamp?: PaperStamp;
   /** O id da questão (ou alínea) aberta. */
   current?: number | null;
   onSelect?: (id: number) => void;
@@ -68,8 +79,9 @@ export function FolhaDaProva({
     <article
       ref={sheet}
       aria-label="A prova"
-      className={cn('mx-auto w-full max-w-[794px] bg-white p-[6%] text-[14px] leading-relaxed text-black shadow-sm [font-family:Arial,Helvetica,sans-serif] md:text-[15px]', className)}
+      className={cn('relative mx-auto w-full max-w-[794px] bg-white p-[6%] text-[14px] leading-relaxed text-black shadow-sm [font-family:Arial,Helvetica,sans-serif] md:text-[15px]', className)}
     >
+      {stamp && <Stamp stamp={stamp} />}
       <table className="w-full border-collapse">
         <tbody>
           <tr>
@@ -100,6 +112,7 @@ export function FolhaDaProva({
               paper={p}
               images={images}
               answers={answers}
+              marks={marks}
               current={current}
               onSelect={onSelect}
             />
@@ -119,18 +132,21 @@ export function FolhaDaProva({
   );
 }
 
-/** Uma folha da prova (uma questão ou uma alínea): realça-se quando é a aberta e, na sala, abre-se ao tocar. */
+/** Uma folha da prova (uma questão ou uma alínea): realça-se quando é a aberta e, na sala, abre-se ao tocar. Na página
+ *  de resultado ganha o fundo e a nota da correcção. */
 function Leaf({
   id,
   label,
   current,
   onSelect,
+  mark,
   children,
 }: {
   id: number;
   label: string;
   current?: number | null;
   onSelect?: (id: number) => void;
+  mark?: PaperMark;
   children: React.ReactNode;
 }) {
   const active = current === id;
@@ -138,6 +154,7 @@ function Leaf({
   return (
     <div
       data-leaf={id}
+      data-verdict={mark?.verdict}
       aria-current={active ? 'true' : undefined}
       {...(interactive
         ? {
@@ -154,12 +171,49 @@ function Leaf({
           }
         : {})}
       className={cn(
-        '-mx-2 rounded-md px-2 py-1 transition-colors',
+        'relative -mx-2 rounded-md px-2 py-1 transition-colors',
         interactive && 'cursor-pointer hover:bg-black/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-black',
         active && 'bg-amber-100 ring-2 ring-amber-500/70',
+        mark && cn(WASH[mark.verdict], 'border-l-4 pl-3', mark.verdict === 'correct' ? 'border-green-600' : mark.verdict === 'wrong' ? 'border-red-600' : mark.verdict === 'pending' ? 'border-amber-500' : 'border-neutral-300'),
       )}
     >
+      {mark && <Correction mark={mark} />}
       {children}
+    </div>
+  );
+}
+
+/** A nota à margem, como um professor a escreve: «2/2» a verde, «0/2» a vermelho, «por corrigir» a âmbar. */
+function Correction({ mark }: { mark: PaperMark }) {
+  const text =
+    mark.verdict === 'pending' ? 'por corrigir'
+    : mark.verdict === 'blank' ? 'sem resposta'
+    : mark.maxScore != null ? `${fmt(mark.scoreObtained ?? (mark.verdict === 'correct' ? mark.maxScore : 0))}/${fmt(mark.maxScore)}`
+    : mark.verdict === 'correct' ? 'certa' : 'errada';
+  return (
+    <span
+      className={cn('float-right ml-3 rotate-[-4deg] whitespace-nowrap text-[15px] font-bold [font-family:\'Segoe_Print\',\'Comic_Sans_MS\',cursive]', INK[mark.verdict])}
+      aria-label={`Correcção: ${text}`}
+    >
+      {mark.verdict === 'correct' ? '✓ ' : mark.verdict === 'wrong' ? '✗ ' : ''}{text}
+    </span>
+  );
+}
+
+/** A nota estampada: carimbo inclinado, verde se positiva e vermelho se negativa. */
+function Stamp({ stamp }: { stamp: PaperStamp }) {
+  const tone = stamp.passed === null ? 'border-amber-600 text-amber-700' : stamp.passed ? 'border-green-700 text-green-700' : 'border-red-700 text-red-700';
+  const word = stamp.passed === null ? (stamp.provisional ? 'Em correcção' : 'Sem cotação') : stamp.passed ? 'Positiva' : 'Negativa';
+  return (
+    <div
+      role="img"
+      aria-label={`Nota: ${stamp.score}${stamp.max ? ` de ${stamp.max} valores` : ''}, ${word.toLowerCase()}${stamp.provisional ? ', provisória' : ''}`}
+      className={cn('pointer-events-none absolute right-[4%] top-[3%] z-10 grid rotate-[-9deg] place-items-center rounded-lg border-[3px] border-double px-4 py-1.5 text-center opacity-90 mix-blend-multiply', tone)}
+    >
+      <span className="text-[34px] font-black leading-none tabular-nums md:text-[44px]">{stamp.score}</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider">{stamp.max ? `de ${stamp.max} valores` : 'valores'}</span>
+      <span className="mt-0.5 text-[12px] font-black uppercase tracking-[0.2em]">{word}</span>
+      {stamp.provisional && <span className="text-[10px] font-semibold uppercase">nota provisória</span>}
     </div>
   );
 }
@@ -168,12 +222,14 @@ function Question({
   paper,
   images,
   answers,
+  marks,
   current,
   onSelect,
 }: {
   paper: PaperQuestion;
   images: Record<number, QuestionImage[]>;
   answers?: Record<number, PaperAnswer>;
+  marks?: Record<number, PaperMark>;
   current?: number | null;
   onSelect?: (id: number) => void;
 }) {
@@ -187,8 +243,8 @@ function Question({
         <ol className="mt-1.5 list-none space-y-1.5 pl-5">
           {paper.items.map((item) => (
             <li key={item.id}>
-              <Leaf id={item.id} label={leafNumber(paper, item)} current={current} onSelect={onSelect}>
-                <ItemBody item={item} images={images[item.id]} answer={answers?.[item.id]} />
+              <Leaf id={item.id} label={leafNumber(paper, item)} current={current} onSelect={onSelect} mark={marks?.[item.id]}>
+                <ItemBody item={item} images={images[item.id]} answer={answers?.[item.id]} mark={marks?.[item.id]} />
               </Leaf>
             </li>
           ))}
@@ -198,15 +254,15 @@ function Question({
   }
 
   return (
-    <Leaf id={paper.id} label={leafNumber(paper)} current={current} onSelect={onSelect}>
+    <Leaf id={paper.id} label={leafNumber(paper)} current={current} onSelect={onSelect} mark={marks?.[paper.id]}>
       <p><span className="mr-2 font-bold">{paper.number}.</span>{paper.text}{score}</p>
       <Figures images={images[paper.id]} />
-      {paper.options.length > 0 ? <Options options={paper.options} chosen={answers?.[paper.id]?.optionId ?? null} /> : <Lines text={answers?.[paper.id]?.text} />}
+      <Answer options={paper.options} answer={answers?.[paper.id]} mark={marks?.[paper.id]} lines={3} />
     </Leaf>
   );
 }
 
-function ItemBody({ item, images, answer }: { item: PaperItem; images?: QuestionImage[]; answer?: PaperAnswer }) {
+function ItemBody({ item, images, answer, mark }: { item: PaperItem; images?: QuestionImage[]; answer?: PaperAnswer; mark?: PaperMark }) {
   return (
     <div className="flex gap-2">
       <span className="font-semibold">{item.label})</span>
@@ -214,9 +270,22 @@ function ItemBody({ item, images, answer }: { item: PaperItem; images?: Question
         {item.text}
         {item.maxScore != null && <span className="whitespace-nowrap"> ({item.maxScore} val.)</span>}
         <Figures images={images} />
-        {item.options.length > 0 ? <Options options={item.options} chosen={answer?.optionId ?? null} /> : <Lines text={answer?.text} count={2} />}
+        <Answer options={item.options} answer={answer} mark={mark} lines={2} />
       </span>
     </div>
+  );
+}
+
+/** A resposta: as opções (com a marcada, e na correcção a certa) ou as linhas com o que o aluno escreveu. */
+function Answer({ options, answer, mark, lines }: { options: ExamOption[]; answer?: PaperAnswer; mark?: PaperMark; lines: number }) {
+  if (options.length > 0) return <Options options={options} chosen={answer?.optionId ?? null} correct={mark?.correctOptionId ?? null} reviewed={mark != null} />;
+  return (
+    <>
+      <Lines text={answer?.text} count={lines} />
+      {mark?.modelAnswer?.trim() ? (
+        <span className="mt-1 block text-[12.5px] text-green-800"><b>Resposta esperada:</b> {mark.modelAnswer.trim()}</span>
+      ) : null}
+    </>
   );
 }
 
@@ -234,18 +303,25 @@ function Figures({ images }: { images?: QuestionImage[] }) {
   );
 }
 
-/** A opção marcada tem o círculo cheio, como o aluno a assinalaria no papel. */
-function Options({ options, chosen }: { options: ExamOption[]; chosen: number | null }) {
+/** A opção marcada tem o círculo cheio, como o aluno a assinalaria no papel. Corrigida: a certa a verde com visto, e a
+ *  errada que o aluno marcou a vermelho com cruz (e a dizer-lo por palavras, para quem não distingue cores). */
+function Options({ options, chosen, correct, reviewed }: { options: ExamOption[]; chosen: number | null; correct: number | null; reviewed: boolean }) {
   return (
     <ul className="mt-1 list-none space-y-0.5 pl-4">
-      {options.map((o, i) => (
-        <li key={o.id} className="flex items-baseline gap-2">
-          <span aria-hidden className={cn('inline-block size-3 shrink-0 translate-y-[1px] rounded-full border border-black', chosen === o.id && 'bg-black')} />
-          <span className="font-semibold">{o.optionLabel?.trim() || String.fromCharCode(65 + i)})</span>
-          <span>{o.optionText}</span>
-          {chosen === o.id && <span className="sr-only">(a tua resposta)</span>}
-        </li>
-      ))}
+      {options.map((o, i) => {
+        const right = reviewed && o.id === correct;
+        const wrong = reviewed && o.id === chosen && o.id !== correct;
+        return (
+          <li key={o.id} className={cn('flex items-baseline gap-2', right && 'font-semibold text-green-700', wrong && 'text-red-700 line-through decoration-red-700/60')}>
+            <span aria-hidden className={cn('inline-block size-3 shrink-0 translate-y-[1px] rounded-full border border-black', chosen === o.id && 'bg-black', right && 'border-green-700', right && chosen === o.id && 'bg-green-700', wrong && 'border-red-700 bg-red-700')} />
+            <span className="font-semibold">{o.optionLabel?.trim() || String.fromCharCode(65 + i)})</span>
+            <span>{o.optionText}</span>
+            {right && <span className="no-underline">✓<span className="sr-only"> resposta certa</span></span>}
+            {wrong && <span className="no-underline"><span className="sr-only">a tua resposta, errada</span></span>}
+            {!reviewed && chosen === o.id && <span className="sr-only">(a tua resposta)</span>}
+          </li>
+        );
+      })}
     </ul>
   );
 }

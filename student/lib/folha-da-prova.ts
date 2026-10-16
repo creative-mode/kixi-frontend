@@ -88,3 +88,20 @@ export function containsLeaf(paper: PaperQuestion, id: number | null | undefined
 export function leafNumber(paper: PaperQuestion, item?: PaperItem): string {
   return item ? `${paper.number}${item.label}` : String(paper.number);
 }
+
+/** O que o aluno tem escrito numa questão, para a folha o mostrar como o papel: a opção marcada e o texto. */
+export type PaperAnswer = { optionId: number | null; text: string };
+
+/** A correcção de uma questão, para a folha a mostrar como um professor a corrigiria à mão. */
+export type PaperMark = {
+  verdict: 'correct' | 'wrong' | 'pending' | 'blank';
+  correctOptionId?: number | null;
+  scoreObtained?: number | null;
+  maxScore?: number | null;
+  /** A resposta esperada de uma questão aberta, quando o servidor a dá. */
+  modelAnswer?: string | null;
+};
+
+/** A nota estampada no topo da folha: verde se positiva, vermelha se negativa. `passed` nulo = ainda por corrigir. */
+export type PaperStamp = { score: string; max: string | null; passed: boolean | null; provisional: boolean };
+
