@@ -73,7 +73,7 @@ services:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
-      args: { APP_DIR: landing, PORT: 3004, NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-}" }
+      args: { APP_DIR: landing, PORT: 3004, NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-}", NEXT_PUBLIC_SITE_URL: "${NEXT_PUBLIC_SITE_URL:-}", NEXT_PUBLIC_CONTACT_EMAIL: "${NEXT_PUBLIC_CONTACT_EMAIL:-}" }
     expose: ["3004"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3004/"]
