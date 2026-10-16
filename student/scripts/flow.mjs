@@ -446,11 +446,21 @@ async function main() {
     );
 
     await passo(
-      'sem salas, as provas também não mostram a secção',
+      'sem salas, a aba das salas diz que ainda não há nenhuma',
+      'GET', '/aluno/provas?aba=salas', {},
+      async (r) => {
+        const html = await r.text();
+        return html.includes('Ainda não tens salas de prova') && !html.includes('id="salas"') ? null : 'a aba das salas não mostra o estado vazio';
+      },
+    );
+
+    await passo(
+      'os enunciados e as salas são abas separadas, sem convites no rótulo',
       'GET', '/aluno/provas', {},
       async (r) => {
         const html = await r.text();
-        return html.includes('Salas de prova') ? 'a secção apareceu sem haver salas' : null;
+        if (!html.includes('Enunciados') || !html.includes('Salas de prova')) return 'faltam as duas abas';
+        return html.includes('Salas de prova (') ? 'o rótulo mostra convites que não existem' : null;
       },
     );
 
