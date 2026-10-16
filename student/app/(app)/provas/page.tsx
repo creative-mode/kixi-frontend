@@ -67,6 +67,31 @@ function actionOf(state: ExamState): string {
   return state === 'progress' ? 'Retomar' : state === 'done' ? 'Ver resultado' : 'Ver a prova';
 }
 
+
+type Aba = 'salas' | 'enunciados';
+
+/** As duas abas da página: as salas de prova a que o professor convidou o aluno e os enunciados para simular.
+ *  São ligações (a aba vive no URL), por isso funcionam sem JavaScript e o botão Voltar respeita-as. */
+function Abas({ aba, salas, enunciados, convites }: { aba: Aba; salas: string; enunciados: string; convites: number }) {
+  const item = (id: Aba, href: string, label: string) => (
+    <Link
+      key={id}
+      href={href}
+      role="tab"
+      aria-selected={aba === id}
+      className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${aba === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+    >
+      {label}
+    </Link>
+  );
+  return (
+    <div role="tablist" aria-label="Provas" className="flex gap-1 border-b">
+      {item('enunciados', enunciados, 'Enunciados')}
+      {item('salas', salas, convites > 0 ? `Salas de prova (${convites})` : 'Salas de prova')}
+    </div>
+  );
+}
+
 function Filters({
   values,
   subjects,
@@ -85,7 +110,7 @@ function Filters({
         <Input
           type="search"
           name="q"
-          aria-label="Procurar provas"
+          aria-label="Procurar enunciados"
           className="pl-10"
           placeholder="Procurar por título ou tipo"
           defaultValue={values.q ?? ''}
@@ -151,19 +176,38 @@ export default async function Provas({ searchParams }: { searchParams: Params })
     institutionId: num(params.escola),
   };
   const page = Math.max(0, (Number(one(params.pagina)) || 1) - 1);
+  const aba: Aba = one(params.aba) === 'salas' ? 'salas' : 'enunciados';
 
   const [names, invResult] = await Promise.all([getCatalogNames(), listInvitations()]);
   const invitations = invResult.ok ? invResult.data : [];
   const invitationsError = invitationsErrorOf(invResult);
+  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas" convites={invitations.length} />;
+
+  if (aba === 'salas') {
+    return (
+      <Page variant="wide">
+        <Column className="gap-5">
+          <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
+          {abas}
+          {invitations.length === 0 && !invitationsError ? (
+            <EmptyState title="Ainda não tens salas de prova" message="Quando um professor te convidar para uma prova controlada, a sala aparece aqui." />
+          ) : (
+            <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
+          )}
+        </Column>
+      </Page>
+    );
+  }
+
   const result = await getCatalog({ ...filters, page, size: PAGE_SIZE }, names);
   if (!result.ok) {
     return (
       <Page variant="wide">
         <Column className="gap-5">
           <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
-          <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
+          {abas}
           <RefreshError
-            title="Não foi possível carregar as provas"
+            title="Não foi possível carregar os enunciados"
             message="Verifica a ligação à internet e tenta de novo. As tuas simulações estão guardadas."
           />
         </Column>
@@ -190,7 +234,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
       <Column className="gap-5">
         <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
 
-        <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
+        {abas}
 
         <Filters
           values={{
@@ -205,7 +249,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
           schools={names.schools}
         />
 
-        <Card className="gap-0 divide-y overflow-hidden py-0" aria-label="Provas disponíveis">
+        <Card className="gap-0 divide-y overflow-hidden py-0" aria-label="Enunciados disponíveis">
           {result.items.map((item) => (
             // The card opens the detail (#19), not the room: the three modes live
             // there, and going straight to the room would make them unreachable from
@@ -218,8 +262,8 @@ export default async function Provas({ searchParams }: { searchParams: Params })
           ))}
           {result.items.length === 0 && (
             <EmptyState
-              title="Nenhuma prova encontrada"
-              message="Muda os filtros ou carrega a prova que procuras."
+              title="Nenhum enunciado encontrado"
+              message="Muda os filtros ou carrega o enunciado que procuras."
             />
           )}
         </Card>
@@ -229,7 +273,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
             {current > 1 ? (
               <Button asChild variant="outline" size="sm"><Link href={href(current - 1)}>Anteriores</Link></Button>
             ) : <span />}
-            <span className="text-muted-foreground">Página {current} de {result.totalPages} · {result.totalElements} provas</span>
+            <span className="text-muted-foreground">Página {current} de {result.totalPages} · {result.totalElements} enunciados</span>
             {current < result.totalPages ? (
               <Button asChild variant="outline" size="sm"><Link href={href(current + 1)}>Seguintes</Link></Button>
             ) : <span />}
