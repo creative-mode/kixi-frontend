@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableRowsSkeleton } from '@/components/crud/loading';
 import { roomGrades } from '@/app/actions/exam-rooms';
+import { RoomCorrection } from './room-correction';
 import { formatWall, gradesCsv, PARTICIPANT_LABEL, participantName, summarizeGrades, type Grade } from '@/lib/exam-rooms/model';
 
 const fmt = (n: number | null, digits = 1) =>
@@ -73,6 +74,8 @@ export function RoomResults({ roomId, title, totalMaxScore }: { roomId: number; 
           {summary.pendingReview === 1 ? '1 aluno tem' : `${summary.pendingReview} alunos têm`} respostas abertas por corrigir: a nota final ainda pode subir.
         </p>
       ) : null}
+
+      {summary && summary.graded > 0 ? <RoomCorrection roomId={roomId} onChanged={() => void load()} /> : null}
 
       {summary && summary.graded > 0 ? (
         <Card>

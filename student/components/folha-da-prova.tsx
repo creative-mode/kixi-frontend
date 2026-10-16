@@ -13,8 +13,7 @@ export type { PaperAnswer, PaperMark, PaperStamp };
 const fmt = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
 
 /** Verde e vermelho de caneta de correcção, escuros o bastante para se lerem sobre o branco do papel. */
-const INK = { correct: 'text-green-700', wrong: 'text-red-700', pending: 'text-amber-700', blank: 'text-neutral-500' } as const;
-const WASH = { correct: 'bg-green-50', wrong: 'bg-red-50', pending: 'bg-amber-50', blank: 'bg-neutral-50' } as const;
+const INK = { correct: 'text-green-700', wrong: 'text-red-700', pending: 'text-neutral-600', blank: 'text-neutral-500' } as const;
 
 const cell = 'border border-black';
 
@@ -175,7 +174,6 @@ function Leaf({
         'relative -mx-2 rounded-md px-2 py-1 transition-colors',
         interactive && 'cursor-pointer hover:bg-black/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-black',
         active && 'bg-amber-100 ring-2 ring-amber-500/70',
-        mark && cn(WASH[mark.verdict], 'border-l-4 pl-3', mark.verdict === 'correct' ? 'border-green-600' : mark.verdict === 'wrong' ? 'border-red-600' : mark.verdict === 'pending' ? 'border-amber-500' : 'border-neutral-300'),
       )}
     >
       {mark && <Correction mark={mark} />}
@@ -203,7 +201,7 @@ function Correction({ mark }: { mark: PaperMark }) {
 
 /** A nota estampada: carimbo inclinado, verde se positiva e vermelho se negativa. */
 function Stamp({ stamp }: { stamp: PaperStamp }) {
-  const tone = stamp.passed === null ? 'border-amber-600 text-amber-700' : stamp.passed ? 'border-green-700 text-green-700' : 'border-red-700 text-red-700';
+  const tone = stamp.passed === null ? 'border-neutral-600 text-neutral-700' : stamp.passed ? 'border-green-700 text-green-700' : 'border-red-700 text-red-700';
   const word = stamp.passed === null ? (stamp.provisional ? 'Em correcção' : 'Sem cotação') : stamp.passed ? 'Positiva' : 'Negativa';
   return (
     <div
