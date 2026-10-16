@@ -298,8 +298,12 @@ export async function loadPaperMeta(statement: StatementFull): Promise<PaperMeta
     const result = await apiGet<{ name?: string | null }>(path);
     return result.ok ? result.data.name ?? null : null;
   };
-  const [subject, institution, year, klass] = await Promise.all([
-    name(statement.subjectId != null ? `/subjects/${statement.subjectId}` : null),
+  // `/subjects/{x}` procura pelo código e não pelo id, por isso a disciplina sai da lista.
+  const subjects = statement.subjectId != null ? await apiGet<{ id: number; name?: string | null }[]>('/subjects') : null;
+  const subject = subjects && subjects.ok && Array.isArray(subjects.data)
+    ? subjects.data.find((s) => s.id === statement.subjectId)?.name ?? null
+    : null;
+  const [institution, year, klass] = await Promise.all([
     name(statement.institutionId != null ? `/institutions/${statement.institutionId}` : null),
     statement.schoolYearId != null
       ? apiGet<{ startYear?: number; endYear?: number }>(`/school-years/${statement.schoolYearId}`)

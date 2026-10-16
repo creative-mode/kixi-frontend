@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { FileText, Loader2, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getRow } from '@/app/actions/crud';
+import { getRow, listRows } from '@/app/actions/crud';
 import { listQuestionImages } from '@/app/actions/media';
 import { ExamSheet } from '@/components/exam/exam-sheet';
 import { draftFromStatement } from '@/lib/exam/from-statement';
@@ -32,9 +32,10 @@ export function StatementSheet({ statement }: { statement: Row }) {
     if (sheet) return;
     setLoading(true);
     const questions: Row[] = statement.questions ?? [];
-    const [institution, subject, klass, year, lists] = await Promise.all([
+    const [institution, subjects, klass, year, lists] = await Promise.all([
       name('institutions', statement.institutionId),
-      name('subjects', statement.subjectId),
+      // `/subjects/{x}` procura pelo código e não pelo id, por isso a disciplina sai da lista.
+      listRows('subjects'),
       name('classes', statement.classId),
       name('school-years', statement.schoolYearId),
       Promise.all(questions.map(async (q) => {
@@ -44,7 +45,7 @@ export function StatementSheet({ statement }: { statement: Row }) {
     ]);
     setSheet(draftFromStatement(statement, {
       institution: institution?.name ?? null,
-      subject: subject?.name ?? null,
+      subject: subjects.ok ? (subjects.data.find((s) => Number(s.id) === Number(statement.subjectId))?.name ?? null) : null,
       grade: klass?.grade ?? null,
       schoolYear: year?.startYear ? `${year.startYear}/${year.endYear ?? ''}`.replace(/\/$/, '') : null,
       images: Object.fromEntries(lists),
