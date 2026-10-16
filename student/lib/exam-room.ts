@@ -17,11 +17,15 @@ import { phaseOf, translateRoomError, type Invitation, type Phase } from './exam
  *  `/statements/{id}/full`, porque o enunciado de uma sala não tem de estar publicado
  *  no catálogo. O tempo é o da simulação que o servidor criou para a sala. */
 
-/** `GET /exam-rooms/mine`. Uma falha não derruba a página das provas: sem convites,
- *  a secção simplesmente não aparece. */
-export async function listInvitations(): Promise<Invitation[]> {
+/** `GET /exam-rooms/mine`. A falha volta para a página em vez de virar `[]`:
+ *  uma secção escondida por um erro é indistinguível de "não há salas", e o
+ *  aluno fica à espera de uma sala que não tem como ver (#220). */
+export async function listInvitations(): Promise<Result<Invitation[]>> {
   const result = await apiGet<Invitation[]>('/exam-rooms/mine');
-  return result.ok && Array.isArray(result.data) ? result.data : [];
+  if (!result.ok) return result;
+  return Array.isArray(result.data)
+    ? result
+    : { ok: false, status: 200, message: 'Resposta inesperada do servidor.' };
 }
 
 export async function joinRoom(roomId: number): Promise<Result<{ simulationId: number | null }>> {

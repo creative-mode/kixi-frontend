@@ -29,8 +29,11 @@ const BADGE: Record<Phase, { label: string; variant: 'success' | 'warning' | 'se
 };
 
 /** A secção "Salas de prova": as provas controladas para que o professor convidou o
- *  aluno. Só aparece quando há convites. */
-export function SalasDeProva({ invitations }: { invitations: Invitation[] }) {
+ *  aluno. Só aparece quando há convites; com erro, aparece o aviso em vez de nada. */
+export function SalasDeProva({ invitations, invitationsError }: {
+  invitations: Invitation[];
+  invitationsError?: { message: string; status: number | null } | null;
+}) {
   // O relógio só arranca depois de montar: `Date.now()` no render diferia entre o
   // servidor e o browser, e o React acusava a divergência na hidratação.
   const [now, setNow] = useState<number | null>(null);
@@ -43,7 +46,22 @@ export function SalasDeProva({ invitations }: { invitations: Invitation[] }) {
     return () => clearInterval(tick);
   }, []);
 
-  if (invitations.length === 0) return null;
+  if (invitations.length === 0) {
+    if (!invitationsError) return null;
+    return (
+      <section aria-labelledby="salas-title" className="grid gap-3">
+        <h2 id="salas-title" className="flex items-center gap-2 text-lg font-bold"><DoorOpen className="size-5" aria-hidden /> Salas de prova</h2>
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">{invitationsError.message}</p>
+        {invitationsError.status === 401 ? (
+          <Button asChild variant="outline" className="justify-self-start">
+            <Link href="/entrar">Entrar de novo</Link>
+          </Button>
+        ) : (
+          <RefreshRoomsButton />
+        )}
+      </section>
+    );
+  }
   const list = sortInvitations(invitations);
 
   return (
@@ -57,6 +75,17 @@ export function SalasDeProva({ invitations }: { invitations: Invitation[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Tentar de novo volta a ler do servidor: a falha foi ao buscar, por isso não há
+ *  estado de cliente para repor. Separado para o botão viver fora do cartão. */
+function RefreshRoomsButton() {
+  const router = useRouter();
+  return (
+    <Button type="button" variant="outline" className="justify-self-start" onClick={() => router.refresh()}>
+      Tentar de novo
+    </Button>
   );
 }
 
