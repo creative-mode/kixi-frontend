@@ -292,3 +292,74 @@ export function gradesCsv(grades: Grade[]): string {
   ];
   return `\uFEFF${rows.map((r) => r.map(csvCell).join(';')).join('\r\n')}\r\n`;
 }
+
+/** A resposta aberta de um aluno, como `GET /exam-rooms/{id}/review` a devolve. */
+export interface ReviewAnswer {
+  answerId: number;
+  accountId: number;
+  displayName: string | null;
+  answerText: string | null;
+  status: 'PENDING_REVIEW' | 'GRADED';
+  scoreObtained: number | null;
+}
+
+/** Uma questão aberta da sala, com a chave (resposta modelo) e as respostas dos alunos. */
+export interface ReviewQuestion {
+  questionId: number;
+  number: number | null;
+  label: string | null;
+  parentId: number | null;
+  text: string;
+  maxScore: number | null;
+  modelAnswer: string | null;
+  answers: ReviewAnswer[];
+}
+
+export interface RoomReview {
+  questions: ReviewQuestion[];
+  pending: number;
+  graded: number;
+}
+
+export interface BulkGradeResult {
+  graded: number;
+  byKey: number;
+  failed: { answerId: number; message: string }[];
+}
+
+/** O que o professor escreveu: texto por resposta (vírgula decimal aceite). */
+export type ScoreDrafts = Record<number, string>;
+
+/** Converte o que se escreveu numa nota; `null` se estiver vazio ou for inválido ou acima da cotação. */
+export function parseScore(raw: string | undefined, max: number | null): number | null {
+  if (raw == null || raw.trim() === '') return null;
+  const value = Number(raw.replace(',', '.'));
+  if (!Number.isFinite(value) || value < 0) return null;
+  if (max != null && value > max) return null;
+  return value;
+}
+
+/** As notas a enviar: só as respostas por corrigir com uma nota válida escrita. */
+export function gradesToSend(review: RoomReview, drafts: ScoreDrafts): { answerId: number; score: number }[] {
+  const out: { answerId: number; score: number }[] = [];
+  for (const q of review.questions) {
+    for (const a of q.answers) {
+      if (a.status !== 'PENDING_REVIEW') continue;
+      const score = parseScore(drafts[a.answerId], q.maxScore);
+      if (score !== null) out.push({ answerId: a.answerId, score });
+    }
+  }
+  return out;
+}
+
+/** Respostas escritas que não valem: texto que não é número, negativo ou acima da cotação da questão. */
+export function invalidDrafts(review: RoomReview, drafts: ScoreDrafts): number[] {
+  const bad: number[] = [];
+  for (const q of review.questions) {
+    for (const a of q.answers) {
+      const raw = drafts[a.answerId];
+      if (a.status === 'PENDING_REVIEW' && raw != null && raw.trim() !== '' && parseScore(raw, q.maxScore) === null) bad.push(a.answerId);
+    }
+  }
+  return bad;
+}

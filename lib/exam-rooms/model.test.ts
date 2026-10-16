@@ -6,6 +6,9 @@ import {
   formatCountdown,
   formatWall,
   gradesCsv,
+  gradesToSend,
+  invalidDrafts,
+  parseScore,
   luandaNowInput,
   participantName,
   roomActions,
@@ -144,4 +147,38 @@ test('um parâmetro que não é um número, ou ausente, não pré-seleciona nada
   assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, '7; drop', false), null);
   assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, undefined, false), null);
   assert.equal(preselectFromStatement(ENUNCIADOS, TURMAS, null, false), null);
+});
+
+const review = {
+  pending: 3,
+  graded: 1,
+  questions: [
+    {
+      questionId: 1, number: 3, label: 'a', parentId: null, text: 'Explica', maxScore: 4, modelAnswer: 'x',
+      answers: [
+        { answerId: 10, accountId: 1, displayName: 'Ana', answerText: 'a', status: 'PENDING_REVIEW' as const, scoreObtained: null },
+        { answerId: 11, accountId: 2, displayName: 'Bruno', answerText: 'b', status: 'PENDING_REVIEW' as const, scoreObtained: null },
+        { answerId: 12, accountId: 3, displayName: 'Carla', answerText: 'c', status: 'GRADED' as const, scoreObtained: 2 },
+      ],
+    },
+  ],
+};
+
+test('a nota aceita vírgula decimal e recusa o vazio, o negativo e o que passa da cotação', () => {
+  assert.equal(parseScore('2,5', 4), 2.5);
+  assert.equal(parseScore('', 4), null);
+  assert.equal(parseScore('-1', 4), null);
+  assert.equal(parseScore('4,5', 4), null);
+  assert.equal(parseScore('abc', 4), null);
+  assert.equal(parseScore('9', null), 9);
+});
+
+test('só seguem as respostas por corrigir com nota válida; as já corrigidas ficam de fora', () => {
+  const drafts = { 10: '3', 11: '', 12: '1' };
+  assert.deepEqual(gradesToSend(review, drafts), [{ answerId: 10, score: 3 }]);
+});
+
+test('as notas inválidas são apontadas para o professor as ver', () => {
+  assert.deepEqual(invalidDrafts(review, { 10: '5', 11: '2' }), [10]);
+  assert.deepEqual(invalidDrafts(review, { 10: '', 11: '1' }), []);
 });
