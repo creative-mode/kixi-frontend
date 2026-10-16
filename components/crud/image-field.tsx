@@ -45,7 +45,6 @@ export function ImageField({
     <div className="flex items-center gap-4">
       <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-lg border bg-muted">
         {value ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt={kind === 'logo' ? 'Logótipo escolhido' : 'Foto escolhida'} className="size-full object-contain" />
         ) : (
           <ImagePlus className="size-6 text-muted-foreground" aria-hidden />

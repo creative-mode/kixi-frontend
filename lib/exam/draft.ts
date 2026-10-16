@@ -32,6 +32,8 @@ export interface DraftItem {
   kind?: LeafKind;
   /** Marked by the OCR import when the engine was not sure, so the teacher looks at it. */
   review?: boolean;
+  /** A resposta esperada de uma questão aberta, para a chave. Só o pessoal a recebe. */
+  modelAnswer?: string;
 }
 
 /** A figure, table or formula the OCR cut out of the page and tied to a question. It lives only in the open
@@ -52,6 +54,8 @@ export interface DraftQuestion {
   /** Only for `group`. */
   items?: DraftItem[];
   review?: boolean;
+  /** A resposta esperada de uma questão aberta, para a chave. Só o pessoal a recebe. */
+  modelAnswer?: string;
   /** Figures of the question, in page order. */
   images?: DraftImage[];
 }
