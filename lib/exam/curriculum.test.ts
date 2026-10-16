@@ -35,3 +35,15 @@ test('o professor só vê o que dá, dentro do currículo', () => {
   // atribuição fora do currículo (resíduo antigo) não abre nada
   assert.deepEqual(subjectChoices(base([{ classId: 2, subjectId: 11 }]), 2), []);
 });
+
+test('Matemática e Física mostram as turmas cujo currículo as dá; uma disciplina sem currículo não mostra nenhuma', () => {
+  const perClass = mergeCurricula([
+    { classId: 1, subjects: [{ subjectId: 20, name: 'Matemática' }, { subjectId: 21, name: 'Física' }] }, // 12ª Ciências
+    { classId: 2, subjects: [{ subjectId: 20, name: 'Matemática' }] }, // 12ª Humanidades
+  ]);
+  const c: CurriculumChoices = { ...perClass, classes: [{ value: 1, label: '12ª Ciências' }, { value: 2, label: '12ª Humanidades' }], assignments: null };
+  assert.deepEqual(classChoices(c, 20).map((k) => k.label), ['12ª Ciências', '12ª Humanidades']);
+  assert.deepEqual(classChoices(c, 21).map((k) => k.label), ['12ª Ciências']);
+  // 99 não está em nenhum currículo: não há turma a oferecer, em vez de a escolha ficar por explicar.
+  assert.deepEqual(classChoices(c, 99), []);
+});
