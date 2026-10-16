@@ -79,6 +79,21 @@ export function QuestionEditor({
           />
         )}
       </div>
+      {(item.images ?? []).length > 0 && (
+        <ul aria-label={`Figuras da questão ${n}`} className="flex flex-wrap gap-2 sm:pl-8">
+          {(item.images ?? []).map((image, k) => (
+            <li key={`${image.caption}-${k}`} className="grid gap-1 rounded-lg border bg-card p-1.5">
+              <img src={image.dataUrl} alt={image.caption} className="max-h-44 max-w-full rounded object-contain" />
+              <span className="flex items-center justify-between gap-2 px-1 text-[11px] text-muted-foreground">
+                <span className="truncate">{image.caption}</span>
+                <Button type="button" variant="ghost" size="sm" aria-label={`Retirar ${image.caption}`} onClick={() => onChange({ images: (item.images ?? []).filter((_, j) => j !== k) })}>
+                  <Trash2 size={14} aria-hidden />
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 pl-8">
         <NativeSelect value={kind} onChange={(e) => changeKind(e.target.value as QuestionKind)} aria-label={`Tipo da questão ${n}`} className="h-9 w-auto min-w-44">

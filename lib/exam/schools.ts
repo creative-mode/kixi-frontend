@@ -1,4 +1,4 @@
-import { kindOf, labelsFor, trueFalseOptions, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
+import { kindOf, labelsFor, trueFalseOptions, withoutImages, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
 
 export interface School {
   id: string;
@@ -136,7 +136,7 @@ export function normalizeDraft(saved: Partial<ExamDraft>): ExamDraft {
 }
 
 export const loadDraft = (): ExamDraft => normalizeDraft(read<Partial<ExamDraft>>(DRAFT_KEY, {}));
-export const saveDraft = (d: ExamDraft) => write(DRAFT_KEY, d);
+export const saveDraft = (d: ExamDraft) => write(DRAFT_KEY, withoutImages(d));
 
 /** Lê uma imagem e reduz-a (máx. 320px) para caber no armazenamento local. */
 export function imageToDataUri(file: File, max = 320): Promise<string> {
