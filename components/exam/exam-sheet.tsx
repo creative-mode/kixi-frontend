@@ -37,6 +37,19 @@ function Options({ options }: { options: DraftOption[] }) {
 
 const score = (points: number | '') => (points !== '' ? <span className="whitespace-nowrap"> ({points} val.)</span> : null);
 
+/** As figuras da questão (as que o OCR recortou), logo a seguir ao enunciado, como no papel. */
+function Figures({ item }: { item: ExamItem }) {
+  const images = item.images ?? [];
+  if (images.length === 0) return null;
+  return (
+    <span className="my-1.5 flex flex-wrap gap-2">
+      {images.map((image, k) => (
+        <img key={k} src={image.dataUrl} alt={image.caption} className="max-h-40 max-w-full object-contain" />
+      ))}
+    </span>
+  );
+}
+
 /** Uma questão no papel: o enunciado e, conforme o tipo, as linhas de resposta, as opções ou as alíneas. */
 function Question({ item }: { item: ExamItem }) {
   const kind = kindOf(item);
@@ -45,6 +58,7 @@ function Question({ item }: { item: ExamItem }) {
     return (
       <>
         {item.text}
+        <Figures item={item} />
         {subs.length > 0 && (
           <ol className="mt-1 list-none space-y-1.5 pl-2">
             {subs.map((sub, j) => {
@@ -70,6 +84,7 @@ function Question({ item }: { item: ExamItem }) {
   return (
     <>
       {item.text}
+      <Figures item={item} />
       {kind === 'true_false' && <span className="whitespace-nowrap"> (&nbsp;&nbsp;&nbsp;)</span>}
       {score(item.points)}
       {kind === 'multiple_choice' && item.options.length > 0 && <Options options={item.options} />}

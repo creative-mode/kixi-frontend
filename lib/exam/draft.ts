@@ -34,6 +34,15 @@ export interface DraftItem {
   review?: boolean;
 }
 
+/** A figure, table or formula the OCR cut out of the page and tied to a question. It lives only in the open
+ *  builder (the draft kept in the browser leaves it out: a picture does not fit there), and is sent once the
+ *  exam is saved, to the question it belongs to. */
+export interface DraftImage {
+  dataUrl: string;
+  caption: string;
+  kind?: string;
+}
+
 export interface DraftQuestion {
   text: string;
   /** `''` means "not scored yet". It is not the same as zero, and the difference matters below. */
@@ -43,6 +52,27 @@ export interface DraftQuestion {
   /** Only for `group`. */
   items?: DraftItem[];
   review?: boolean;
+  /** Figures of the question, in page order. */
+  images?: DraftImage[];
+}
+
+/** What goes to the server after the exam is created: each figure with the number its question gets
+ *  (the position among the questions that are sent, as `toRequest` filters out the empty ones). */
+export interface Figure {
+  number: number;
+  caption: string;
+  dataUrl: string;
+}
+
+export function figuresOf(questions: DraftQuestion[]): Figure[] {
+  return questions
+    .filter((q) => q.text.trim())
+    .flatMap((q, i) => (q.images ?? []).map((image) => ({ number: i + 1, caption: image.caption, dataUrl: image.dataUrl })));
+}
+
+/** The draft without its figures, which is how it is kept in the browser. */
+export function withoutImages<T extends { items: DraftQuestion[] }>(draft: T): T {
+  return { ...draft, items: draft.items.map((question) => { const kept = { ...question }; delete kept.images; return kept; }) };
 }
 
 /** The two options of a true/false question: the backend has no boolean answer, it grades by the

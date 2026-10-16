@@ -16,7 +16,8 @@ import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
-import { distributeScore, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { attachFigures } from '@/app/actions/media';
+import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
@@ -127,6 +128,10 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     const res = publish ? await publishManualStatement(payload) : await createManualStatement({ ...payload, visible: false });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
+    // As figuras que o OCR recortou seguem para as questões a que pertencem, agora que elas têm id.
+    const figures = figuresOf(draft.items);
+    const sent = figures.length > 0 ? await attachFigures(Number(res.data.id), figures) : null;
+    if (sent && sent.failed > 0) toast.error(`${sent.failed} figura(s) não seguiram com a prova. Junte-as à questão na prova guardada.`);
     setSaved({ id: Number(res.data.id), title: String(res.data.title ?? payload.title), published: publish, snapshot: JSON.stringify(draft) });
     // A prova nasceu de uma doação: liga-as, e a doação passa a «convertida». Falhar aqui não
     // desfaz a prova (já existe); avisa-se para a ligação se refazer na doação.
