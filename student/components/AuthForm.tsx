@@ -14,10 +14,10 @@ import { cadastroAction, entrarAction, type FormState } from '@/lib/auth-actions
 
 type Errors = Record<string, string>;
 
-function Submit({ children }: { children: React.ReactNode }) {
+function Submit({ children, testId }: { children: React.ReactNode; testId?: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" className="w-full" disabled={pending} aria-busy={pending}>
+    <Button type="submit" size="lg" className="w-full" disabled={pending} aria-busy={pending} data-testid={testId}>
       {pending && <Loader2 className="animate-spin" />}
       {pending ? 'A processar…' : children}
     </Button>
@@ -75,7 +75,7 @@ export function EntrarForm() {
             <PasswordInput id="password" name="password" autoComplete="current-password" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-err' : undefined} />
             <FieldError id="password-err">{errors.password}</FieldError>
           </Field>
-          <Submit>Entrar</Submit>
+          <Submit testId="aluno-entrar-submeter">Entrar</Submit>
         </FieldGroup>
       </form>
       <p className="text-center text-sm text-muted-foreground">
@@ -166,7 +166,7 @@ export function CadastroForm() {
             <PasswordInput id="confirm" name="confirm" autoComplete="new-password" {...bad('confirm')} />
             <FieldError id="confirm-err">{errors.confirm}</FieldError>
           </Field>
-          <Submit>Criar conta</Submit>
+          <Submit testId="aluno-cadastro-submeter">Criar conta</Submit>
         </FieldGroup>
       </form>
       <p className="text-center text-sm text-muted-foreground">
