@@ -1149,30 +1149,6 @@ export async function mockHandle(
     return json(summaryOf(row));
   }
 
-  // GET /statements/{id}/questions — o QuestionResponse de um aluno: sem `modelAnswer`
-  // e sem `needsReview`, que é o que o `QuestionController` faz com quem não escreve
-  // o enunciado. O tutor lê esta lista para o selector de «explicar questão».
-  const questionsOf = pathname.match(/^\/statements\/(\d+)\/questions$/);
-  if (questionsOf && method === 'GET') {
-    const row = findVisible(db.statements, Number(questionsOf[1]));
-    if (!row) return problem(404, 'Statement not found');
-    const ids = QUESTIONS_BY_STATEMENT[row.id] ?? [];
-    return json(
-      ids
-        .map((id) => db.questions.find((q) => q.id === id))
-        .filter((q): q is MockQuestion => Boolean(q))
-        .map((question) => ({
-          id: question.id,
-          statementId: row.id,
-          number: question.number,
-          text: question.text,
-          questionType: question.questionType,
-          maxScore: question.maxScore,
-          orderIndex: question.orderIndex,
-        })),
-    );
-  }
-
   // ── comunidade e partilha de resoluções (#119/#32) ──────────────────────────
   const community = pathname.match(/^\/statements\/(\d+)\/community$/);
   if (community && method === 'GET') {

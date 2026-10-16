@@ -41,9 +41,25 @@ export interface PaperQuestion {
   text: string;
 }
 
-/** The body to open one session, with only the optional fields that exist. */
+/** Same cap as `ChatSessionRequest.studentAnswer` in the backend. */
+export const MAX_STUDENT_ANSWER = 2000;
+
+/** The two modes that are about one named question. Without a chosen question they
+ *  have nothing to explain, so the backend refuses them and so does the picker. */
+export function modeNeedsQuestion(mode: ChatMode): boolean {
+  return mode === 'EXPLAIN_QUESTION' || mode === 'SIMILAR_EXERCISES';
+}
+
+/** The body to open one session, with only the optional fields that exist.
+ *
+ *  The question context belongs to the question modes and to nothing else. The picker
+ *  is hidden in `CONCEPT`, so a question chosen a moment earlier is still sitting in
+ *  state; sending it would make the backend cite as the source of a concept answer a
+ *  question the student never asked about. So the context is dropped, not merely
+ *  ignored. */
 export function buildSessionPayload(session: SessionPayload): Record<string, unknown> {
   const payload: Record<string, unknown> = { statementId: session.statementId, mode: session.mode };
+  if (!modeNeedsQuestion(session.mode)) return payload;
   if (session.questionId !== undefined) payload.questionId = session.questionId;
   const studentAnswer = session.studentAnswer?.trim();
   if (studentAnswer) payload.studentAnswer = studentAnswer.slice(0, MAX_STUDENT_ANSWER);
@@ -54,9 +70,6 @@ export function buildSessionPayload(session: SessionPayload): Record<string, unk
 export function buildMessagePayload(content: string): Record<string, unknown> {
   return { content: content.trim() };
 }
-
-/** Same cap as `ChatSessionRequest.studentAnswer` in the backend. */
-export const MAX_STUDENT_ANSWER = 2000;
 
 /** How much of an answer a link carries, and how many. Well under the 2000 the
  *  turn itself accepts: the text is context for the explanation, not the essay. */
@@ -111,7 +124,9 @@ function toEvent(payload: unknown): StreamEvent | null {
       type: 'final',
       messageId: typeof p.messageId === 'number' ? p.messageId : null,
       model: typeof p.model === 'string' ? p.model : null,
-      sources: Array.isArray(p.sources) ? p.sources.filter(isSource) : [],
+      sources: Array.isArray(p.sources)
+        ? p.sources.map(toSource).filter((source): source is ChatSource => source !== null)
+        : [],
     };
   }
   if (p.type === 'error') {
@@ -124,10 +139,24 @@ function toEvent(payload: unknown): StreamEvent | null {
   return null;
 }
 
-function isSource(value: unknown): value is ChatSource {
-  if (!value || typeof value !== 'object') return false;
+/** One `TutorSource`, with every field read as its declared type.
+ *
+ *  `TutorSource` declares all five fields optional, so "the field is missing" is the
+ *  normal case and not an edge case: a plain `{ kind }` is what arrives when the
+ *  backend had nothing but a kind to report. Checking only `kind` and casting the
+ *  rest would leave `statementId`/`questionNumber` as whatever came over the wire
+ *  while the type promised `number | null` — and the source key is built from them. */
+function toSource(value: unknown): ChatSource | null {
+  if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
-  return typeof source.kind === 'string';
+  if (typeof source.kind !== 'string' || !source.kind) return null;
+  return {
+    kind: source.kind,
+    statementId: typeof source.statementId === 'number' ? source.statementId : null,
+    statementTitle: typeof source.statementTitle === 'string' ? source.statementTitle : null,
+    questionId: typeof source.questionId === 'number' ? source.questionId : null,
+    questionNumber: typeof source.questionNumber === 'number' ? source.questionNumber : null,
+  };
 }
 
 export type Role = 'student' | 'tutor';
@@ -142,6 +171,10 @@ export interface ChatMessage {
   failed?: string;
   /** What the answer was built from, as the final event reported it. */
   sources?: ChatSource[];
+  /** The question this answer was about, when the turn named one. Kept on the message
+   *  because the picker can move on afterwards, and "exercises like **this** question"
+   *  has to mean the question this answer covered, not whatever is selected now. */
+  questionId?: number | null;
 }
 
 /** Applies one event to the answer being written, which is always the last message. */

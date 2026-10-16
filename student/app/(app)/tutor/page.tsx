@@ -34,16 +34,25 @@ export default async function TutorPage({
   const draft = studyPrompt(review);
   const wrongAnswers = parseWrongAnswers(query.respostas);
 
+  // The number in the link is not the question: it has to be found among the paper's
+  // questions before it can be chosen. `EXPLAIN_QUESTION` without a chosen question
+  // refuses every turn, so if the paper's questions did not load — or the link names
+  // one past what the picker lists — the mode falls back to CONCEPT rather than opening
+  // on a question that was never resolved.
+  const firstReview = review[0] ?? null;
+  const reviewQuestion =
+    firstReview == null ? null : questions.find((question) => question.number === firstReview) ?? null;
+
   return (
     <TutorChat
       statementId={statementId}
       paperTitle={paperTitle}
       initialDraft={draft}
-      // Arriving with questions to review means arriving to explain one, with the
-      // first of them already chosen — otherwise the drafted message would be sent
-      // in the mode the student did not ask for.
-      initialMode={review.length > 0 ? 'EXPLAIN_QUESTION' : 'CONCEPT'}
-      initialQuestionNumber={review[0] ?? null}
+      // Arriving with a resolved question to review means arriving to explain one,
+      // with it already chosen — otherwise the drafted message would be sent in the
+      // mode the student did not ask for.
+      initialMode={reviewQuestion ? 'EXPLAIN_QUESTION' : 'CONCEPT'}
+      initialQuestionNumber={reviewQuestion?.number ?? null}
       questions={questions}
       wrongAnswers={wrongAnswers}
     />

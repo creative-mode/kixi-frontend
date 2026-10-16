@@ -21,6 +21,7 @@ import {
   buildMessagePayload,
   buildSessionPayload,
   describeHttpFailure,
+  modeNeedsQuestion,
   parseRetryAfter,
   parseSse,
   type ChatMessage,
@@ -161,13 +162,17 @@ export function TutorChat({
 
   const ask = useCallback(async (
     content: string,
-    { repeat = false, asMode }: { repeat?: boolean; asMode?: ChatMode } = {},
+    { repeat = false, asMode, asQuestionId }: { repeat?: boolean; asMode?: ChatMode; asQuestionId?: number | null } = {},
   ) => {
     const text = content.trim();
     if (!text || busy || statementId == null) return;
+    // `asMode`/`asQuestionId` carry what the caller wants, not what the state still
+    // says: setState is asynchronous, so a button that switched the mode and asked in
+    // the same click would otherwise send the previous turn's context.
     const desiredMode = asMode ?? mode;
-    const selected = questions.find((question) => question.id === questionId) ?? null;
-    if ((desiredMode === 'EXPLAIN_QUESTION' || desiredMode === 'SIMILAR_EXERCISES') && !selected) {
+    const desiredQuestionId = asQuestionId === undefined ? questionId : asQuestionId;
+    const selected = questions.find((question) => question.id === desiredQuestionId) ?? null;
+    if (modeNeedsQuestion(desiredMode) && !selected) {
       setNotice('Escolhe uma questão para esse modo.');
       return;
     }
@@ -180,8 +185,6 @@ export function TutorChat({
 
     const sessionPayload = buildSessionPayload({
       statementId,
-      // `asMode` carries the mode the caller wants: setMode is asynchronous, so a
-      // button that switched the mode and asked in the same click would send the old one.
       mode: desiredMode,
       questionId: selected?.id,
       studentAnswer: answerTo(wrongAnswers, selected?.number ?? null),
@@ -193,7 +196,7 @@ export function TutorChat({
     setMessages((prev) => {
       const base = repeat ? prev.filter((m) => !(m.role === 'tutor' && m.failed && m.text === '')) : prev;
       const withStudent = repeat ? base : [...base, { id: nextId.current, role: 'student' as const, text }];
-      return [...withStudent, { id: tutorId, role: 'tutor' as const, text: '', streaming: true }];
+      return [...withStudent, { id: tutorId, role: 'tutor' as const, text: '', streaming: true, questionId: selected?.id ?? null }];
     });
     nextId.current = tutorId + 1;
     if (!repeat) setDraft('');
@@ -284,10 +287,13 @@ export function TutorChat({
 
   const limit = draft.length > MAX_MESSAGE;
   const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
-  const modeNeedsQuestion = mode === 'EXPLAIN_QUESTION' || mode === 'SIMILAR_EXERCISES';
+  const needsQuestion = modeNeedsQuestion(mode);
   // Only the latest finished answer offers it: asking again on every bubble would
-  // stack copies of the same request.
-  const lastAnswerId = [...messages].reverse().find((m) => m.role === 'tutor' && !m.streaming)?.id;
+  // stack copies of the same request. And only when that answer was about a question:
+  // "exercises like this one" needs a "this one", and the request it opens is refused
+  // without it.
+  const lastAnswer = [...messages].reverse().find((m) => m.role === 'tutor' && !m.streaming);
+  const lastAnswerQuestionId = lastAnswer?.questionId ?? null;
   const selectedAnswer = answerTo(wrongAnswers, selectedQuestion?.number ?? null);
 
   return (
@@ -325,7 +331,7 @@ export function TutorChat({
                       <TriangleAlert className="size-3.5" aria-hidden />{m.failed}
                     </div>
                   )}
-                  {m.id === lastAnswerId && !m.failed && (
+                  {m.id === lastAnswer?.id && !m.failed && lastAnswerQuestionId != null && (
                     <div className="mt-2 border-t pt-2">
                       <Button
                         type="button"
@@ -334,8 +340,14 @@ export function TutorChat({
                         className="text-xs"
                         disabled={busy || statementId == null}
                         onClick={() => {
+                          // The mode and the question travel in the call, not in the state:
+                          // this is the same click that asks, and setState lands after it.
                           setMode('SIMILAR_EXERCISES');
-                          void ask('Dá-me exercícios parecidos com esta questão, para eu tentar antes de ver as soluções.', { asMode: 'SIMILAR_EXERCISES' });
+                          setQuestionId(lastAnswerQuestionId);
+                          void ask('Dá-me exercícios parecidos com esta questão, para eu tentar antes de ver as soluções.', {
+                            asMode: 'SIMILAR_EXERCISES',
+                            asQuestionId: lastAnswerQuestionId,
+                          });
                         }}
                       >
                         Fazer exercício semelhante
@@ -386,7 +398,7 @@ export function TutorChat({
                 </Button>
               ))}
             </div>
-            {modeNeedsQuestion && questions.length > 0 && (
+            {needsQuestion && questions.length > 0 && (
               <div className="grid gap-1.5">
                 <label htmlFor="tutor-question" className="text-xs font-medium text-muted-foreground">
                   {mode === 'SIMILAR_EXERCISES'
@@ -399,7 +411,12 @@ export function TutorChat({
                   onChange={(e) => setQuestionId(e.target.value ? Number(e.target.value) : null)}
                   disabled={busy}
                 >
-                  <option value="">A prova toda</option>
+                  {/* In a mode that is about one question, "the whole paper" is not a
+                    * choice: the turn is refused without a question. Offering it as a
+                    * selectable option is offering something that cannot be sent, so it
+                    * stays visible — the student still needs to see the list start here —
+                    * but it cannot be picked. */}
+                  <option value="" disabled>A prova toda</option>
                   {questions.map((question) => (
                     <option key={question.id} value={question.id}>
                       Questão {question.number}: {question.text.slice(0, 60)}
@@ -411,7 +428,7 @@ export function TutorChat({
                 )}
               </div>
             )}
-            {modeNeedsQuestion && questions.length === 0 && (
+            {needsQuestion && questions.length === 0 && (
               <p className="text-xs text-muted-foreground">Este modo precisa de uma questão da prova.</p>
             )}
             {notice && (

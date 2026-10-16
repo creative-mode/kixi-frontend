@@ -8,6 +8,7 @@ import {
   buildSessionPayload,
   describeHttpFailure,
   formatWait,
+  modeNeedsQuestion,
   parseQuestionNumbers,
   parseRetryAfter,
   parseSse,
@@ -51,6 +52,37 @@ test('final e erro trazem o que o backend envia', () => {
 test('um final sem fontes é um final antigo, não um evento quebrado', () => {
   const [event] = parseSse(ev('final', { messageId: 9, model: 'm' })).events;
   assert.deepEqual(event, { type: 'final', messageId: 9, model: 'm', sources: [] });
+});
+
+test('uma fonte incompleta vem normalizada, não com campos pela metade', () => {
+  // `TutorSource` declara os cinco campos opcionais, então uma fonte sem título nem
+  // número é o caso normal. Antes these fields passavam through como `undefined`
+  // enquanto o tipo prometia `null`, e a chave da fonte era feita deles.
+  const [event] = parseSse(
+    ev('final', { messageId: 9, model: 'm', sources: [{ kind: 'STATEMENT' }, { kind: 'QUESTION', questionId: 4, questionNumber: 'quatro' }] }),
+  ).events;
+  assert.deepEqual(event, {
+    type: 'final',
+    messageId: 9,
+    model: 'm',
+    sources: [
+      { kind: 'STATEMENT', statementId: null, statementTitle: null, questionId: null, questionNumber: null },
+      { kind: 'QUESTION', statementId: null, statementTitle: null, questionId: 4, questionNumber: null },
+    ],
+  });
+});
+
+test('uma fonte sem kind não é fonte', () => {
+  const [event] = parseSse(
+    ev('final', { messageId: 9, model: 'm', sources: [{ statementId: 3 }, null, 'STATEMENT'] }),
+  ).events;
+  assert.deepEqual(event, { type: 'final', messageId: 9, model: 'm', sources: [] });
+});
+
+test('só os modos de pergunta pedem uma questão escolhida', () => {
+  assert.equal(modeNeedsQuestion('EXPLAIN_QUESTION'), true);
+  assert.equal(modeNeedsQuestion('SIMILAR_EXERCISES'), true);
+  assert.equal(modeNeedsQuestion('CONCEPT'), false);
 });
 
 test('as deltas acumulam na resposta do tutor e o final fecha-a', () => {
@@ -127,14 +159,27 @@ test('a mensagem leva só o conteúdo', () => {
   });
 });
 
+test('a pergunta escolhida não viaja para um turno de conceito', () => {
+  // O selector desaparece em CONCEPT, mas a escolha continua no estado. Enviá-la na
+  // mesma fez o backend citar como fonte de uma resposta de conceito uma questão
+  // que o aluno nunca perguntou.
+  const payload = buildSessionPayload({
+    statementId: 1,
+    mode: 'CONCEPT',
+    questionId: 2,
+    studentAnswer: '/24',
+  });
+  assert.deepEqual(payload, { statementId: 1, mode: 'CONCEPT' });
+});
+
 test('uma resposta errada vazia não viaja: o campo é opcional', () => {
-  const payload = buildSessionPayload({ statementId: 1, mode: 'CONCEPT', questionId: 2, studentAnswer: '   ' });
+  const payload = buildSessionPayload({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 2, studentAnswer: '   ' });
   assert.equal('studentAnswer' in payload, false);
   assert.equal(payload.questionId, 2);
 });
 
 test('a resposta errada é limitada ao mesmo tamanho que o backend aceita', () => {
-  const payload = buildSessionPayload({ statementId: 1, mode: 'CONCEPT', studentAnswer: 'z'.repeat(5000) });
+  const payload = buildSessionPayload({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 2, studentAnswer: 'z'.repeat(5000) });
   assert.equal((payload.studentAnswer as string).length, MAX_STUDENT_ANSWER);
 });
 

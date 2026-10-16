@@ -450,6 +450,14 @@ async function main() {
         ? null : `selector ${temSelector}, escolha ${temEscolha}, resposta ${temResposta}`;
     });
 
+    // A resposta do aluno é contexto: se o tipo não for texto, o turno segue sem a
+    // resposta que o chamador julgava ter enviado — e isso é pior do que recusar.
+    const respostaNaoTexto = await fetch(`${BASE}/aluno/api/tutor/sessions`, {
+      method: 'POST', headers: json,
+      body: JSON.stringify({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 1, studentAnswer: 42 }),
+    });
+    registar('uma resposta que não é texto é 400, não um turno sem resposta', respostaNaoTexto.status === 400 ? null : `veio ${respostaNaoTexto.status}`);
+
     const alheia = await fetch(`${BASE}/aluno/api/tutor/sessions/9999/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'olá' }) });
     registar('uma sessão que não é da conta é 404', alheia.status === 404 ? null : `veio ${alheia.status}`);
 

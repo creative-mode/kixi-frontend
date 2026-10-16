@@ -1,4 +1,5 @@
 import { forwardToTutor } from '@/lib/tutor-proxy';
+import { MAX_STUDENT_ANSWER } from '@/lib/tutor-rules';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,9 +32,20 @@ export async function POST(request: Request) {
   if (selectedOptionId !== undefined && (!Number.isInteger(selectedOptionId) || selectedOptionId <= 0)) {
     return Response.json({ message: 'A opção selecionada é inválida.' }, { status: 400 });
   }
-  const studentAnswer = typeof body?.studentAnswer === 'string' ? body.studentAnswer : undefined;
-  if (studentAnswer !== undefined && studentAnswer.length > 2000) {
-    return Response.json({ message: 'A resposta passa os 2000 caracteres.' }, { status: 400 });
+  // Every other field on this route is rejected when it is the wrong type. This one
+  // was coerced instead: `studentAnswer: 42` arrived, read as `undefined` and was
+  // dropped, so the turn went on without the answer the caller believed it had sent.
+  // A context field that is silently discarded is worse than one refused — the default
+  // here is to reject.
+  if (body?.studentAnswer !== undefined && typeof body.studentAnswer !== 'string') {
+    return Response.json({ message: 'A resposta do aluno tem de ser texto.' }, { status: 400 });
+  }
+  // Blank is no answer, not an empty answer: `minLength: 0` on the wire would carry an
+  // empty string as if the student had written nothing on purpose.
+  const written = typeof body?.studentAnswer === 'string' ? body.studentAnswer.trim() : '';
+  const studentAnswer = written === '' ? undefined : written;
+  if (studentAnswer !== undefined && studentAnswer.length > MAX_STUDENT_ANSWER) {
+    return Response.json({ message: `A resposta passa os ${MAX_STUDENT_ANSWER} caracteres.` }, { status: 400 });
   }
   if ((selectedOptionId !== undefined || studentAnswer !== undefined) && questionId === undefined) {
     return Response.json({ message: 'A resposta do aluno precisa da questão.' }, { status: 400 });
