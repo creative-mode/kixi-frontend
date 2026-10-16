@@ -3,7 +3,7 @@
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { displayNumber, isGroup } from '@/lib/exam/display';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Check, Eye, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, Eye, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   approveStatement,
+  createStatementQuestion,
+  deleteStatementQuestion,
   getStatementForReview,
   listOptions,
   myInstitutions,
+  reorderStatementQuestions,
   reviewChoices,
   saveStatementReview,
   setStatementVisible,
@@ -306,6 +309,53 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   const patchQ = (qid: number, patch: Partial<QuestionDraft>) =>
     setQuestions((qs) => (qs ? qs.map((q) => (q.id === qid ? { ...q, ...patch } : q)) : qs));
 
+  /** #165: cria a pergunta no servidor (number/orderIndex vêm de lá) e recarrega. */
+  async function addQuestion() {
+    if (!questions) return;
+    setSaving(true);
+    const res = await createStatementQuestion(id, { text: 'Nova questão', questionType: 'open', maxScore: 0, modelAnswer: null });
+    if (!res.ok) {
+      setSaving(false);
+      toast.error(res.error);
+      return;
+    }
+    await load();
+    setSaving(false);
+    toast.success('Questão adicionada. Edite o texto e a cotação.');
+  }
+
+  function removeQuestion(q: QuestionDraft) {
+    const label = `${q.parentId != null ? 'a alínea' : 'a questão'} ${questions ? displayNumber(q, questions) : q.number}`;
+    setConfirm({
+      title: `Remover ${label}?`,
+      description: 'A questão sai do enunciado. As imagens que tenha ficam órfãs.',
+      action: 'Remover',
+      destructive: true,
+      run: async () => {
+        setSaving(true);
+        const res = await deleteStatementQuestion(id, q.id);
+        if (!res.ok) toast.error(res.error);
+        else toast.success('Questão removida.');
+        await load();
+        setSaving(false);
+      },
+    });
+  }
+
+  /** #165: sobe/desce a questão (só orderIndex mexe; number é estável). */
+  async function moveQuestion(index: number, dir: -1 | 1) {
+    if (!questions) return;
+    const next = [...questions];
+    const other = index + dir;
+    if (other < 0 || other >= next.length) return;
+    [next[index], next[other]] = [next[other], next[index]];
+    setSaving(true);
+    const res = await reorderStatementQuestions(id, next.map((q) => q.id));
+    if (!res.ok) toast.error(res.error);
+    await load();
+    setSaving(false);
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
       <div className="flex flex-wrap items-center gap-3">
@@ -378,7 +428,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       <Card>
         <CardHeader><CardTitle className="text-base">Questões e gabarito ({questions.length})</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {questions.map((q) => (
+          {questions.map((q, qi) => (
             <div key={q.id} className={`rounded-lg border p-4 ${q.parentId != null ? 'ml-6 border-dashed' : ''}`}>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <strong>{q.parentId != null ? 'Alínea' : 'Questão'} {displayNumber(q, questions)}</strong>
@@ -392,6 +442,11 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                     <Input inputMode="decimal" value={q.maxScore} onChange={(e) => patchQ(q.id, { maxScore: e.target.value })} className="w-20" aria-label={`Cotação da questão ${displayNumber(q, questions)}`} />
                   </label>
                 )}
+                <span className="flex items-center gap-1">
+                  <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || qi === 0} aria-label={`Subir questão ${displayNumber(q, questions)}`} onClick={() => void moveQuestion(qi, -1)}><ChevronUp size={14} /></Button>
+                  <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || qi === questions.length - 1} aria-label={`Descer questão ${displayNumber(q, questions)}`} onClick={() => void moveQuestion(qi, 1)}><ChevronDown size={14} /></Button>
+                  <Button type="button" size="icon" variant="ghost" className="size-7 hover:bg-danger-soft hover:text-destructive" disabled={saving} aria-label={`Remover questão ${displayNumber(q, questions)}`} onClick={() => removeQuestion(q)}><Trash2 size={14} /></Button>
+                </span>
               </div>
               <textarea value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value })} rows={2} className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" aria-label={`Texto da questão ${displayNumber(q, questions)}`} />
               {/* Como o servidor: é ter opções que faz a questão precisar de resposta correta, não o tipo. */}
@@ -419,12 +474,13 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                 </label>
               )}
               {/* #165: o mesmo controlo da vista de leitura — anexar figuras DURANTE a revisão.
-                  Grava de imediato (POST /api/v1/question-images), independente do Guardar revisão.
-                  Só para questões persistidas (id > 0): sem POST /statements/{id}/questions no
-                  backend, questão nova ainda não tem id e não pode receber imagens. */}
+                  Grava de imediato (POST /api/v1/question-images), independente do Guardar revisão. */}
               {q.id > 0 ? <QuestionImages questionId={q.id} /> : null}
             </div>
           ))}
+          <Button type="button" variant="outline" onClick={() => void addQuestion()} disabled={saving}>
+            <Plus size={16} aria-hidden /> Adicionar questão
+          </Button>
         </CardContent>
       </Card>
 
