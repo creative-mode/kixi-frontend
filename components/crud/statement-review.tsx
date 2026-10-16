@@ -252,7 +252,14 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       return false;
     }
     setSaving(true);
-    const res = await saveStatementReview(id, toStatementInput(header, courseId, sumOfScores(questions.map((q) => ({ maxScore: score(q.maxScore) })))), questionEdits(original.questions, questions));
+    // Uma ação que nem chega ao servidor (página de uma versão anterior, rede em baixo) lança em vez de devolver
+    // `ok: false`: sem isto o botão ficava a rodar e nada era dito.
+    const res = await saveStatementReview(id, toStatementInput(header, courseId, sumOfScores(questions.map((q) => ({ maxScore: score(q.maxScore) })))), questionEdits(original.questions, questions)).catch(() => null);
+    if (!res) {
+      setSaving(false);
+      toast.error('Não foi possível gravar: a página pode ser de uma versão anterior ou a ligação falhou. Recarregue e tente de novo.');
+      return false;
+    }
     if (!res.ok) {
       setSaving(false);
       toast.error(res.error);
