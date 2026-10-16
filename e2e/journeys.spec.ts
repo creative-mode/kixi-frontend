@@ -88,7 +88,9 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('link', { name: 'Começar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
-    await expect(page.getByText(/^Questão 1 de \d+$/)).toBeVisible();
+    // O cabeçalho passou a ser "Questão 2 (1 de 12)": o número de exibição e o
+// índice de posição deixaram de ser a mesma coisa.
+await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Resposta deliberadamente errada para o resultado oferecer a ligação ao tutor.
     // Clica-se na linha da opção, não no input: o radio é `sr-only` e o círculo
     // visível é um `<span>` sobreposto, por isso `.check()` no input nunca chega lá.
@@ -108,27 +110,43 @@ test.describe('jornadas críticas do Kixi', () => {
 
   test('professor: OCR, revisão, gabarito, publicação e sala', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
-    await page.goto('/manager/statements/import');
-    await page.getByLabel('Escolher ficheiros').setInputFiles({
+    // `/statements/import` passou a redireccionar para o construtor com o importador
+    // já aberto, e a prova é extraída para um rascunho em memória: não há navegação.
+    await page.goto('/manager/exam-builder?importar=1');
+    // O `CardTitle` do importador é um `div`, não um heading.
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
       name: 'ocr-sample.pdf',
       mimeType: 'application/pdf',
       buffer: samplePdf(),
     });
     await page.getByTestId('gestor-statements-import-submeter').click();
-    await expect(page).toHaveURL(/\/manager\/statements\/\d+/);
-    await expect(page.getByText('ocr sample')).toBeVisible();
-    await page.getByRole('button', { name: 'Rever enunciado' }).click();
-    await expect(page.getByRole('heading', { name: 'Rever enunciado' })).toBeVisible();
-    await page.getByLabel('Escola').selectOption({ label: 'Instituto de Telecomunicações' });
-    await page.getByLabel('Turma').selectOption({ index: 1 });
-    await page.getByLabel('Disciplina').selectOption({ index: 1 });
-    await page.getByLabel('Marcar B como correta na questão 1').check();
-    await page.getByTestId('gestor-statements-publicar').click();
-    await expect(page.getByText('Prova aprovada e publicada no catálogo do aluno.')).toBeVisible();
 
-    await page.goto('/manager/exam-rooms/new');
-    await page.locator('#room-class').selectOption({ index: 1 });
-    await page.locator('#room-statement').selectOption({ label: 'ocr sample' });
+    // O extrato entra no rascunho. Publicar exige disciplina e turma — o proprio
+    // botao diz isso no `title` — e so depois de a prova existir.
+    await expect(page.getByText('ocr-sample.pdf')).toBeVisible();
+    // O `Field` do construtor renderiza o `<Label>` sem `htmlFor`, portanto
+    // `getByLabel` nao chega aqui. Os selects vao por posicao, como no flow.mjs:
+    // Escola, Disciplina, Turma.
+    const selects = page.locator('select');
+    await selects.nth(1).selectOption({ index: 1 });
+    await selects.nth(2).selectOption({ index: 1 });
+
+    // Publicar é bloqueado enquanto a prova tiver problemas, e o construtor diz
+    // quais: o OCR não traz cotação nem adivinha o gabarito. Resolve-se o que a
+    // própria página complains, em vez de fixar números que o mock pode mudar.
+    await page.getByRole('button', { name: 'Distribuir 20 valores' }).click();
+    for (const grupo of await page.getByRole('radiogroup').all()) {
+      const nome = (await grupo.getAttribute('aria-label')) ?? '';
+      if (!nome.includes('Resposta da questão')) continue;
+      if ((await grupo.getByRole('radio', { name: 'Verdadeiro' }).getAttribute('aria-checked')) === 'true') continue;
+      await grupo.getByRole('radio', { name: 'Verdadeiro' }).click();
+    }
+    await page.getByRole('button', { name: 'Publicar' }).click();
+    await expect(page.getByText('Prova publicada. Os alunos já a podem simular.')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Criar sala com esta prova' }).click();
+    await expect(page).toHaveURL(/\/manager\/exam-rooms\/new\?statementId=/);
     await page.getByRole('button', { name: 'Criar sala' }).click();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/\d+/);
   });
@@ -141,8 +159,9 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByLabel('Código').fill(`E2E${id}`);
     await page.getByLabel('Nome').fill(`Escola E2E ${id}`);
     await page.getByLabel('Sigla').fill(`E${id}`);
+    // Criar uma instituição leva agora à estrutura dela, não à lista.
     await page.getByRole('button', { name: `Criar instituição` }).click();
-    await expect(page).toHaveURL(/\/manager\/institutions$/);
+    await expect(page).toHaveURL(/\/manager\/institutions\/\d+\/structure\?nova=1/);
     await expect(page.getByText(`Escola E2E ${id}`)).toBeVisible();
 
     await page.goto('/manager/classes/new');
