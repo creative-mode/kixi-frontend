@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
+import { StaleVersionGuard } from "@/components/stale-version-guard"
 
 // Tipos do design system Kixi, self-hosted
 const jakarta = localFont({
@@ -69,6 +70,7 @@ export default async function RootLayout({
             {children}
           </AuthLayout>
           <Toaster />
+          <StaleVersionGuard />
         </Providers>
       </body>
     </html>
