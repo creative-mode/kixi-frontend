@@ -46,7 +46,7 @@ export default async function SalaControladaPage({ params }: { params: Params })
       ) : (
         <div className="grid gap-4 text-center">
           <p className="text-lg font-semibold">{message.trim()}</p>
-          <Button asChild variant="outline" className="justify-self-center"><Link href="/provas#salas">Voltar às salas</Link></Button>
+          <Button asChild variant="outline" className="justify-self-center"><Link href="/provas?aba=salas">Voltar às salas</Link></Button>
         </div>
       )}
     </div>
