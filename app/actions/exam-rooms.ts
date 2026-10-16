@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/auth.server';
 import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { assignmentsFrom, teacherCanWrite } from '@/lib/crud/teacher-scope';
-import type { ExamRoom, Grade, RoomAction, RoomDraft } from '@/lib/exam-rooms/model';
+import type { BulkGradeResult, ExamRoom, Grade, RoomAction, RoomDraft, RoomReview } from '@/lib/exam-rooms/model';
 import { draftProblem, toLocalDateTime } from '@/lib/exam-rooms/model';
 
 const BASE = '/api/v1/exam-rooms';
@@ -183,4 +183,19 @@ export async function changeRoomStatus(id: number, action: RoomAction): Promise<
 
 export async function roomGrades(id: number): Promise<Result<Grade[]>> {
   return guard(async () => json<Grade[]>(`${BASE}/${safeId(id)}/grades`));
+}
+
+/** As respostas abertas da sala, questão a questão, com a chave ao lado. */
+export async function roomReview(id: number): Promise<Result<RoomReview>> {
+  return guard(async () => json<RoomReview>(`${BASE}/${safeId(id)}/review`));
+}
+
+/** Grava as notas dadas e, com `byKey`, a cotação inteira às respostas que coincidem com a chave. */
+export async function gradeRoom(id: number, grades: { answerId: number; score: number }[], byKey: boolean): Promise<Result<BulkGradeResult>> {
+  return guard(async () => {
+    const res = await call(`${BASE}/${safeId(id)}/grade`, { method: 'POST', body: JSON.stringify({ grades, byKey }) });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/exam-rooms');
+    return ok((await res.json()) as BulkGradeResult);
+  });
 }
