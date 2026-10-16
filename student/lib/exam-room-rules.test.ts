@@ -1,7 +1,7 @@
 // node --test lib/exam-room-rules.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockOffset, formatWait, formatWhen, phaseOf, secondsUntil, sortInvitations, translateRoomError, type Invitation } from './exam-room-rules.ts';
+import { clockOffset, formatWait, formatWhen, joinActionOf, phaseOf, secondsUntil, sortInvitations, translateRoomError, type Invitation } from './exam-room-rules.ts';
 
 const base: Invitation = {
   roomId: 1,
@@ -60,4 +60,42 @@ test('os erros da sala chegam em português', () => {
   assert.equal(translateRoomError('The exam room has not started'), 'A sala ainda não começou. Espera pelo professor.');
   assert.equal(translateRoomError('The student is not invited to this room'), 'Não foste convidado para esta sala.');
   assert.equal(translateRoomError('outra coisa'), 'outra coisa');
+});
+
+test('a fase segue o relógio vivo quando ele é dado (#204)', () => {
+  // fotografia do servidor às 10:00, sala RUNNING das 09:00 às 11:00
+  const at = (h: number, m = 0) => Date.parse(`2026-10-12T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00+01:00`);
+  // sem relógio vivo vale a fotografia (primeira renderização)
+  assert.equal(phaseOf(base), 'live');
+  // com o relógio vivo a fase acompanha a hora real
+  assert.equal(phaseOf({ ...base, status: 'OPEN' }, at(8, 59)), 'lobby');
+  assert.equal(phaseOf({ ...base, status: 'OPEN' }, at(9, 0)), 'lobby');
+  assert.equal(phaseOf({ ...base, status: 'RUNNING' }, at(9, 0)), 'live');
+  assert.equal(phaseOf({ ...base, status: 'RUNNING' }, at(11, 0)), 'over');
+  assert.equal(phaseOf({ ...base, status: 'RUNNING' }, at(12, 0)), 'over');
+});
+
+test('o cartão oferece entrar, continuar, esperar ou nada (#204)', () => {
+  const lobby = { ...base, status: 'OPEN' as const };
+  const live = { ...base, status: 'RUNNING' as const };
+  // ainda não entrou, sala aberta: botão de entrar na espera
+  assert.deepEqual(joinActionOf(lobby, 'lobby', false), { kind: 'enter-lobby', roomId: 1 });
+  // já entrou (joinedAt), sala por começar: estado, não botão — sem ciclo de cliques
+  assert.deepEqual(joinActionOf({ ...lobby, joinedAt: '2026-10-12T09:55:00' }, 'lobby', false), { kind: 'waiting' });
+  // a decorrer, sem simulação: entrar na prova
+  assert.deepEqual(joinActionOf({ ...live, joinedAt: '2026-10-12T09:55:00' }, 'live', false), { kind: 'enter-live', roomId: 1 });
+  // a decorrer, simulação em curso: continuar (link direto, sem reenviar)
+  assert.deepEqual(
+    joinActionOf({ ...live, joinedAt: '2026-10-12T09:55:00', simulationId: 5, simulationStatus: 'IN_PROGRESS' }, 'live', false),
+    { kind: 'continue', roomId: 1 },
+  );
+  // entregue: ver resultado
+  assert.deepEqual(
+    joinActionOf({ ...base, simulationId: 5, simulationStatus: 'FINISHED' }, 'submitted', false),
+    { kind: 'result', simulationId: 5 },
+  );
+  // janela passada ou sala fechada/por abrir: nada, mesmo com entrada feita
+  assert.deepEqual(joinActionOf({ ...lobby, joinedAt: '2026-10-12T09:55:00' }, 'lobby', true), { kind: 'none' });
+  assert.deepEqual(joinActionOf({ ...base, status: 'DRAFT' }, 'scheduled', false), { kind: 'none' });
+  assert.deepEqual(joinActionOf({ ...base, status: 'CLOSED' }, 'over', false), { kind: 'none' });
 });
