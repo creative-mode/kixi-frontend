@@ -13,6 +13,7 @@ import {
   validateFiles,
   type FieldErrors,
 } from '@/lib/donation-rules';
+import { inspectImage, messageFor, type Assessment } from '@/lib/image-quality';
 
 type Phase = 'editing' | 'sending' | 'done';
 
@@ -22,6 +23,8 @@ const STEP_FIELDS: (keyof FieldErrors)[][] = [
   ['institutionName', 'subjectName', 'examType', 'classGrade', 'schoolYear'],
   ['donorName', 'donorEmail', 'notes', 'consent'],
 ];
+
+const keyOf = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 function size(bytes: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -40,6 +43,8 @@ export function DonationForm() {
   const [reference, setReference] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [step, setStep] = useState(0);
+  // Veredicto da análise de cada foto (undefined = ainda a analisar); os PDFs não são analisados.
+  const [checks, setChecks] = useState<Record<string, Assessment | null>>({});
   const heading = useRef<HTMLLegendElement>(null);
 
   // O momento em que o formulário apareceu: o backend recusa quem preenche mais depressa que uma pessoa.
@@ -56,14 +61,19 @@ export function DonationForm() {
     for (const file of Array.from(list)) {
       if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
     }
+    const added = next.filter((f) => !files.includes(f));
     setFiles(next);
     setErrors((e) => ({ ...e, files: validateFiles(next) ?? undefined }));
     if (picker.current) picker.current.value = '';
+    for (const file of added) {
+      void inspectImage(file).then((result) => setChecks((c) => ({ ...c, [keyOf(file)]: result })));
+    }
   }
 
   function removeFile(index: number) {
     const next = files.filter((_, i) => i !== index);
     setFiles(next);
+    setChecks((c) => { const { [keyOf(files[index])]: _gone, ...rest } = c; return rest; });
     setErrors((e) => ({ ...e, files: next.length ? validateFiles(next) ?? undefined : undefined }));
   }
 
@@ -99,6 +109,13 @@ export function DonationForm() {
     request.send(form);
   }
 
+  /** Fotos que não servem (ou ainda em análise) impedem de avançar; as com só um aviso passam. */
+  function photoProblem(): string | null {
+    if (files.some((f) => !(keyOf(f) in checks))) return 'A analisar as fotos… tenta outra vez num segundo.';
+    if (files.some((f) => checks[keyOf(f)]?.verdict === 'reject')) return 'Há fotos que não servem. Troca ou remove as assinaladas.';
+    return null;
+  }
+
   /** Muda de ecrã e põe o foco no primeiro campo com erro, ou no título do ecrã. */
   function goTo(next: number, field?: string) {
     setStep(next);
@@ -115,6 +132,10 @@ export function DonationForm() {
     const found: FieldErrors = validateFields(fields);
     const filesError = validateFiles(files);
     if (filesError) found.files = filesError;
+    if (step === 0 && !found.files) {
+      const problem = photoProblem();
+      if (problem) found.files = problem;
+    }
     const mine = STEP_FIELDS[step].filter((n) => found[n]);
     setErrors((e) => {
       const cleared = { ...e };
@@ -137,7 +158,7 @@ export function DonationForm() {
     const data = new FormData(event.currentTarget);
     const fields = readFields((name) => (name === 'consent' ? (data.get('consent') ? 'true' : '') : data.get(name)));
     const found: FieldErrors = validateFields(fields);
-    const filesError = validateFiles(files);
+    const filesError = validateFiles(files) ?? photoProblem();
     if (filesError) found.files = filesError;
     setErrors(found);
     if (Object.keys(found).length > 0) {
@@ -217,6 +238,7 @@ export function DonationForm() {
               <span className="dn-drop__hint">
                 JPG, PNG, WEBP ou PDF · até {MAX_FILES} ficheiros · {MAX_FILE_BYTES / (1024 * 1024)} MB cada
               </span>
+              <span className="dn-drop__tip">Folha inteira, em pé, com luz e sem tremer.</span>
             </label>
             <input
               ref={picker}
@@ -236,13 +258,19 @@ export function DonationForm() {
             <>
               <p className="dn-count">{files.length} {files.length === 1 ? 'folha' : 'folhas'} · {size(total)}</p>
               <ul className="dn-files" aria-label="Ficheiros escolhidos">
-                {files.map((file, index) => (
-                  <li key={`${file.name}-${file.size}-${file.lastModified}`} className="dn-files__item">
+                {files.map((file, index) => {
+                  const check = checks[keyOf(file)];
+                  const note = check ? messageFor(check) : null;
+                  const tone = check?.verdict === 'reject' ? 'bad' : check?.verdict === 'warn' ? 'warn' : 'ok';
+                  return (
+                  <li key={keyOf(file)} className={`dn-files__item dn-files__item--${tone}`}>
                     <span className="dn-files__name">{file.name}</span>
-                    <span className="dn-files__size">{size(file.size)}</span>
+                    <span className="dn-files__size">{keyOf(file) in checks ? size(file.size) : 'a analisar…'}</span>
                     <button type="button" className="dn-files__remove" onClick={() => removeFile(index)} aria-label={`Remover ${file.name}`}>×</button>
+                    {note && <span className="dn-files__note" role={tone === 'bad' ? 'alert' : undefined}>{tone === 'bad' ? 'x ' : '! '}{note}</span>}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </>
           )}

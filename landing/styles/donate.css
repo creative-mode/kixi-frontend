@@ -47,6 +47,11 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-count { margin: 0; font: 400 10px/1.4 var(--font-pixel); }
 .dn-files { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 22svh; overflow-y: auto; scrollbar-width: thin; }
 .dn-files__item { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 2px 4px 2px 10px; background: var(--lcd-1); border: 2px solid var(--lcd-3); font-size: 13px; }
+.dn-drop__tip { margin-top: 2px; font-size: 12px; font-weight: 700; opacity: .75; }
+.dn-files__item { grid-template-columns: 1fr auto auto; }
+.dn-files__item--bad { background: #c9d98a; border-color: #5c0d0a; }
+.dn-files__note { grid-column: 1 / -1; padding: 0 0 6px; font-size: 12px; font-weight: 800; line-height: 1.3; }
+.dn-files__item--bad .dn-files__note { color: #5c0d0a; }
 .dn-files__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dn-files__size { white-space: nowrap; }
 .dn-files__remove { width: 44px; min-height: 36px; font: 800 20px/1 var(--font-sans); color: var(--lcd-3); background: transparent; border: 0; cursor: pointer; }
