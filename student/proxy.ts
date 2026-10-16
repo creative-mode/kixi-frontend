@@ -78,7 +78,9 @@ export function proxy(req: NextRequest) {
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   if (isPublic) {
-    if (r) return (r.includes('ADMIN') ? gotoManager(req) : go(req, '/inicio'));
+    // Quem tem sessão de gestor (o cookie é partilhado no mesmo endereço) continua a ver o formulário:
+    // redirecioná-lo para o gestor impedia de entrar como aluno. Entrar substitui a sessão.
+    if (r && !r.includes('ADMIN') && !r.includes('TEACHER')) return go(req, '/inicio');
     return NextResponse.next();
   }
   if (!r) return go(req, '/entrar');
