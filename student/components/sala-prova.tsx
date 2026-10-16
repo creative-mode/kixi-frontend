@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Clock, Flag, Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { guardarAction, submeterAction } from '@/lib/exam-actions';
 import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue';
 import {
@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { displayNumber } from '@/lib/question-number';
+import { FolhaDaProva } from '@/components/folha-da-prova';
 
 const CELL = {
   done: 'border-transparent bg-accent text-accent-foreground',
@@ -168,6 +169,10 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [, rerender] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  /** Abaixo de `lg` cabe uma coisa de cada vez: a questão para responder, ou a folha para a ler inteira.
+   *  Em ecrã largo as duas estão lado a lado e esta escolha não conta. */
+  const [view, setView] = useState<'questao' | 'folha'>('questao');
+  const paperBox = useRef<HTMLDivElement>(null);
   const [announcement, setAnnouncement] = useState('');
   /** The countdown ticks only once mounted, on purpose.
    *
@@ -368,7 +373,42 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
       </header>
       <p className="sr-only" role="status" aria-live="assertive">{announcement}</p>
 
-      <div className="mx-auto grid w-full max-w-[1040px] flex-1 items-start gap-6 p-4 md:grid-cols-[minmax(0,1fr)_280px] md:p-6">
+      <div className="mx-auto grid w-full max-w-[1480px] flex-1 items-start gap-4 p-4 md:gap-6 md:p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+        {/* Abaixo de lg: a questão ou a folha, à escolha. */}
+        <div className="flex gap-1 rounded-lg border bg-card p-1 lg:hidden" role="group" aria-label="O que ver">
+          {([['questao', 'Questão', ListChecks], ['folha', 'Folha da prova', FileText]] as const).map(([key, label, Icon]) => (
+            <Button key={key} type="button" size="sm" variant={view === key ? 'default' : 'ghost'} className="flex-1" aria-pressed={view === key} onClick={() => setView(key)}>
+              <Icon aria-hidden />{label}
+            </Button>
+          ))}
+        </div>
+
+        {/* A folha da prova, como o professor a montou: grande, e a deslizar para a questão em que o aluno vai. */}
+        <section aria-label="A folha da prova" className={cn('min-w-0 lg:order-1', view === 'folha' ? 'block' : 'hidden', 'lg:block')}>
+          <div
+            ref={paperBox}
+            className="max-h-[calc(100dvh-11rem)] overflow-y-auto rounded-lg border bg-muted/50 p-2 sm:p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100dvh-6rem)]"
+          >
+            <FolhaDaProva
+              meta={data.paper ?? { kind: 'Prova' }}
+              questions={questions}
+              images={data.images}
+              answers={drafts}
+              current={current.id}
+              scrollRef={paperBox}
+              onSelect={(id) => {
+                const target = questions.findIndex((q) => q.id === id);
+                if (target < 0) return;
+                sairDaQuestao();
+                setIndex(target);
+                // Em ecrã estreito a folha e a questão não cabem juntas: tocar numa questão leva para ela.
+                if (!window.matchMedia('(min-width: 1024px)').matches) setView('questao');
+              }}
+            />
+          </div>
+        </section>
+
+        <div className={cn('grid min-w-0 gap-4 lg:order-2', view === 'questao' ? 'grid' : 'hidden', 'lg:grid')}>
         <div className="grid min-w-0 gap-4">
           {/* One form for the whole room: the confirmation's submit button joins it
               through `form=`, and so does the "deliver what is saved" button shown
@@ -556,6 +596,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             <p className="text-[13px] text-muted-foreground">{answered.size} de {questions.length} respondidas</p>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import 'server-only';
 
 import { apiGet, apiPost, apiPut, type Result } from './api';
 import { getMe } from './me';
+import type { PaperMeta } from './folha-da-prova';
 import {
   answeredQuestionIds,
   attemptFor,
@@ -58,6 +59,8 @@ export interface StatementFull {
   subjectId?: number | null;
   schoolYearId?: number | null;
   institutionId?: number | null;
+  classId?: number | null;
+  variant?: string | null;
   questions: ExamQuestion[];
 }
 
@@ -203,6 +206,8 @@ export interface RoomData {
   deadline: string | null;
   title: string;
   subtitle: string;
+  /** O cabeçalho da folha da prova (escola, disciplina, classe…). Opcional: sem ele a folha leva o molde em branco. */
+  paper?: PaperMeta;
   questions: ExamQuestion[];
   images: Record<number, QuestionImage[]>;
   /** answerId per question, plus what to show in the form. A question absent from
@@ -276,11 +281,42 @@ export async function getRoom(statementId: number): Promise<Room> {
       deadline: detail.data.deadline ?? null,
       title: statement.data.title || 'Prova',
       subtitle: subjectLine(statement.data),
+      paper: await loadPaperMeta(statement.data),
       questions,
       images,
       saved,
       answered: [...answeredQuestionIds(answers, simulationId)],
     },
+  };
+}
+
+/** O cabeçalho da folha: os nomes por trás dos ids do enunciado. Cada um vem do seu endpoint e uma falha deixa só
+ *  esse campo em branco: a prova não deixa de abrir por a escola não ter respondido. */
+export async function loadPaperMeta(statement: StatementFull): Promise<PaperMeta> {
+  const name = async (path: string | null) => {
+    if (!path) return null;
+    const result = await apiGet<{ name?: string | null }>(path);
+    return result.ok ? result.data.name ?? null : null;
+  };
+  const [subject, institution, year, klass] = await Promise.all([
+    name(statement.subjectId != null ? `/subjects/${statement.subjectId}` : null),
+    name(statement.institutionId != null ? `/institutions/${statement.institutionId}` : null),
+    statement.schoolYearId != null
+      ? apiGet<{ startYear?: number; endYear?: number }>(`/school-years/${statement.schoolYearId}`)
+      : Promise.resolve(null),
+    statement.classId != null ? apiGet<{ grade?: number | null }>(`/classes/${statement.classId}`) : Promise.resolve(null),
+  ]);
+  const grade = klass && klass.ok && klass.data.grade != null ? `${klass.data.grade}ª Classe` : null;
+  return {
+    institution,
+    subject,
+    kind: statement.examType ?? null,
+    grade,
+    schoolYear: year && year.ok && year.data.startYear ? `${year.data.startYear}/${year.data.endYear ?? ''}`.replace(/\/$/, '') : null,
+    variant: statement.variant ?? null,
+    durationMinutes: statement.durationMinutes ?? null,
+    totalMaxScore: statement.totalMaxScore ?? null,
+    rules: (statement.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter(Boolean),
   };
 }
 
