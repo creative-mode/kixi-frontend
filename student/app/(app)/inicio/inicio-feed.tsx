@@ -149,6 +149,7 @@ function Post({ post, myAccountId, myName }: { post: FeedPost; myAccountId: numb
  *  cliente e os dois lêem-se no servidor, com o cookie da sessão (ver ./page.tsx). */
 export function InicioFeed({
   invitations = [],
+  invitationsError,
   myAccountId,
   classId,
   posts,
@@ -157,6 +158,7 @@ export function InicioFeed({
   classTop = [],
 }: {
   invitations?: Invitation[];
+  invitationsError?: { message: string; status: number | null } | null;
   myAccountId: number | null;
   classId: number | null;
   posts: FeedPost[];
@@ -204,7 +206,7 @@ export function InicioFeed({
       <Column>
         <PageHeader title="Início" />
 
-        <SalasDeProva invitations={invitations} />
+        <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
 
         {classId && (
           <Card className="gap-3 py-4">

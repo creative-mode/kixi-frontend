@@ -1,7 +1,7 @@
 // node --test lib/exam-room-rules.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockOffset, formatWait, formatWhen, joinActionOf, phaseOf, secondsUntil, sortInvitations, translateRoomError, type Invitation } from './exam-room-rules.ts';
+import { clockOffset, formatWait, formatWhen, invitationsErrorOf, joinActionOf, phaseOf, secondsUntil, sortInvitations, translateRoomError, type Invitation } from './exam-room-rules.ts';
 
 const base: Invitation = {
   roomId: 1,
@@ -60,6 +60,26 @@ test('os erros da sala chegam em português', () => {
   assert.equal(translateRoomError('The exam room has not started'), 'A sala ainda não começou. Espera pelo professor.');
   assert.equal(translateRoomError('The student is not invited to this room'), 'Não foste convidado para esta sala.');
   assert.equal(translateRoomError('outra coisa'), 'outra coisa');
+});
+
+test('a falha das salas vira aviso com recuperação (#220)', () => {
+  // caminho feliz: sem erro, sem aviso (sem regressão)
+  assert.equal(invitationsErrorOf({ ok: true }), null);
+  // 401: sessão expirada, o caminho é voltar a entrar, não tentar de novo
+  assert.deepEqual(invitationsErrorOf({ ok: false, status: 401, message: 'A sessão expirou.' }), {
+    message: 'A tua sessão expirou. Entra de novo para veres as salas de prova.',
+    status: 401,
+  });
+  // 500: mensagem do servidor mais tentar de novo
+  assert.deepEqual(invitationsErrorOf({ ok: false, status: 500, message: 'Erro interno' }), {
+    message: 'Não foi possível carregar as salas de prova. Erro interno',
+    status: 500,
+  });
+  // sem mensagem nem status: aviso genérico na mesma, nunca silêncio
+  assert.deepEqual(invitationsErrorOf({ ok: false }), {
+    message: 'Não foi possível carregar as salas de prova.',
+    status: null,
+  });
 });
 
 test('a fase segue o relógio vivo quando ele é dado (#204)', () => {

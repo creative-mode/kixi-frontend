@@ -3,7 +3,7 @@
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { displayNumber, isGroup } from '@/lib/exam/display';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Check, Eye, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, Eye, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   approveStatement,
+  createStatementQuestion,
+  deleteStatementQuestion,
   getStatementForReview,
   listOptions,
   myInstitutions,
+  reorderStatementQuestions,
   reviewChoices,
   saveStatementReview,
   setStatementVisible,
@@ -25,9 +28,11 @@ import {
 import { fetchCurrentUser } from '@/lib/auth';
 import { answerKeyIssues, sumOfScores } from '@/lib/crud/answer-key';
 import type { Row } from '@/lib/crud/entities';
+import { removeQuestionBlock } from '@/lib/crud/question-remove';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
+import { QuestionImages } from './question-images';
 
 // O tipo tem várias grafias no backend (OCR escreve `development`, o exam builder `open`).
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', GROUP: 'Com alíneas', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', DEVELOPMENT: 'Desenvolvimento' };
@@ -305,6 +310,98 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   const patchQ = (qid: number, patch: Partial<QuestionDraft>) =>
     setQuestions((qs) => (qs ? qs.map((q) => (q.id === qid ? { ...q, ...patch } : q)) : qs));
 
+  /**
+   * Guarda primeiro quando há rascunho: adicionar/remover/mover recarrega do
+   * servidor, e sem isto deitava fora texto, cotação ou resposta modelo ainda
+   * por gravar (#170 review). O save valida e mostra o problema; se falhar, a
+   * mutação nem começa.
+   */
+  async function ensureSaved(): Promise<boolean> {
+    if (!dirty) return true;
+    return save();
+  }
+
+  /** Blocos para mover/remover em conjunto: questão de topo mais as alíneas que
+   *  a seguem. Sem isto, mover um grupo partia-o e remover um pai deixava as
+   *  alíneas ativas sem pai. */
+  function blocksOf(qs: QuestionDraft[]): QuestionDraft[][] {
+    const out: QuestionDraft[][] = [];
+    for (const q of qs) {
+      const last = out[out.length - 1];
+      if (q.parentId != null && last) last.push(q);
+      else out.push([q]);
+    }
+    return out;
+  }
+
+  /** #165: cria a pergunta no servidor (number/orderIndex vêm de lá) e recarrega. */
+  async function addQuestion() {
+    if (!questions || !(await ensureSaved())) return;
+    setSaving(true);
+    const res = await createStatementQuestion(id, { text: 'Nova questão', questionType: 'open', maxScore: 0, modelAnswer: null });
+    if (!res.ok) {
+      setSaving(false);
+      toast.error(res.error);
+      return;
+    }
+    await load();
+    setSaving(false);
+    toast.success('Questão adicionada. Edite o texto e a cotação.');
+  }
+
+  function removeQuestion(q: QuestionDraft) {
+    const all = questions ?? [];
+    const kids = all.filter((x) => x.parentId === q.id);
+    const label = `${q.parentId != null ? 'a alínea' : 'a questão'} ${displayNumber(q, all)}`;
+    setConfirm({
+      title: `Remover ${label}?`,
+      description: kids.length
+        ? `As ${kids.length} alíneas saem junto — não ficam ativas sem pai. As imagens que tenham ficam órfãs.`
+        : 'A questão sai do enunciado. As imagens que tenha ficam órfãs.',
+      action: 'Remover',
+      destructive: true,
+      run: async () => {
+        if (!(await ensureSaved())) return;
+        setSaving(true);
+        const targets = [q, ...kids];
+        const res = await removeQuestionBlock(
+          targets.map((t) => t.id),
+          async (qid) => {
+            const r = await deleteStatementQuestion(id, qid);
+            return r.ok ? { ok: true } : { ok: false, error: r.error };
+          },
+        );
+        await load();
+        setSaving(false);
+        if (!res.ok) {
+          // Parcial: o que saiu está no servidor e o que falhou continua no
+          // ecrã — sem toast de sucesso, para a UI nunca mentir (#170 review).
+          toast.error(
+            res.removed.length > 0
+              ? `Remoção parcial: ${res.removed.length} de ${targets.length} saíram. ${res.error} Tente de novo a restante.`
+              : `Nada foi removido. ${res.error}`,
+          );
+          return;
+        }
+        toast.success('Questão removida.');
+      },
+    });
+  }
+
+  /** #165: sobe/desce o bloco (questão + alíneas); só orderIndex mexe. */
+  async function moveBlock(bi: number, dir: -1 | 1) {
+    if (!questions || !(await ensureSaved())) return;
+    const blks = blocksOf(questions);
+    const other = bi + dir;
+    if (other < 0 || other >= blks.length) return;
+    [blks[bi], blks[other]] = [blks[other], blks[bi]];
+    setSaving(true);
+    const res = await reorderStatementQuestions(id, blks.flat().map((qq) => qq.id));
+    if (!res.ok) toast.error(res.error);
+    await load();
+    setSaving(false);
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
       <div className="flex flex-wrap items-center gap-3">
@@ -377,7 +474,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       <Card>
         <CardHeader><CardTitle className="text-base">Questões e gabarito ({questions.length})</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {questions.map((q) => (
+          {blocksOf(questions).map((blk, bi, arr) => blk.map((q) => (
             <div key={q.id} className={`rounded-lg border p-4 ${q.parentId != null ? 'ml-6 border-dashed' : ''}`}>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <strong>{q.parentId != null ? 'Alínea' : 'Questão'} {displayNumber(q, questions)}</strong>
@@ -391,6 +488,15 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                     <Input inputMode="decimal" value={q.maxScore} onChange={(e) => patchQ(q.id, { maxScore: e.target.value })} className="w-20" aria-label={`Cotação da questão ${displayNumber(q, questions)}`} />
                   </label>
                 )}
+                <span className="flex items-center gap-1">
+                  {blk[0] === q ? (
+                    <>
+                      <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || bi === 0} aria-label={`Subir questão ${displayNumber(q, questions)}`} onClick={() => void moveBlock(bi, -1)}><ChevronUp size={14} /></Button>
+                      <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || bi === arr.length - 1} aria-label={`Descer questão ${displayNumber(q, questions)}`} onClick={() => void moveBlock(bi, 1)}><ChevronDown size={14} /></Button>
+                    </>
+                  ) : null}
+                  <Button type="button" size="icon" variant="ghost" className="size-7 hover:bg-danger-soft hover:text-destructive" disabled={saving} aria-label={`Remover questão ${displayNumber(q, questions)}`} onClick={() => removeQuestion(q)}><Trash2 size={14} /></Button>
+                </span>
               </div>
               <textarea value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value })} rows={2} className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" aria-label={`Texto da questão ${displayNumber(q, questions)}`} />
               {/* Como o servidor: é ter opções que faz a questão precisar de resposta correta, não o tipo. */}
@@ -417,8 +523,14 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                   <textarea value={q.modelAnswer} onChange={(e) => patchQ(q.id, { modelAnswer: e.target.value })} rows={2} className="rounded-md border border-border bg-card px-3 py-2" />
                 </label>
               )}
+              {/* #165: o mesmo controlo da vista de leitura — anexar figuras DURANTE a revisão.
+                  Grava de imediato (POST /api/v1/question-images), independente do Guardar revisão. */}
+              {q.id > 0 ? <QuestionImages questionId={q.id} /> : null}
             </div>
-          ))}
+          )))}
+          <Button type="button" variant="outline" onClick={() => void addQuestion()} disabled={saving}>
+            <Plus size={16} aria-hidden /> Adicionar questão
+          </Button>
         </CardContent>
       </Card>
 

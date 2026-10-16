@@ -93,15 +93,15 @@ export function DonationDetailView({ id }: { id: number }) {
               {donation.files.map((file) => {
                 const src = `${BASE_PATH}/api/donations/${donation.id}/files/${file.id}`;
                 return (
-                  <figure key={file.id} className="grid gap-2 rounded-lg border p-3">
+                  <figure key={file.id} className="grid min-w-0 grid-cols-1 gap-2 rounded-lg border p-3">
                     {isImage(file.contentType) ? (
-                      <img src={src} alt={`Página enviada: ${file.originalName}`} className="max-h-72 w-full rounded object-contain bg-muted" loading="lazy" />
+                      <img src={src} alt={`Página enviada: ${file.originalName}`} className="h-auto max-h-72 w-full max-w-full rounded object-contain bg-muted" loading="lazy" />
                     ) : (
                       <div className="grid h-24 place-items-center rounded bg-muted text-muted-foreground"><FileText aria-hidden /></div>
                     )}
                     <figcaption className="flex items-center justify-between gap-2 text-sm">
                       <span className="min-w-0 truncate" title={file.originalName}>{file.originalName} · {fileSize(file.sizeBytes)}</span>
-                      <Button asChild size="sm" variant="outline">
+                      <Button asChild size="sm" variant="outline" className="shrink-0">
                         <a href={src} download={file.originalName}><Download size={14} aria-hidden /> Descarregar</a>
                       </Button>
                     </figcaption>

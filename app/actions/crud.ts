@@ -377,6 +377,49 @@ export async function saveStatementReview(id: number, statement: StatementInput,
   });
 }
 
+/**
+ * #165: cria uma pergunta num enunciado já criado. `number` e `orderIndex` vêm
+ * do servidor (nunca do chamador); a cotação nasce a 0 e o professor ajusta-a
+ * a seguir — o gabarito acusa a diferença para o total até lá.
+ */
+export async function createStatementQuestion(
+  id: number,
+  values: { text: string; questionType: string | null; maxScore: number; modelAnswer: string | null },
+): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/statements/${safeId(id)}/questions`, { method: 'POST', body: JSON.stringify(values) });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/statements');
+    return ok((await res.json()) as Row);
+  });
+}
+
+/** #165: remove (soft delete) uma pergunta do enunciado em revisão. */
+export async function deleteStatementQuestion(id: number, questionId: number): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/statements/${safeId(id)}/questions/${safeId(questionId)}`, { method: 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/statements');
+    return ok(undefined);
+  });
+}
+
+/**
+ * #165: reordena as perguntas (só `orderIndex` mexe; `number` é o ordinal estável
+ * e o backend recusa listas que não nomeiem todas as ativas exatamente uma vez).
+ */
+export async function reorderStatementQuestions(id: number, questionIds: number[]): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`/api/v1/statements/${safeId(id)}/questions/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ questionIds }),
+    });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/statements');
+    return ok(undefined);
+  });
+}
+
 // ── dashboard ───────────────────────────────────────────────────────────────
 export async function dashboardCounts(): Promise<Result<Record<string, number>>> {
   return guard(async () => {
