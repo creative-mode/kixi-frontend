@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { getMe } from '@/lib/me';
 import { getResultView } from '@/lib/result';
+import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
+import { FolhaDaProva } from '@/components/folha-da-prova';
+import { answersOf, marksOf, paperQuestions, stampOf } from '@/lib/folha-do-resultado';
 import {
   formatDelta,
   formatDuration,
@@ -121,6 +124,13 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const pending = result.pendingReviewCount ?? 0;
   const hasMistakes = questions.some((q) => ['wrong', 'blank'].includes(verdict(q)));
 
+  // A prova entregue na folha, corrigida. O cabeçalho e as figuras são extras: se algum falhar, a folha leva o
+  // molde em branco e a revisão questão a questão, mais abaixo, continua a ser a fonte de tudo.
+  const statement = statementId != null ? await getStatementFull(statementId, { cached: true }) : null;
+  const paperMeta = statement?.ok ? await loadPaperMeta(statement.data) : { kind: 'Prova', totalMaxScore: view.totalMaxScore };
+  const figures = Object.fromEntries(await Promise.all(questions.map(async (q) => [q.questionId, await getQuestionImages(q.questionId)] as const)));
+  const stamp = stampOf(result.finalScore, view.totalMaxScore, pending);
+
   return (
     <Page>
       <Column className="gap-5">
@@ -157,6 +167,25 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <span className="text-[13px] text-muted-foreground">tempo gasto</span>
           </Card>
         </div>
+
+        {questions.length > 0 && (
+          <Card className="gap-3 p-3 sm:p-5" aria-label="A tua prova corrigida">
+            <div>
+              <h2 className="text-[17px] font-bold tracking-tight">A tua prova corrigida</h2>
+              <p className="text-sm text-muted-foreground">Como a entregaste: a verde o que acertaste, a vermelho o que falhaste, com a resposta certa.</p>
+            </div>
+            <div className="overflow-x-auto rounded-lg border bg-muted/50 p-2 sm:p-3">
+              <FolhaDaProva
+                meta={paperMeta}
+                questions={paperQuestions(questions)}
+                images={figures}
+                answers={answersOf(questions)}
+                marks={marksOf(questions)}
+                stamp={stamp ?? undefined}
+              />
+            </div>
+          </Card>
+        )}
 
         <Card className="gap-0 py-0" aria-label="Revisão questão a questão">
           <CardHeader className="pt-5 pb-3"><CardTitle>Revisão questão a questão</CardTitle></CardHeader>
