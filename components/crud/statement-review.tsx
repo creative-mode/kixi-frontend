@@ -28,6 +28,7 @@ import {
 import { fetchCurrentUser } from '@/lib/auth';
 import { answerKeyIssues, sumOfScores } from '@/lib/crud/answer-key';
 import type { Row } from '@/lib/crud/entities';
+import { removeQuestionBlock } from '@/lib/crud/question-remove';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
@@ -362,15 +363,26 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       run: async () => {
         if (!(await ensureSaved())) return;
         setSaving(true);
-        for (const target of [q, ...kids]) {
-          const res = await deleteStatementQuestion(id, target.id);
-          if (!res.ok) {
-            toast.error(res.error);
-            break;
-          }
-        }
+        const targets = [q, ...kids];
+        const res = await removeQuestionBlock(
+          targets.map((t) => t.id),
+          async (qid) => {
+            const r = await deleteStatementQuestion(id, qid);
+            return r.ok ? { ok: true } : { ok: false, error: r.error };
+          },
+        );
         await load();
         setSaving(false);
+        if (!res.ok) {
+          // Parcial: o que saiu está no servidor e o que falhou continua no
+          // ecrã — sem toast de sucesso, para a UI nunca mentir (#170 review).
+          toast.error(
+            res.removed.length > 0
+              ? `Remoção parcial: ${res.removed.length} de ${targets.length} saíram. ${res.error} Tente de novo a restante.`
+              : `Nada foi removido. ${res.error}`,
+          );
+          return;
+        }
         toast.success('Questão removida.');
       },
     });
