@@ -203,7 +203,7 @@ function Correction({ mark }: { mark: PaperMark }) {
 /** A nota estampada: carimbo inclinado, verde se positiva e vermelho se negativa. */
 function Stamp({ stamp }: { stamp: PaperStamp }) {
   const tone = stamp.passed === null ? 'border-amber-600 text-amber-700' : stamp.passed ? 'border-green-700 text-green-700' : 'border-red-700 text-red-700';
-  const word = stamp.passed === null ? 'Por corrigir' : stamp.passed ? 'Positiva' : 'Negativa';
+  const word = stamp.passed === null ? (stamp.provisional ? 'Em correcção' : 'Sem cotação') : stamp.passed ? 'Positiva' : 'Negativa';
   return (
     <div
       role="img"

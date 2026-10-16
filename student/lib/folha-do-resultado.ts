@@ -45,10 +45,15 @@ export function marksOf(questions: readonly ResultQuestion[]): Record<number, Pa
   );
 }
 
-/** A nota estampada, ou `null` se ainda não há nota. `passed` é nulo sem cotação total (não se sabe comparar). */
+/** A nota estampada, ou `null` se ainda não há nota. `passed` é nulo sem cotação total ou quando ainda há respostas por
+ *  corrigir e a nota provisória não chega para ser positiva. */
 export function stampOf(finalScore: number | null | undefined, totalMaxScore: number | null | undefined, pendingReview: number | null | undefined): PaperStamp | null {
   const score = formatScore(finalScore);
   if (finalScore == null || score == null) return null;
-  const passed = totalMaxScore != null && totalMaxScore > 0 ? finalScore / totalMaxScore >= PASS_RATIO : null;
-  return { score, max: totalMaxScore != null ? formatScore(totalMaxScore) : null, passed, provisional: (pendingReview ?? 0) > 0 };
+  const provisional = (pendingReview ?? 0) > 0;
+  const reaches = totalMaxScore != null && totalMaxScore > 0 ? finalScore / totalMaxScore >= PASS_RATIO : null;
+  // Uma resposta aberta por corrigir só pode juntar pontos: já positiva, a nota não desce de positiva; abaixo disso
+  // ainda não se sabe, e o carimbo não finge um vermelho que o professor pode vir a desmentir.
+  const passed = provisional && reaches !== true ? null : reaches;
+  return { score, max: totalMaxScore != null ? formatScore(totalMaxScore) : null, passed, provisional };
 }

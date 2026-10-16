@@ -36,6 +36,12 @@ test('a nota é positiva a partir de metade da cotação e negativa abaixo', () 
   assert.equal(stampOf(7, 14, 0)?.passed, true);
 });
 
+test('com respostas por corrigir, uma nota que ainda não chega a positiva não se carimba a vermelho', () => {
+  assert.equal(stampOf(8, 20, 2)?.passed, null);
+  assert.equal(stampOf(12, 20, 2)?.passed, true);
+  assert.equal(stampOf(8, 20, 0)?.passed, false);
+});
+
 test('a nota é provisória enquanto há respostas por corrigir, e sem nota não há carimbo', () => {
   assert.equal(stampOf(8, 20, 2)?.provisional, true);
   assert.equal(stampOf(8, 20, 0)?.provisional, false);
