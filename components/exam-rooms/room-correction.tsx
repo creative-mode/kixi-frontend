@@ -78,7 +78,7 @@ export function RoomCorrection({ roomId, onChanged }: { roomId: number; onChange
       <CardContent className="grid gap-6">
         <p className="text-sm text-muted-foreground">
           {review.pending === 0 ? 'Todas as respostas abertas estão corrigidas.' : `${review.pending} resposta(s) por corrigir.`}{' '}
-          A chave é a resposta modelo da questão: "Corrigir pela chave" dá a cotação inteira às respostas iguais a ela
+          A chave é a resposta modelo da questão: «Corrigir pela chave» dá a cotação inteira às respostas iguais a ela
           (sem contar maiúsculas, acentos nem pontuação) e não mexe nas outras.
         </p>
         {review.questions.map((q) => (
