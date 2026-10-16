@@ -1,4 +1,4 @@
-import { itemLabel, kindOf, totalScore, type DraftOption } from '@/lib/exam/draft';
+import { itemLabel, kindOf, totalScore, trueFalseAnswer, type DraftOption } from '@/lib/exam/draft';
 import type { ExamDraft, ExamItem, School } from '@/lib/exam/schools';
 
 
@@ -8,6 +8,11 @@ import type { ExamDraft, ExamItem, School } from '@/lib/exam/schools';
  * É um documento impresso, por isso usa preto sobre branco em vez dos tokens da interface.
  */
 const BASE = '/manager';
+
+/** O que a folha diz da resposta certa: `never` é a folha que o aluno leva (sem chave); `screen` é a do construtor
+ *  (a chave vê-se no ecrã e não sai na impressão); `always` é a chave (sai também impressa). */
+export type KeyMode = 'never' | 'screen' | 'always';
+const keyClass = (mode: KeyMode) => (mode === 'screen' ? 'print:hidden' : '');
 const cell = 'border border-black';
 
 /** As linhas onde o aluno escreve uma resposta aberta. */
@@ -21,18 +26,31 @@ function AnswerLines({ count = 3 }: { count?: number }) {
 
 /** As opções vão na folha porque o aluno as recebe; a marcação da correcta vai por baixo e é o que o
  *  `print:hidden` esconde — é a diferença entre a folha que ele leva e a que o professor revê. */
-function Options({ options }: { options: DraftOption[] }) {
+function Options({ options, mode }: { options: DraftOption[]; mode: KeyMode }) {
+  const showKey = mode !== 'never';
   return (
     <ul className="mt-1 list-none space-y-0.5 pl-4">
       {options.map((o) => (
-        <li key={o.label} className="flex gap-2">
+        <li key={o.label} className={`flex gap-2 ${showKey && o.correct ? `font-semibold text-green-700 ${keyClass(mode)}`.trim() : ''}`}>
           <span className="font-semibold">{o.label})</span>
           <span>{o.text}</span>
-          {o.correct && <b className="whitespace-nowrap print:hidden">correcta</b>}
+          {showKey && o.correct && <b className={`whitespace-nowrap ${keyClass(mode)}`}>correcta</b>}
         </li>
       ))}
     </ul>
   );
+}
+
+/** O «( )» de uma afirmação de verdadeiro/falso; na chave leva o V ou o F. */
+function TrueFalseMark({ options, mode }: { options: DraftOption[]; mode: KeyMode }) {
+  const answer = mode === 'never' ? null : trueFalseAnswer(options);
+  return answer ? <span className={`whitespace-nowrap font-bold text-green-700 ${keyClass(mode)}`}> ({answer})</span> : <span className="whitespace-nowrap"> (&nbsp;&nbsp;&nbsp;)</span>;
+}
+
+/** A resposta esperada de uma questão aberta: só na chave. */
+function ModelAnswer({ text, mode }: { text?: string; mode: KeyMode }) {
+  if (mode === 'never' || !text?.trim()) return null;
+  return <span className={`mt-1 block text-[12.5px] text-green-800 ${keyClass(mode)}`}><b>Resposta esperada:</b> {text.trim()}</span>;
 }
 
 const score = (points: number | '') => (points !== '' ? <span className="whitespace-nowrap"> ({points} val.)</span> : null);
@@ -51,7 +69,7 @@ function Figures({ item }: { item: ExamItem }) {
 }
 
 /** Uma questão no papel: o enunciado e, conforme o tipo, as linhas de resposta, as opções ou as alíneas. */
-function Question({ item }: { item: ExamItem }) {
+function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
   const kind = kindOf(item);
   if (kind === 'group') {
     const subs = (item.items ?? []).filter((x) => x.text.trim());
@@ -68,10 +86,10 @@ function Question({ item }: { item: ExamItem }) {
                   <span className="font-semibold">{itemLabel(j)})</span>
                   <span className="flex-1">
                     {sub.text}
-                    {k === 'true_false' && <span className="whitespace-nowrap"> (&nbsp;&nbsp;&nbsp;)</span>}
+                    {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}
                     {score(sub.points)}
-                    {k === 'multiple_choice' && <Options options={sub.options} />}
-                    {k === 'open' && <AnswerLines count={2} />}
+                    {k === 'multiple_choice' && <Options options={sub.options} mode={mode} />}
+                    {k === 'open' && <><AnswerLines count={2} /><ModelAnswer text={sub.modelAnswer} mode={mode} /></>}
                   </span>
                 </li>
               );
@@ -85,15 +103,15 @@ function Question({ item }: { item: ExamItem }) {
     <>
       {item.text}
       <Figures item={item} />
-      {kind === 'true_false' && <span className="whitespace-nowrap"> (&nbsp;&nbsp;&nbsp;)</span>}
+      {kind === 'true_false' && <TrueFalseMark options={item.options} mode={mode} />}
       {score(item.points)}
-      {kind === 'multiple_choice' && item.options.length > 0 && <Options options={item.options} />}
-      {kind === 'open' && <AnswerLines />}
+      {kind === 'multiple_choice' && item.options.length > 0 && <Options options={item.options} mode={mode} />}
+      {kind === 'open' && <><AnswerLines /><ModelAnswer text={item.modelAnswer} mode={mode} /></>}
     </>
   );
 }
 
-export function ExamSheet({ school, draft }: { school: School | undefined; draft: ExamDraft }) {
+export function ExamSheet({ school, draft, keyMode = 'screen' }: { school: School | undefined; draft: ExamDraft; keyMode?: KeyMode }) {
   const schoolName = (school?.name || 'Nome da escola').toUpperCase();
   const subject = draft.subject || 'Disciplina';
   const items = draft.items.filter((i) => i.text.trim());
@@ -131,7 +149,7 @@ export function ExamSheet({ school, draft }: { school: School | undefined; draft
         <ol className="mt-5 list-decimal space-y-3 pl-8 text-justify">
           {items.map((it, i) => (
             <li key={i}>
-              <Question item={it} />
+              <Question item={it} mode={keyMode} />
             </li>
           ))}
         </ol>

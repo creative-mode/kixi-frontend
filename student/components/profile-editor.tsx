@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useFormStatus } from 'react-dom';
 import { CircleAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FotoDePerfil } from '@/components/foto-de-perfil';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -60,19 +61,10 @@ export function ProfileEditor({ me, onDone }: { me: Me; onDone: () => void }) {
           </Field>
         </div>
         <Field>
-          <FieldLabel htmlFor="photo">Foto (endereço)</FieldLabel>
-          <Input
-            id="photo"
-            name="photo"
-            type="url"
-            inputMode="url"
-            defaultValue={me.photo ?? ''}
-            placeholder="https://…"
-            autoComplete="photo"
-            maxLength={500}
-          />
+          <FieldLabel htmlFor="photo">Foto</FieldLabel>
+          <FotoDePerfil name="photo" initial={(me.first_name ?? me.username ?? '?').slice(0, 1).toUpperCase()} defaultValue={me.photo ?? ''} />
           <FieldDescription>
-            O endereço de uma imagem que já esteja online. Sem foto, ficam as tuas iniciais.
+            PNG, JPG ou WEBP, até 2 MB. Sem foto, ficam as tuas iniciais.
           </FieldDescription>
         </Field>
       </FieldGroup>

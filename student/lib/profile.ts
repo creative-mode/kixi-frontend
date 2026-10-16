@@ -20,9 +20,10 @@ export function contextLine(me: Me | null): string {
   return parts.join(' · ');
 }
 
-/** Only remote images are rendered; anything else falls back to the initials avatar. */
+/** Remote images and the ones sent from the device (`/uploads/images/avatar/…`) are rendered; anything else falls
+ *  back to the initials avatar. */
 export function photoUrl(me: Me | null): string | null {
   const photo = me?.photo?.trim();
   if (!photo) return null;
-  return /^https?:\/\/\S+$/i.test(photo) ? photo : null;
+  return /^(?:https?:\/\/\S+|\/uploads\/images\/avatar\/[A-Za-z0-9._-]+)$/i.test(photo) ? photo : null;
 }
