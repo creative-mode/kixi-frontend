@@ -35,6 +35,25 @@ export async function uploadQuestionImage(form: FormData): Promise<Result<Row>> 
   });
 }
 
+/** Uma foto de perfil ou um logótipo escolhido do dispositivo: vai para o armazenamento e devolve o endereço que o
+ *  formulário guarda em `photo`/`logo`. O servidor decide o que o ficheiro é pelos seus bytes; aqui só se poupa o envio
+ *  do que já se vê que não serve. */
+export async function uploadImage(form: FormData): Promise<Result<{ url: string }>> {
+  return guard(async () => {
+    const file = form.get('file');
+    const kind = String(form.get('kind') ?? '');
+    if (kind !== 'avatar' && kind !== 'logo') return fail('Tipo de imagem inválido.');
+    if (!(file instanceof File) || file.size === 0) return fail('Escolha uma imagem.');
+    if (!file.type.startsWith('image/')) return fail('O ficheiro tem de ser uma imagem (PNG, JPG ou WEBP).');
+    if (file.size > 2 * 1024 * 1024) return fail('A imagem deve ter no máximo 2 MB.');
+    const out = new FormData();
+    out.append('file', file, file.name);
+    const res = await call(`/api/v1/images?kind=${kind}`, { method: 'POST', body: out });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as { url: string });
+  });
+}
+
 export async function updateQuestionImage(id: number, questionId: number, caption: string, orderIndex: number | null): Promise<Result<Row>> {
   return guard(async () => {
     const res = await call(`/api/v1/question-images/${Number(id)}`, { method: 'PUT', body: JSON.stringify({ questionId, caption: caption.trim() || null, orderIndex }) });
