@@ -171,7 +171,7 @@ export function StatementDetail({ id }: { id: number }) {
               </div>
             )}
           </Card>
-          <StatementSheet statement={s} />
+          <StatementSheet statementId={id} />
           <Card>
             <CardHeader><CardTitle className="text-base">Questões ({questions.length})</CardTitle></CardHeader>
             <CardContent className="space-y-4">
