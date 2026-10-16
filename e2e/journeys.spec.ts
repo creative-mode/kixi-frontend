@@ -195,4 +195,38 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.goto('/manager');
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
-});
+
+  test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
+    // Reproduz a #240: dois `TabsContent` com o mesmo `value` montam-se os dois, e
+    // o aluno lê a mesma prova como se a tivesse feito duas vezes. Compila, passa o
+    // lint e o type checking — nada o apanha, porque não há sintaxe inválida.
+    //
+    // O teste conta. E conta nos quatro separadores, porque o padrão de duplicação
+    // pode ter escapado noutro ecrã.
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/perfil');
+
+    // O invariante nao depende dos dados: um `TabsContent` por separador. Com dois
+    // blocos de mesmo `value`, o Radix monta os dois e o `tabpanel` aparece duas
+    // vezes — que e a raiz do bug da #240, e vale para os quatro separadores.
+    const separadores = ['Atividade', 'Desempenho', 'Medalhas', 'Histórico'];
+    await expect(page.getByRole('tab'), `esperava ${separadores.length} separadores`).toHaveCount(separadores.length);
+
+    for (const separador of separadores) {
+      await page.getByRole('tab', { name: separador }).click();
+      const painel = page.getByRole('tabpanel');
+      await expect(painel, `separador ${separador}: esperava um unico painel`).toHaveCount(1);
+      // E que o painel nao esteja vazio: um separador que abre em branco tambem e um bug.
+      await expect(painel.locator('*').first(), `separador ${separador}: painel vazio`).toBeVisible();
+    }
+
+    // E o sintoma que o aluno via: o cartao de dominio aparece uma vez so.
+    await page.getByRole('tab', { name: 'Desempenho' }).click();
+    await expect(page.getByRole('tabpanel').getByText('Domínio por prova')).toHaveCount(1);
+  });
+ });
