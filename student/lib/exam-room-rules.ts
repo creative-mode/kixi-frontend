@@ -77,6 +77,26 @@ export function formatWhen(value: string): string {
   return m ? `${m[3]}/${m[2]} às ${m[4]}:${m[5]}` : value;
 }
 
+/** O que a página mostra quando `GET /exam-rooms/mine` falha (#220): mensagem
+ *  pronta e se o caminho é voltar a entrar (401, sessão caducada) ou tentar de
+ *  novo. Puro para o `node --test` o alcançar. */
+export function invitationsErrorOf(result: {
+  ok: boolean;
+  status?: number;
+  message?: string;
+}): { message: string; status: number | null } | null {
+  if (result.ok) return null;
+  const status = result.status ?? null;
+  if (status === 401) {
+    return {
+      message: 'A tua sessão expirou. Entra de novo para veres as salas de prova.',
+      status,
+    };
+  }
+  const detail = result.message?.trim() ? ` ${result.message.trim()}` : '';
+  return { message: `Não foi possível carregar as salas de prova.${detail}`, status };
+}
+
 /** As que importam primeiro: a decorrer, depois na sala de espera, por abrir, e as passadas no fim. */
 export function sortInvitations(list: Invitation[]): Invitation[] {
   const rank: Record<Phase, number> = { live: 0, lobby: 1, scheduled: 2, submitted: 3, over: 4 };

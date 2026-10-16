@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/states';
 import { RefreshError } from '@/components/refresh-error';
 import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@/lib/catalog';
 import { listInvitations } from '@/lib/exam-room';
+import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 
 type Params = Promise<Record<string, string | string[] | undefined>>;
@@ -153,7 +154,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
 
   const [names, invResult] = await Promise.all([getCatalogNames(), listInvitations()]);
   const invitations = invResult.ok ? invResult.data : [];
-  const invitationsError = invResult.ok ? null : `Salas de prova indisponíveis: ${invResult.message}`;
+  const invitationsError = invitationsErrorOf(invResult);
   const result = await getCatalog({ ...filters, page, size: PAGE_SIZE }, names);
   if (!result.ok) {
     return (

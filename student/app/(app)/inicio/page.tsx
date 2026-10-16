@@ -1,4 +1,5 @@
 import { listInvitations } from '@/lib/exam-room';
+import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { getMe } from '@/lib/me';
 import { getFeed } from '@/lib/feed';
 import { getPerformance } from '@/lib/performance';
@@ -32,7 +33,7 @@ export default async function InicioPage() {
   return (
     <InicioFeed
       invitations={invResult.ok ? invResult.data : []}
-      invitationsError={invResult.ok ? null : `Salas de prova indisponíveis: ${invResult.message}`}
+      invitationsError={invitationsErrorOf(invResult)}
       myAccountId={me?.accountId ?? null}
       classId={classId}
       posts={feed?.ok ? feed.data : []}

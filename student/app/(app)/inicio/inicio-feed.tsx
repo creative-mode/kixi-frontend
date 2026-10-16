@@ -158,7 +158,7 @@ export function InicioFeed({
   classTop = [],
 }: {
   invitations?: Invitation[];
-  invitationsError?: string | null;
+  invitationsError?: { message: string; status: number | null } | null;
   myAccountId: number | null;
   classId: number | null;
   posts: FeedPost[];
