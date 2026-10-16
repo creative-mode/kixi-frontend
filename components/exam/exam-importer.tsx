@@ -96,10 +96,10 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
           {files.length > 0 && (
             <ol className="grid gap-2" aria-label="Ficheiros a importar">
               {files.map((f, i) => (
-                <li key={`${f.name}-${i}`} className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm">
+                <li key={`${f.name}-${i}`} className="flex min-w-0 items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm">
                   <span className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-primary">{f.type === 'application/pdf' ? <FileText size={16} aria-hidden /> : <FileImage size={16} aria-hidden />}</span>
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{i + 1}. {f.name}</span><span className="text-xs text-muted-foreground">{size(f.size)}</span></span>
-                  <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={`Remover ${f.name}`} disabled={busy} onClick={() => setFiles((cur) => cur.filter((_, k) => k !== i))}><X size={14} /></Button>
+                  <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0" aria-label={`Remover ${f.name}`} disabled={busy} onClick={() => setFiles((cur) => cur.filter((_, k) => k !== i))}><X size={14} /></Button>
                 </li>
               ))}
             </ol>
