@@ -6,6 +6,7 @@ import { StatementDetailView } from '@/components/statement-detail';
 import { getStatementDetail } from '@/lib/statement-detail';
 import { getCommunityStats, getSharedSolutions } from '@/lib/community';
 import { getCatalogNames } from '@/lib/catalog';
+import { EnunciadoDaProva } from '@/components/enunciado-da-prova';
 
 export const metadata = { title: 'Prova · Kixi' };
 
@@ -64,6 +65,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
       <>
         <StatementDetailView summary={result.summary} attempts={null} current={null} community={null} />
         <HistoryUnavailable message={result.message} />
+        <EnunciadoDaProva statementId={id} />
       </>
     );
   }
@@ -89,8 +91,11 @@ export default async function StatementDetailPage({ params }: { params: Promise<
     : null;
 
   return (
-    <StatementDetailView
-      summary={result.summary} attempts={result.attempts} current={result.current} community={community}
-    />
+    <>
+      <StatementDetailView
+        summary={result.summary} attempts={result.attempts} current={result.current} community={community}
+      />
+      <EnunciadoDaProva statementId={id} />
+    </>
   );
 }
