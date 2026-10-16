@@ -309,9 +309,33 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   const patchQ = (qid: number, patch: Partial<QuestionDraft>) =>
     setQuestions((qs) => (qs ? qs.map((q) => (q.id === qid ? { ...q, ...patch } : q)) : qs));
 
+  /**
+   * Guarda primeiro quando há rascunho: adicionar/remover/mover recarrega do
+   * servidor, e sem isto deitava fora texto, cotação ou resposta modelo ainda
+   * por gravar (#170 review). O save valida e mostra o problema; se falhar, a
+   * mutação nem começa.
+   */
+  async function ensureSaved(): Promise<boolean> {
+    if (!dirty) return true;
+    return save();
+  }
+
+  /** Blocos para mover/remover em conjunto: questão de topo mais as alíneas que
+   *  a seguem. Sem isto, mover um grupo partia-o e remover um pai deixava as
+   *  alíneas ativas sem pai. */
+  function blocksOf(qs: QuestionDraft[]): QuestionDraft[][] {
+    const out: QuestionDraft[][] = [];
+    for (const q of qs) {
+      const last = out[out.length - 1];
+      if (q.parentId != null && last) last.push(q);
+      else out.push([q]);
+    }
+    return out;
+  }
+
   /** #165: cria a pergunta no servidor (number/orderIndex vêm de lá) e recarrega. */
   async function addQuestion() {
-    if (!questions) return;
+    if (!questions || !(await ensureSaved())) return;
     setSaving(true);
     const res = await createStatementQuestion(id, { text: 'Nova questão', questionType: 'open', maxScore: 0, modelAnswer: null });
     if (!res.ok) {
@@ -325,32 +349,42 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   }
 
   function removeQuestion(q: QuestionDraft) {
-    const label = `${q.parentId != null ? 'a alínea' : 'a questão'} ${questions ? displayNumber(q, questions) : q.number}`;
+    const all = questions ?? [];
+    const kids = all.filter((x) => x.parentId === q.id);
+    const label = `${q.parentId != null ? 'a alínea' : 'a questão'} ${displayNumber(q, all)}`;
     setConfirm({
       title: `Remover ${label}?`,
-      description: 'A questão sai do enunciado. As imagens que tenha ficam órfãs.',
+      description: kids.length
+        ? `As ${kids.length} alíneas saem junto — não ficam ativas sem pai. As imagens que tenham ficam órfãs.`
+        : 'A questão sai do enunciado. As imagens que tenha ficam órfãs.',
       action: 'Remover',
       destructive: true,
       run: async () => {
+        if (!(await ensureSaved())) return;
         setSaving(true);
-        const res = await deleteStatementQuestion(id, q.id);
-        if (!res.ok) toast.error(res.error);
-        else toast.success('Questão removida.');
+        for (const target of [q, ...kids]) {
+          const res = await deleteStatementQuestion(id, target.id);
+          if (!res.ok) {
+            toast.error(res.error);
+            break;
+          }
+        }
         await load();
         setSaving(false);
+        toast.success('Questão removida.');
       },
     });
   }
 
-  /** #165: sobe/desce a questão (só orderIndex mexe; number é estável). */
-  async function moveQuestion(index: number, dir: -1 | 1) {
-    if (!questions) return;
-    const next = [...questions];
-    const other = index + dir;
-    if (other < 0 || other >= next.length) return;
-    [next[index], next[other]] = [next[other], next[index]];
+  /** #165: sobe/desce o bloco (questão + alíneas); só orderIndex mexe. */
+  async function moveBlock(bi: number, dir: -1 | 1) {
+    if (!questions || !(await ensureSaved())) return;
+    const blks = blocksOf(questions);
+    const other = bi + dir;
+    if (other < 0 || other >= blks.length) return;
+    [blks[bi], blks[other]] = [blks[other], blks[bi]];
     setSaving(true);
-    const res = await reorderStatementQuestions(id, next.map((q) => q.id));
+    const res = await reorderStatementQuestions(id, blks.flat().map((qq) => qq.id));
     if (!res.ok) toast.error(res.error);
     await load();
     setSaving(false);
@@ -428,7 +462,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       <Card>
         <CardHeader><CardTitle className="text-base">Questões e gabarito ({questions.length})</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {questions.map((q, qi) => (
+          {blocksOf(questions).map((blk, bi, arr) => blk.map((q) => (
             <div key={q.id} className={`rounded-lg border p-4 ${q.parentId != null ? 'ml-6 border-dashed' : ''}`}>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <strong>{q.parentId != null ? 'Alínea' : 'Questão'} {displayNumber(q, questions)}</strong>
@@ -443,8 +477,12 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                   </label>
                 )}
                 <span className="flex items-center gap-1">
-                  <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || qi === 0} aria-label={`Subir questão ${displayNumber(q, questions)}`} onClick={() => void moveQuestion(qi, -1)}><ChevronUp size={14} /></Button>
-                  <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || qi === questions.length - 1} aria-label={`Descer questão ${displayNumber(q, questions)}`} onClick={() => void moveQuestion(qi, 1)}><ChevronDown size={14} /></Button>
+                  {blk[0] === q ? (
+                    <>
+                      <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || bi === 0} aria-label={`Subir questão ${displayNumber(q, questions)}`} onClick={() => void moveBlock(bi, -1)}><ChevronUp size={14} /></Button>
+                      <Button type="button" size="icon" variant="ghost" className="size-7" disabled={saving || bi === arr.length - 1} aria-label={`Descer questão ${displayNumber(q, questions)}`} onClick={() => void moveBlock(bi, 1)}><ChevronDown size={14} /></Button>
+                    </>
+                  ) : null}
                   <Button type="button" size="icon" variant="ghost" className="size-7 hover:bg-danger-soft hover:text-destructive" disabled={saving} aria-label={`Remover questão ${displayNumber(q, questions)}`} onClick={() => removeQuestion(q)}><Trash2 size={14} /></Button>
                 </span>
               </div>
@@ -477,7 +515,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                   Grava de imediato (POST /api/v1/question-images), independente do Guardar revisão. */}
               {q.id > 0 ? <QuestionImages questionId={q.id} /> : null}
             </div>
-          ))}
+          )))}
           <Button type="button" variant="outline" onClick={() => void addQuestion()} disabled={saving}>
             <Plus size={16} aria-hidden /> Adicionar questão
           </Button>
