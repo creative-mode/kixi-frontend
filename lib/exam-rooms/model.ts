@@ -167,6 +167,31 @@ export function statementFitsRoom(
   return own === classId;
 }
 
+/**
+ * A turma e o enunciado com que o assistente de salas abre quando vem de um enunciado
+ * (`/exam-rooms/new?statementId=…`): o professor acabou de guardar ou ver uma prova e quer dá-la.
+ *
+ * A turma é a do enunciado, porque a sala só aceita o enunciado da mesma turma. Um enunciado sem turma
+ * (só o ADMIN o pode usar) deixa a turma por escolher, ou escolhe-a quando há uma só. Devolve `null` quando
+ * o enunciado não está entre os que este utilizador pode usar (outra escola, ou já não existe): então o
+ * assistente abre vazio, como sempre abriu, em vez de fingir que o escolheu.
+ */
+export function preselectFromStatement(
+  statements: readonly { id: number; classId: number | null; durationMinutes: number | null }[],
+  classes: readonly { id: number }[],
+  statementId: string | null | undefined,
+  admin: boolean,
+): { classId: string; statementId: string; durationMinutes: number | null } | null {
+  if (!statementId || !/^\d+$/.test(statementId)) return null;
+  const st = statements.find((x) => String(x.id) === statementId);
+  if (!st) return null;
+  const classId = st.classId ?? (classes.length === 1 ? classes[0].id : null);
+  if (classId === null) return { classId: '', statementId: '', durationMinutes: null };
+  if (!classes.some((c) => c.id === classId)) return null;
+  if (!statementFitsRoom(st, classId, admin)) return null;
+  return { classId: String(classId), statementId: String(st.id), durationMinutes: st.durationMinutes && st.durationMinutes > 0 ? st.durationMinutes : null };
+}
+
 // ── controlo da sala ────────────────────────────────────────────────────────
 
 export type RoomAction = 'open' | 'start' | 'close';

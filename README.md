@@ -51,6 +51,31 @@ A origem tem de trazer a porta quando a traz. Atrás do gateway o Next vê o hos
 a porta interna da app; se a origem não a trouxer, o redirect saía em
 `https://kixi.ao:3002/...` e nenhuma visita sem sessão chegava ao gestor.
 
+## Contra o backend real (sem mocks)
+
+```bash
+# no repositório do backend: sobe Postgres + API em :8081 (ver o README de lá)
+export JWT_SECRET=<o mesmo APP_JWT_SECRET do backend>
+export KIXI_MOCK=false BACKEND_API_URL=http://localhost:8081/api/v1 APP_ORIGIN=http://localhost:3000
+npm run dev:all             # http://localhost:3000
+```
+
+- O login do gestor usa só `BACKEND_API_URL`; não há uma variável própria para o endereço de autenticação.
+- Os dados vêm todos do backend: um professor só vê as turmas e disciplinas que lhe foram atribuídas, e
+  precisa de estar afiliado à instituição. Um aluno só entra no ranking com simulações do ano letivo da sua turma.
+- O tutor responde com `GROQ_API_KEY` no backend; sem ela o backend responde 503 e o ecrã diz que não consegue falar com o tutor.
+- Em WSL com o repositório em `/mnt/c`, o `next dev` não vê as edições: reinicie o servidor depois de alterar ficheiros.
+
+## Provas: enunciado, construtor e sala
+
+A prova nasce no **construtor** (`/manager/exam-builder`) e é dada numa **sala**. O fluxo de um professor:
+
+1. **Montar ou importar.** À mão, ou «Importar de imagem»: o OCR (`POST /api/v1/ocr/extract/exam`, sem guardar nada) lê a prova e o construtor fica preenchido: cabeçalho (título, duração, série, ano letivo), a disciplina (encontrada pelo nome ou pela sigla entre as da escola) e o tipo de cada questão. A conversão é `lib/exam/extraction.ts`, pura e testada.
+2. **Rever.** Cada questão é dissertativa, de escolha múltipla, verdadeiro/falso ou **com alíneas** (a, b, c…, cada uma com o seu tipo, cotação e resposta). O OCR não adivinha o gabarito: as respostas de escolha múltipla e de verdadeiro/falso marcam-se aqui. Sem cotação no papel, «Distribuir 20 valores» reparte por igual sem tocar nas já preenchidas.
+3. **Publicar** e **criar a sala** com essa prova (`/exam-rooms/new?statementId=…` abre com a turma e a prova escolhidas). Os alunos entram na sala e fazem a simulação.
+
+Uma questão com alíneas é, no backend, uma questão `group` (só o enunciado comum) com uma questão por alínea (`parentId` e `label`). O número interno de uma alínea é `pai * 100 + índice` (301, 302…), só para ser único: **nunca se mostra**, mostra-se `3a`. A ordem das questões é a do servidor (cada alínea a seguir ao pai); o front não reordena por `number`. `lib/exam/display.ts` (manager) e `student/lib/question-number.ts` (aluno) tratam disso.
+
 ## Scripts úteis
 
 ```bash

@@ -21,6 +21,10 @@ export async function forwardToTutor(
   if (!token) return Response.json({ message: 'A sessão expirou. Entra novamente.' }, { status: 401 });
 
   const payload = JSON.stringify(body ?? {});
+  // O backend negocia pelo Accept: com `text/event-stream` à frente, até a criação da sessão
+  // (que é JSON) volta como evento (`data:{...}`) e o cliente não a consegue ler. Só o envio
+  // de uma mensagem é um stream.
+  const accept = path.endsWith('/messages') ? 'text/event-stream, application/json' : 'application/json';
   let upstream: Response;
   try {
     upstream = MOCK
@@ -28,7 +32,7 @@ export async function forwardToTutor(
       : await fetch(`${BACKEND}${path}`, {
           method: 'POST',
           headers: {
-            Accept: 'text/event-stream, application/json',
+            Accept: accept,
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },

@@ -17,6 +17,8 @@
  *    second POST for the same question is a 409 (SimulationAnswerService.java:97).
  */
 
+import { isItem, topNumber } from './question-number.ts';
+
 export type SimulationStatus = 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
 
 export interface ExamQuestion {
@@ -27,6 +29,14 @@ export interface ExamQuestion {
   maxScore?: number | null;
   orderIndex?: number | null;
   options: ExamOption[];
+  /** Só numa alínea: a questão a que pertence e a letra (a, b…). Ver `question-number.ts`. */
+  parentId?: number | null;
+  label?: string | null;
+  /** O enunciado comum da questão com alíneas, para o aluno o ler acima de cada alínea. O backend pode
+   *  mandá-lo; quando não manda, `orderQuestions` vai buscá-lo à questão pai. */
+  parentText?: string | null;
+  /** O número da questão inteira (o 3 de 3a), para o cabeçalho do enunciado comum. */
+  parentNumber?: number | null;
 }
 
 export interface ExamOption {
@@ -69,21 +79,31 @@ export function isChoice(question: ExamQuestion): boolean {
   return question.options.length > 0;
 }
 
-/** Questions in the order the student walks them: by `number`, falling back to
- *  `orderIndex` and then to the array position when a statement leaves one unset. */
+/** A questão com alíneas não se responde: é só o enunciado comum, as respostas estão nas alíneas. */
+export function isGroup(question: ExamQuestion): boolean {
+  return (question.questionType ?? '').toLowerCase() === 'group';
+}
+
+/** The questions in the order the student walks them: the order the server sends, which is the order of the paper
+ *  (`order_index`, with every alínea right after its parent). The front does not sort by `number`: for an alínea
+ *  that number (301, 302…) only exists to be unique, and sorting by it would put 3a after the last question.
+ *
+ *  The parent leaves the list because there is nothing to answer in it: the student walks the leaves. Each alínea
+ *  carries the common statement and the number of the whole question, for the screen to show them. */
 export function orderQuestions(questions: ExamQuestion[]): ExamQuestion[] {
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  const groups = questions.filter(isGroup);
   return questions
-    .map((question, index) => ({ question, index }))
-    .sort((a, b) => {
-      const an = Number(a.question.number);
-      const bn = Number(b.question.number);
-      if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
-      const ao = Number(a.question.orderIndex);
-      const bo = Number(b.question.orderIndex);
-      if (Number.isFinite(ao) && Number.isFinite(bo) && ao !== bo) return ao - bo;
-      return a.index - b.index;
-    })
-    .map(({ question }) => question);
+    .filter((q) => !isGroup(q))
+    .map((q) => {
+      if (!isItem(q)) return q;
+      const parent = (q.parentId != null ? byId.get(q.parentId) : undefined) ?? groups.find((g) => g.number === topNumber(q.number));
+      return {
+        ...q,
+        parentText: q.parentText ?? parent?.text ?? null,
+        parentNumber: q.parentNumber ?? parent?.number ?? topNumber(q.number),
+      };
+    });
 }
 
 /** Builds the request body for an answer. The two fields are mutually exclusive,

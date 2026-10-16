@@ -4,6 +4,7 @@ import { apiGet } from './api';
 import { getCatalogNames, type Named } from './catalog';
 import { currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
 import { getStatementFull } from './exam';
+import { isItem } from './question-number';
 import type { PaperQuestion } from './tutor-rules';
 
 /** How many questions the picker lists. A cap, so a pathological paper cannot turn the
@@ -155,11 +156,17 @@ export async function getStatementQuestions(id: number): Promise<PaperQuestion[]
   if (!Number.isInteger(id) || id <= 0) return [];
   const result = await getStatementFull(id, { cached: true });
   if (!result.ok) return [];
+  // Alíneas are dropped, not folded in. The server gives one a number under its parent
+  // (`301` → question 3) purely to keep the order, and the link from the result screen
+  // names whole questions — so a picker listing 301 would never resolve a link asking
+  // for 3, and "estudar os erros" would open on no question at all. Their parent is in
+  // the same list and carries the text.
   return result.data.questions
     .filter((question) => Number.isInteger(question.id) && question.id > 0)
+    .filter((question) => Number.isInteger(question.number) && !isItem({ number: question.number }))
     .map((question) => ({
       id: question.id,
-      number: Number.isInteger(question.number) ? question.number : 0,
+      number: question.number,
       text: (question.text ?? '').trim(),
     }))
     .sort((a, b) => a.number - b.number)

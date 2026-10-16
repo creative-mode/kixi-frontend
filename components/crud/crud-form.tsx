@@ -117,7 +117,9 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
     setSaving(false);
     if (res.ok) {
       toast.success(editing ? `${entity.singular} ${gender(entity, 'atualizado')}` : `${entity.singular} ${gender(entity, 'criado')}`);
-      router.push(`/${entity.path}`);
+      // Uma escola nova ainda está vazia: leva direto ao assistente de estrutura (cursos, turmas, professores).
+      const createdId = !editing && entityKey === 'institutions' ? Number((res.data as Row | undefined)?.id) : NaN;
+      router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
       router.refresh();
     } else toast.error(res.error);
   }

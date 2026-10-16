@@ -325,7 +325,7 @@ export function TutorChat({
                   : <UserAvatar name={fullName(me)} size={32} className="max-md:hidden" />}
                 <div className={cn('whitespace-pre-wrap rounded-xl border px-3.5 py-2.5 leading-relaxed', m.role === 'student' ? 'border-primary bg-primary text-primary-foreground' : 'bg-secondary')}>
                   {m.text || (m.streaming ? <span className="text-muted-foreground">A pensar…</span> : null)}
-                  {m.streaming && m.text && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-current align-middle" aria-hidden />}
+                  {m.streaming && m.text && <span className="ml-0.5 inline-block h-4 w-1.5 motion-safe:animate-pulse bg-current align-middle" aria-hidden />}
                   {m.failed && (
                     <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-destructive" role="alert">
                       <TriangleAlert className="size-3.5" aria-hidden />{m.failed}

@@ -1,5 +1,7 @@
 'use client';
 
+import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
+import { displayNumber, isGroup } from '@/lib/exam/display';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Check, Eye, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,20 +23,20 @@ import {
   type StatementInput,
 } from '@/app/actions/crud';
 import { fetchCurrentUser } from '@/lib/auth';
-import { answerKeyIssues } from '@/lib/crud/answer-key';
+import { answerKeyIssues, sumOfScores } from '@/lib/crud/answer-key';
 import type { Row } from '@/lib/crud/entities';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
 
 // O tipo tem várias grafias no backend (OCR escreve `development`, o exam builder `open`).
-const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', DEVELOPMENT: 'Desenvolvimento' };
+const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', GROUP: 'Com alíneas', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', DEVELOPMENT: 'Desenvolvimento' };
 const typeLabel = (t: string | null) => (t ? QUESTION_TYPES[t.toUpperCase()] ?? t : 'Sem tipo');
 
 type OptionDraft = { id: number; optionLabel: string; optionText: string; isCorrect: boolean };
 // A cotação fica como o professor a escreve: como número, apagar o campo dava 0 e
 // escrever a seguir dava "01.5".
-type QuestionDraft = { id: number; number: number; questionType: string | null; text: string; maxScore: string; needsReview: boolean; modelAnswer: string; options: OptionDraft[] };
+type QuestionDraft = { id: number; number: number; parentId: number | null; label: string | null; questionType: string | null; text: string; maxScore: string; needsReview: boolean; modelAnswer: string; options: OptionDraft[] };
 type HeaderDraft = { institutionId: string; title: string; examType: string; variant: string; durationMinutes: string; instructions: string; totalMaxScore: string; subjectId: string; classId: string; schoolYearId: string; termId: string };
 type Draft = { header: HeaderDraft; questions: QuestionDraft[] };
 
@@ -60,6 +62,8 @@ function toDraft(s: Row): Draft {
     questions: (s.questions ?? []).map((q: Row) => ({
       id: Number(q.id),
       number: q.number,
+      parentId: q.parentId ?? null,
+      label: q.label ?? null,
       questionType: q.questionType ?? null,
       text: q.text ?? '',
       maxScore: str(q.maxScore ?? 0),
@@ -80,14 +84,16 @@ function invalid({ header, questions }: Draft, admin: boolean): string | null {
   if (header.durationMinutes.trim() !== '' && !(Number(header.durationMinutes) > 0)) return 'A duração tem de ser maior que zero.';
   if (header.totalMaxScore.trim() !== '' && !(score(header.totalMaxScore) >= 0)) return 'A cotação total não é válida.';
   for (const q of questions) {
-    if (!q.text.trim()) return `A questão ${q.number} não tem texto.`;
-    if (!(score(q.maxScore) >= 0)) return `A cotação da questão ${q.number} não é válida.`;
-    if (q.options.some((o) => !o.optionText.trim())) return `A questão ${q.number} tem uma opção sem texto.`;
+    // Uma alínea chama-se 3a, não 301: o número interno nunca é o que o professor leu na prova.
+    const n = displayNumber(q, questions);
+    if (!q.text.trim()) return `A questão ${n} não tem texto.`;
+    if (!(score(q.maxScore) >= 0)) return `A cotação da questão ${n} não é válida.`;
+    if (q.options.some((o) => !o.optionText.trim())) return `A questão ${n} tem uma opção sem texto.`;
   }
   return null;
 }
 
-function toStatementInput(h: HeaderDraft, courseId: number | null): StatementInput {
+function toStatementInput(h: HeaderDraft, courseId: number | null, fallbackTotal: number | null): StatementInput {
   return {
     institutionId: Number(h.institutionId),
     subjectId: Number(h.subjectId),
@@ -97,7 +103,8 @@ function toStatementInput(h: HeaderDraft, courseId: number | null): StatementInp
     variant: h.variant.trim() || null,
     instructions: h.instructions.trim() || null,
     // Vai sempre: o PUT grava o que receber, e omitir apagava o total (e a verificação da soma no approve).
-    totalMaxScore: numOrNull(h.totalMaxScore),
+    // Em branco, vale a soma das cotações: sem total a prova fica sem escala e fora do ranking.
+    totalMaxScore: numOrNull(h.totalMaxScore) ?? fallbackTotal,
     schoolYearId: numOrNull(h.schoolYearId),
     termId: numOrNull(h.termId),
     classId: numOrNull(h.classId),
@@ -201,11 +208,11 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       setChoices(r.data);
       // O que vinha do OCR ou de outra escola e aqui não se pode escolher fica em branco,
       // em vez de um select a mostrar "—" com um valor escondido que o servidor recusaria.
-      const mine = r.data.assignments;
-      setHeader((h) => h && {
-        ...h,
-        subjectId: r.data.subjects.some((x) => String(x.value) === h.subjectId && (!mine || mine.some((a) => a.subjectId === x.value))) ? h.subjectId : '',
-        classId: r.data.classes.some((x) => String(x.value) === h.classId) ? h.classId : '',
+      setHeader((h) => {
+        if (!h) return h;
+        const classId = r.data.classes.some((x) => String(x.value) === h.classId) ? h.classId : '';
+        const subjectId = subjectChoices(r.data, classId ? Number(classId) : null).some((x) => String(x.value) === h.subjectId) ? h.subjectId : '';
+        return { ...h, subjectId, classId };
       });
     });
     return () => {
@@ -217,14 +224,9 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
   if (!header || !questions || !original || admin == null) return <DetailSkeleton />;
 
-  const assigned = choices?.assignments;
-  const subjects = (choices?.subjects ?? []).filter(
-    // Ao professor, só as disciplinas que dá na turma escolhida (ou em alguma, sem turma).
-    (s) => !assigned || assigned.some((a) => a.subjectId === s.value && (!header.classId || a.classId === Number(header.classId))),
-  );
-  const classes = (choices?.classes ?? []).filter(
-    (c) => !assigned || !header.subjectId || assigned.some((a) => a.classId === c.value && a.subjectId === Number(header.subjectId)),
-  );
+  // Disciplinas do currículo da turma escolhida (ou de qualquer turma sem turma); ao professor, só as que dá.
+  const subjects = choices ? subjectChoices(choices, header.classId ? Number(header.classId) : null) : [];
+  const classes = choices ? classChoices(choices, header.subjectId ? Number(header.subjectId) : null) : [];
   const courseId = choices?.classes.find((c) => c.value === Number(header.classId))?.courseId ?? null;
 
   const issues = answerKeyIssues(questions.map((q) => ({ ...q, maxScore: score(q.maxScore) })), numOrNull(header.totalMaxScore));
@@ -245,7 +247,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       return false;
     }
     setSaving(true);
-    const res = await saveStatementReview(id, toStatementInput(header, courseId), questionEdits(original.questions, questions));
+    const res = await saveStatementReview(id, toStatementInput(header, courseId, sumOfScores(questions.map((q) => ({ maxScore: score(q.maxScore) })))), questionEdits(original.questions, questions));
     if (!res.ok) {
       setSaving(false);
       toast.error(res.error);
@@ -376,17 +378,21 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
         <CardHeader><CardTitle className="text-base">Questões e gabarito ({questions.length})</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {questions.map((q) => (
-            <div key={q.id} className="rounded-lg border p-4">
+            <div key={q.id} className={`rounded-lg border p-4 ${q.parentId != null ? 'ml-6 border-dashed' : ''}`}>
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <strong>Questão {q.number}</strong>
+                <strong>{q.parentId != null ? 'Alínea' : 'Questão'} {displayNumber(q, questions)}</strong>
                 <Badge variant="outline">{typeLabel(q.questionType)}</Badge>
                 {q.needsReview ? <Badge variant="secondary">OCR a rever</Badge> : null}
-                <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-                  Cotação
-                  <Input inputMode="decimal" value={q.maxScore} onChange={(e) => patchQ(q.id, { maxScore: e.target.value })} className="w-20" aria-label={`Cotação da questão ${q.number}`} />
-                </label>
+                {isGroup(q) ? (
+                  <span className="ml-auto text-xs text-muted-foreground">Vale a soma das alíneas</span>
+                ) : (
+                  <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+                    Cotação
+                    <Input inputMode="decimal" value={q.maxScore} onChange={(e) => patchQ(q.id, { maxScore: e.target.value })} className="w-20" aria-label={`Cotação da questão ${displayNumber(q, questions)}`} />
+                  </label>
+                )}
               </div>
-              <textarea value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value })} rows={2} className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" aria-label={`Texto da questão ${q.number}`} />
+              <textarea value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value })} rows={2} className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" aria-label={`Texto da questão ${displayNumber(q, questions)}`} />
               {/* Como o servidor: é ter opções que faz a questão precisar de resposta correta, não o tipo. */}
               {q.options.length > 0 ? (
                 <div className="mt-3 space-y-2">
@@ -397,11 +403,11 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                         name={`correct-${q.id}`}
                         checked={o.isCorrect}
                         onChange={() => patchQ(q.id, { options: q.options.map((x) => ({ ...x, isCorrect: x.id === o.id })) })}
-                        aria-label={`Marcar ${o.optionLabel} como correta na questão ${q.number}`}
+                        aria-label={`Marcar ${o.optionLabel} como correta na questão ${displayNumber(q, questions)}`}
                         className="size-4 accent-primary"
                       />
                       <span className="w-6 text-sm font-semibold">{o.optionLabel})</span>
-                      <Input value={o.optionText} onChange={(e) => patchQ(q.id, { options: q.options.map((x) => (x.id === o.id ? { ...x, optionText: e.target.value } : x)) })} aria-label={`Opção ${o.optionLabel} da questão ${q.number}`} />
+                      <Input value={o.optionText} onChange={(e) => patchQ(q.id, { options: q.options.map((x) => (x.id === o.id ? { ...x, optionText: e.target.value } : x)) })} aria-label={`Opção ${o.optionLabel} da questão ${displayNumber(q, questions)}`} />
                     </div>
                   ))}
                 </div>

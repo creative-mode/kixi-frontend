@@ -34,11 +34,13 @@ export interface Invitation {
  */
 export type Phase = 'scheduled' | 'lobby' | 'live' | 'submitted' | 'over';
 
-export function phaseOf(inv: Invitation): Phase {
+export function phaseOf(inv: Invitation, nowMs?: number): Phase {
   const sim = (inv.simulationStatus ?? '').toUpperCase();
   if (sim === 'FINISHED' || sim === 'CANCELLED') return 'submitted';
   if (inv.status === 'CLOSED') return 'over';
-  const now = parseServerTime(inv.serverTime);
+  // Com o relógio vivo, a fase acompanha a hora real; sem ele vale a fotografia
+  // do servidor (primeira renderização e ordenação da lista).
+  const now = nowMs ?? parseServerTime(inv.serverTime);
   const end = parseServerTime(inv.endsAt);
   if (Number.isFinite(now) && Number.isFinite(end) && now >= end) return 'over';
   if (inv.status === 'DRAFT') return 'scheduled';
@@ -79,6 +81,34 @@ export function formatWhen(value: string): string {
 export function sortInvitations(list: Invitation[]): Invitation[] {
   const rank: Record<Phase, number> = { live: 0, lobby: 1, scheduled: 2, submitted: 3, over: 4 };
   return [...list].sort((a, b) => rank[phaseOf(a)] - rank[phaseOf(b)] || a.startsAt.localeCompare(b.startsAt));
+}
+
+/**
+ * O que o cartão oferece, decidido sem rede: entrar, continuar, esperar ou nada.
+ *
+ * `joinedAt` distingue "ainda não entrei" de "já estou na sala de espera": com
+ * ele marcado e a sala por começar, o cartão mostra estado em vez de um botão
+ * que reenvia — é o que partia o ciclo de cliques (#204). `ended` fecha a porta
+ * quando a janela passou, mesmo que a fase ainda diga o contrário.
+ */
+export type JoinAction =
+  | { kind: 'result'; simulationId: number }
+  | { kind: 'continue'; roomId: number }
+  | { kind: 'enter-live'; roomId: number }
+  | { kind: 'waiting' }
+  | { kind: 'enter-lobby'; roomId: number }
+  | { kind: 'none' };
+
+export function joinActionOf(inv: Invitation, phase: Phase, ended: boolean): JoinAction {
+  if (phase === 'submitted' && inv.simulationId) return { kind: 'result', simulationId: inv.simulationId };
+  if (phase === 'live' && (inv.simulationStatus ?? '').toUpperCase() === 'IN_PROGRESS') {
+    return { kind: 'continue', roomId: inv.roomId };
+  }
+  if (phase === 'over' || phase === 'scheduled' || ended) return { kind: 'none' };
+  if (inv.joinedAt != null && phase === 'lobby') return { kind: 'waiting' };
+  if (phase === 'live') return { kind: 'enter-live', roomId: inv.roomId };
+  if (phase === 'lobby') return { kind: 'enter-lobby', roomId: inv.roomId };
+  return { kind: 'none' };
 }
 
 const ROOM_ERRORS: [RegExp, string][] = [

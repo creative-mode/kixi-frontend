@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Clock, DoorOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
   clockOffset,
   formatWait,
   formatWhen,
+  joinActionOf,
   phaseOf,
   secondsUntil,
   sortInvitations,
@@ -60,12 +62,22 @@ export function SalasDeProva({ invitations }: { invitations: Invitation[] }) {
 
 function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; offset: number }) {
   const [state, enter, pending] = useActionState(entrarSalaAction, undefined);
-  const phase = phaseOf(inv);
+  const router = useRouter();
+  // A fase segue o relógio vivo depois de montar: com o snapshot do servidor, a
+  // sala que abriu às 10:00 continuava "por abrir" às 10:01 e o botão nunca
+  // mudava de rótulo (#204). Com `now` nulo vale o snapshot (hidratação igual).
+  const phase = now === null ? phaseOf(inv) : phaseOf(inv, now + offset);
   const toStart = now === null ? null : secondsUntil(inv.startsAt, now, offset);
   const toEnd = now === null ? null : secondsUntil(inv.endsAt, now, offset);
-  // A fase calculada no servidor envelhece: a sala que abria às 10:00 está aberta às 10:01.
   const started = toStart === 0;
   const ended = toEnd === 0;
+
+  // A entrada correu bem mas a página ainda mostra o convite antigo: volta a ler
+  // do servidor para o cartão refletir o `joinedAt` novo em vez de depender só
+  // do estado da ação. Corre uma vez por entrada (o valor não muda a seguir).
+  useEffect(() => {
+    if (state?.waiting) router.refresh();
+  }, [state?.waiting, router]);
 
   let when: string;
   if (phase === 'submitted') when = 'Já entregaste esta prova.';
@@ -74,8 +86,7 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
   else if (!started && toStart !== null) when = `Começa dentro de ${formatWait(toStart)} (${formatWhen(inv.startsAt)}).`;
   else when = phase === 'scheduled' ? 'O professor ainda não abriu a sala.' : 'À espera de o professor iniciar a prova.';
 
-  const canEnter = (phase === 'live' || phase === 'lobby') && !ended;
-  const continuing = phase === 'live' && (inv.simulationStatus ?? '').toUpperCase() === 'IN_PROGRESS';
+  const action = joinActionOf(inv, phase, ended);
 
   return (
     <Card className="grid gap-3 p-4">
@@ -90,16 +101,21 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
         <Clock className="size-4 shrink-0 text-muted-foreground" aria-hidden />{when}
       </p>
       {state?.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
-      {state?.waiting ? <p role="status" className="text-sm text-muted-foreground">{state.waiting}</p> : null}
-      {phase === 'submitted' && inv.simulationId ? (
+      {action.kind === 'result' ? (
         <Button asChild variant="outline" className="justify-self-start">
-          <Link href={`/resultado?prova=${inv.simulationId}`}>Ver resultado</Link>
+          <Link href={`/resultado?prova=${action.simulationId}`}>Ver resultado</Link>
         </Button>
-      ) : canEnter ? (
+      ) : action.kind === 'continue' ? (
+        <Button asChild className="justify-self-start">
+          <Link href={`/sala/${action.roomId}`}>Continuar a prova</Link>
+        </Button>
+      ) : action.kind === 'waiting' ? (
+        <p role="status" className="text-sm text-muted-foreground">Estás na sala de espera. A prova começa quando o professor a iniciar.</p>
+      ) : action.kind === 'enter-live' || action.kind === 'enter-lobby' ? (
         <form action={enter} className="justify-self-start">
           <input type="hidden" name="roomId" value={inv.roomId} />
           <Button type="submit" disabled={pending}>
-            {pending ? 'A entrar…' : continuing ? 'Continuar a prova' : phase === 'live' ? 'Entrar na prova' : 'Entrar na sala de espera'}
+            {pending ? 'A entrar…' : action.kind === 'enter-live' ? 'Entrar na prova' : 'Entrar na sala de espera'}
           </Button>
         </form>
       ) : null}

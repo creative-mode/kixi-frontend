@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Share2, Users } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
+import { displayNumber } from '@/lib/question-number';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,7 @@ export function StatementCommunity({
   stats,
   solutions,
   schools,
+  locked = false,
 }: {
   statementId: number;
   /** A tentativa terminada do aluno - quem ainda não terminou não vê esta secção. */
@@ -28,6 +30,8 @@ export function StatementCommunity({
   stats: CommunityStats | null;
   solutions: SharedSolution[];
   schools: Named[];
+  /** A prova tem uma sala por fechar: o backend recusa a comunidade até ela fechar. */
+  locked?: boolean;
 }) {
   const [list, setList] = useState(solutions);
   const [institutionId, setInstitutionId] = useState<number | undefined>(undefined);
@@ -40,7 +44,11 @@ export function StatementCommunity({
       <Card>
         <CardHeader><CardTitle>Comunidade</CardTitle></CardHeader>
         <CardContent>
-          <EmptyState title="Ainda não há dados da comunidade" message="Aparecem aqui quando outros alunos também terminarem esta prova." />
+          {locked ? (
+            <EmptyState title="A comunidade abre mais tarde" message="Esta prova ainda tem uma sala por fechar. Quando fechar, vês aqui como a turma se saiu." />
+          ) : (
+            <EmptyState title="Ainda não há dados da comunidade" message="Aparecem aqui quando outros alunos também terminarem esta prova." />
+          )}
         </CardContent>
       </Card>
     );
@@ -86,7 +94,7 @@ export function StatementCommunity({
         {shared && <Alert variant="success">A tua resolução está partilhada, de forma anónima.</Alert>}
 
         <div className="grid gap-1">
-          <p className="text-sm text-muted-foreground">{stats.sampleSize} aluno{stats.sampleSize === 1 ? '' : 's'} já terminou{stats.sampleSize === 1 ? '' : 'aram'} esta prova</p>
+          <p className="text-sm text-muted-foreground">{stats.sampleSize === 1 ? '1 aluno já terminou' : `${stats.sampleSize} alunos já terminaram`} esta prova</p>
           {comparison && <p className="font-semibold">{comparison}</p>}
         </div>
 
@@ -108,7 +116,7 @@ export function StatementCommunity({
             <h3 className="text-sm font-semibold">% de acerto por questão</h3>
             {stats.questions.map((q) => (
               <div key={q.questionId} className="grid grid-cols-[80px_1fr_auto] items-center gap-2.5 text-sm">
-                <span className="text-muted-foreground">Questão {q.number ?? '—'}</span>
+                <span className="text-muted-foreground">Questão {displayNumber(q)}</span>
                 <Progress value={q.pctCorrect ?? 0} />
                 <span className="text-muted-foreground">{pctCorrectLabel(q.pctCorrect)}</span>
               </div>

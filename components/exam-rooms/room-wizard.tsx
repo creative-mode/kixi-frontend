@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { FormSkeleton } from '@/components/crud/loading';
 import { createRoom, roomContext, type RoomContext } from '@/app/actions/exam-rooms';
-import { draftProblem, formatWall, luandaNowInput, statementFitsRoom, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
+import { draftProblem, formatWall, luandaNowInput, preselectFromStatement, statementFitsRoom, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
 import { RoomHead } from './room-head';
 
 /** Soma minutos a um valor de `datetime-local`, sem passar pelo fuso do browser. */
@@ -29,7 +29,7 @@ function nextSlot(): string {
   return new Date(slot * 60_000).toISOString().slice(0, 16);
 }
 
-export function RoomWizard() {
+export function RoomWizard({ initialStatementId = null }: { initialStatementId?: string | null }) {
   const router = useRouter();
   const [ctx, setCtx] = useState<RoomContext | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,11 +47,20 @@ export function RoomWizard() {
       if (!alive) return;
       if (!r.ok) return setError(r.error);
       setCtx(r.data);
-      if (r.data.classes.length === 1) setDraft((d) => ({ ...d, classId: String(r.data.classes[0].id) }));
+      // Vindo de um enunciado (`?statementId=`), a turma e a prova já vêm escolhidas.
+      const from = preselectFromStatement(r.data.statements, r.data.classes, initialStatementId, r.data.admin);
+      if (from) {
+        setDraft((d) => {
+          const duration = from.durationMinutes ?? (Number(d.durationMinutes) || 90);
+          return { ...d, classId: from.classId, statementId: from.statementId, durationMinutes: String(duration), endsAt: from.statementId ? plusMinutes(d.startsAt, duration + 10) : d.endsAt };
+        });
+      } else if (r.data.classes.length === 1) setDraft((d) => ({ ...d, classId: String(r.data.classes[0].id) }));
     });
     return () => {
       alive = false;
     };
+    // Corre uma vez: o enunciado de origem não muda enquanto o assistente está aberto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const statements = useMemo(
@@ -121,7 +130,7 @@ export function RoomWizard() {
                   </NativeSelect>
                   {draft.classId && statements.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      A sala usa um enunciado da mesma turma. <Link href="/statements/import" className="underline">Carregue a prova</Link> ou crie-a, e associe-a a esta turma.
+                      A prova é dada a partir de um enunciado, numa sala. A sala usa um enunciado da mesma turma: <Link href="/exam-builder?importar=1" className="underline">importe a prova de uma imagem</Link> ou <Link href="/exam-builder" className="underline">monte-a</Link>, e associe-a a esta turma.
                     </p>
                   ) : null}
                   {chosen?.needsReview ? (

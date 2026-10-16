@@ -2,9 +2,23 @@ import 'server-only';
 
 import { apiGet, apiPost, type Result } from './api';
 
-/** Os dois tipos que um aluno ou professor escreve à mão; EXAM e MILESTONE são
- *  gerados pelo sistema e não aparecem aqui como opção de publicar. */
-export type PostType = 'doubt' | 'topic';
+/** Os tipos que um aluno ou professor publica à mão; EXAM e MILESTONE são gerados
+ *  pelo sistema e não aparecem aqui como opção de publicar. `simulation` é o cartão
+ *  de uma prova simulada terminada, publicado a partir do resultado. */
+export type PostType = 'doubt' | 'topic' | 'simulation';
+
+/** O cartão de uma publicação `simulation`, tal como era quando foi publicada: os números
+ *  e o nome da escola são lidos no servidor, nunca enviados pelo cliente. */
+export interface SimulationCard {
+  simulationId: number;
+  statementTitle: string | null;
+  schoolName: string | null;
+  finalScore: number | null;
+  maxScore: number | null;
+  correctAnswers: number | null;
+  totalQuestions: number | null;
+  timeSpentSeconds: number | null;
+}
 
 export type ReactionType = 'applause' | 'strength';
 
@@ -26,6 +40,8 @@ export interface FeedPost {
   hasReacted: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Só nas publicações do tipo `simulation`. */
+  simulation?: SimulationCard | null;
 }
 
 export async function getFeed(classId: number, page = 1, limit = 10): Promise<Result<FeedPost[]>> {
@@ -38,13 +54,23 @@ export async function createPost(
   content: string,
   title?: string,
 ): Promise<Result<FeedPost>> {
-  return apiPost<FeedPost>('/feed/posts', { type, classId, content, title: title || undefined });
+  // O backend lê o enum pelo nome ('DOUBT'); as respostas é que trazem o valor em minúsculas.
+  return apiPost<FeedPost>('/feed/posts', { type: type.toUpperCase(), classId, content, title: title || undefined });
+}
+
+/** Publica o resultado de uma simulação terminada, com uma reflexão opcional. */
+export async function createSimulationPost(
+  classId: number,
+  simulationId: number,
+  content: string,
+): Promise<Result<FeedPost>> {
+  return apiPost<FeedPost>('/feed/posts', { type: 'SIMULATION', classId, simulationId, content: content || undefined });
 }
 
 /** Alterna a reação do aluno (sempre 'applause' aqui: só há uma forma de aplaudir
  *  na interface, mesmo que o backend aceite 'strength' também). */
 export async function toggleReaction(postId: number, reaction: ReactionType = 'applause') {
-  return apiPost<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction });
+  return apiPost<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction: reaction.toUpperCase() });
 }
 
 /** Não há GET para listar comentários (só a contagem em cada FeedPost) - por isso só

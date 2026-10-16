@@ -6,7 +6,8 @@
     "dev": "next dev -p 3004",
     "build": "next build",
     "start": "next start -p 3004",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "node --test 'lib/**/*.test.ts'"
   },
   "dependencies": {
     "next": "^16.0.10",

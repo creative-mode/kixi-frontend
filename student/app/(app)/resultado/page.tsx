@@ -2,11 +2,13 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Check, Clock, MessageCircle, X } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
+import { PublishResult } from '@/components/publish-result';
 import { RefazerSimulacao } from '@/components/refazer-simulacao';
 import { ErrorState } from '@/components/states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { getMe } from '@/lib/me';
 import { getResultView } from '@/lib/result';
 import {
   formatDelta,
@@ -17,9 +19,11 @@ import {
   optionTag,
   verdict,
   type ResultQuestion,
+  showsContext,
   toReview,
   type Verdict,
 } from '@/lib/result-rules';
+import { displayNumber, topNumber, wholeNumbers } from '@/lib/question-number';
 import { wrongAnswersParam } from '@/lib/tutor-rules';
 
 export const metadata = { title: 'Resultado · Kixi' };
@@ -31,21 +35,29 @@ const VERDICT: Record<Verdict, { label: string; variant: 'success' | 'destructiv
   blank: { label: 'Sem resposta', variant: 'secondary' },
 };
 
-function Review({ question }: { question: ResultQuestion }) {
+function Review({ question, context }: { question: ResultQuestion; context: boolean }) {
   const v = verdict(question);
   const options = question.options ?? [];
+  const shown = displayNumber(question);
   return (
     <li className="grid gap-3 px-5 py-4">
+      {context && question.parentText ? (
+        // O enunciado comum da questão com alíneas, uma vez, acima da primeira alínea.
+        <div className="grid gap-1 rounded-lg border border-dashed bg-secondary/60 px-4 py-3">
+          <p className="text-xs font-semibold text-muted-foreground">Questão {topNumber(question.number)}</p>
+          <p className="text-sm leading-relaxed">{question.parentText}</p>
+        </div>
+      ) : null}
       <div className="flex items-start gap-3">
-        <span className="grid size-[34px] shrink-0 place-items-center rounded-md bg-secondary text-[13px] font-bold">
-          {question.number}
+        <span className="grid min-w-[34px] shrink-0 place-items-center rounded-md bg-secondary px-1.5 py-1.5 text-[13px] font-bold">
+          {shown}
         </span>
         <p className="min-w-0 flex-1 text-sm leading-snug font-semibold">{question.text}</p>
         <Badge variant={VERDICT[v].variant}>{VERDICT[v].label}</Badge>
       </div>
 
       {options.length > 0 ? (
-        <ul className="grid gap-1.5 pl-[46px]" aria-label={`Alternativas da questão ${question.number}`}>
+        <ul className="grid gap-1.5 pl-[46px]" aria-label={`Alternativas da questão ${shown}`}>
           {options.map((option, i) => {
             const chosen = option.id === question.selectedOptionId;
             const right = option.id === question.correctOptionId;
@@ -103,6 +115,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   }
 
   const { result, statementId, comparison } = view;
+  const me = await getMe();
+  const classId = me?.currentClass?.id ?? null;
   const questions = inOrder(result.questions);
   const score = formatScore(result.finalScore);
   const time = formatDuration(result.timeSpentSeconds);
@@ -152,16 +166,32 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <p className="border-t px-5 py-4 text-sm text-muted-foreground">Não respondeste a nenhuma questão desta prova.</p>
           ) : (
             <ul className="divide-y border-t">
-              {questions.map((question) => <Review key={question.questionId} question={question} />)}
+              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} />)}
             </ul>
           )}
         </Card>
+
+        {classId != null && result.finalScore != null && (
+          <PublishResult
+            classId={classId}
+            simulationId={result.simulationId}
+            card={{
+              schoolName: me?.school?.name ?? null,
+              statementTitle: view.title,
+              finalScore: result.finalScore,
+              maxScore: view.totalMaxScore,
+              correctAnswers: result.correctAnswers ?? null,
+              totalQuestions: result.totalQuestions ?? null,
+              timeSpentSeconds: result.timeSpentSeconds ?? null,
+            }}
+          />
+        )}
 
         <div className="flex flex-wrap items-start gap-2.5">
           {statementId != null && <RefazerSimulacao statementId={statementId} />}
           {statementId != null && hasMistakes && (
             <Button asChild>
-              <Link href={`/tutor?statementId=${statementId}&questoes=${toReview(result.questions).map((q) => q.number).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
+              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>

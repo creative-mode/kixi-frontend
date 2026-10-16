@@ -9,6 +9,8 @@
  *  - the result only exists once the simulation is FINISHED (409 before), which is
  *    also what keeps the answer key out of the room. */
 
+import { isItem, topNumber } from './question-number.ts';
+
 export interface ResultOption {
   id: number;
   optionLabel?: string | null;
@@ -20,6 +22,11 @@ export interface ResultQuestion {
   questionId: number;
   number: number;
   text: string;
+  /** Só numa alínea: a questão a que pertence, a letra e o enunciado comum (`parentText`). */
+  parentId?: number | null;
+  label?: string | null;
+  parentText?: string | null;
+  questionType?: string | null;
   maxScore?: number | null;
   correctOptionId?: number | null;
   modelAnswer?: string | null;
@@ -54,9 +61,19 @@ export function verdict(q: ResultQuestion): Verdict {
   return q.isCorrect === false ? 'wrong' : 'pending';
 }
 
-/** The questions in the order of the paper. */
+/** The questions in the order of the paper: the order the server sends (each alínea right after its question).
+ *  Not sorted by `number`: for an alínea that number (301) only exists to be unique. */
 export function inOrder(questions: ResultQuestion[] | undefined): ResultQuestion[] {
-  return [...(questions ?? [])].sort((a, b) => a.number - b.number);
+  return [...(questions ?? [])];
+}
+
+/** Se o ecrã deve mostrar o enunciado comum acima desta questão: só na primeira alínea de cada questão,
+ *  para não o repetir em todas. */
+export function showsContext(questions: readonly ResultQuestion[], index: number): boolean {
+  const q = questions[index];
+  if (!q?.parentText) return false;
+  const previous = questions[index - 1];
+  return !previous || !isItem(previous) || topNumber(previous.number) !== topNumber(q.number);
 }
 
 /** Questions the student should look at again: everything that is not right and not
@@ -75,16 +92,25 @@ export function toReview(questions: ResultQuestion[] | undefined): ResultQuestio
  * reads the paper's options, and a letter means nothing without them. A question left
  * blank contributes nothing — there is no answer to explain. Open answers keep the
  * student's own words, since that is what has to be reviewed.
+ *
+ * Keyed by the **whole** question number. An alínea is stored under the number of its
+ * parent (`301` → `3`), because that is the number the same link puts in `questoes`,
+ * and the tutor's picker lists whole questions. Keying the raw number wrote an answer
+ * the tutor would look up under a question it does not have, so the answer reached the
+ * link and never reached the tutor. Several alíneas of one question are joined: the
+ * wire takes one string, and all of them are what has to be reviewed.
  */
 export function givenAnswers(questions: ResultQuestion[] | undefined): Map<number, string> {
-  const answers = new Map<number, string>();
+  const parts = new Map<number, string[]>();
   for (const question of toReview(questions)) {
     const answer =
       (question.options?.find((option) => option.id === question.selectedOptionId)?.optionText ?? '').trim()
       || (question.answerText ?? '').trim();
-    if (answer) answers.set(question.number, answer);
+    if (!answer) continue;
+    const number = topNumber(question.number);
+    parts.set(number, [...(parts.get(number) ?? []), answer]);
   }
-  return answers;
+  return new Map([...parts].map(([number, answers]) => [number, answers.join('\n')]));
 }
 
 /** `16,4`: the decimal the server computed, with the Portuguese comma. Null stays

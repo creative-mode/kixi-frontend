@@ -1,8 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createPost, addComment, reportPost, toggleReaction, type PostType } from './feed';
-import { canPublish } from './feed-rules';
+import { createPost, createSimulationPost, addComment, reportPost, toggleReaction, type PostType } from './feed';
+import { canPublish, canPublishReflection } from './feed-rules';
 
 export type FeedActionState = { error?: string } | undefined;
 
@@ -19,6 +19,29 @@ export async function publishPostAction(
   }
   const result = await createPost(classId, type, content.trim());
   if (!result.ok) return { ok: false, message: result.message };
+  revalidatePath('/inicio');
+  return { ok: true };
+}
+
+/** Publica o resultado de uma simulação como cartão da escola, com uma reflexão opcional.
+ *  Os números vêm do servidor: o cliente só diz que tentativa e o que pensa dela. */
+export async function publishSimulationAction(
+  classId: number,
+  simulationId: number,
+  reflection: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!canPublishReflection(reflection)) {
+    return { ok: false, message: 'A reflexão tem no máximo 2000 caracteres.' };
+  }
+  const result = await createSimulationPost(classId, simulationId, reflection.trim());
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.status === 409
+        ? 'Este resultado já foi publicado no feed.'
+        : result.message,
+    };
+  }
   revalidatePath('/inicio');
   return { ok: true };
 }

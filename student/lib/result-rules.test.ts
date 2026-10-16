@@ -11,7 +11,9 @@ import {
   toReview,
   verdict,
   type ResultQuestion,
+  showsContext,
 } from './result-rules.ts';
+import { wholeNumbers } from './question-number.ts';
 
 const q = (over: Partial<ResultQuestion>): ResultQuestion => ({ questionId: 1, number: 1, text: 'x', ...over });
 
@@ -31,10 +33,12 @@ test('uma resposta aberta por corrigir não é um erro', () => {
   assert.deepEqual(toReview(list).map((x) => x.number), [2]);
 });
 
-test('as questões seguem a ordem da prova, sem mexer na lista recebida', () => {
+test('as questões seguem a ordem do servidor, que é a da prova, sem mexer na lista recebida', () => {
+  // A ordem da prova é a em que as questões chegam (order_index): o número não é uma ordem.
   const list = [q({ number: 2 }), q({ number: 1 })];
-  assert.deepEqual(inOrder(list).map((x) => x.number), [1, 2]);
-  assert.deepEqual(list.map((x) => x.number), [2, 1]);
+  const out = inOrder(list);
+  assert.deepEqual(out.map((x) => x.number), [2, 1]);
+  assert.notEqual(out, list);
   assert.deepEqual(inOrder(undefined), []);
 });
 
@@ -92,4 +96,47 @@ test('uma questão em branco não leva resposta nenhuma', () => {
 test('uma resposta por corrigir não é tratada como erro do aluno', () => {
   const list = [q({ number: 6, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answerText: 'texto' })];
   assert.equal(givenAnswers(list).size, 0);
+});
+
+test('a resposta de uma alínea viaja no número da questão inteira', () => {
+  // O link leva `questoes=3` e a resposta vinha com a chave 301. O `?respostas=` era
+  // procurado pelo 3 e nunca a encontrava: a resposta chegava ao link e nunca
+  // chegava ao tutor.
+  const list = [
+    rq(1, 301, { isCorrect: false, answerText: 'a) Verdade' }),
+    rq(2, 302, { isCorrect: false, answerText: 'b) Falso' }),
+  ];
+  assert.deepEqual([...givenAnswers(list)], [[3, 'a) Verdade\nb) Falso']]);
+  // e as chaves são as mesmas que o link põe em `questoes`
+  assert.deepEqual([...givenAnswers(list).keys()], wholeNumbers(toReview(list)));
+});
+
+// ── questões com alíneas ─────────────────────────────────────────────────────
+
+const rq = (questionId: number, number: number, extra: Partial<ResultQuestion> = {}): ResultQuestion => ({ questionId, number, text: `Q${number}`, ...extra });
+/** Na ordem do servidor: cada alínea já vem a seguir à sua questão. */
+const COM_ALINEAS = [
+  rq(1, 1), rq(2, 301, { parentId: 30, label: 'a', parentText: 'Diga V ou F' }), rq(3, 302, { parentId: 30, label: 'b', parentText: 'Diga V ou F' }),
+  rq(4, 4), rq(8, 501, { parentId: 50, label: 'a', parentText: 'Dados da Q5' }), rq(9, 502, { parentId: 50, label: 'b', parentText: 'Dados da Q5' }),
+];
+
+test('a ordem do resultado é a do servidor e não se reordena por número', () => {
+  assert.deepEqual(inOrder(COM_ALINEAS).map((q) => q.number), [1, 301, 302, 4, 501, 502]);
+  // sem reordenar: 301 não passa para depois do 4
+  assert.deepEqual(inOrder([rq(1, 5), rq(2, 301, { parentId: 3 }), rq(3, 2)]).map((q) => q.number), [5, 301, 2]);
+});
+
+test('o enunciado comum mostra-se uma vez, na primeira alínea de cada questão', () => {
+  const lista = inOrder(COM_ALINEAS);
+  assert.deepEqual(lista.map((_, i) => showsContext(lista, i)), [false, true, false, false, true, false]);
+});
+
+test('sem enunciado comum não há contexto a mostrar, e a primeira da lista mostra-o se o tiver', () => {
+  assert.equal(showsContext([rq(1, 1)], 0), false);
+  assert.equal(showsContext([rq(1, 301, { parentText: 'x' })], 0), true);
+});
+
+test('o tutor recebe as questões inteiras que o aluno errou', () => {
+  const erradas = [rq(1, 301, { isCorrect: false }), rq(2, 302, { isCorrect: false }), rq(3, 6, { isCorrect: false })];
+  assert.deepEqual(wholeNumbers(toReview(erradas)), [3, 6]);
 });

@@ -1,9 +1,10 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
 import type { Row } from '@/lib/crud/entities';
 import { ocrFilesProblem } from '@/lib/crud/ocr-files';
+import type { Figure } from '@/lib/exam/draft';
+import type { ExamExtraction } from '@/lib/exam/extraction';
 
 const MAX_IMAGE = 5 * 1024 * 1024;
 
@@ -50,8 +51,54 @@ export async function deleteQuestionImage(id: number): Promise<Result> {
   });
 }
 
-/** Sends one or more photos/scans of an exam to the OCR; the backend creates a statement waiting for review. */
-export async function importStatementOcr(form: FormData): Promise<Result<Row>> {
+const DATA_URL = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/;
+
+/**
+ * Sends to their questions the figures the OCR cut out of the exam, once the exam exists.
+ *
+ * The draft only knows the number each question got (its position among the ones sent); the ids come
+ * from the questions the server created. A figure that cannot be sent does not undo the exam: it is
+ * counted in `failed` so the screen can say which were left out.
+ */
+export async function attachFigures(statementId: number, figures: Figure[]): Promise<{ attached: number; failed: number }> {
+  if (figures.length === 0) return { attached: 0, failed: 0 };
+  try {
+    const listed = await call(`/api/v1/statements/${Number(statementId)}/questions`);
+    if (!listed.ok) return { attached: 0, failed: figures.length };
+    const questions = (await listed.json()) as { id: number; number?: number | null; parentId?: number | null }[];
+    const idByNumber = new Map(questions.filter((q) => q.parentId == null && typeof q.number === 'number').map((q) => [q.number as number, q.id]));
+    const sent = new Map<number, number>();
+    let attached = 0;
+    for (const figure of figures) {
+      const questionId = idByNumber.get(figure.number);
+      const match = DATA_URL.exec(figure.dataUrl);
+      if (!questionId || !match) continue;
+      const bytes = Buffer.from(match[2], 'base64');
+      if (bytes.length === 0 || bytes.length > MAX_IMAGE) continue;
+      const order = sent.get(questionId) ?? 0;
+      const out = new FormData();
+      out.append('data', new Blob([JSON.stringify({ questionId, caption: figure.caption.trim() || null, orderIndex: order })], { type: 'application/json' }));
+      out.append('file', new Blob([bytes], { type: match[1] }), `questao-${figure.number}-${order + 1}.${match[1].split('/')[1]}`);
+      const res = await call('/api/v1/question-images', { method: 'POST', body: out });
+      if (res.ok) {
+        attached += 1;
+        sent.set(questionId, order + 1);
+      }
+    }
+    return { attached, failed: figures.length - attached };
+  } catch {
+    return { attached: 0, failed: figures.length };
+  }
+}
+
+/**
+ * Sends one or more photos/scans of an exam to the OCR and returns what it read, **without saving anything**.
+ *
+ * The exam builder turns the extraction into a draft the teacher reviews; the statement only exists once
+ * the teacher saves it there. That is the point of this route over the one that creates a statement
+ * waiting for review: the structure the OCR infers (types, alíneas) is corrected where it is edited.
+ */
+export async function extractExamOcr(form: FormData): Promise<Result<ExamExtraction>> {
   return guard(async () => {
     const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
     const problem = ocrFilesProblem(files);
@@ -59,9 +106,8 @@ export async function importStatementOcr(form: FormData): Promise<Result<Row>> {
     const out = new FormData();
     for (const f of files) out.append('files', f, f.name);
     // FE-11: o OCR pode demorar com PDFs grandes; aborta aos 3 min com erro legível.
-    const res = await call('/api/v1/statements/ocr/extract', { method: 'POST', body: out, signal: AbortSignal.timeout(180_000) });
+    const res = await call('/api/v1/ocr/extract/exam', { method: 'POST', body: out, signal: AbortSignal.timeout(180_000) });
     if (!res.ok) return fail(await message(res));
-    revalidatePath('/statements');
-    return ok((await res.json()) as Row);
+    return ok((await res.json()) as ExamExtraction);
   });
 }

@@ -17,7 +17,7 @@ export async function entrarSalaAction(_: EnterState, form: FormData): Promise<E
   const joined = await joinRoom(roomId);
   if (!joined.ok) return { error: translateRoomError(joined.message) };
   if (!joined.data.simulationId) {
-    return { waiting: 'Estás na sala de espera. A prova começa quando o professor a iniciar: volta a carregar em Entrar nessa altura.' };
+    return { waiting: 'Estás na sala de espera. A prova começa quando o professor a iniciar.' };
   }
   // Caminho cru: o Next acrescenta o basePath ao redirect de uma server action.
   redirect(`/sala/${roomId}`);

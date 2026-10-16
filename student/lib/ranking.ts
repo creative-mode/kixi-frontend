@@ -1,10 +1,10 @@
 import 'server-only';
 
-import { apiGet, type Result } from './api';
+import { apiGet, apiPut, type Result } from './api';
 
-/** As três abas de GET /leaderboard. "friends" chega com o kixi#121 (PR #204,
- *  ainda em revisão) - até lá o backend responde 404 a este scope. */
-export type RankingScope = 'class' | 'school' | 'friends';
+/** As abas de GET /leaderboard. "global" cruza escolas e só existe com o consentimento do
+ *  aluno (ADR-0013): sem ele o backend responde 403, e a página oferece o interruptor. */
+export type RankingScope = 'class' | 'school' | 'friends' | 'global';
 export type RankingPeriod = 'all' | 'month';
 
 /** Uma linha da janela que o backend devolve - nunca a tabela toda. `accountId`
@@ -15,6 +15,8 @@ export interface RankingEntry {
   accountId: number | null;
   displayName: string;
   average: number | null;
+  /** Só no scope global: a posição relativa dentro da própria escola (0-100). */
+  percentile?: number | null;
   me: boolean;
 }
 
@@ -28,9 +30,11 @@ export interface Leaderboard {
   period: RankingPeriod;
   totalStudents: number;
   rankedStudents: number;
+  institutionsCounted?: number;
   smallGroup: boolean;
   myPosition: number | null;
   myAverage: number | null;
+  myPercentile?: number | null;
   entries: RankingEntry[];
 }
 
@@ -40,4 +44,9 @@ export async function getLeaderboard(
   statementId?: number,
 ): Promise<Result<Leaderboard>> {
   return apiGet<Leaderboard>('/leaderboard', { scope, period, statementId });
+}
+
+/** PUT /leaderboard/consent: aceitar ou retirar o ranking entre escolas. */
+export async function setCrossInstitutionConsent(crossInstitution: boolean): Promise<Result<{ crossInstitution: boolean }>> {
+  return apiPut<{ crossInstitution: boolean }>('/leaderboard/consent', { crossInstitution });
 }

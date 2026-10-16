@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { requireStudent } from './guard';
+import { getMe } from './me';
 import { getStatementFull, myAccountId, saveAnswer, startSimulation, submitSimulation } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
@@ -92,7 +93,14 @@ export async function iniciarAction(_: StartState, form: FormData): Promise<Star
     return { error: 'A sessão expirou. Entra novamente.' };
   }
 
-  const result = await startSimulation(statementId, accountId);
+  // O ano letivo vai com a simulação: é por ele que o ranking a conta. O da prova, e na falta
+  // dele (uma prova sem ano) o da turma do aluno, que é a coorte onde ele é comparado.
+  const statement = await getStatementFull(statementId, { cached: true });
+  const schoolYearId = (statement.ok ? statement.data.schoolYearId : null)
+    ?? (await getMe())?.currentClass?.school_year_id
+    ?? null;
+
+  const result = await startSimulation(statementId, accountId, schoolYearId);
   if (!result.ok) return { error: translateError(result.message) };
 
   // Caminho cru, de propósito: numa server action o Next escreve este valor no

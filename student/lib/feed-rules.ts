@@ -10,6 +10,7 @@ export const POST_TYPE_LABEL: Record<string, string> = {
   topic: 'Tema',
   exam: 'Prova',
   milestone: 'Marco',
+  simulation: 'Prova simulada',
 };
 
 export function postTypeLabel(type: string): string {
@@ -29,4 +30,18 @@ export const MAX_POST_LENGTH = 2000;
 export function canPublish(content: string): boolean {
   const length = content.trim().length;
   return length >= MIN_POST_LENGTH && length <= MAX_POST_LENGTH;
+}
+
+/** A etiqueta sobre o texto que o aluno escreve a acompanhar o cartão do resultado. */
+export const REFLECTION_LABEL = 'Reflexão';
+
+/** A reflexão que acompanha um resultado é opcional, mas se existir respeita o mesmo limite. */
+export function canPublishReflection(content: string): boolean {
+  return content.trim().length <= MAX_POST_LENGTH;
+}
+
+/** Nota em percentagem da cotação total, ou null quando falta um dos números (ou a cotação é 0). */
+export function scorePercent(score: number | null | undefined, max: number | null | undefined): number | null {
+  if (score == null || max == null || max <= 0) return null;
+  return Math.round((score / max) * 100);
 }

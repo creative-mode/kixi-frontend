@@ -1,0 +1,99 @@
+/* Doação de enunciados: um único ecrã (sem scroll da página) com um só foco, o cartucho Kixi desenhado a traço e hachura como o da landing. */
+html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
+.dn-stage { height: 100svh; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
+.dn-top { display: flex; align-items: center; padding-inline: var(--gutter); }
+.dn-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: clamp(10px, 2.5svh, 24px); padding: 0 var(--gutter) clamp(18px, 4svh, 40px); outline: none; }
+
+/* título: duas linhas e mais nada */
+.dn-pitch { display: flex; flex-direction: column; justify-content: center; }
+.dn-title { margin: 0; font: 700 clamp(26px, min(7vw, 4.6svh + 10px), 64px)/1.02 var(--font-sans); letter-spacing: -0.045em; text-wrap: balance; }
+.dn-title span { color: var(--btn); }
+.dn-lead { display: none; }
+
+/* o cartucho: a mesma moldura em degrau dos botões e cartões da landing (aresta de tinta + face), sem sombra */
+.dn-console { --edge: var(--lp-ink); position: relative; isolation: isolate; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 14px 16px 16px; width: 100%; max-width: 520px; justify-self: center; align-self: center; max-height: 100%;
+  background: var(--edge); clip-path: var(--kx-clip); color: var(--lcd-3); }
+.dn-console::before { content: ''; position: absolute; z-index: -1; inset: 2px; background: var(--shell); clip-path: var(--kx-clip); }
+.dn-label { display: flex; align-items: center; }
+.dn-pips { margin: 0; display: flex; gap: 6px; }
+.dn-pips span { width: 12px; height: 12px; border: 2px solid var(--lp-ink); }
+.dn-pips .is-on { background: var(--lp-ink); }
+
+/* o ecrã: único bloco a cores; só ele pode rolar, e só em ecrãs muito baixos */
+.dn-screenwrap { min-height: 0; display: grid; padding: 2px; background: var(--lp-ink); clip-path: var(--kx-clip); }
+.dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 16px; color: var(--lcd-3); background: var(--lcd-0); clip-path: var(--kx-clip); scrollbar-width: none; }
+.dn-lcd::-webkit-scrollbar { display: none; }
+.dn-screen { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.dn-screen[hidden] { display: none; }
+.dn-legend { padding: 0; margin: 0 0 4px; font: 400 clamp(11px, 1.6svh + 3px, 14px)/1.3 var(--font-pixel); outline: none; text-transform: uppercase; }
+.dn-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.dn-field { display: grid; gap: 4px; min-width: 0; }
+.dn-field--wide { grid-column: 1 / -1; }
+.dn-field label { font: 700 13px/1.2 var(--font-sans); }
+.dn-field input, .dn-field select, .dn-field textarea { width: 100%; min-height: 44px; padding: 8px 10px; font: 500 16px/1.3 var(--font-sans); color: var(--lcd-3); background: var(--lcd-1); border: 2px solid var(--lcd-3); border-radius: 0; }
+.dn-field textarea { resize: none; min-height: 56px; }
+.dn-field :focus-visible, .dn-drop:focus-within, .dn-consent__row input:focus-visible { outline: 3px solid var(--lcd-3); outline-offset: 2px; }
+.dn-field [aria-invalid="true"] { background: #c9d98a; border-color: #5c0d0a; }
+.dn-help { margin: 0; font-size: 13px; line-height: 1.4; }
+.dn-help--small { font-size: 12px; }
+.dn-err { margin: 0; font-size: 13px; font-weight: 800; color: #5c0d0a; }
+
+.dn-drop { position: relative; border: 3px dashed var(--lcd-3); background: var(--lcd-1); }
+.dn-drop--over { background: var(--lcd-0); border-style: solid; }
+.dn-drop__label { display: grid; justify-items: center; gap: 6px; padding: clamp(18px, 6svh, 48px) 12px; text-align: center; cursor: pointer; }
+.dn-drop__title { font: 800 18px/1.2 var(--font-sans); }
+.dn-drop__hint { font-size: 12px; }
+.dn-drop__input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.dn-count { margin: 0; font: 400 10px/1.4 var(--font-pixel); }
+.dn-files { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 22svh; overflow-y: auto; scrollbar-width: thin; }
+.dn-files__item { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 2px 4px 2px 10px; background: var(--lcd-1); border: 2px solid var(--lcd-3); font-size: 13px; }
+.dn-drop__tip { margin-top: 2px; font-size: 12px; font-weight: 700; opacity: .75; }
+.dn-files__item { grid-template-columns: 1fr auto auto; }
+.dn-files__item--bad { background: #c9d98a; border-color: #5c0d0a; }
+.dn-files__note { grid-column: 1 / -1; padding: 0 0 6px; font-size: 12px; font-weight: 800; line-height: 1.3; }
+.dn-files__item--bad .dn-files__note { color: #5c0d0a; }
+.dn-files__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dn-files__size { white-space: nowrap; }
+.dn-files__remove { width: 44px; min-height: 36px; font: 800 20px/1 var(--font-sans); color: var(--lcd-3); background: transparent; border: 0; cursor: pointer; }
+.dn-files__remove:hover { background: var(--lcd-3); color: var(--lcd-0); }
+
+.dn-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.dn-consent { display: grid; gap: 6px; }
+.dn-consent__row { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; font-size: 12.5px; line-height: 1.4; cursor: pointer; }
+.dn-consent__row input { width: 24px; height: 24px; margin: 0; accent-color: var(--lcd-3); }
+.dn-live:empty, .dn-live:has(:empty) { display: none; }
+.dn-problem { margin: 8px 0 0; padding: 8px 10px; font-weight: 800; font-size: 13px; color: #5c0d0a; border: 2px solid #5c0d0a; }
+.dn-progress { position: relative; height: 32px; margin-top: 8px; border: 2px solid var(--lcd-3); overflow: hidden; }
+.dn-progress__bar { position: absolute; inset: 0 auto 0 0; background: var(--lcd-2); transition: width .2s linear; }
+.dn-progress span { position: relative; display: grid; place-items: center; height: 100%; font: 800 13px/1 var(--font-sans); mix-blend-mode: difference; color: white; }
+
+/* os botões são os da landing (kx-btn); só a disposição é daqui */
+.dn-pad { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.dn-pad__next { margin-left: auto; }
+
+/* depois de enviar: a referência e nada mais */
+.dn-done { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; outline: none; }
+.dn-done__title { margin: 0; font: 800 clamp(22px, 3.6svh, 30px)/1.1 var(--font-sans); letter-spacing: -0.03em; text-wrap: balance; }
+.dn-done__ref { margin: 4px 0; padding: 10px 14px; font: 400 clamp(16px, 3.4svh, 24px)/1 var(--font-pixel); border: 3px solid var(--lcd-3); background: var(--lcd-1); user-select: all; }
+.dn-done__text { margin: 0; font-size: 14px; line-height: 1.45; max-width: 34ch; }
+.dn-console[data-state="done"] { grid-template-rows: auto minmax(0, 1fr) auto; }
+
+@media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } .dn-lcd { padding: 10px; } }
+@media (max-width: 899px) {
+  .dn-screen .dn-help:not(.dn-help--small) { display: none; }
+  .dn-field textarea { min-height: 44px; }
+  .dn-consent__row { font-size: 12px; line-height: 1.3; }
+  .dn-lcd { padding: 12px; }
+}
+
+/* computador: título à esquerda, cartucho à direita */
+@media (min-width: 900px) {
+  .dn-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); column-gap: clamp(32px, 6vw, 96px); align-items: center; max-width: calc(var(--page) + 2 * var(--gutter)); width: 100%; margin: 0 auto; }
+  .dn-title { font-size: clamp(40px, min(5vw, 8svh), 76px); }
+  .dn-title span { display: block; }
+  .dn-lead { display: block; margin: 20px 0 0; font: 400 clamp(16px, 1.5vw, 19px)/1.5 var(--font-sans); color: var(--lp-dim); max-width: 30ch; }
+  .dn-console { padding: 0 20px 18px; max-height: min(100%, 620px); }
+  .dn-label { margin: 0 -20px; padding: 10px 20px; }
+  .dn-lcd { padding: 18px; }
+}
+@media (min-width: 900px) and (max-height: 640px) { .dn-lead { display: none; } }

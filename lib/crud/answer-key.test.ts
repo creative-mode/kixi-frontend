@@ -6,7 +6,7 @@
 // com opções a passar no cliente para levar 422 no servidor.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { answerKeyIssues } from './answer-key.ts';
+import { answerKeyIssues, sumOfScores } from './answer-key.ts';
 
 const q = (number: number, maxScore: number, correct: boolean[] = []) => ({
   number,
@@ -40,4 +40,14 @@ test('a soma é a das cotações guardadas a 2 casas, como o DECIMAL do servidor
 
 test('sem total declarado a soma não é verificada', () => {
   assert.deepEqual(answerKeyIssues([q(1, 3, [true])], null), []);
+});
+
+test('o total em branco preenche-se com a soma das cotações, a 2 casas', () => {
+  assert.equal(sumOfScores([q(1, 5), q(2, 5), q(3, 5)]), 15);
+  assert.equal(sumOfScores([q(1, 0.1), q(2, 0.2)]), 0.3);
+});
+
+test('sem cotações não há total, em vez de uma escala de zero', () => {
+  assert.equal(sumOfScores([q(1, 0), q(2, 0)]), null);
+  assert.equal(sumOfScores([]), null);
 });
