@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
+import { Check, X } from 'lucide-react';
 import { buildPaper, containsLeaf, leafNumber, type PaperAnswer, type PaperItem, type PaperMark, type PaperMeta, type PaperQuestion, type PaperStamp } from '@/lib/folha-da-prova';
 import type { ExamOption, ExamQuestion } from '@/lib/exam-rules';
 import type { QuestionImage } from '@/lib/exam';
@@ -195,7 +196,7 @@ function Correction({ mark }: { mark: PaperMark }) {
       className={cn('float-right ml-3 rotate-[-4deg] whitespace-nowrap text-[15px] font-bold [font-family:\'Segoe_Print\',\'Comic_Sans_MS\',cursive]', INK[mark.verdict])}
       aria-label={`Correcção: ${text}`}
     >
-      {mark.verdict === 'correct' ? '✓ ' : mark.verdict === 'wrong' ? '✗ ' : ''}{text}
+      {mark.verdict === 'correct' ? <Check aria-hidden className="mr-0.5 inline size-4 align-[-2px]" /> : mark.verdict === 'wrong' ? <X aria-hidden className="mr-0.5 inline size-4 align-[-2px]" /> : null}{text}
     </span>
   );
 }
@@ -316,7 +317,7 @@ function Options({ options, chosen, correct, reviewed }: { options: ExamOption[]
             <span aria-hidden className={cn('inline-block size-3 shrink-0 translate-y-[1px] rounded-full border border-black', chosen === o.id && 'bg-black', right && 'border-green-700', right && chosen === o.id && 'bg-green-700', wrong && 'border-red-700 bg-red-700')} />
             <span className="font-semibold">{o.optionLabel?.trim() || String.fromCharCode(65 + i)})</span>
             <span>{o.optionText}</span>
-            {right && <span className="no-underline">✓<span className="sr-only"> resposta certa</span></span>}
+            {right && <span className="no-underline"><Check aria-hidden className="inline size-4 align-[-2px]" /><span className="sr-only"> resposta certa</span></span>}
             {wrong && <span className="no-underline"><span className="sr-only">a tua resposta, errada</span></span>}
             {!reviewed && chosen === o.id && <span className="sr-only">(a tua resposta)</span>}
           </li>
