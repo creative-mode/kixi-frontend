@@ -166,15 +166,6 @@ export function PerfilView({
               </div>
             )}
           </TabsContent>
-          <TabsContent value="Desempenho">
-            <Card><CardHeader><CardTitle>Domínio por prova</CardTitle></CardHeader>
-              <CardContent className="grid gap-3.5">
-                {performance.mastery.length === 0
-                  ? <p className="text-sm text-muted-foreground">Entrega uma prova para veres aqui o teu domínio.</p>
-                  : performance.mastery.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}
-              </CardContent>
-            </Card>
-          </TabsContent>
           <TabsContent value="Histórico">
             {history.length === 0 ? (
               <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
