@@ -16,6 +16,7 @@ import { Confirm, type ConfirmState } from './confirm';
 import { QuestionImages } from './question-images';
 import { DetailSkeleton } from './loading';
 import { StatementReview } from './statement-review';
+import { StatementSheet } from './statement-sheet';
 
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', multiple_choice: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', true_false: 'Verdadeiro/falso', OPEN: 'Resposta aberta', open: 'Resposta aberta', group: 'Com alíneas', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', development: 'Desenvolvimento' };
 const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
@@ -170,6 +171,7 @@ export function StatementDetail({ id }: { id: number }) {
               </div>
             )}
           </Card>
+          <StatementSheet statement={s} />
           <Card>
             <CardHeader><CardTitle className="text-base">Questões ({questions.length})</CardTitle></CardHeader>
             <CardContent className="space-y-4">
