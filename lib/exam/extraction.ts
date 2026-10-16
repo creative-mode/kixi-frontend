@@ -9,7 +9,7 @@
  * para o do construtor; as alíneas vêm em `subitems_content`. O gabarito nunca vem do OCR: um
  * verdadeiro/falso fica com as duas opções e nenhuma marcada, para o professor decidir.
  */
-import { labelAt, trueFalseOptions, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
+import { labelAt, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
 import { KINDS, type ExamDraft } from './schools.ts';
 
 export interface ExtractionOption { option_label?: string | null; option_text?: string | null }
@@ -23,6 +23,15 @@ export interface ExtractionQuestion {
   options?: ExtractionOption[] | null;
   subitems?: string[] | null;
   subitems_content?: ExtractionSubitem[] | null;
+}
+/** A region the OCR found on the page. `region` is `questao_<n>` for a figure, table or formula of question n,
+ *  and `cabecalho`/`rodape` for the header and the signature (which are not shown in the builder). */
+export interface ExtractionImage {
+  region?: string | null;
+  description?: string | null;
+  kind?: string | null;
+  /** The crop as a `data:image/png;base64,...` URL; absent when it could not be cut. */
+  data_url?: string | null;
 }
 export interface ExtractionWarning { code?: string | null; field?: string | null; confidence?: number | null; message?: string | null }
 export interface ExamExtraction {
@@ -41,6 +50,7 @@ export interface ExamExtraction {
   overall_confidence?: number | null;
   warnings?: ExtractionWarning[] | null;
   questions?: ExtractionQuestion[] | null;
+  images_to_upload?: ExtractionImage[] | null;
 }
 
 export interface ExtractionContext {
@@ -144,6 +154,21 @@ function questionFrom(q: ExtractionQuestion): { question: DraftQuestion; review:
   return { question: { text, points: points(q.cotacao), options: [], kind: 'open', ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
 }
 
+const FIGURE_NAMES: Record<string, string> = { figure: 'Figura', table: 'Tabela', formula: 'Fórmula' };
+
+/** The figures of one question: the crops the OCR cut out under it, in the order they have on the page. */
+function imagesOf(number: string | null | undefined, regions: ExtractionImage[] | null | undefined): DraftImage[] {
+  const wanted = (number ?? '').trim();
+  if (!wanted) return [];
+  return (regions ?? [])
+    .filter((r) => r.region === `questao_${wanted}` && typeof r.data_url === 'string' && r.data_url.startsWith('data:image/'))
+    .map((r, i) => ({
+      dataUrl: r.data_url as string,
+      caption: (r.description ?? '').trim() || `${FIGURE_NAMES[r.kind ?? 'figure'] ?? 'Figura'} ${i + 1}`,
+      ...(r.kind ? { kind: r.kind } : {}),
+    }));
+}
+
 function examKind(type: string | null | undefined): string | null {
   const t = norm(type ?? '');
   if (!t) return null;
@@ -187,8 +212,13 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
     notes.push(`A disciplina «${name}» não existe nesta escola. Escolha-a na lista ou peça a um administrador que a associe à escola.`);
   } else notes.push('A prova não indica a disciplina. Escolha-a na lista.');
 
-  const built = (extraction.questions ?? []).filter((q) => (q.text ?? '').trim() || (q.subitems_content ?? []).length > 0).map(questionFrom);
-  const items = built.map((b) => b.question);
+  const kept = (extraction.questions ?? []).filter((q) => (q.text ?? '').trim() || (q.subitems_content ?? []).length > 0);
+  const built = kept.map(questionFrom);
+  const items = built.map((b, i) => {
+    const images = imagesOf(kept[i].number, extraction.images_to_upload);
+    return images.length > 0 ? { ...b.question, images } : b.question;
+  });
+  const figureCount = items.reduce((n, q) => n + (q.images?.length ?? 0), 0);
   const reviewCount = built.reduce((n, b) => n + b.review, 0);
 
   if (items.length === 0) notes.push('Não foi possível ler questões nesta imagem. Tente uma foto mais nítida e de frente, ou escreva as questões à mão.');
@@ -202,6 +232,7 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
     if (w.field === 'subjectName' || w.field === 'subject') continue; // já tratada acima
     notes.push(`O motor ficou inseguro com ${FIELD_NAMES[w.field] ?? `«${w.field}»`}. Confirme-o.`);
   }
+  if (figureCount > 0) notes.push(`${figureCount} figura(s), tabela(s) ou fórmula(s) ficaram ligadas às questões. Confirme se cada uma está na questão certa; pode retirá-la.`);
   if (reviewCount > 0) notes.push(`${reviewCount} questão(ões) ficaram marcadas «rever»: o texto pode ter erros de leitura.`);
   if (items.some((q) => q.kind === 'true_false' || (q.items ?? []).some((i) => i.kind === 'true_false'))) {
     notes.push('Marque Verdadeiro ou Falso em cada afirmação: o OCR não adivinha o gabarito.');
