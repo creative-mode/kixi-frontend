@@ -29,8 +29,8 @@ const BADGE: Record<Phase, { label: string; variant: 'success' | 'warning' | 'se
 };
 
 /** A secção "Salas de prova": as provas controladas para que o professor convidou o
- *  aluno. Só aparece quando há convites. */
-export function SalasDeProva({ invitations }: { invitations: Invitation[] }) {
+ *  aluno. Só aparece quando há convites; com erro, aparece o aviso em vez de nada. */
+export function SalasDeProva({ invitations, invitationsError }: { invitations: Invitation[]; invitationsError?: string | null }) {
   // O relógio só arranca depois de montar: `Date.now()` no render diferia entre o
   // servidor e o browser, e o React acusava a divergência na hidratação.
   const [now, setNow] = useState<number | null>(null);
@@ -43,7 +43,15 @@ export function SalasDeProva({ invitations }: { invitations: Invitation[] }) {
     return () => clearInterval(tick);
   }, []);
 
-  if (invitations.length === 0) return null;
+  if (invitations.length === 0) {
+    if (!invitationsError) return null;
+    return (
+      <section aria-labelledby="salas-title" className="grid gap-3">
+        <h2 id="salas-title" className="flex items-center gap-2 text-lg font-bold"><DoorOpen className="size-5" aria-hidden /> Salas de prova</h2>
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">{invitationsError}</p>
+      </section>
+    );
+  }
   const list = sortInvitations(invitations);
 
   return (

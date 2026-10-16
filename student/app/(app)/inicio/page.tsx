@@ -22,7 +22,7 @@ export default async function InicioPage() {
   const me = await getMe();
   const classId = me?.currentClass?.id ?? null;
 
-  const [invitations, feed, performance, leaderboard] = await Promise.all([
+  const [invResult, feed, performance, leaderboard] = await Promise.all([
     listInvitations(),
     classId ? getFeed(classId) : Promise.resolve(null),
     getPerformance(),
@@ -31,7 +31,8 @@ export default async function InicioPage() {
 
   return (
     <InicioFeed
-      invitations={invitations}
+      invitations={invResult.ok ? invResult.data : []}
+      invitationsError={invResult.ok ? null : `Salas de prova indisponíveis: ${invResult.message}`}
       myAccountId={me?.accountId ?? null}
       classId={classId}
       posts={feed?.ok ? feed.data : []}

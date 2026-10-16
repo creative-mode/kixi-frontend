@@ -151,14 +151,16 @@ export default async function Provas({ searchParams }: { searchParams: Params })
   };
   const page = Math.max(0, (Number(one(params.pagina)) || 1) - 1);
 
-  const [names, invitations] = await Promise.all([getCatalogNames(), listInvitations()]);
+  const [names, invResult] = await Promise.all([getCatalogNames(), listInvitations()]);
+  const invitations = invResult.ok ? invResult.data : [];
+  const invitationsError = invResult.ok ? null : `Salas de prova indisponíveis: ${invResult.message}`;
   const result = await getCatalog({ ...filters, page, size: PAGE_SIZE }, names);
   if (!result.ok) {
     return (
       <Page variant="wide">
         <Column className="gap-5">
           <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
-          <SalasDeProva invitations={invitations} />
+          <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
           <RefreshError
             title="Não foi possível carregar as provas"
             message="Verifica a ligação à internet e tenta de novo. As tuas simulações estão guardadas."
@@ -187,7 +189,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
       <Column className="gap-5">
         <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
 
-        <SalasDeProva invitations={invitations} />
+        <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
 
         <Filters
           values={{
