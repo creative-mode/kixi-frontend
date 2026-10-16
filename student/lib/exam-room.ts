@@ -3,7 +3,9 @@ import 'server-only';
 import { apiGet, apiPost, type Result } from './api';
 import {
   getQuestionImages,
+  getStatementFull,
   listAnswers,
+  loadPaperMeta,
   type RoomData,
   type Simulation,
 } from './exam';
@@ -93,10 +95,12 @@ export async function getControlledRoom(roomId: number): Promise<ControlledRoom>
     return { kind: 'waiting', phase: 'lobby', invitation };
   }
 
-  const [simulation, view, answers] = await Promise.all([
+  const [simulation, view, answers, statement] = await Promise.all([
     apiGet<Simulation>(`/simulations/${simulationId}`),
     getStudentView(roomId),
     listAnswers(),
+    // O enunciado de uma sala pode não estar no catálogo: se não abrir, a folha leva o molde em branco.
+    getStatementFull(invitation.statementId, { cached: true }),
   ]);
   if (!simulation.ok) return { kind: 'error', message: translateRoomError(simulation.message) };
   if ((simulation.data.status ?? '').toUpperCase() !== 'IN_PROGRESS') return { kind: 'submitted', simulationId };
@@ -121,6 +125,9 @@ export async function getControlledRoom(roomId: number): Promise<ControlledRoom>
       deadline: simulation.data.deadline ?? null,
       title: invitation.statementTitle || 'Sala de prova',
       subtitle: `Sala de prova · ${invitation.durationMinutes} min`,
+      paper: statement.ok
+        ? { ...(await loadPaperMeta(statement.data)), durationMinutes: invitation.durationMinutes }
+        : { kind: 'Prova', durationMinutes: invitation.durationMinutes },
       questions,
       images,
       saved,
