@@ -1,16 +1,36 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { apiPut } from './api';
+import { apiPut, authHeaders, problem } from './api';
+import { BACKEND } from './session';
 import type { Me } from './types';
 
 export type ProfileState = { error?: string; saved?: boolean } | undefined;
 
 const MAX_NAME = 100;
-/** The backend stores `photo` as a string and caps it at 500 characters; there is no
- *  upload endpoint, so the student points at an image already hosted somewhere. */
+/** The backend stores `photo` as a string and caps it at 500 characters. The photo is chosen from the device and
+ *  sent to `/images` (see `enviarFotoAction`), which returns the address kept here; an address already online
+ *  still works. */
 const MAX_PHOTO = 500;
-const HTTP_URL = /^https?:\/\/\S+$/i;
+const PHOTO_ADDRESS = /^(?:https?:\/\/\S+|\/uploads\/images\/avatar\/[A-Za-z0-9._-]+)$/i;
+
+/** Sends the photo the student chose to the server and returns the address to keep in the profile. */
+export async function enviarFotoAction(form: FormData): Promise<{ url?: string; error?: string }> {
+  const file = form.get('file');
+  if (!(file instanceof File) || file.size === 0) return { error: 'Escolhe uma imagem.' };
+  if (!file.type.startsWith('image/')) return { error: 'O ficheiro tem de ser uma imagem (PNG, JPG ou WEBP).' };
+  if (file.size > 2 * 1024 * 1024) return { error: 'A imagem deve ter no máximo 2 MB.' };
+  const out = new FormData();
+  out.append('file', file, file.name);
+  try {
+    const res = await fetch(`${BACKEND}/images?kind=avatar`, { method: 'POST', headers: await authHeaders(), body: out, cache: 'no-store' });
+    if (!res.ok) return { error: (await problem(res)).message };
+    const body = (await res.json()) as { url?: string };
+    return body.url ? { url: body.url } : { error: 'O servidor não devolveu a imagem.' };
+  } catch {
+    return { error: 'Não foi possível enviar a imagem agora. Tenta outra vez.' };
+  }
+}
 
 /** Updates the student's own name and photo. /users is ADMIN-only, so PUT /me is the
  *  only route a student has to their profile. */
@@ -31,8 +51,8 @@ export async function atualizarPerfilAction(
   if (photo.length > MAX_PHOTO) {
     return { error: 'O endereço da foto é demasiado longo.' };
   }
-  if (photo && !HTTP_URL.test(photo)) {
-    return { error: 'A foto tem de ser um endereço começando por http:// ou https://' };
+  if (photo && !PHOTO_ADDRESS.test(photo)) {
+    return { error: 'A foto tem de ser uma imagem escolhida do dispositivo.' };
   }
 
   const result = await apiPut<Me>('/me', {

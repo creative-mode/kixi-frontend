@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ImageField } from './image-field';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
@@ -149,7 +150,9 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
                     <Label htmlFor={f.name}>
                       {f.label}{f.required ? <span className="text-destructive"> *</span> : null}
                     </Label>
-                    {f.type === 'textarea' ? (
+                    {f.type === 'image' ? (
+                      <ImageField id={f.name} name={f.name} kind={f.imageKind ?? 'avatar'} value={values[f.name] ?? ''} onChange={(url) => set(f.name, url)} disabled={saving} />
+                    ) : f.type === 'textarea' ? (
                       <Textarea {...common} rows={4} value={values[f.name] ?? ''} onChange={(e) => set(f.name, e.target.value)} placeholder={f.placeholder} />
                     ) : f.type === 'select' ? (
                       <NativeSelect

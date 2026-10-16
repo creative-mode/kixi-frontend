@@ -23,7 +23,7 @@ import type { ReactNode } from 'react';
  * the server actions and the navigation. Paths and DTO shapes mirror creative-mode/kixi (backend-api).
  */
 
-export type FieldType = 'text' | 'number' | 'textarea' | 'email' | 'password' | 'select' | 'datetime';
+export type FieldType = 'text' | 'number' | 'textarea' | 'email' | 'password' | 'select' | 'datetime' | 'image';
 
 export interface Field {
   name: string;
@@ -38,6 +38,8 @@ export interface Field {
   optionsFrom?: EntityKey;
   /** only asked when creating (e.g. immutable links) */
   createOnly?: boolean;
+  /** for `type: 'image'`: where the file goes (a person's photo or a school's logo) */
+  imageKind?: 'avatar' | 'logo';
 }
 
 export interface Column {
@@ -340,7 +342,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { name: 'accountId', label: 'Conta', type: 'select', required: true, optionsFrom: 'accounts' },
       { name: 'firstName', label: 'Nome', type: 'text', required: true, min: 2, max: 100 },
       { name: 'lastName', label: 'Apelido', type: 'text', required: true, min: 2, max: 100 },
-      { name: 'photo', label: 'Foto (URL)', type: 'text', max: 500, placeholder: 'https://…' },
+      { name: 'photo', label: 'Foto', type: 'image', imageKind: 'avatar', max: 500 },
     ],
     columns: [
       { label: 'Nome', value: (r) => <strong>{r.firstName} {r.lastName}</strong> },
@@ -369,7 +371,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { name: 'code', label: 'Código', type: 'text', required: true, max: 20, placeholder: 'ITEL' },
       { name: 'name', label: 'Nome', type: 'text', required: true, min: 3, max: 200, placeholder: 'Instituto de Telecomunicações' },
       { name: 'short_name', label: 'Sigla', type: 'text', max: 50, placeholder: 'ITEL' },
-      { name: 'logo', label: 'Logótipo (URL)', type: 'text', placeholder: 'https://…', hint: 'Aparece no cabeçalho das provas.' },
+      { name: 'logo', label: 'Logótipo', type: 'image', imageKind: 'logo', hint: 'Aparece no cabeçalho das provas. PNG, JPG ou WEBP, até 2 MB.' },
     ],
     columns: [
       { label: 'Código', value: (r) => <span className="font-mono text-xs font-bold">{r.code}</span>, className: 'w-28' },
@@ -399,7 +401,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { name: 'email', label: 'Email', type: 'email', max: 255 },
       { name: 'specialty', label: 'Especialidade', type: 'text', max: 150 },
       { name: 'employeeNumber', label: 'N.º de funcionário', type: 'text', max: 50 },
-      { name: 'photo', label: 'Foto (URL)', type: 'text', max: 500, placeholder: 'https://…' },
+      { name: 'photo', label: 'Foto', type: 'image', imageKind: 'avatar', max: 500 },
     ],
     columns: [
       { label: 'Nome', value: (r) => <strong>{r.firstName} {r.lastName}</strong> },

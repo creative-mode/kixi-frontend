@@ -33,6 +33,12 @@ function leafKind(q: Row, options: DraftOption[]): LeafKind {
   return /true_false|verdadeiro/i.test(String(q.questionType ?? '')) ? 'true_false' : 'multiple_choice';
 }
 
+/** A resposta esperada de uma questão aberta; as de escolha têm a certa marcada nas opções. */
+const answerOf = (q: Row): { modelAnswer?: string } => {
+  const answer = typeof q.modelAnswer === 'string' ? q.modelAnswer.trim() : '';
+  return answer ? { modelAnswer: answer } : {};
+};
+
 const points = (q: Row): number | '' => (typeof q.maxScore === 'number' ? q.maxScore : '');
 
 export function draftFromStatement(statement: Row, ctx: StatementContext = {}): { draft: ExamDraft; school: School } {
@@ -54,12 +60,12 @@ export function draftFromStatement(statement: Row, ctx: StatementContext = {}): 
       if (String(q.questionType ?? '').toLowerCase() === 'group' || (found && found.length > 0)) {
         const subs: DraftItem[] = (found ?? []).map((c) => {
           const options = optionsOf(c);
-          return { text: String(c.text ?? ''), points: points(c), options, kind: leafKind(c, options) };
+          return { text: String(c.text ?? ''), points: points(c), options, kind: leafKind(c, options), ...answerOf(c) };
         });
         return { text: String(q.text ?? ''), points: '', options: [], kind: 'group', items: subs, ...withImages };
       }
       const options = optionsOf(q);
-      return { text: String(q.text ?? ''), points: points(q), options, kind: leafKind(q, options), ...withImages };
+      return { text: String(q.text ?? ''), points: points(q), options, kind: leafKind(q, options), ...answerOf(q), ...withImages };
     });
 
   const grade = ctx.grade != null && ctx.grade !== '' ? (/^\d+$/.test(String(ctx.grade)) ? `${ctx.grade}ª Classe` : String(ctx.grade)) : '';
