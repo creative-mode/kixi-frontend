@@ -100,7 +100,7 @@ function LoginContent() {
               </button>
             </div>
           </div>
-          <Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated}>
+<Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated} data-testid="gestor-entrar-submeter">
             {isLoading ? (<><Spinner className="size-4" />A entrar...</>) : 'Entrar'}
           </Button>
         </form>

@@ -540,7 +540,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
           {saving ? <Spinner className="size-4" /> : <Check size={16} />}
           Guardar revisão
         </Button>
-        <Button onClick={approveAndPublish} disabled={saving} title={issues.length > 0 ? 'Resolva as pendências do gabarito' : dirty ? 'Guarda as alterações, aprova e publica no catálogo do aluno' : 'Aprovar e publicar no catálogo do aluno'}>
+        <Button onClick={approveAndPublish} disabled={saving} data-testid="gestor-statements-publicar" title={issues.length > 0 ? 'Resolva as pendências do gabarito' : dirty ? 'Guarda as alterações, aprova e publica no catálogo do aluno' : 'Aprovar e publicar no catálogo do aluno'}>
           <Eye size={16} />
           {dirty ? 'Guardar, aprovar e publicar' : 'Aprovar e publicar'}
         </Button>
