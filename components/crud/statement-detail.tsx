@@ -197,13 +197,13 @@ export function StatementDetail({ id }: { id: number }) {
                             // `StatementOcrResponse` esconde-a a quem não pode mudar o
                             // enunciado, e é o que o `/full` devolve a partir do BE-08.
                             aria-pressed={!!o.isCorrect}
-                            aria-label={o.isCorrect ? `Opção ${o.optionLabel}, resposta correcta` : `Marcar a opção ${o.optionLabel} como resposta correcta`}
                             onClick={() => mark(q.id, o.id)}
                             className={`flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left transition-colors hover:bg-secondary ${o.isCorrect ? 'border-success bg-success-soft font-semibold' : 'border-transparent'}`}
                           >
                             <span className="tabular-nums">{o.optionLabel})</span>
                             <span className="flex-1">{o.optionText}</span>
                             {o.isCorrect && <Check className="size-4 shrink-0 text-success" aria-hidden />}
+                            <span className="sr-only">{o.isCorrect ? ' (resposta correcta)' : ' (marcar como resposta correcta)'}</span>
                           </button>
                         </li>
                       ))}
