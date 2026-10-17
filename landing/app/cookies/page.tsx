@@ -21,7 +21,7 @@ export default function Cookies() {
         e podes mudar de ideias quando quiseres.
       </p>
 
-      <div className="lg-tablewrap">
+      <div className="lg-tablewrap" role="region" aria-label="Tabela de cookies" tabIndex={0}>
         <table>
           <thead><tr><th>Nome</th><th>Finalidade</th><th>Tipo</th><th>Duração</th></tr></thead>
           <tbody>
