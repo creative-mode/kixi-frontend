@@ -69,7 +69,7 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur md:hidden">
           <Link href="/perfil" className="grid size-11 place-items-center"><span className="sr-only">Perfil de {name}</span><UserAvatar name={name} src={photoUrl(me)} size={32} /></Link>
           <Link href="/inicio" aria-label="Kixi, início" className="grid min-h-11 place-items-center px-2"><Logo size={22} wordmark /></Link>
-          <Button asChild variant="ghost" size="icon" className="size-11" aria-label="Procurar provas"><Link href="/provas"><Search /></Link></Button>
+          <Button asChild variant="ghost" size="icon" className="size-11" aria-label="Pesquisar escolas, professores e alunos"><Link href="/pesquisa"><Search /></Link></Button>
         </header>
 
         <div className="flex min-w-0 flex-1">

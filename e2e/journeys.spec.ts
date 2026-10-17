@@ -110,6 +110,21 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText('Resumo rápido: o /28')).toBeVisible();
   });
 
+  test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.getByRole('link', { name: 'Pesquisar escolas, professores e alunos' }).click();
+    await expect(page).toHaveURL(/\/aluno\/pesquisa/);
+    await page.getByLabel(/Nome de uma escola/).fill('itel');
+    await page.getByRole('button', { name: 'Pesquisar' }).click();
+    for (const secao of ['Escolas', 'Professores', 'Alunos']) await expect(page.getByRole('region', { name: secao })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Escolas' }).getByRole('link').first()).toBeVisible();
+  });
+
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
