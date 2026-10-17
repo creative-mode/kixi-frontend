@@ -2,9 +2,9 @@
 
 export const me = { name: 'Abner Ede', turma: '12B', escola: 'ITEL', curso: 'Informática' };
 
-export type PostKind = 'resultado' | 'duvida' | 'dica';
+export type PostKind = 'resultado' | 'duvida' | 'dica' | 'treino';
 
-export interface Comment { name: string; text: string; time: string }
+export interface Comment { name: string; text: string; time: string; helpful?: number; hand?: boolean }
 export interface FeedPost {
   id: string;
   kind: PostKind;
@@ -14,15 +14,32 @@ export interface FeedPost {
   useful: number;
   comments: Comment[];
   attach?:
-    | { type: 'resultado'; title: string; meta: string; score: string; delta?: string; href: string }
+    | { type: 'resultado'; title: string; meta: string; score: string; delta?: string; hidden?: boolean; href: string }
+    | { type: 'treino'; title: string; meta: string; href: string }
     | { type: 'questao'; title: string; excerpt: string }
     | { type: 'tema'; title: string; meta: string; href: string };
   cta?: { label: string; href: string };
 }
 
-export const KIND_LABEL: Record<PostKind, string> = { resultado: 'Resultado', duvida: 'Dúvida', dica: 'Dica de estudo' };
+export const KIND_LABEL: Record<PostKind, string> = { resultado: 'Resultado', duvida: 'Dúvida', dica: 'Dica de estudo', treino: 'Treino' };
 
 export const posts: FeedPost[] = [
+  {
+    id: 'k', kind: 'treino', name: 'Kiala Mendes', meta: '12B · ITEL · há 20 min',
+    text: 'Concluiu 12 questões de Redes, 9 certas.',
+    useful: 7,
+    comments: [],
+    attach: { type: 'treino', title: 'Treino de Redes', meta: '12 questões · 14 min', href: '/provas' },
+    cta: { label: 'Treinar também', href: '/provas' },
+  },
+  {
+    id: 'f', kind: 'resultado', name: 'Kiala Mendes', meta: '12B · ITEL · há 1 h',
+    text: 'Finalmente percebi funções.',
+    useful: 18,
+    comments: [{ name: 'Nuno Dias', text: 'Também me custou. Refaz a Q6 amanhã, ajuda a fixar.', time: 'há 40 min', helpful: 3 }],
+    attach: { type: 'resultado', title: 'P1 · Matemática', meta: 'ITEL 2024', score: '', hidden: true, href: '/prova/redes-p1' },
+    cta: { label: 'Fazer esta prova', href: '/prova/redes-p1' },
+  },
   {
     id: 'a', kind: 'resultado', name: 'Mariana Costa', meta: '12B · ITEL · há 2 h',
     text: 'Fiz a simulação da P1 de Redes. O subnetting finalmente entrou depois de refazer as questões 3 e 8 com o tutor.',
@@ -38,7 +55,7 @@ export const posts: FeedPost[] = [
     id: 'c', kind: 'duvida', name: 'Sara Pinto', meta: '12B · ITEL · ontem',
     text: 'Alguém percebeu a Q4 do exame de Matemática Discreta de 2023? Não estou a ver como se faz a indução.',
     useful: 6,
-    comments: [{ name: 'Nuno Dias', text: 'Começa pelo caso base n = 1 e escreve a hipótese antes de mexer na soma.', time: 'há 18 h' }],
+    comments: [{ name: 'Nuno Dias', text: 'Começa pelo caso base n = 1 e escreve a hipótese antes de mexer na soma.', time: 'há 18 h', helpful: 6, hand: true }],
     attach: { type: 'questao', title: 'Matemática Discreta · Exame 2023 · Q4', excerpt: 'Demonstre por indução que 1 + 2 + … + n = n(n + 1) / 2.' },
     cta: { label: 'Abrir no tutor', href: '/tutor' },
   },
@@ -134,3 +151,55 @@ export const tutorChat = [
 ] as const;
 
 export const tutorChips = ['Dá-me uma dica', 'Explica em binário', 'Outra questão igual'];
+
+/** Meta diária e sequência de treino. */
+export const goal = { streak: 9, done: 7, target: 10 };
+
+export type LeagueRow = { rank: number; name: string; points: number; you?: boolean };
+export type LeagueGroup = { label: string; tone: 'up' | 'stay' | 'down' | 'plain'; rows: LeagueRow[] };
+
+/** Liga semanal: os pontos contam esforço (treino, dúvidas respondidas, ajuda aos colegas), nunca notas. */
+export const league = {
+  name: 'Liga Bronze',
+  ends: '2d 4h',
+  size: 30,
+  rank: 14,
+  upCount: 5,
+  toGo: 120,
+  scopes: {
+    Turma: [
+      { label: 'Sobem', tone: 'up', rows: [
+        { rank: 1, name: 'Nzuzi Paulo', points: 940 },
+        { rank: 2, name: 'Tchizé Gomes', points: 905 },
+        { rank: 3, name: 'Luzia Fernandes', points: 870 },
+        { rank: 4, name: 'Bastos Neto', points: 790 },
+        { rank: 5, name: 'Mauro Ariel', points: 760 },
+      ] },
+      { label: 'Ficam', tone: 'stay', rows: [
+        { rank: 13, name: 'Joana Silva', points: 655 },
+        { rank: 14, name: 'Abner Ede', points: 640, you: true },
+        { rank: 15, name: 'Pedro Eduardo', points: 610 },
+      ] },
+      { label: 'Zona de descida, os últimos 5', tone: 'down', rows: [
+        { rank: 26, name: 'André Nunes', points: 210 },
+        { rank: 27, name: 'Sofia Oliveira', points: 180 },
+      ] },
+    ],
+    Escola: [
+      { label: 'ITEL esta semana', tone: 'plain', rows: [
+        { rank: 1, name: 'Helder Gomes', points: 1210 },
+        { rank: 2, name: 'Nzuzi Paulo', points: 940 },
+        { rank: 3, name: 'Tchizé Gomes', points: 905 },
+        { rank: 18, name: 'Abner Ede', points: 640, you: true },
+      ] },
+    ],
+    Amigos: [
+      { label: 'Os teus amigos', tone: 'plain', rows: [
+        { rank: 1, name: 'Paulo Neto', points: 820 },
+        { rank: 2, name: 'Abner Ede', points: 640, you: true },
+        { rank: 3, name: 'Nuno Dias', points: 590 },
+      ] },
+    ],
+  } as Record<'Turma' | 'Escola' | 'Amigos', LeagueGroup[]>,
+  pair: { name: 'Nzuzi Paulo', streak: 9, meDone: true, themDone: false },
+};

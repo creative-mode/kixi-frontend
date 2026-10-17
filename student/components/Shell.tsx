@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, Camera, ChevronsUpDown, House, FileText, MessageCircle, Search, User, Users } from 'lucide-react';
+import { Bell, Camera, ChevronsUpDown, House, FileText, MessageCircle, Search, Trophy, User } from 'lucide-react';
 import { Logo } from './brand';
 import { UserAvatar } from './user-avatar';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { me } from '@/lib/data';
 const ITEMS = [
   { href: '/inicio', label: 'Início', icon: House, also: [] as string[] },
   { href: '/provas', label: 'Provas', icon: FileText, also: ['/prova', '/resultado'] },
-  { href: '/ranking', label: 'Turma', icon: Users, also: [] as string[] },
+  { href: '/ranking', label: 'Liga', icon: Trophy, also: [] as string[] },
   { href: '/tutor', label: 'Tutor', icon: MessageCircle, also: [] as string[] },
   { href: '/perfil', label: 'Perfil', icon: User, also: [] as string[] },
 ];
