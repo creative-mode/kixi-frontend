@@ -26,11 +26,11 @@ O backend, o serviço de OCR e as decisões de arquitectura vivem no repositóri
 [creative-mode/kixi](https://github.com/creative-mode/kixi), que inclui este como submódulo.
 
 ```
-  Browser ──► Gateway :3000 ──┬─ /          Landing  (landing/, :3004)
+  Browser ──> Gateway :3000 ──┬─ /          Landing  (landing/, :3004)
                               ├─ /aluno     Aluno    (student/, :3003)
                               └─ /manager   Gestor   (raiz,     :3002)
                                      │
-                                     ▼  JWT
+                                     v  JWT
                               Backend Spring Boot (BACKEND_API_URL)
 ```
 
