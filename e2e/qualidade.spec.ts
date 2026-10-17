@@ -255,3 +255,24 @@ test.describe('ranking global e métrica', () => {
     expect(await graves(page)).toEqual([]);
   });
 });
+
+test.describe('auditoria de UX do aluno', () => {
+  test('no telemóvel o perfil não transborda e os campos cumprem os 44 px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto('/aluno/entrar');
+    const campos = await page.locator('input:not([type=hidden])').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(Math.min(...campos), 'altura dos campos').toBeGreaterThanOrEqual(44);
+    const link = await page.getByRole('link', { name: 'Criar conta' }).boundingBox();
+    expect(link?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(process.env.E2E_PASSWORD ?? 'Kixi1234!');
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/perfil');
+    await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible();
+    const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(transborda, 'scroll horizontal no perfil').toBe(false);
+    const botao = await page.getByRole('button', { name: 'Editar perfil' }).boundingBox();
+    expect((botao?.x ?? 0) + (botao?.width ?? 0)).toBeLessThanOrEqual(390);
+  });
+});

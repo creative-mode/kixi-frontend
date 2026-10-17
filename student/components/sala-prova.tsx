@@ -349,7 +349,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           <Link href={data.roomId ? '/provas?aba=salas' : '/provas'}><ChevronLeft /></Link>
         </Button>
         <div className="min-w-0 leading-tight">
-          <div className="truncate text-[15px] font-bold">{data.title}</div>
+          <h1 className="truncate text-[15px] font-bold">{data.title}</h1>
           <div className="text-xs text-muted-foreground">{data.subtitle}</div>
         </div>
         <div
