@@ -218,3 +218,40 @@ test.describe('amigos e ranking de amigos', () => {
     expect(await graves(page)).toEqual([]);
   });
 });
+
+/** Comparação entre escolas (#129): consentimento, escolas com poucos alunos e a métrica de XP. */
+test.describe('ranking global e métrica', () => {
+  test('o global pede consentimento, explica porque está vazio e o XP muda a tabela', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/ranking');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('tab', { name: 'Global' }).click();
+    // O mock guarda o consentimento entre tentativas: numa repetição já foi dado.
+    const participar = page.getByRole('button', { name: 'Quero participar' });
+    const retirar = page.getByRole('button', { name: /Deixar de participar/ });
+    // Espera pela resposta do servidor: antes dela a página ainda mostra a tabela da aba anterior.
+    await expect(page.getByText(/Comparar-te com alunos de outras escolas|pelo menos 10 alunos/)).toBeVisible();
+    if (await participar.isVisible()) {
+      // Um clique dado antes de a página reagir perde-se: repete até a explicação aparecer.
+      await expect(async () => {
+        if (await participar.isVisible()) await participar.click();
+        await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible({ timeout: 2000 });
+      }).toPass({ timeout: 15_000 });
+    }
+    await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible();
+    await expect(retirar).toBeVisible();
+    expect(await graves(page)).toEqual([]);
+    await retirar.click();
+    await expect(participar).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Turma' }).click();
+    await page.getByLabel('Ordenar por').selectOption('xp');
+    await expect(page.locator('th', { hasText: /^XP$/ })).toBeVisible();
+    await page.getByLabel('Período').selectOption('month');
+    // O período entra no pedido: sem erro, com a tabela ou com o estado vazio, mas nunca um aviso.
+    await expect(page.getByLabel('Período')).toHaveValue('month');
+    await expect(page.locator('th', { hasText: /^XP$/ }).or(page.getByText('Ainda não há dados'))).toBeVisible();
+    await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
+    expect(await graves(page)).toEqual([]);
+  });
+});

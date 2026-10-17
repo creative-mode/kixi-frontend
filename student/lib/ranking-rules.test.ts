@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatAverage, myPositionLabel, smallGroupNote, SCOPE_LABEL } from './ranking-rules.ts';
+import { formatAverage, globalNote, myPositionLabel, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from './ranking-rules.ts';
 
 test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
@@ -23,4 +23,18 @@ test('a posição só aparece com nota rankeável', () => {
 test('o aviso de grupo pequeno só aparece quando o backend o assinala', () => {
   assert.match(smallGroupNote(true) ?? '', /últimos lugares/);
   assert.equal(smallGroupNote(false), null);
+});
+
+test('as opções de período e de métrica têm rótulo em português', () => {
+  assert.equal(PERIOD_LABEL.month, 'Últimos 30 dias');
+  assert.equal(METRIC_LABEL.xp, 'XP acumulado');
+});
+
+test('a nota do ranking global diz de quantas escolas vem e explica o percentil', () => {
+  assert.match(globalNote(3, 'average'), /3 escolas/);
+  assert.match(globalNote(3, 'average'), /percentil/);
+  assert.match(globalNote(1, 'xp'), /1 escola,/);
+  assert.doesNotMatch(globalNote(3, 'xp'), /percentil/);
+  assert.match(globalNote(0, 'average'), /Ainda não há escolas/);
+  assert.match(globalNote(undefined, 'average'), /Ainda não há escolas/);
 });
