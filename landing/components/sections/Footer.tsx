@@ -1,6 +1,6 @@
 import { Logo } from '@/components/kixi';
 import { CookieSettings } from '@/components/consent/CookieSettings';
-import { CONTACT_EMAIL, LOGIN_URL, NAV, SIGNUP_URL } from '@/lib/content';
+import { CONTACT_EMAIL, LOGIN_URL, NAV, SIGNUP_URL, TRUST_LINKS } from '@/lib/content';
 
 export function Footer() {
   return (
@@ -11,6 +11,7 @@ export function Footer() {
         <nav aria-label="Rodapé" className="footer__nav">
           {NAV.map((n) => <a key={n.href} href={n.href}>{n.label}</a>)}
           <a href="/doar">Doar um enunciado</a>
+          {TRUST_LINKS.map((l) => <a key={l.href} href={l.href}>{l.label}</a>)}
           <a href={SIGNUP_URL}>Criar conta</a>
           <a href={LOGIN_URL}>Entrar</a>
           <a href="/privacidade">Privacidade</a>

@@ -33,14 +33,23 @@ test('uma lista órfã lança, em vez de virar texto solto', () => {
   assert.throws(() => parse('texto\n  sub-item sem lista'), /sem lista antes/);
 });
 
-test('os textos que a landing usa são lidos sem resto', () => {
-  // Qualquer caractere que o parser não saiba é onde uma página apareceria errada
-  // em produção e ninguém perceberia porquê.
-  for (const markdown of [
-    '# Kixi\n\n- **I. OCR** — Fotografa.\n\n## Perguntas\n\ntexto',
-    '> citação\n\ntexto',
-    '| a | b |\n| - | - |\n| 1 | 2 |',
-  ]) {
-    assert.doesNotThrow(() => parse(markdown), markdown.split('\n')[0]);
+test('cada bloco do texto real sai lido como se espera', () => {
+  // O nome prometia "sem resto" e a asserção só provava que não lançava: um bloco lido
+  // errado é uma página errada em produção sem nenhum sinal.
+  assert.deepEqual(parse('# Kixi\n\n- **I. OCR** — Fotografa.\n\n## Perguntas\n\ntexto'), [
+    { kind: 'h1', text: 'Kixi' },
+    { kind: 'ul', items: [{ text: '**I. OCR** — Fotografa.', sub: [] }] },
+    { kind: 'h2', text: 'Perguntas' },
+    { kind: 'p', lines: ['texto'] },
+  ]);
+});
+
+test('uma citação ou uma tabela não são lidas como texto normal', () => {
+  // O parser não os sabe; o que não pode é engoli-los e parecer um parágrafo.
+  for (const markdown of ['> citação\n\ntexto', '| a | b |\n| - | - |\n| 1 | 2 |']) {
+    const blocks = parse(markdown);
+    assert.ok(blocks.length > 0, markdown.split('\n')[0]);
+    // Nenhum bloco pode ter ficado com o texto todo colado dentro de um só parágrafo.
+    assert.ok(!blocks.some((b) => b.kind === 'p' && b.lines.join(' ').includes('\n')));
   }
 });

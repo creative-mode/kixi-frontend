@@ -30,9 +30,6 @@ export function markdownToReact(markdown: string, keyPrefix = 'md'): ReactNode[]
     if (block.kind === 'h1') return <h1 key={key}>{inline(block.text, key)}</h1>;
     if (block.kind === 'h2') return <h2 key={key}>{inline(block.text, key)}</h2>;
     if (block.kind === 'p') {
-      // Uma linha que é só negrito é um subtítulo, não um parágrafo de uma palavra.
-      const only = block.lines.join(' ').trim();
-      if (/^\*\*.*\*\*$/.test(only)) return <p key={key}>{inline(block.lines.join(' '), key)}</p>;
       return <p key={key}>{block.lines.map((l: string, j: number) => inline(l, `${key}-${j}`)).flat()}</p>;
     }
     return (

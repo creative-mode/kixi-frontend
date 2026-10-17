@@ -12,7 +12,12 @@ import { trustMarkdown } from '@/lib/trust-pages';
 
 export const dynamic = 'force-static';
 
-const MARKDOWN = { 'Content-Type': 'text/markdown; charset=utf-8', Vary: 'Accept' } as const;
+const MARKDOWN = {
+  'Content-Type': 'text/markdown; charset=utf-8',
+  // Os dois lados são Markdown gerado; o 404 já levava isto e o 200 ficava de fora.
+  'X-Content-Type-Options': 'nosniff',
+  Vary: 'Accept',
+} as const;
 
 /** As páginas que existem. `/` e `/doar`, e nada mais: anunciar uma página que dá 404
  *  a quem segue o link é pior do que não a anunciar. */
@@ -39,8 +44,5 @@ export async function GET(request: Request, context: { params: Promise<{ slug?: 
     return new Response(`${body}\n`, { status: 200, headers: MARKDOWN });
   }
 
-  return new Response(`${notFoundMarkdown(pathname)}\n`, {
-    status: 404,
-    headers: { ...MARKDOWN, 'X-Content-Type-Options': 'nosniff' },
-  });
+  return new Response(`${notFoundMarkdown(pathname)}\n`, { status: 404, headers: MARKDOWN });
 }

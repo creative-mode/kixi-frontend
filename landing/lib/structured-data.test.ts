@@ -91,5 +91,12 @@ test('uma morada a meio não entra no JSON-LD', () => {
 
 test('sem contacto nenhum, o Organization é só identidade', () => {
   const org = organizationLdFrom({ address: { street: '', locality: '', postalCode: '', addressCountry: 'AO' } });
-  assert.deepEqual(Object.keys(org).sort(), ['@context', '@id', '@type', 'name', 'url']);
+  assert.deepEqual(Object.keys(org).sort(), ['@id', '@type', 'name', 'url']);
+});
+
+test('nenhum nó do grafo traz @context: o do JsonLd chega', () => {
+  // Repetido em cada nó é ruído que um validador tem de ignorar.
+  for (const node of [organizationLdFrom({ address: { street: '', locality: '', postalCode: '', addressCountry: 'AO' } }), webSiteLd(), serviceLd(), faqPageLd()]) {
+    assert.equal(node['@context'], undefined);
+  }
 });

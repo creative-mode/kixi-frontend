@@ -28,6 +28,19 @@ export const CONTACT_POSTAL_ADDRESS = {
 
 export const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE ?? '';
 
+/**
+ * As páginas de confiança (#218).
+ *
+ * <p>Entram no rodapé de todas as páginas, e não só no `sitemap.xml`: uma página que
+ * ninguém consegue encontrar a partir da navegação é uma página que ninguém lê. São
+ * as duas que faltavam para um agente poder verificar quem está por trás da
+ * plataforma antes de a recomendar a uma escola — a privacidade e os cookies já têm
+ * página e ligação no rodapé desde o #300, e não são repetidas aqui.</p> */
+export const TRUST_LINKS = [
+  { href: '/about', label: 'Sobre' },
+  { href: '/contact', label: 'Contacto' },
+] as const;
+
 export const NAV = [
   { href: '#solucao', label: 'Solução' },
   { href: '#modulos', label: 'Módulos' },

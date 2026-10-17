@@ -16,8 +16,11 @@ import {
   SITE_URL,
 } from './content.ts';
 
-const CONTEXT = 'https://schema.org';
-
+/**
+ * Um nó do grafo, sem `@context`.
+ *
+ * <p>O `@context` põe-o o `JsonLd`, uma vez, à volta do `@graph`: repetido em cada nó
+ * é ruído que um validador tem de ignorar e que ninguém lê.</p> */
 type JsonLd = Record<string, unknown>;
 
 /**
@@ -79,7 +82,6 @@ export function organizationLdFrom(contact: {
     : undefined;
 
   return {
-    '@context': CONTEXT,
     '@type': 'Organization',
     '@id': `${SITE_URL}/#organizacao`,
     name: 'Kixi',
@@ -94,7 +96,6 @@ export function organizationLdFrom(contact: {
  *  não declarar nenhuma. */
 export function webSiteLd(): JsonLd {
   return {
-    '@context': CONTEXT,
     '@type': 'WebSite',
     '@id': `${SITE_URL}/#site`,
     name: 'Kixi',
@@ -108,7 +109,6 @@ export function webSiteLd(): JsonLd {
 /** A página, para que um agente saiba o que está a ler e qual a sua secção. */
 export function webPageLd(name: string, path: string, description: string): JsonLd {
   return {
-    '@context': CONTEXT,
     '@type': 'WebPage',
     '@id': `${SITE_URL}${path}#pagina`,
     name,
@@ -126,7 +126,6 @@ export function webPageLd(name: string, path: string, description: string): Json
  *  com `application/ld+json` em vez de HTML. Por isso isto lê `FAQ` e nada mais. */
 export function faqPageLd(): JsonLd {
   return {
-    '@context': CONTEXT,
     '@type': 'FAQPage',
     '@id': `${SITE_URL}/#perguntas`,
     mainEntity: FAQ.map((f) => ({
@@ -143,7 +142,6 @@ export function faqPageLd(): JsonLd {
  *  não um pacote à venda, e o cabeçalho do módulo já diz o que cada um faz. */
 export function serviceLd(): JsonLd {
   return {
-    '@context': CONTEXT,
     '@type': 'Service',
     '@id': `${SITE_URL}/#servico`,
     name: 'Kixi',

@@ -142,6 +142,25 @@ export function llmsTxt(): string {
 }
 
 /**
+ * O caminho pedido, dentro de um code span e sem nada que oescape.
+ *
+ * <p>O caminho vem do URL e é o único texto desta resposta que não escrevemos nós. Um
+ * `%60` (backtick) fecha o code span, e um `%0A%0A%23%20` injecta um cabeçalho novo no
+ * meio da resposta — num endpoint que existe precisamente para agentes lerem, injectar
+ * Markdown é injectar instruções. Fica o que se consegue mostrar de um caminho e nada
+ * que abra ou feche alguma coisa.</p>
+ */
+function safePath(path: string): string {
+  return path
+    // Caracteres de controlo, incluindo a newline que separa blocos.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    // O que fecha o code span, e o que marcaria bloco, link ou ênfase.
+    .replace(/[`*_\\\[\]<>#|]/g, (c) => `\\${c}`)
+    .slice(0, 200);
+}
+
+/**
  * O 404 em Markdown, para quem pediu Markdown e não encontrou nada.
  *
  * <p>Diz o que aconteceu, dá um caminho de volta e aponta para o `llms.txt` — um 404
@@ -151,7 +170,7 @@ export function notFoundMarkdown(path: string): string {
   return [
     '# 404 — esta página não existe',
     '',
-    `O endereço \`${path}\` não corresponde a nada na landing do Kixi.`,
+    `O endereço \`${safePath(path)}\` não corresponde a nada na landing do Kixi.`,
     '',
     'A página pode ter mudado de nome, ou o endereço pode ter um erro de escrita.',
     '',
