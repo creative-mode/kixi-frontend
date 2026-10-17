@@ -39,11 +39,12 @@ function pageFor(pathname: string): string | null {
 }
 
 /**
- * `GET /` e `GET /doar` em Markdown; qualquer outro caminho é um 404 em Markdown.
+ * A página pedida em Markdown, quando existe; se não existe, um 404 em Markdown.
  *
- * <p>O estado é o do caminho pedido, não um 200 com um título de erro dentro: um
- * agregador que indexa o que recebe precisa de ver o 404, e é o status que diz o que
- * a página é.</p>
+ * <p>Três respostas possíveis, e o que decide entre elas é o caminho: a página em
+ * Markdown, o apontamento de uma página que só é HTML (`SO_EM_HTML`), ou o 404. Um 200
+ * com um título de erro dentro não serve a ninguém — um agregador precisa de ver o 404,
+ * e é o status que diz o que a página é.</p>
  */
 export async function GET(request: Request, context: { params: Promise<{ slug?: string[] }> }): Promise<Response> {
   const { slug } = await context.params;

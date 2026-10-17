@@ -48,12 +48,18 @@ test('uma citação ou uma tabela lançam, em vez de virar um parágrafo', () =>
   // Antes eram engolidas num parágrafo: a página saía com a sintaxe Markdown à vista e
   // ninguém via o erro. A asserção antiga não apanhava isto — juntava as linhas com
   // espaços e perguntava se sobrava alguma newline, o que nunca era verdade.
+  // Inclui os que vêm a seguir a uma linha de parágrafo, não só os que abrem bloco:
+  // um `>` no meio de um parágrafo é uma citação no CommonMark, e um `---` depois de
+  // texto é um cabeçalho setext. Só testar o início do bloco deixava a lacuna verde.
   for (const markdown of [
     '> citação\n\ntexto',
     '| a | b |\n| - | - |\n| 1 | 2 |',
     '### um subtitulo',
     '```\ncodigo\n```',
     '---',
+    'texto\n> citação',
+    'texto\n---',
+    'texto\n| a | b |',
   ]) {
     assert.throws(() => parse(markdown), /não lê/, markdown.split('\n')[0]);
   }

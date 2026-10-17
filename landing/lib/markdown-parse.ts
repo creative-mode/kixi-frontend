@@ -87,6 +87,11 @@ export function parse(markdown: string): Block[] {
     while (
       i + 1 < lines.length &&
       lines[i + 1].trim() !== '' &&
+      // Um bloco que não sabemos ler interrompe o parágrafo, mesmo a seguir a uma linha
+      // de texto: no CommonMark, `texto` seguido de `> citação` é um parágrafo e uma
+      // citação, e `texto` seguido de `---` é um cabeçalho setext. Sem esta condição o
+      // parágrafo engolia os dois e a página saía com a sintaxe Markdown à vista.
+      blocoNaoSuportado(lines[i + 1]) === null &&
       !lines[i + 1].startsWith('#') &&
       !lines[i + 1].startsWith('- ') &&
       // Uma linha indentada aqui é um sub-item sem lista. Sem esta condição o
