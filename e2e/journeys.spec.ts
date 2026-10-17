@@ -54,8 +54,18 @@ async function escolherOpcao(select: Locator) {
   const primeira = select.locator('option:not([value=""])').first();
   await primeira.waitFor({ state: 'attached' });
   const valor = await primeira.getAttribute('value');
-  if (valor === null) throw new Error('a primeira opção não tem valor');
-  await select.selectOption(valor);
+  // Uma `<option>` pode não ter atributo `value`, e nesse caso o valor é o próprio
+  // texto — `<option>Escolha múltipla</option>` é perfeitamente válida. O repositório
+  // tem desse tipo em `exam-builder.tsx` (`KINDS.map(k => <option>{k}</option>)`), e
+  // um backend real pode devolver uma lista assim. Sem este recurso o helper morria
+  // com «a primeira opção não tem valor» sobre uma opção que existe e é escolhível.
+  if (valor !== null) {
+    await select.selectOption(valor);
+    return;
+  }
+  const texto = (await primeira.textContent())?.trim();
+  if (!texto) throw new Error('a primeira opção não tem value nem texto');
+  await select.selectOption({ label: texto });
 }
 
 const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
@@ -169,7 +179,10 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // teste ia por `select` a dedo (Escola, Disciplina, Turma), e isso partia se o
     // backend trouxesse outro numero de opcoes ou outra ordem.
     await escolherOpcao(page.getByLabel('Disciplina'));
-    await escolherOpcao(page.getByLabel('Turma'));
+    // O rótulo é `Turma` ou `Turma (opcional)` conforme o papel. O `getByLabel` casa
+    // por substring, portanto ambos servem — mas a regex deixa a intenção explícita e
+    // não rebenta em strict mode se algum dia os dois rótulos coexistirem.
+    await escolherOpcao(page.getByLabel(/^Turma/));
 
     // Publicar é bloqueado enquanto a prova tiver problemas, e o construtor diz
     // quais: o OCR não traz cotação nem adivinha o gabarito. Resolve-se o que a

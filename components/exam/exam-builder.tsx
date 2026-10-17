@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
@@ -24,15 +23,20 @@ import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  // O `Label` envolve o controlo em vez de ser irmao: um `<label>` que envolve o
-  // `<select>` associa-lhe o nome sem precisar de `htmlFor` nem de ids. Antes eram
-  // irmaos, e o campo ficava sem nome acessivel — o `getByLabel` nao o encontrava
-  // e um leitor de ecra anunciava «caixa de selecao, sem rotulo».
+  // O `<label>` envolve o controlo em vez de ser irmao: um label que envolve o
+  // `<select>` associa-lhe o nome sem `htmlFor` nem ids. Antes eram irmaos, e o
+  // campo ficava sem nome acessivel — o `getByLabel` nao o encontrava e um leitor
+  // de ecra anunciava «caixa de selecao, sem rotulo».
+  // A tipografia vai no texto, nao no wrapper. Um `<label>` que envolve o controlo
+  // passa a ser pai do `<select>`, e o preflight do Tailwind v4 poe `font: inherit`
+  // nos controlos: o `font-medium` do `Label` chegava ao texto do campo e deixava-o
+  // a negrito medio sem ninguem o ter decidido. Num `label` simples so o `<span>` e
+  // negrito, e o controlo volta ao peso normal.
   return (
-    <Label className="grid h-auto items-stretch gap-1.5">
-      <span>{label}</span>
+    <label className="grid gap-1.5">
+      <span className="text-sm font-medium leading-none">{label}</span>
       {children}
-    </Label>
+    </label>
   );
 }
 
