@@ -190,15 +190,21 @@ test.describe('backend a falhar', () => {
 
 /** Amigos (#139): convidar, aceitar e o ranking de amigos com dados reais em vez de "chega em breve". */
 test.describe('amigos e ranking de amigos', () => {
-  test('o aluno aceita um pedido, convida um colega e vê o ranking de amigos', async ({ page }) => {
+  test('o aluno aceita um pedido recebido e vê o amigo e o ranking de amigos', async ({ page }) => {
     await alunoLogin(page);
     await page.goto('/aluno/ranking');
+    // Sem esperar pela hidratação o clique no separador perde-se na build de produção.
+    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Amigos' }).click();
+    await expect(page.getByRole('region', { name: 'Amigos' })).toBeVisible();
     await expect(page.getByText(/chega em breve|não está disponível/i)).toHaveCount(0);
-    await expect(page.getByRole('region', { name: 'Pedidos recebidos' })).toContainText('Nuno D.');
-    await page.getByRole('button', { name: 'Aceitar' }).click();
+    // O mock guarda o estado entre tentativas: numa repetição o pedido já foi aceite.
+    const pedidos = page.getByRole('region', { name: 'Pedidos recebidos' });
+    if (await pedidos.isVisible()) {
+      await pedidos.getByRole('button', { name: 'Aceitar' }).click();
+    }
     await expect(page.getByRole('region', { name: 'Amigos' })).toContainText('Nuno D.');
-    await expect(page.getByRole('region', { name: 'Pedidos recebidos' })).toHaveCount(0);
+    await expect(pedidos).toHaveCount(0);
     expect(await graves(page)).toEqual([]);
   });
 });
