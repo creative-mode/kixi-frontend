@@ -33,7 +33,7 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
   const showRail = !!rail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/'));
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[1280px]">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[1500px]">
       <a
         href="#conteudo"
         className="sr-only left-3 top-3 z-50 rounded-md bg-card px-4 py-3 text-[15px] font-semibold shadow-md focus:not-sr-only focus:absolute"
@@ -41,10 +41,10 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
         Saltar para o conteudo
       </a>
 
-      <header className="sticky top-0 hidden h-dvh w-[88px] shrink-0 flex-col justify-between border-r px-2 py-3 md:flex xl:w-[260px] xl:px-3">
-        <div className="grid content-start gap-1">
-          <Link href="/inicio" aria-label="Kixi, início" className="mb-2 inline-flex w-fit rounded-full p-3 transition-colors hover:bg-secondary"><Logo size={26} className="xl:hidden" /><Logo size={26} wordmark className="hidden xl:block" /></Link>
-          <nav aria-label="Principal" className="grid gap-1">
+      <header className="sticky top-0 hidden h-dvh w-[72px] shrink-0 flex-col items-center justify-between border-r py-3 md:flex">
+        <div className="grid justify-items-center gap-1">
+          <Link href="/inicio" aria-label="Kixi, início" className="mb-2 grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary"><Logo size={26} /></Link>
+          <nav aria-label="Principal" className="grid justify-items-center gap-1">
             {ITEMS.map((it) => (
               <Link
                 key={it.href}
@@ -52,33 +52,32 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
                 aria-current={on(it) ? 'page' : undefined}
                 aria-label={it.label}
                 title={it.label}
-                className="flex h-12 w-fit items-center gap-4 rounded-full px-3.5 text-xl text-foreground transition-colors outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:font-bold xl:pr-6"
+                className="grid size-12 place-items-center rounded-full text-foreground transition-colors outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-accent aria-[current=page]:text-primary"
               >
-                <it.icon className="size-[26px]" strokeWidth={path === it.href || on(it) ? 2.4 : 1.8} aria-hidden />
-                <span className="hidden xl:inline">{it.label}</span>
+                <it.icon className="size-[26px]" strokeWidth={on(it) ? 2.4 : 1.8} aria-hidden />
               </Link>
             ))}
           </nav>
         </div>
-        <Link href="/perfil" aria-label={`Perfil de ${name}`} className="flex items-center gap-3 rounded-full p-2 transition-colors hover:bg-secondary">
+        <Link href="/perfil" title={name} className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary">
+          <span className="sr-only">Perfil de {name}</span>
           <UserAvatar name={name} src={photoUrl(me)} size={40} />
-          <span className="hidden min-w-0 flex-1 truncate text-[15px] font-bold xl:block">{name}</span>
         </Link>
       </header>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur md:hidden">
-          <Link href="/perfil" aria-label={`Perfil de ${name}`}><UserAvatar name={name} src={photoUrl(me)} size={32} /></Link>
+          <Link href="/perfil"><span className="sr-only">Perfil de {name}</span><UserAvatar name={name} src={photoUrl(me)} size={32} /></Link>
           <Link href="/inicio" aria-label="Kixi, início"><Logo size={22} wordmark /></Link>
           <Button asChild variant="ghost" size="icon" aria-label="Procurar provas"><Link href="/provas"><Search /></Link></Button>
         </header>
 
         <div className="flex min-w-0 flex-1">
-          <main id="conteudo" tabIndex={-1} className={cn('min-w-0 flex-1 outline-none md:border-r', showRail ? 'lg:max-w-[600px]' : 'md:max-w-[700px]')}>
+          <main id="conteudo" tabIndex={-1} className={cn('min-w-0 flex-1 outline-none md:border-r', showRail ? '' : 'md:max-w-[760px]')}>
             {children}
           </main>
           {showRail && (
-            <aside aria-label="Destaques" className="sticky top-0 hidden h-dvh w-[350px] shrink-0 overflow-y-auto px-6 py-3 [scrollbar-width:none] lg:block">
+            <aside aria-label="Destaques" className="sticky top-0 hidden h-dvh w-[380px] shrink-0 overflow-y-auto px-4 py-3 [scrollbar-width:none] lg:block">
               <div className="grid gap-4 pb-8">{rail}</div>
             </aside>
           )}

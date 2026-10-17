@@ -1,0 +1,30 @@
+/* Páginas legais: uma coluna legível, só com os tokens da landing. */
+.lg-stage { min-height: 100svh; display: flex; flex-direction: column; }
+.lg-top { display: flex; align-items: center; height: 72px; padding-inline: var(--gutter); }
+.lg-main { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px var(--gutter) 72px; outline: none; }
+.lg-title { margin: 0; font: 700 clamp(28px, 6vw, 44px)/1.05 var(--font-sans); letter-spacing: -0.04em; text-wrap: balance; }
+.lg-updated { margin: 8px 0 32px; font-size: 14px; color: var(--ink-muted, #55583f); }
+.lg-body { display: grid; gap: 14px; font: 400 16px/1.65 var(--font-sans); }
+.lg-body h2 { margin: 22px 0 0; font: 700 20px/1.2 var(--font-sans); letter-spacing: -0.02em; }
+.lg-body p, .lg-body ul { margin: 0; }
+.lg-body ul { padding-left: 20px; display: grid; gap: 6px; }
+.lg-body a, .lg-back a { color: var(--btn); font-weight: 600; text-underline-offset: 3px; }
+.lg-body table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.lg-body th, .lg-body td { text-align: left; vertical-align: top; padding: 10px 12px; border: 2px solid var(--line-strong); }
+.lg-body th { background: var(--surface-high); }
+.lg-tablewrap { overflow-x: auto; }
+.lg-tablewrap:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lg-back { margin: 40px 0 0; }
+
+/* Banner de cookies: fixo em baixo, sem tapar a navegação do topo; em ecrã estreito os botões ocupam a largura. */
+.ck { position: fixed; inset: auto 0 0 0; z-index: 90; padding: 12px; pointer-events: none; }
+.ck__in { pointer-events: auto; max-width: 920px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 16px 18px; background: var(--paper-3); color: var(--ink); border: 2px solid var(--line-strong); }
+.ck__text { flex: 1 1 360px; font-size: 14px; line-height: 1.5; }
+.ck__title { margin: 0 0 2px; font: 700 15px/1.2 var(--font-sans); }
+.ck__text p { margin: 0; }
+.ck__text a { color: var(--btn); font-weight: 600; text-underline-offset: 3px; }
+.ck__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 520px) { .ck__actions { width: 100%; } .ck__actions .kx-btn-wrap { flex: 1 1 0; } .ck__actions .kx-btn { width: 100%; } }
+.footer__nav button { font: inherit; font-weight: 600; font-size: 14px; color: #b9b6c8; background: none; border: 0; padding: 0; cursor: pointer; }
+.footer__nav button:hover { color: var(--paper-3, white); }
+.lg-linkbtn { font: inherit; font-weight: 600; color: var(--btn); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }

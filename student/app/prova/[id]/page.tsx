@@ -6,6 +6,8 @@ import { Comecar } from '@/components/comecar-prova';
 import { SalaProva } from '@/components/sala-prova';
 import { RefreshError } from '@/components/refresh-error';
 
+export const metadata = { title: 'Fazer prova · Kixi' };
+
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
 function statementId(raw: string | string[] | undefined): number | null {
@@ -26,7 +28,12 @@ export default async function ProvaPage({ params }: { params: Params }) {
   if (room.kind === 'error') {
     return (
       <div className="mx-auto grid min-h-dvh max-w-[760px] place-items-center p-6">
-        <RefreshError title="Não conseguimos abrir esta prova" message={room.message} />
+        <RefreshError
+          title="Não conseguimos abrir esta prova"
+          message={room.status === 404 ? 'Esta prova não existe ou já não está disponível.' : room.message}
+          status={room.status}
+          back={{ href: '/provas', label: 'Voltar às provas' }}
+        />
       </div>
     );
   }

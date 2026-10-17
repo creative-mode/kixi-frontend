@@ -6,6 +6,8 @@ import { onboardingOptions } from '@/lib/onboarding-options';
 import { currentSchoolYear, schoolYearLabel } from '@/lib/school-year';
 import type { Class, Course, Institution, SchoolYear } from '@/lib/types';
 
+export const metadata = { title: 'Começar · Kixi' };
+
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
 function one(raw: string | string[] | undefined): number | null {

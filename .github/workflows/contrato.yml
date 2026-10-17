@@ -1,0 +1,46 @@
+name: Contrato com o backend
+
+# O aluno só pode ir para um ambiente cujo backend já tenha os endpoints que ele chama.
+# Foi o que falhou quando os comentários chegaram a PRD antes do backend (#318).
+# Precisa do segredo BACKEND_READ_TOKEN (token com leitura do repositório creative-mode/kixi).
+# Sem ele o passo avisa e não bloqueia, para não travar quem ainda não o configurou.
+on:
+  pull_request:
+    branches: [QUA, PRD]
+    paths: ['student/**', 'scripts/check-endpoints.mjs', '.github/workflows/contrato.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  endpoints:
+    name: Endpoints do aluno existem no backend de destino
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Ramo do backend
+        id: alvo
+        run: |
+          if [ "${{ github.base_ref }}" = "PRD" ]; then echo "ref=prod" >> "$GITHUB_OUTPUT"; else echo "ref=qua" >> "$GITHUB_OUTPUT"; fi
+      - name: Sem token de leitura do backend
+        if: ${{ env.BACKEND_READ_TOKEN == '' }}
+        env:
+          BACKEND_READ_TOKEN: ${{ secrets.BACKEND_READ_TOKEN }}
+        run: echo "::warning::BACKEND_READ_TOKEN não está definido: a verificação de contrato foi ignorada."
+      - uses: actions/checkout@v4
+        if: ${{ env.BACKEND_READ_TOKEN != '' }}
+        env:
+          BACKEND_READ_TOKEN: ${{ secrets.BACKEND_READ_TOKEN }}
+        with:
+          repository: creative-mode/kixi
+          ref: ${{ steps.alvo.outputs.ref }}
+          token: ${{ secrets.BACKEND_READ_TOKEN }}
+          path: backend
+      - name: Verificar
+        if: ${{ env.BACKEND_READ_TOKEN != '' }}
+        env:
+          BACKEND_READ_TOKEN: ${{ secrets.BACKEND_READ_TOKEN }}
+        run: node scripts/check-endpoints.mjs backend

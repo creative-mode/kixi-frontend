@@ -8,7 +8,7 @@ import { getCommunityStats, getSharedSolutions } from '@/lib/community';
 import { getCatalogNames } from '@/lib/catalog';
 import { EnunciadoDaProva } from '@/components/enunciado-da-prova';
 
-export const metadata = { title: 'Prova · Kixi' };
+export const metadata = { title: 'Detalhe da prova · Kixi' };
 
 /**
  * The detail behind `/prova/[id]`, which stays the exam room (#17).
