@@ -41,8 +41,6 @@ export const viewport: Viewport = {
   themeColor: "#f6f8f5",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 }
 
 import { ManagerNavbar } from "@/components/manager-navbar"
