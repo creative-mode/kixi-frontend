@@ -77,10 +77,10 @@ export function PerfilView({
       <section aria-label="Perfil" className="border-b">
         <div aria-hidden className="h-32 bg-gradient-to-br from-accent to-secondary" />
         <div className="px-4 pb-4">
-          <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
             <div className="-mt-12 rounded-full border-4 border-background bg-background"><UserAvatar name={name} src={photoUrl(me)} size={88} /></div>
             {!editing && (
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                 <form action={sairAction}><Button type="submit" variant="ghost" className="text-muted-foreground"><LogOut aria-hidden />Terminar sessão</Button></form>
                 <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button>
               </div>
