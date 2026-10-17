@@ -104,7 +104,7 @@ export function StatementCommunity({
             {stats.scoreDistribution.map((b) => (
               <div key={b.index} className="grid grid-cols-[80px_1fr_auto] items-center gap-2.5 text-sm">
                 <span className="text-muted-foreground">{bucketLabel(b.from, b.to)}</span>
-                <Progress value={stats.sampleSize ? (b.count / stats.sampleSize) * 100 : 0} />
+                <Progress value={stats.sampleSize ? (b.count / stats.sampleSize) * 100 : 0} aria-label={`Notas entre ${bucketLabel(b.from, b.to)}`} />
                 <span className="tabular-nums text-muted-foreground">{b.count}</span>
               </div>
             ))}
@@ -117,7 +117,7 @@ export function StatementCommunity({
             {stats.questions.map((q) => (
               <div key={q.questionId} className="grid grid-cols-[80px_1fr_auto] items-center gap-2.5 text-sm">
                 <span className="text-muted-foreground">Questão {displayNumber(q)}</span>
-                <Progress value={q.pctCorrect ?? 0} />
+                <Progress value={q.pctCorrect ?? 0} aria-label={`Acerto na questão ${displayNumber(q)}`} />
                 <span className="text-muted-foreground">{pctCorrectLabel(q.pctCorrect)}</span>
               </div>
             ))}
