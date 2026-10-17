@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { House, FileText, MessageCircle, Search, SquarePen, Trophy, User } from 'lucide-react';
+import { House, FileText, MessageCircle, Search, Trophy, User } from 'lucide-react';
 import { Logo } from './brand';
 import { UserAvatar } from './user-avatar';
 import { Button } from '@/components/ui/button';
@@ -59,9 +59,6 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
               </Link>
             ))}
           </nav>
-          <Button asChild size="lg" className="mt-3 w-fit xl:w-full">
-            <Link href="/inicio#publicar" aria-label="Publicar"><SquarePen className="xl:hidden" aria-hidden /><span className="hidden xl:inline">Publicar</span></Link>
-          </Button>
         </div>
         <Link href="/perfil" aria-label={`Perfil de ${name}`} className="flex items-center gap-3 rounded-full p-2 transition-colors hover:bg-secondary">
           <UserAvatar name={name} src={photoUrl(me)} size={40} />
