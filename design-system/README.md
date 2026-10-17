@@ -21,7 +21,7 @@ npm run ds:sync -- --check # falha se alguma cópia estiver desactualizada (CI)
 - **Base shadcn:** `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `destructive`, `border`, `input`, `ring`, `sidebar-*`, `chart-1..5` (cada um com `-foreground` onde aplicável).
 - **Estado (extensão Kixi):** `success`, `warning`, `info` e os fundos suaves `success-soft`, `warning-soft`, `info-soft`, `danger-soft`.
 - **Raio:** `--radius: .625rem` (`rounded-md` = raio − 2px, `rounded-xl` = raio + 4px).
-- **Tema:** claro por omissão; escuro com `data-theme="dark"` (ou `.dark`) no `<html>`. A preferência vive em `localStorage['kixi-theme']`, partilhada entre as apps porque correm na mesma origem.
+- **Tema:** só claro. Não há tema escuro nem preferência guardada; não acrescentes variantes `dark:`.
 
 Regra: nunca uses cores literais em componentes. Usa sempre o token (`text-destructive`, não `text-red-600`).
 

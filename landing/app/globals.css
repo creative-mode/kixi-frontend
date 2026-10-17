@@ -17,7 +17,7 @@
   --brand: var(--lp-ink); --brand-edge: #04120a; --brand-hover: var(--lp-ink); --on-brand: var(--paper);
   --surface-raised: var(--paper-3); --surface-high: var(--paper-2); --line-strong: var(--lp-ink); --ink: var(--lp-ink); --focus: var(--lp-ink);
 }
-.phone[data-theme="dark"] {
+.phone[data-surface="inverse"] {
   --surface: #1f2917; --surface-raised: #2a361f; --surface-high: #34432a; --surface-sunken: #161d10; --ink: #d6dcb8; --ink-muted: #a2ad82; --line: #3d4d2c; --line-strong: #8a9a68;
   --brand: #c8d49a; --brand-edge: #7d8c57; --brand-hover: #d8e2b0; --on-brand: #1b2413; --phosphor: #d0dba2; --focus: #d6dcb8;
 }
