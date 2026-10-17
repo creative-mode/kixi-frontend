@@ -14,23 +14,40 @@ jobs:
   journeys:
     name: 'Playwright: jornadas críticas'
     runs-on: ubuntu-latest
+    # As três apps leem estas variáveis em runtime, inclusive nos passos de build.
+    env:
+      JWT_SECRET: e2e-ci-secret-that-is-at-least-32-characters-long
+      KIXI_MOCK: 'true'
+      KIXI_ALLOW_MOCK_IN_PROD: 'true'
+      E2E_ADMIN_USERNAME: admin@kixi.ao
+      E2E_TEACHER_USERNAME: professor@kixi.ao
+      E2E_PASSWORD: Kixi1234!
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+          cache-dependency-path: |
+            package-lock.json
+            student/package-lock.json
+            landing/package-lock.json
+      - name: Instalar dependências
+        run: |
+          npm ci
+          npm --prefix student ci
+          npm --prefix landing ci
       - run: npx playwright install --with-deps chromium
+      # Builds explícitos, fora do prazo do webServer: um build a frio passa a ser
+      # um passo lento mas visível, e não um timeout que parece falha da suite.
+      - name: Construir as três apps
+        run: |
+          npm run build
+          npm --prefix student run build
+          npm --prefix landing run build
       - run: npm run test:e2e
         env:
           CI: true
-          JWT_SECRET: e2e-ci-secret-that-is-at-least-32-characters-long
-          KIXI_MOCK: 'true'
-          KIXI_ALLOW_MOCK_IN_PROD: 'true'
-          E2E_ADMIN_USERNAME: admin@kixi.ao
-          E2E_TEACHER_USERNAME: professor@kixi.ao
-          E2E_PASSWORD: Kixi1234!
       - name: Anexar relatório HTML
         if: always()
         uses: actions/upload-artifact@v4

@@ -28,9 +28,14 @@ Tem de ter 32 caracteres no mínimo, e ser o mesmo no gestor e no aluno.
 
 ## Como corre
 
-Sem `E2E_BASE_URL`, o Playwright arranca o `docker compose up --build` por si, espera
-pelo `/healthz` do gateway e desliga a stack no fim. Docker Compose e o Chromium são
-precisos localmente:
+Na **CI** (com `CI` posto), o workflow instala as dependências e constrói as três apps
+em passos próprios; o Playwright arranca-as com `next start` + gateway
+(`scripts/e2e-server.mjs`) e espera pelo `/healthz`. O prazo do `webServer` cobre só
+segundos de arranque — um build a frio deixa de aparecer como timeout da suite.
+
+**Localmente** (sem `CI` e sem `E2E_BASE_URL`), o Playwright arranca o
+`docker compose up --build` por si, espera pelo `/healthz` do gateway e desliga a stack
+no fim. Docker Compose e o Chromium são precisos:
 
 ```bash
 npx playwright install chromium
