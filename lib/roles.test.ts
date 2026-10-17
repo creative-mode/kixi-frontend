@@ -25,7 +25,7 @@ test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enu
 });
 
 test('a gestão dá 403, para ele saber porque não entra', () => {
-  for (const p of ['/accounts', '/accounts/1/edit', '/roles', '/institutions', '/teachers', '/teaching-assignments', '/school-year/new', '/donations', '/donations/3', '/donations/3/files/1']) {
+  for (const p of ['/accounts', '/accounts/1/edit', '/roles', '/institutions', '/teachers', '/teaching-assignments', '/school-year/new', '/donations', '/donations/3', '/donations/3/files/1', '/verification']) {
     assert.equal(teacherRoute(p), 'forbidden', p);
   }
 });

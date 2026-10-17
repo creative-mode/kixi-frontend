@@ -75,8 +75,10 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-done { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; outline: none; }
 .dn-done__title { margin: 0; font: 800 clamp(22px, 3.6svh, 30px)/1.1 var(--font-sans); letter-spacing: -0.03em; text-wrap: balance; }
 .dn-done__ref { margin: 4px 0; padding: 10px 14px; font: 400 clamp(16px, 3.4svh, 24px)/1 var(--font-pixel); border: 3px solid var(--lcd-3); background: var(--lcd-1); user-select: all; }
+.dn-done__refrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; min-width: 0; max-width: 100%; }
 .dn-done__text { margin: 0; font-size: 14px; line-height: 1.45; max-width: 34ch; }
-.dn-console[data-state="done"] { grid-template-rows: auto minmax(0, 1fr) auto; }
+/* No ecrã final não há a linha dos passos (.dn-label), que é quem ocupa o topo nos outros: repõe-se o padding que falta para a moldura ficar simétrica. */
+.dn-console[data-state="done"] { grid-template-rows: auto minmax(0, 1fr) auto; padding-top: 16px; }
 
 @media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } .dn-lcd { padding: 10px; } }
 @media (max-width: 899px) {
@@ -93,6 +95,7 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
   .dn-title span { display: block; }
   .dn-lead { display: block; margin: 20px 0 0; font: 400 clamp(16px, 1.5vw, 19px)/1.5 var(--font-sans); color: var(--lp-dim); max-width: 30ch; }
   .dn-console { padding: 0 20px 18px; max-height: min(100%, 620px); }
+  .dn-console[data-state="done"] { padding-top: 18px; }
   .dn-label { margin: 0 -20px; padding: 10px 20px; }
   .dn-lcd { padding: 18px; }
 }

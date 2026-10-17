@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { Flag, MessageCircle, Send, ThumbsUp } from 'lucide-react';
 import { SimulationCard } from '@/components/simulation-card';
+import Link from 'next/link';
 import { UserAvatar } from '@/components/user-avatar';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -121,7 +122,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
     if (next) readComments();
   };
 
-  const act = 'h-10 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
+  const act = 'h-11 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
   const author = authorLabel(post.authorAccountId, myAccountId);
 
   return (
@@ -129,7 +130,11 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
       <UserAvatar name={author === 'Tu' ? myName : 'Colega'} src={author === 'Tu' ? myPhoto : null} size={44} />
       <div className="min-w-0 flex-1">
         <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">
-          <span className="font-bold">{author}</span>
+          {author === 'Tu' ? (
+            <span className="font-bold">{author}</span>
+          ) : (
+            <Link href={`/u/${post.authorAccountId}`} className="font-bold hover:underline focus-visible:underline">{author}<span className="sr-only">, ver perfil</span></Link>
+          )}
           <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>
           <Badge variant="secondary" className="ml-auto">{postTypeLabel(post.type)}</Badge>
         </header>
@@ -200,7 +205,11 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
                     />
                     <div className="min-w-0 flex-1 rounded-2xl bg-secondary px-3 py-2">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-semibold">{commentAuthorLabel(c.displayName, c.mine)}</span>
+                        {c.mine ? (
+                          <span className="text-sm font-semibold">{commentAuthorLabel(c.displayName, c.mine)}</span>
+                        ) : (
+                          <Link href={`/u/${c.authorAccountId}`} className="text-sm font-semibold hover:underline focus-visible:underline">{commentAuthorLabel(c.displayName, c.mine)}<span className="sr-only">, ver perfil</span></Link>
+                        )}
                         <span className="text-xs text-muted-foreground">{sinceLabel(c.createdAt) ?? ''}</span>
                       </div>
                       <p className="text-sm leading-relaxed break-words">{c.content}</p>

@@ -362,6 +362,18 @@ function mapSimulation(s) {
 }
 
 
+// Pedidos de verificação do mock (#322): um por rever, um aprovado e um recusado.
+function verificationStore() {
+  G.__kixiVerification ??= [
+    [1, 'ITEL', 'PENDING', null], [2, 'IMIL', 'PENDING', null], [3, 'ITEL', 'APPROVED', null], [2, 'IMIL', 'REJECTED', 'Documento ilegível'],
+  ].map(([institutionId, code, status, reviewNote], i) => ({
+    id: i + 1, institutionId, officialName: `Instituto ${code} (nome oficial)`, registrationNumber: `NIF-${5000 + i}`,
+    contactEmail: `direcao@${String(code).toLowerCase()}.ao`, documentUrl: 'https://example.com/alvara.pdf', notes: null,
+    status, reviewNote, reviewedAt: status === 'PENDING' ? null : '2026-10-10T09:00:00', createdAt: `2026-10-0${i + 1}T08:00:00`,
+  }));
+  return G.__kixiVerification;
+}
+
 // Doações do mock: três, para a lista, o filtro e a revisão terem com que trabalhar.
 const PIXEL = ['iVBORw0KGgoAAA', 'ANSUhEUgAAAAE', 'AAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ', 'AA', 'AABJRU5ErkJg', 'g=='].join('');
 function donationStore() {
@@ -569,6 +581,33 @@ export async function handle(method: string, rawUrl: string, authorization: stri
         if (!db.statements.find((x) => x.id === b.statementId && !x.deletedAt)) return problem(404, `Statement not found: ${b.statementId}`);
         Object.assign(donation, { status: 'converted', statementId: b.statementId, reviewedAt: donation.reviewedAt ?? now() });
         return json(200, detail(donation));
+      }
+    }
+
+    // ── verificação de escolas (#332): só o ADMIN revê ──
+    if ((m = path.match(/^\/api\/v1\/(verification-requests(?:\/(\d+)\/(approve|reject))?|institutions\/(\d+)\/verification\/revoke)$/))) {
+      if (!isAdmin) return problem(403, 'Forbidden');
+      const store = verificationStore();
+      if (m[4]) {
+        const inst = activeInst(m[4]);
+        if (!inst) return problem(404, 'Institution not found');
+        inst.verified = false;
+        for (const r of store) if (r.institutionId === inst.id && r.status === 'APPROVED') r.status = 'REVOKED';
+        return json(204);
+      }
+      if (!m[2] && method === 'GET') {
+        const wanted = url.searchParams.get('status')?.toUpperCase();
+        return json(200, store.filter((r) => !wanted || r.status === wanted).sort((a, b) => b.id - a.id));
+      }
+      if (m[2] && method === 'POST') {
+        const request = store.find((r) => r.id === Number(m[2]));
+        if (!request) return problem(404, 'Verification request not found');
+        if (request.status !== 'PENDING') return problem(409, 'This request was already reviewed');
+        const note = String(readBody().note ?? '').trim();
+        if (m[3] === 'reject' && !note) return problem(400, 'A reason is required to reject a request');
+        Object.assign(request, { status: m[3] === 'approve' ? 'APPROVED' : 'REJECTED', reviewNote: note || null, reviewedAt: now() });
+        if (m[3] === 'approve') { const inst = activeInst(request.institutionId); if (inst) inst.verified = true; }
+        return json(200, request);
       }
     }
 
