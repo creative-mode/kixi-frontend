@@ -3,7 +3,7 @@ import { Page, PageHeader } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { Card } from '@/components/ui/card';
-import { searchColleagues } from '@/lib/friends';
+import { listFriends, listRequests, searchColleagues } from '@/lib/friends';
 import { getProfile } from '@/lib/me';
 import { getSchoolTeachers, searchSchools, type SchoolCard, type TeacherCard } from '@/lib/profiles';
 import { MIN_QUERY, isSearchable, matchesName, normalizeQuery, uniqueBy } from '@/lib/search-rules';
@@ -47,11 +47,19 @@ export default async function PesquisaPage({ searchParams }: { searchParams: Pro
   const q = normalizeQuery((await searchParams).q);
   const ready = isSearchable(q);
 
-  const [profile, schoolsResult, students] = await Promise.all([
+  // A pesquisa de colegas do servidor deixa de fora quem já é amigo ou tem um pedido em curso
+  // (serve para convidar), por isso juntam-se essas ligações, filtradas pelo nome.
+  const [profile, schoolsResult, found, friends, requests] = await Promise.all([
     getProfile(),
     searchSchools(q),
     ready ? searchColleagues(q) : Promise.resolve([]),
+    ready ? listFriends() : Promise.resolve([]),
+    ready ? listRequests() : Promise.resolve([]),
   ]);
+  const students = uniqueBy(
+    [...found, ...[...friends, ...requests].filter((f) => matchesName(q, f.displayName))],
+    (s) => s.accountId,
+  );
   const schools: SchoolCard[] = schoolsResult.ok ? schoolsResult.data : [];
   const mySchoolId = profile.kind === 'ok' ? (profile.me.school?.id ?? null) : null;
 
