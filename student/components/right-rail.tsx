@@ -94,6 +94,10 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
         </form>
       </Module>
 
+      <Module title="Escolas" href="/pesquisa" linkLabel="Pesquisar">
+        <Empty>Vê o perfil, os professores e os enunciados de cada escola.</Empty>
+      </Module>
+
       {soon.length > 0 && <Module title="Próximas provas" href="/provas" linkLabel="Provas">
         {(
           <ul className="grid gap-3">

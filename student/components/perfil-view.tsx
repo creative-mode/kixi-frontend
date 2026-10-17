@@ -7,6 +7,8 @@ import { Page, PageHeader } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
+import { VisibilityPicker } from '@/components/visibility-picker';
+import type { Visibility } from '@/lib/profiles';
 import { ProfileEditor } from '@/components/profile-editor';
 import { EmptyState } from '@/components/states';
 import Link from 'next/link';
@@ -44,8 +46,10 @@ export function PerfilView({
   feedError,
   initialTab = 'Publicações',
   startEditing = false,
+  visibility = 'school',
 }: {
   me: Me;
+  visibility?: Visibility;
   stats: Stats | null;
   badges: Badge[];
   history: CatalogItem[];
@@ -203,6 +207,7 @@ export function PerfilView({
                 </div>
                 <Pill variant={me.accessibility_extra_time ? 'success' : 'secondary'}>{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</Pill>
               </div>
+              <VisibilityPicker initial={visibility} />
             </CardContent>
           </Card>
         </TabsContent>
