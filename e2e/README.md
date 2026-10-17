@@ -8,6 +8,14 @@ cp .env.example .env      # e preencher JWT_SECRET — ver abaixo
 npm run test:e2e
 ```
 
+## Antes de correr: `KIXI_MOCK=true` e `KIXI_ALLOW_MOCK_IN_PROD=true`
+
+Desde o #328 o `docker-compose.yml` **não liga o mock por omissão** — `KIXI_MOCK`
+vem `false`, e sem autorização o backend simulado é recusado em produção. Sem estas
+duas variáveis a stack sobe a falar com `BACKEND_API_URL` (o Spring Boot), que em
+máquina de ninguém existe: **o login fica pendurado e a suite falha sem mensagem que
+diga porquê.** O `.env.example` está certo; este README é que ficara desatualizado.
+
 ## Antes de correr: o `JWT_SECRET`
 
 **Sem `JWT_SECRET` as três jornadas caem com `reason=session-expired`, e o erro não
@@ -32,7 +40,7 @@ Já com o compose de pé, o Playwright reutiliza-o (`reuseExistingServer` fora d
 vez de reconstruir. Para recarregar a stack com uma variável nova:
 
 ```bash
-JWT_SECRET=<32+ chars> docker compose up -d
+KIXI_MOCK=true KIXI_ALLOW_MOCK_IN_PROD=true JWT_SECRET=<32+ chars> docker compose up -d
 ```
 
 ## Apontar a outro ambiente
@@ -48,7 +56,7 @@ publicação, e criação de sala para essas credenciais.
 O mock semeia uma vez por processo e o estado vive em `globalThis` — **não há reset**. A
 jornada do aluno cria contas e a do professor publica provas, por isso a segunda
 passagem sobre a mesma stack depende da ordem. Para uma corrida isolada de verdade,
-`docker compose down && JWT_SECRET=... docker compose up -d`, ou deixar o Playwright
+`docker compose down` e voltar a subir com essas três variáveis, ou deixar o Playwright
 arrancar a stack.
 
 ## Relatório
