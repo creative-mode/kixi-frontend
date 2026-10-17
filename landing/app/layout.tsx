@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { SITE_URL } from '@/lib/content';
+import { CookieBanner } from '@/components/consent/Consent';
 import './globals.css';
+import '@/styles/legal.css';
 
 const TITLE = 'Kixi · Estuda. Dispara. Domina.';
 const DESCRIPTION =
@@ -19,7 +21,10 @@ export const viewport: Viewport = { themeColor: '#a3d97f', width: 'device-width'
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt" data-theme="light">
-      <body>{children}</body>
+      <body>
+        {children}
+        <CookieBanner />
+      </body>
     </html>
   );
 }
