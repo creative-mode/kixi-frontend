@@ -5,7 +5,7 @@ import { Award, Building2, GraduationCap } from 'lucide-react';
 import { Page, PageHeader } from '@/components/page';
 import { PostCard } from '@/components/post-card';
 import { EmptyState } from '@/components/states';
-import { UserAvatar } from '@/components/user-avatar';
+import { ProfileHero } from '@/components/profile-hero';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { Badge as Pill } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -43,41 +43,33 @@ export function PersonView({
     <Page className="gap-0 p-0 pb-24 md:pb-10">
       <PageHeader title={person.displayName} kicker={teacher ? 'Professor' : 'Aluno'} back="/inicio" className="m-0" />
 
-      <section aria-label="Perfil" className="border-b">
-        <div aria-hidden className="h-32 bg-gradient-to-br from-accent to-secondary" />
-        <div className="px-4 pb-4">
-          <div className="-mt-12 w-fit rounded-full border-4 border-background bg-background"><UserAvatar name={person.displayName} src={person.photo} size={88} /></div>
-          <h2 className="mt-2 flex items-center gap-1.5 text-xl leading-tight font-extrabold tracking-tight">
-            {person.displayName}
-            {person.verified && <VerifiedBadge label={teacher ? 'Professor verificado' : 'Perfil verificado'} />}
-          </h2>
-
-          {person.restricted ? (
-            <p className="mt-1 text-[15px] text-muted-foreground">Esta pessoa escolheu não mostrar mais do que o nome e a foto.</p>
-          ) : (
-            <>
-              {person.schools.length === 0 ? (
-                <p className="mt-1 text-[15px] text-muted-foreground">Sem escola associada.</p>
-              ) : (
-                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-                  {person.schools.map((s) => (
-                    <li key={s.id} className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
-                      <Building2 className="size-4 shrink-0" aria-hidden />
-                      <Link href={`/escola/${s.id}`} className="min-w-0 truncate py-1 font-medium hover:underline focus-visible:underline">{s.name}</Link>
-                      {s.verified && <VerifiedBadge />}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {classmate && <Pill variant="outline"><GraduationCap className="size-3" aria-hidden />{CLASSMATE_LABEL}</Pill>}
-                {person.level !== null && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {person.level}</Pill>}
-                {person.level !== null && <Pill variant="outline">{person.xp ?? 0} XP</Pill>}
-              </div>
-            </>
-          )}
-        </div>
-      </section>
+      <ProfileHero name={person.displayName} photo={person.photo} verified={person.verified} verifiedLabel={teacher ? 'Professor verificado' : 'Perfil verificado'}>
+        {person.restricted ? (
+          <p className="mt-1 text-[15px] text-muted-foreground">Esta pessoa escolheu não mostrar mais do que o nome e a foto.</p>
+        ) : (
+          <>
+            {person.schools.length === 0 ? (
+              <p className="mt-1 text-[15px] text-muted-foreground">Sem escola associada.</p>
+            ) : (
+              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                {person.schools.map((s) => (
+                  <li key={s.id} className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
+                    <Building2 className="size-4 shrink-0" aria-hidden />
+                    <Link href={`/escola/${s.id}`} className="min-w-0 truncate py-1 font-medium hover:underline focus-visible:underline">{s.name}</Link>
+                    {s.verified && <VerifiedBadge />}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {teacher && <Pill variant="secondary"><GraduationCap className="size-3" aria-hidden />Professor</Pill>}
+              {classmate && <Pill variant="outline"><GraduationCap className="size-3" aria-hidden />{CLASSMATE_LABEL}</Pill>}
+              {person.level !== null && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {person.level}</Pill>}
+              {person.level !== null && <Pill variant="outline">{person.xp ?? 0} XP</Pill>}
+            </div>
+          </>
+        )}
+      </ProfileHero>
 
       {!person.restricted && (
         <Tabs defaultValue="Publicações">

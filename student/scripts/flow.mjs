@@ -228,13 +228,14 @@ async function main() {
     const ano = /Ano letivo (\d{4}\/\d{4})/.exec(corpo)?.[1];
     registar('o passo da turma oferece um ano letivo', ano ? null : 'não encontrei o ano letivo',
       ano ?? '');
-    const turma = /<option value="(\d+)">/.exec(corpo)?.[1];
+    // O valor da opção é «<turma>:<ano letivo>», um só campo (ver lib/enrollment-rules.ts).
+    const turma = /<option value="(\d+:\d+)">/.exec(corpo)?.[1];
     registar('há turma para escolher', turma ? null : 'nenhuma turma na lista', turma ?? '');
 
     await passo(
       'a matrícula leva ao início, com o basePath',
       'POST', '/aluno/onboarding',
-      { form: camposDoForm(corpo, { classId: turma ?? '', schoolYearId: '1' }), seguir: true },
+      { form: camposDoForm(corpo, { turma: turma ?? '' }), seguir: true },
       (r, final, status) => destinoOk(final, '/aluno/inicio', status),
     );
 

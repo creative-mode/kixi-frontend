@@ -1,4 +1,5 @@
 import 'server-only';
+import { countLeafQuestions } from './leaf-count';
 import { catalogPage } from './catalog-page';
 import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
@@ -788,7 +789,8 @@ function simulationResult(db: Store, row: SimulationRow) {
     status: row.status,
     finalScore: row.finalScore,
     correctAnswers: answers.filter((a) => a.isCorrect === true).length,
-    totalQuestions: questions.length,
+    // O total é o da prova, e não só o das questões respondidas: «0 de 5» e não «0 de 1».
+    totalQuestions: countLeafQuestions(QUESTIONS_BY_STATEMENT[row.statementId] ?? [], db.questions.map((q) => q.parentId)) || questions.length,
     pendingReviewCount: pending,
     timeSpentSeconds: row.timeSpentSeconds,
     finishedAt: row.finishedAt,

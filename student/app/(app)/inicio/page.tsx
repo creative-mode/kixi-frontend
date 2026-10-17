@@ -42,6 +42,7 @@ export default async function InicioPage() {
       myAccountId={me.accountId}
       classId={classId}
       posts={posts}
+      firstSteps={social.performance.activity.length === 0 && social.history.length === 0}
       authors={authors}
       feedError={feed && !feed.ok ? feed.message : null}
     />

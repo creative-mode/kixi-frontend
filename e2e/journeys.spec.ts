@@ -125,6 +125,20 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('region', { name: 'Escolas' }).getByRole('link').first()).toBeVisible();
   });
 
+  test('a escola segue o padrão do perfil: faixa, nome, etiquetas e separadores', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/escola/1');
+    await expect(page.getByRole('heading', { name: /Telecomunica/, level: 2 })).toBeVisible();
+    await expect(page.getByText(/\d+\s*professor/)).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Professores' })).toBeVisible();
+    await page.getByRole('tab', { name: 'Enunciados' }).click();
+    await expect(page.getByRole('tabpanel').getByRole('link').first()).toBeVisible();
+  });
+
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -165,6 +179,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await escolherOpcao(page.locator('#classId'));
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
+    // Conta nova, sem nenhuma prova: o início diz por onde começar.
+    await expect(page.getByRole('region', { name: 'Primeiros passos' })).toBeVisible();
 
     // Follow the catalogue for the class selected during onboarding so the test does
     // not assume a fixed class-to-statement mapping.

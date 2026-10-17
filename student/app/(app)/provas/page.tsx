@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { CatalogFilters } from '@/components/catalog-filters';
 import { NativeSelect } from '@/components/ui/native-select';
 import { EmptyState } from '@/components/states';
 import { RefreshError } from '@/components/refresh-error';
@@ -118,7 +119,7 @@ function Filters({
           defaultValue={values.q ?? ''}
         />
       </div>
-      <div className="flex flex-wrap gap-3">
+      <CatalogFilters active={[values.disciplina, values.tipo, values.ano, values.escola].filter(Boolean).length}>
         <label className="grid min-w-36 flex-1 gap-1 text-xs font-semibold text-muted-foreground">
           Disciplina
           <NativeSelect name="disciplina" defaultValue={values.disciplina ?? ''} aria-label="Disciplina">
@@ -155,12 +156,13 @@ function Filters({
             ))}
           </NativeSelect>
         </label>
-      </div>
-      <div>
+      </CatalogFilters>
+      {/* Sem JavaScript os filtros não se aplicam ao mudar, por isso o botão fica nesse caso. */}
+      <noscript>
         <Button type="submit" variant="outline" size="sm">
           Filtrar
         </Button>
-      </div>
+      </noscript>
     </form>
   );
 }
