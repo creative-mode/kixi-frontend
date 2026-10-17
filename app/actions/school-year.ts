@@ -64,7 +64,7 @@ export async function createSchoolYear(data: SchoolYearRequest) {
 
     const created = (await res.json()) as SchoolYearResponse;
 
-    revalidatePath('/school-years');
+    revalidatePath('/school-year');
     revalidatePath('/school-years/trash');
 
     return { success: true, data: created };
@@ -87,7 +87,7 @@ export async function updateSchoolYear(id: number, data: SchoolYearRequest) {
 
     const updated = (await res.json()) as SchoolYearResponse;
 
-    revalidatePath('/school-years');
+    revalidatePath('/school-year');
     revalidatePath(`/school-years/${id}`);
 
     return { success: true, data: updated };
@@ -107,7 +107,7 @@ export async function softDeleteSchoolYear(id: number) {
 
     if (!res.ok) throw new Error('Não foi possível eliminar');
 
-    revalidatePath('/school-years');
+    revalidatePath('/school-year');
     revalidatePath('/school-years/trash');
 
     return { success: true };
@@ -127,7 +127,7 @@ export async function restoreSchoolYear(id: number) {
 
     if (!res.ok) throw new Error('Não foi possível restaurar');
 
-    revalidatePath('/school-years');
+    revalidatePath('/school-year');
     revalidatePath('/school-years/trash');
 
     return { success: true };
