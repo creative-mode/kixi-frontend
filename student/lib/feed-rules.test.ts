@@ -1,14 +1,40 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorLabel, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
+import { authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
 
-test('a própria conta é "Tu", outra conta é um colega sem nome', () => {
-  assert.equal(authorLabel(3, 3), 'Tu');
-  assert.equal(authorLabel(7, 3), 'Um colega da turma');
+const ME = { name: 'Ana Silva', photo: '/me.jpg' };
+const AUTHOR = { name: 'Beatriz Costa', photo: '/b.jpg', verified: false };
+
+test('a própria publicação mostra o meu nome e a minha foto, e nunca é "colega de turma"', () => {
+  const v = authorView({ authorAccountId: 3, classId: 9 }, 3, undefined, 9, ME);
+  assert.deepEqual(v, { name: 'Ana Silva', photo: '/me.jpg', mine: true, verified: false, classmate: false });
 });
 
-test('sem sessão (myAccountId null), nunca se afirma que é "Tu"', () => {
-  assert.equal(authorLabel(3, null), 'Um colega da turma');
+test('a publicação de outra pessoa mostra o nome e a foto do perfil', () => {
+  const v = authorView({ authorAccountId: 7, classId: 9 }, 3, AUTHOR, 4, ME);
+  assert.equal(v.name, 'Beatriz Costa');
+  assert.equal(v.photo, '/b.jpg');
+  assert.equal(v.mine, false);
+});
+
+test('é colega de turma só quando a publicação é da mesma turma do aluno', () => {
+  assert.equal(authorView({ authorAccountId: 7, classId: 9 }, 3, AUTHOR, 9, ME).classmate, true);
+  assert.equal(authorView({ authorAccountId: 7, classId: 9 }, 3, AUTHOR, 4, ME).classmate, false);
+  assert.equal(authorView({ authorAccountId: 7, classId: 9 }, 3, AUTHOR, null, ME).classmate, false);
+});
+
+test('sem perfil do autor, fica "Colega" e sem foto: nenhum nome é inventado', () => {
+  const v = authorView({ authorAccountId: 7, classId: 9 }, 3, undefined, 9, ME);
+  assert.equal(v.name, 'Colega');
+  assert.equal(v.photo, null);
+});
+
+test('sem sessão, nenhuma publicação é minha', () => {
+  assert.equal(authorView({ authorAccountId: 3, classId: 9 }, null, AUTHOR, 9, ME).mine, false);
+});
+
+test('um perfil verificado mantém o selo', () => {
+  assert.equal(authorView({ authorAccountId: 7, classId: 9 }, 3, { ...AUTHOR, verified: true }, 9, ME).verified, true);
 });
 
 test('tipos conhecidos têm rótulo em português; um tipo novo mostra-se tal como vem', () => {
@@ -55,4 +81,11 @@ test('a percentagem só existe com nota e cotação positiva', () => {
   assert.equal(scorePercent(null, 20), null);
   assert.equal(scorePercent(10, null), null);
   assert.equal(scorePercent(10, 0), null);
+});
+
+test('um perfil privado fica com o primeiro nome e a inicial do último', () => {
+  assert.equal(maskName('Beatriz Maria Costa'), 'Beatriz C.');
+  assert.equal(maskName('  ana   silva '), 'ana S.');
+  assert.equal(maskName('Beatriz'), 'Beatriz');
+  assert.equal(maskName(''), '');
 });

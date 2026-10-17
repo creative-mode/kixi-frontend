@@ -1,7 +1,7 @@
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
-import { getFeed } from '@/lib/feed';
+import { getFeed, loadAuthors } from '@/lib/feed';
 import { loadSocial } from '@/lib/social';
 import { InicioFeed } from './inicio-feed';
 
@@ -32,6 +32,8 @@ export default async function InicioPage() {
 
   const [feed, social] = await Promise.all([classId ? getFeed(classId) : Promise.resolve(null), loadSocial(me)]);
   const invResult = social.invitations;
+  const posts = feed?.ok ? feed.data : [];
+  const authors = await loadAuthors(posts, me.accountId);
 
   return (
     <InicioFeed
@@ -39,7 +41,8 @@ export default async function InicioPage() {
       invitationsError={invitationsErrorOf(invResult)}
       myAccountId={me.accountId}
       classId={classId}
-      posts={feed?.ok ? feed.data : []}
+      posts={posts}
+      authors={authors}
       feedError={feed && !feed.ok ? feed.message : null}
     />
   );

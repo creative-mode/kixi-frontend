@@ -165,7 +165,7 @@ test.describe('alvos de toque no telemóvel', () => {
       expect(pequenos, rota).toEqual([]);
     }
     await page.goto('/aluno/inicio');
-    for (const nome of [/Perfil de/, /Kixi, início/, /Procurar provas/]) {
+    for (const nome of [/Perfil de/, /Kixi, início/, /Pesquisar escolas/]) {
       const caixa = await page.locator('header.sticky').getByRole('link', { name: nome }).first().boundingBox();
       expect(caixa?.height ?? 0, String(nome)).toBeGreaterThanOrEqual(44);
     }
