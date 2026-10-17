@@ -75,6 +75,7 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-done { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; outline: none; }
 .dn-done__title { margin: 0; font: 800 clamp(22px, 3.6svh, 30px)/1.1 var(--font-sans); letter-spacing: -0.03em; text-wrap: balance; }
 .dn-done__ref { margin: 4px 0; padding: 10px 14px; font: 400 clamp(16px, 3.4svh, 24px)/1 var(--font-pixel); border: 3px solid var(--lcd-3); background: var(--lcd-1); user-select: all; }
+.dn-done__refrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
 .dn-done__text { margin: 0; font-size: 14px; line-height: 1.45; max-width: 34ch; }
 .dn-console[data-state="done"] { grid-template-rows: auto minmax(0, 1fr) auto; }
 

@@ -22,7 +22,7 @@ export default function Donate() {
     <div className="dn-stage">
       <a href="#conteudo" className="skip">Saltar para o conteúdo</a>
       <header className="dn-top">
-        <Link href="/doar" aria-label="Kixi, doação de enunciados" className="site-header__logo">
+        <Link href="/" aria-label="Kixi, início" className="site-header__logo">
           <Logo size={28} wordmark />
         </Link>
       </header>
