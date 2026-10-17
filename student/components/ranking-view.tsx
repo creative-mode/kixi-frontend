@@ -14,6 +14,8 @@ import { FriendsPanel } from '@/components/friends-panel';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
 import { formatAverage, globalNote, myPositionLabel, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import { useMe } from '@/lib/me-context';
+import { photoUrl } from '@/lib/profile';
 import type { Leaderboard, RankingMetric, RankingPeriod, RankingScope } from '@/lib/ranking';
 
 const SCOPES: RankingScope[] = ['class', 'school', 'friends', 'global'];
@@ -27,6 +29,7 @@ export function RankingView({
   initial: Leaderboard | null;
   error: string | null;
 }) {
+  const me = useMe();
   const [scope, setScope] = useState<RankingScope>('class');
   const [board, setBoard] = useState(initial);
   const [boardError, setBoardError] = useState(error);
@@ -151,7 +154,7 @@ export function RankingView({
                       <TableCell className="font-semibold text-muted-foreground tabular-nums">{entry.position}</TableCell>
                       <TableCell>
                         <span className="flex items-center gap-3">
-                          <UserAvatar name={entry.displayName} size={32} />
+                          <UserAvatar name={entry.displayName} src={entry.me ? photoUrl(me) : null} size={32} />
                           {entry.displayName}{entry.me ? ' (tu)' : ''}
                         </span>
                       </TableCell>
