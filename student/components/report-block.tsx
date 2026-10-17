@@ -66,12 +66,12 @@ export function ReportBlock({ target, targetId, nome, accountId, podeBloquear = 
     });
   }
 
-  if (enviado) {
-    return <Alert variant="success">Denúncia enviada. A equipa da Kixi vai rever.</Alert>;
-  }
-
   return (
     <div className="grid gap-2">
+      {/* Depois de denunciar, o botão de bloquear tem de continuar a estar lá: quem
+          denuncia alguém muitas vezes quer também deixar de o ver. Este componente
+          devolvia só o alerta e levava o botão com ele. */}
+      {enviado && <Alert variant="success">Denúncia enviada. A equipa da Kixi vai rever.</Alert>}
       <div className="flex flex-wrap gap-2">
         <Button
           type="button" variant="ghost" size="sm" className="text-muted-foreground"

@@ -126,18 +126,28 @@ export function deveDesaparecer(alvo: { hidden?: boolean | null; suspended?: boo
 }
 
 /**
- * Visibilidade de um perfil para quem pergunta, já com o bloqueio aplicado. A
- * visibilidade que o próprio escolheu continua a valer; o bloqueio de um terceiro é que
- * esconde. Reutiliza o modelo que já existe em `visibility` em vez de inventar outro.
+ * O perfil tem de desaparecer por completo — 404 — para quem o ocultou, o suspendeu
+ * ou o bloqueou.
+ *
+ * Devolvia `private`, que é o que um perfil «só com nome e foto» devolve, e isso é mais
+ * fraco do que a issue pede: «deixa de ver e ser visto». Com `private` o nome e a foto
+ * continuam à vista e o bloqueio não bloqueia nada de útil.
+ *
+ * A si próprio o perfil continua visível: sem esta excepção, denunciar-se a si por
+ * engano deixava o aluno a ver o próprio perfil em 404.
  */
+export function desaparecePara(options: { mine: boolean; bloqueado: boolean; oculto: boolean }): boolean {
+  if (options.mine) return false;
+  return options.bloqueado || options.oculto;
+}
+
+/** A visibilidade que o próprio escolheu. Só entra quando o perfil não desaparece. */
 export function visibilidadePara(options: {
-  targetVisibility: Visibility;
   targetOwnVisibility: Visibility;
   mine: boolean;
   bloqueado: boolean;
   desaparece: boolean;
 }): Visibility {
-  if (options.desaparece && !options.mine) return 'private';
-  if (options.bloqueado && !options.mine) return 'private';
+  if (desaparecePara({ mine: options.mine, bloqueado: options.bloqueado, oculto: options.desaparece })) return 'private';
   return options.targetOwnVisibility;
 }

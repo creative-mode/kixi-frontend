@@ -7,6 +7,7 @@ import {
   blockPair,
   decisaoValida,
   deveDesaparecer,
+  desaparecePara,
   exigeNota,
   isReportReason,
   notaValida,
@@ -112,12 +113,20 @@ test('ocultado ou suspenso desaparece para terceiros — o criterio da issue', (
   assert.ok(!deveDesaparecer({ hidden: false, suspended: null }));
 });
 
-test('oculto e bloqueado escondem de terceiros mas nao de quem e o proprio', () => {
-  // O perfil do proprio continua a ser seu: sem esta excepcao, um aluno que
-  // denuncie-se a si por engano ficava a ver o proprio perfil em 404.
-  assert.equal(visibilidadePara({ targetVisibility: 'public', targetOwnVisibility: 'public', mine: true, bloqueado: false, desaparece: true }), 'public');
-  assert.equal(visibilidadePara({ targetVisibility: 'public', targetOwnVisibility: 'public', mine: false, bloqueado: false, desaparece: true }), 'private');
-  assert.equal(visibilidadePara({ targetVisibility: 'public', targetOwnVisibility: 'public', mine: false, bloqueado: true, desaparece: false }), 'private');
-  // Sem nada que esconda, manda a visibilidade que o proprio escolheu.
-  assert.equal(visibilidadePara({ targetVisibility: 'public', targetOwnVisibility: 'school', mine: false, bloqueado: false, desaparece: false }), 'school');
+test('bloqueado desaparece por completo, nao fica so em «privado»', () => {
+  // A issue diz que bloquear «deixa de ver e ser visto». `private` é o que devolve um
+  // perfil «só com o nome e a foto» — o nome e a foto continuam a ver-se, portanto o
+  // bloqueio não bloqueia nada de útil. Tem de dar 404, como o ocultado.
+  assert.ok(desaparecePara({ mine: false, bloqueado: true, oculto: false }));
+  assert.ok(desaparecePara({ mine: false, bloqueado: false, oculto: true }));
+  assert.ok(!desaparecePara({ mine: false, bloqueado: false, oculto: false }));
+  // A si próprio continua visível: denunciar-se a si por engano não pode fazer o aluno
+  // desaparecer do próprio perfil.
+  assert.ok(!desaparecePara({ mine: true, bloqueado: true, oculto: true }));
+});
+
+test('sem nada que esconda, manda a visibilidade que o proprio escolheu', () => {
+  assert.equal(visibilidadePara({ targetOwnVisibility: 'school', mine: false, bloqueado: false, desaparece: false }), 'school');
+  assert.equal(visibilidadePara({ targetOwnVisibility: 'public', mine: true, bloqueado: true, desaparece: true }), 'public');
+  assert.equal(visibilidadePara({ targetOwnVisibility: 'public', mine: false, bloqueado: true, desaparece: false }), 'private');
 });
