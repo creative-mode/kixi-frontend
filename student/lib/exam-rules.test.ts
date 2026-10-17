@@ -313,3 +313,16 @@ test('verdadeiro/falso responde-se por opção, como qualquer escolha', () => {
   // e uma opção de outra questão não vale
   assert.equal(answerRequest(7, a, { optionId: 9999 }).selectedOptionId, null);
 });
+
+import { GRACE_MS, displayRemainingMs } from './exam-rules.ts';
+
+test('o relógio do aluno não conta a tolerância do servidor', () => {
+  assert.equal(GRACE_MS, 10_000);
+  assert.equal(displayRemainingMs(3_610_000), 3_600_000);
+});
+
+test('o relógio nunca fica negativo e sem prazo continua sem prazo', () => {
+  assert.equal(displayRemainingMs(4_000), 0);
+  assert.equal(displayRemainingMs(-500), 0);
+  assert.equal(displayRemainingMs(null), null);
+});

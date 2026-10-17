@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
+import { turmaValue } from '@/lib/enrollment-rules';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Check, CircleAlert, Loader2 } from 'lucide-react';
@@ -76,11 +77,16 @@ export function OnboardingForm({
 }) {
   const [state, action] = useActionState(matricularAction, undefined);
   const [classId, setClassId] = useState('');
+  // Se a turma foi escolhida antes de a página ficar interativa, apanha-se aqui o que já está no campo.
+  useEffect(() => {
+    const el = document.getElementById('classId') as HTMLSelectElement | null;
+    if (el?.value) setClassId(el.value);
+  }, []);
 
   const step = institutionId === null ? 0 : courseId === null ? 1 : 2;
   const schoolName = schools.find((s) => s.id === institutionId)?.name;
   const courseName = courses.find((c) => c.id === courseId)?.name;
-  const chosen = classes.find((c) => c.id === Number(classId));
+  const chosen = classes.find((c) => c.id === Number(classId.split(':')[0]));
 
   return (
     <div className="grid gap-6">
@@ -171,8 +177,6 @@ export function OnboardingForm({
         <form action={action} className="grid gap-6">
           {/* The class carries its own school year, so the pair sent to /enrollments
               always matches and the backend's consistency check never fires. */}
-          <input type="hidden" name="classId" value={classId} />
-          <input type="hidden" name="schoolYearId" value={chosen?.schoolYear?.id ?? ''} />
 
           <Field>
             <FieldLabel htmlFor="classId">E em que turma?</FieldLabel>
@@ -190,12 +194,15 @@ export function OnboardingForm({
               <>
                 <NativeSelect
                   id="classId"
-                  value={classId}
+                  // O campo é que leva a turma e o ano letivo (um só valor): com ligações lentas a pessoa
+                  // pode escolher antes de a página ficar interativa, e o estado do cliente perdia a escolha.
+                  name="turma"
+                  defaultValue=""
                   onChange={(event) => setClassId(event.target.value)}
                 >
                   <option value="">Escolhe a tua turma</option>
                   {classes.map((item) => (
-                    <option key={item.id} value={item.id}>
+                    <option key={item.id} value={turmaValue(item.id, item.schoolYear?.id)}>
                       {item.grade ? `${item.grade}ª · ` : ''}
                       {item.code}
                     </option>
