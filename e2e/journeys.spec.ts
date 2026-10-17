@@ -89,6 +89,19 @@ test.afterEach(() => {
 });
 
 test.describe('jornadas críticas do Kixi', () => {
+  test('o feed mostra o nome verdadeiro de quem publicou e a etiqueta de colega de turma', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    const post = page.getByRole('article').filter({ hasText: 'Resumo rápido: o /28' });
+    await expect(post).toBeVisible();
+    await expect(post.getByText('Colega de turma')).toBeVisible();
+    await expect(post.getByRole('link').first()).not.toHaveText(/^Colega/);
+    await expect(page.getByText('Um colega da turma')).toHaveCount(0);
+  });
+
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');

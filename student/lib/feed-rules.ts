@@ -1,9 +1,47 @@
 /** Regras de apresentação do feed (#120/#30), sem servidor e sem React.
  *
- *  O backend nunca devolve o nome de quem publicou - só `authorAccountId` - e não
- *  há nenhum endpoint que um aluno possa chamar para o resolver (`/users/**` é
- *  ADMIN-only, ver SecurityConfig do backend). Por isso uma publicação é só "Tu"
- *  ou "Um colega da turma", nunca um nome inventado. */
+ *  O backend devolve só `authorAccountId` nas publicações. O nome e a foto vêm do perfil
+ *  público da conta (`/profiles/accounts/{id}`, ver `loadAuthors` em feed.ts); quando esse
+ *  perfil não responde, a publicação fica "Colega", sem inventar nenhum nome. */
+
+/** Quem publicou, tal como o perfil público o mostra. */
+export interface FeedAuthor {
+  name: string;
+  photo: string | null;
+  verified: boolean;
+}
+
+export interface AuthorView {
+  /** O nome a mostrar: "Tu" para o próprio, o nome do perfil, ou "Colega" sem perfil. */
+  name: string;
+  photo: string | null;
+  mine: boolean;
+  verified: boolean;
+  /** Publicou na mesma turma do aluno com sessão (e não é o próprio). */
+  classmate: boolean;
+}
+
+export const CLASSMATE_LABEL = 'Colega de turma';
+
+/** Junta a publicação, o perfil do autor (se o houver) e a turma de quem está a ver. */
+export function authorView(
+  post: { authorAccountId: number; classId: number },
+  myAccountId: number | null,
+  author: FeedAuthor | null | undefined,
+  myClassId: number | null,
+  me: { name: string; photo: string | null },
+): AuthorView {
+  if (myAccountId != null && post.authorAccountId === myAccountId) {
+    return { name: me.name || 'Tu', photo: me.photo, mine: true, verified: false, classmate: false };
+  }
+  return {
+    name: author?.name?.trim() || 'Colega',
+    photo: author?.photo ?? null,
+    mine: false,
+    verified: author?.verified ?? false,
+    classmate: myClassId != null && post.classId === myClassId,
+  };
+}
 
 export const POST_TYPE_LABEL: Record<string, string> = {
   doubt: 'Dúvida',
@@ -15,10 +53,6 @@ export const POST_TYPE_LABEL: Record<string, string> = {
 
 export function postTypeLabel(type: string): string {
   return POST_TYPE_LABEL[type] ?? type;
-}
-
-export function authorLabel(authorAccountId: number, myAccountId: number | null): string {
-  return myAccountId != null && authorAccountId === myAccountId ? 'Tu' : 'Um colega da turma';
 }
 
 /** Quem escreveu um comentário: "Tu" é o próprio aluno (mesmo sem nome no perfil),

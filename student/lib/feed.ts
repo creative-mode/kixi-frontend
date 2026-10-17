@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { apiGet, apiPost, type Result } from './api';
+import { getPerson } from './profiles';
+import type { FeedAuthor } from './feed-rules';
 
 /** Os tipos que um aluno ou professor publica à mão; EXAM e MILESTONE são gerados
  *  pelo sistema e não aparecem aqui como opção de publicar. `simulation` é o cartão
@@ -23,8 +25,7 @@ export interface SimulationCard {
 export type ReactionType = 'applause' | 'strength';
 
 /** GET /feed/posts (PostResponse). Sem nome do autor: o backend só devolve o id da
- *  conta, e não há nenhum endpoint que um aluno possa chamar para o resolver -
- *  `/users/**` é só para ADMIN. A publicação mostra-se como própria ou de um colega. */
+ *  conta. O nome e a foto resolvem-se à parte, pelo perfil público (`loadAuthors`). */
 export interface FeedPost {
   id: number;
   authorAccountId: number;
@@ -103,4 +104,22 @@ export async function addComment(postId: number, content: string) {
 
 export async function reportPost(postId: number, reason: string) {
   return apiPost<{ id: number }>(`/feed/posts/${postId}/reports`, { reason });
+}
+
+/**
+ * Resolve o nome e a foto de quem publicou, uma vez por conta (o mesmo autor em várias
+ * publicações custa um só pedido). Um perfil que não responde fica de fora e a publicação
+ * mostra "Colega": nunca um nome inventado. A própria conta não se pede, já se conhece.
+ */
+export async function loadAuthors(posts: FeedPost[], myAccountId: number | null): Promise<Record<number, FeedAuthor>> {
+  const ids = [...new Set(posts.map((p) => p.authorAccountId))].filter((id) => id !== myAccountId);
+  const found = await Promise.all(
+    ids.map(async (id) => {
+      const r = await getPerson(id).catch(() => null);
+      return r?.ok && r.data.displayName?.trim()
+        ? ([id, { name: r.data.displayName, photo: r.data.photo ?? null, verified: r.data.verified }] as const)
+        : null;
+    }),
+  );
+  return Object.fromEntries(found.filter((x): x is NonNullable<typeof x> => x != null));
 }

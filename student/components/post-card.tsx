@@ -12,13 +12,14 @@ import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { sinceLabel } from '@/lib/attempt-history';
-import { REFLECTION_LABEL, authorLabel, commentAuthorLabel, postTypeLabel } from '@/lib/feed-rules';
+import { VerifiedBadge } from '@/components/verified-badge';
+import { CLASSMATE_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
 import { addCommentAction, getCommentsAction, reportPostAction, toggleReactionAction } from '@/lib/feed-actions';
 import type { FeedPost } from '@/lib/feed';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';
 
 /** Uma publicação da turma: autor, hora, texto, cartão de simulação e as ações (aplaudir, comentar, denunciar). */
-export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPost; myAccountId: number | null; myName: string; myPhoto?: string | null }) {
+export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null }: { post: FeedPost; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null }) {
   const [reacted, setReacted] = useState(post.hasReacted);
   const [count, setCount] = useState(post.commentCount);
   const [open, setOpen] = useState(false);
@@ -123,18 +124,20 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
   };
 
   const act = 'h-11 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
-  const author = authorLabel(post.authorAccountId, myAccountId);
+  const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
 
   return (
     <article className="flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
-      <UserAvatar name={author === 'Tu' ? myName : 'Colega'} src={author === 'Tu' ? myPhoto : null} size={44} />
+      <UserAvatar name={author.name} src={author.photo} size={44} />
       <div className="min-w-0 flex-1">
         <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">
-          {author === 'Tu' ? (
-            <span className="font-bold">{author}</span>
+          {author.mine ? (
+            <span className="font-bold">{author.name}</span>
           ) : (
-            <Link href={`/u/${post.authorAccountId}`} className="font-bold hover:underline focus-visible:underline">{author}<span className="sr-only">, ver perfil</span></Link>
+            <Link href={`/u/${post.authorAccountId}`} className="font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
           )}
+          {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
+          {author.classmate && <Badge variant="outline" className="self-center">{CLASSMATE_LABEL}</Badge>}
           <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>
           <Badge variant="secondary" className="ml-auto">{postTypeLabel(post.type)}</Badge>
         </header>
