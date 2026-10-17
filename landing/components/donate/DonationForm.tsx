@@ -45,6 +45,8 @@ export function DonationForm() {
   const [step, setStep] = useState(0);
   // Veredicto da análise de cada foto (undefined = ainda a analisar); os PDFs não são analisados.
   const [checks, setChecks] = useState<Record<string, Assessment | null>>({});
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heading = useRef<HTMLLegendElement>(null);
 
   // O momento em que o formulário apareceu: o backend recusa quem preenche mais depressa que uma pessoa.
@@ -52,10 +54,44 @@ export function DonationForm() {
     startedAt.current = Date.now();
   }, []);
 
+  // O temporizador do "Copiado!" não deve sobreviver a um ecrã que já não existe.
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
+
   const id = (name: string) => `${uid}-${name}`;
   const describe = (name: keyof FieldErrors) => (errors[name] ? `${id(name)}-err` : undefined);
 
-  function addFiles(list: FileList | null) {
+  /** Copia a referência; se o clipboard não existir ou for negado, a seleção manual continua a funcionar. */
+  async function copyReference() {
+    if (!reference) return;
+    try {
+      await navigator.clipboard.writeText(reference);
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Sem clipboard (ou permissão negada): o ecrã fica como estava, a referência ainda se selecciona à mão.
+    }
+  }
+
+  /** Imagens coladas (Ctrl+V, ou "colar" no telemóvel) entram pela mesma via que as escolhidas à mão;
+   *  o clipboard nunca traz PDFs, e o que não for imagem é ignorado em silêncio. */
+  function onPasteFiles(event: React.ClipboardEvent) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const images: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) images.push(file);
+      }
+    }
+    if (images.length) {
+      event.preventDefault();
+      addFiles(images);
+    }
+  }
+
+  function addFiles(list: FileList | File[] | null) {
     if (!list) return;
     const next = [...files];
     for (const file of Array.from(list)) {
@@ -180,7 +216,15 @@ export function DonationForm() {
       <div className="dn-console" data-state="done">
         <div className="dn-screenwrap"><div className="dn-lcd dn-done" role="status" aria-live="polite" tabIndex={-1}>
           <h2 className="dn-done__title">Recebido. Obrigado!</h2>
-          <p className="dn-done__ref" aria-label={`Referência ${reference}`}>{reference}</p>
+          <div className="dn-done__refrow">
+            <p className="dn-done__ref" aria-label={`Referência ${reference}`}>{reference}</p>
+            <span className="kx-btn-wrap kx-scope">
+              <button type="button" className="kx-btn kx-btn--sm kx-btn--secondary" onClick={copyReference} aria-label="Copiar referência">
+                <span className="kx-btn__label">Copiar</span>
+              </button>
+            </span>
+          </div>
+          <p className="dn-done__copied" role="status" aria-live="polite">{copied ? 'Copiado!' : ''}</p>
           <p className="dn-done__text">
             Guarda este código: é com ele que falas connosco sobre esta doação. Vamos rever o enunciado antes de o publicar.
           </p>
@@ -229,16 +273,20 @@ export function DonationForm() {
           <legend className="dn-legend" tabIndex={-1} ref={step === 0 ? heading : undefined}>Insere o enunciado</legend>
           <div
             className={`dn-drop${dragging ? ' dn-drop--over' : ''}`}
+            tabIndex={0}
+            role="group"
+            aria-label="Colar uma foto copiada, com Ctrl+V"
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
+            onPaste={onPasteFiles}
           >
             <label htmlFor={id('files')} className="dn-drop__label">
               <span className="dn-drop__title">{files.length ? 'Juntar mais folhas' : 'Toca para escolher fotos ou PDF'}</span>
               <span className="dn-drop__hint">
                 JPG, PNG, WEBP ou PDF · até {MAX_FILES} ficheiros · {MAX_FILE_BYTES / (1024 * 1024)} MB cada
               </span>
-              <span className="dn-drop__tip">Folha inteira, em pé, com luz e sem tremer.</span>
+              <span className="dn-drop__tip">Folha inteira, em pé, com luz e sem tremer · ou cola com Ctrl+V.</span>
             </label>
             <input
               ref={picker}

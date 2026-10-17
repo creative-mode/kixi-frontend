@@ -32,7 +32,7 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-field label { font: 700 13px/1.2 var(--font-sans); }
 .dn-field input, .dn-field select, .dn-field textarea { width: 100%; min-height: 44px; padding: 8px 10px; font: 500 16px/1.3 var(--font-sans); color: var(--lcd-3); background: var(--lcd-1); border: 2px solid var(--lcd-3); border-radius: 0; }
 .dn-field textarea { resize: none; min-height: 56px; }
-.dn-field :focus-visible, .dn-drop:focus-within, .dn-consent__row input:focus-visible { outline: 3px solid var(--lcd-3); outline-offset: 2px; }
+.dn-field :focus-visible, .dn-drop:focus-within, .dn-drop:focus-visible, .dn-consent__row input:focus-visible { outline: 3px solid var(--lcd-3); outline-offset: 2px; }
 .dn-field [aria-invalid="true"] { background: #c9d98a; border-color: #5c0d0a; }
 .dn-help { margin: 0; font-size: 13px; line-height: 1.4; }
 .dn-help--small { font-size: 12px; }
@@ -74,9 +74,13 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 /* depois de enviar: a referência e nada mais */
 .dn-done { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; outline: none; }
 .dn-done__title { margin: 0; font: 800 clamp(22px, 3.6svh, 30px)/1.1 var(--font-sans); letter-spacing: -0.03em; text-wrap: balance; }
-.dn-done__ref { margin: 4px 0; padding: 10px 14px; font: 400 clamp(16px, 3.4svh, 24px)/1 var(--font-pixel); border: 3px solid var(--lcd-3); background: var(--lcd-1); user-select: all; }
+.dn-done__refrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 4px 0; min-width: 0; max-width: 100%; }
+.dn-done__ref { margin: 0; padding: 10px 14px; font: 400 clamp(16px, 3.4svh, 24px)/1 var(--font-pixel); border: 3px solid var(--lcd-3); background: var(--lcd-1); user-select: all; }
+.dn-done__copied { margin: 0; min-height: 1.2em; font: 700 12px/1.2 var(--font-sans); color: var(--phosphor, var(--lcd-3)); }
 .dn-done__text { margin: 0; font-size: 14px; line-height: 1.45; max-width: 34ch; }
-.dn-console[data-state="done"] { grid-template-rows: auto minmax(0, 1fr) auto; }
+/* o ecrã "done" não tem a barra de passos (.dn-label) que noutros ecrãs consome o
+   espaço de cima; sem ela a tampa do cartucho ficava encostada ao ecrã só deste lado. */
+.dn-console[data-state="done"] { grid-template-rows: auto minmax(0, 1fr) auto; padding-top: 16px; }
 
 @media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } .dn-lcd { padding: 10px; } }
 @media (max-width: 899px) {
@@ -93,6 +97,7 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
   .dn-title span { display: block; }
   .dn-lead { display: block; margin: 20px 0 0; font: 400 clamp(16px, 1.5vw, 19px)/1.5 var(--font-sans); color: var(--lp-dim); max-width: 30ch; }
   .dn-console { padding: 0 20px 18px; max-height: min(100%, 620px); }
+  .dn-console[data-state="done"] { padding-top: 18px; }
   .dn-label { margin: 0 -20px; padding: 10px 20px; }
   .dn-lcd { padding: 18px; }
 }
