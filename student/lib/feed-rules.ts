@@ -21,6 +21,17 @@ export interface AuthorView {
   classmate: boolean;
 }
 
+/**
+ * Quem pôs o perfil como privado não é identificado por inteiro no feed: fica o primeiro nome e a
+ * inicial do último ("Beatriz C."), o mesmo critério que o backend usa nos comentários, e sem foto.
+ * A escolha de privacidade da pessoa pesa mais do que a vontade de pôr nomes nas publicações.
+ */
+export function maskName(full: string): string {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] ?? '';
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
+}
+
 export const CLASSMATE_LABEL = 'Colega de turma';
 
 /** Junta a publicação, o perfil do autor (se o houver) e a turma de quem está a ver. */

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorView, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
+import { authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
 
 const ME = { name: 'Ana Silva', photo: '/me.jpg' };
 const AUTHOR = { name: 'Beatriz Costa', photo: '/b.jpg', verified: false };
@@ -81,4 +81,11 @@ test('a percentagem só existe com nota e cotação positiva', () => {
   assert.equal(scorePercent(null, 20), null);
   assert.equal(scorePercent(10, null), null);
   assert.equal(scorePercent(10, 0), null);
+});
+
+test('um perfil privado fica com o primeiro nome e a inicial do último', () => {
+  assert.equal(maskName('Beatriz Maria Costa'), 'Beatriz C.');
+  assert.equal(maskName('  ana   silva '), 'ana S.');
+  assert.equal(maskName('Beatriz'), 'Beatriz');
+  assert.equal(maskName(''), '');
 });
