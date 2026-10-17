@@ -257,7 +257,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
             <Link key={item.id} href={`/prova/${item.id}/detalhe`} aria-label={`${actionOf(item.state)}: ${item.kind} ${item.title}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
               <div className="min-w-0"><div className="leading-snug font-bold">{item.kind} · {item.title}</div><div className="mt-0.5 text-[13px] text-muted-foreground">{[item.school, item.year, item.subject].filter(Boolean).join(' · ')}</div></div>
               <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><State item={item} /></div>
-              <span className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-card px-3 text-sm font-semibold shadow-xs">{actionOf(item.state)}</span>
+              <span className="px-btn inline-flex h-10 items-center justify-center px-4 text-sm font-semibold [--face:var(--card)] [--edge:var(--input)] [--txt:var(--foreground)]">{actionOf(item.state)}</span>
             </Link>
           ))}
           {result.items.length === 0 && (

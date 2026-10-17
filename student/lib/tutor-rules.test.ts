@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  MAX_STUDENT_ANSWER,
+  answerTo,
   applyEvent,
+  buildMessagePayload,
+  buildSessionPayload,
   describeHttpFailure,
   formatWait,
+  modeNeedsQuestion,
   parseQuestionNumbers,
   parseRetryAfter,
   parseSse,
+  parseWrongAnswers,
   studyPrompt,
+  wrongAnswersParam,
   type ChatMessage,
 } from './tutor-rules.ts';
 
@@ -34,11 +41,48 @@ test('um evento estragado não leva os outros', () => {
 });
 
 test('final e erro trazem o que o backend envia', () => {
-  const events = parseSse(ev('final', { messageId: 9, model: 'm' }) + ev('error', { code: 'X', message: 'y' })).events;
+  const sources = [{ kind: 'STATEMENT', statementId: 7, statementTitle: 'Prova', questionId: null, questionNumber: null }];
+  const events = parseSse(ev('final', { messageId: 9, model: 'm', sources }) + ev('error', { code: 'X', message: 'y' })).events;
   assert.deepEqual(events, [
-    { type: 'final', messageId: 9, model: 'm' },
+    { type: 'final', messageId: 9, model: 'm', sources },
     { type: 'error', code: 'X', message: 'y' },
   ]);
+});
+
+test('um final sem fontes é um final antigo, não um evento quebrado', () => {
+  const [event] = parseSse(ev('final', { messageId: 9, model: 'm' })).events;
+  assert.deepEqual(event, { type: 'final', messageId: 9, model: 'm', sources: [] });
+});
+
+test('uma fonte incompleta vem normalizada, não com campos pela metade', () => {
+  // `TutorSource` declara os cinco campos opcionais, então uma fonte sem título nem
+  // número é o caso normal. Antes these fields passavam through como `undefined`
+  // enquanto o tipo prometia `null`, e a chave da fonte era feita deles.
+  const [event] = parseSse(
+    ev('final', { messageId: 9, model: 'm', sources: [{ kind: 'STATEMENT' }, { kind: 'QUESTION', questionId: 4, questionNumber: 'quatro' }] }),
+  ).events;
+  assert.deepEqual(event, {
+    type: 'final',
+    messageId: 9,
+    model: 'm',
+    sources: [
+      { kind: 'STATEMENT', statementId: null, statementTitle: null, questionId: null, questionNumber: null },
+      { kind: 'QUESTION', statementId: null, statementTitle: null, questionId: 4, questionNumber: null },
+    ],
+  });
+});
+
+test('uma fonte sem kind não é fonte', () => {
+  const [event] = parseSse(
+    ev('final', { messageId: 9, model: 'm', sources: [{ statementId: 3 }, null, 'STATEMENT'] }),
+  ).events;
+  assert.deepEqual(event, { type: 'final', messageId: 9, model: 'm', sources: [] });
+});
+
+test('só os modos de pergunta pedem uma questão escolhida', () => {
+  assert.equal(modeNeedsQuestion('EXPLAIN_QUESTION'), true);
+  assert.equal(modeNeedsQuestion('SIMILAR_EXERCISES'), true);
+  assert.equal(modeNeedsQuestion('CONCEPT'), false);
 });
 
 test('as deltas acumulam na resposta do tutor e o final fecha-a', () => {
@@ -93,4 +137,83 @@ test('o pedido de estudar os erros lê-se bem no singular e no plural', () => {
   assert.match(studyPrompt([2]), /a questão 2 desta prova/);
   assert.match(studyPrompt([1, 3]), /as questões 1 e 3 desta prova/);
   assert.match(studyPrompt([1, 2, 5]), /as questões 1, 2 e 5/);
+});
+
+test('a resposta do aluno vai com o contexto, não com o texto da mensagem', () => {
+  assert.deepEqual(
+    buildSessionPayload({ statementId: 7, mode: 'EXPLAIN_QUESTION', questionId: 41, studentAnswer: ' A ' }),
+    { statementId: 7, mode: 'EXPLAIN_QUESTION', questionId: 41, studentAnswer: 'A' },
+  );
+});
+
+test('sem contexto, a sessão leva só prova e modo', () => {
+  assert.deepEqual(buildSessionPayload({ statementId: 9, mode: 'CONCEPT' }), {
+    statementId: 9,
+    mode: 'CONCEPT',
+  });
+});
+
+test('a mensagem leva só o conteúdo', () => {
+  assert.deepEqual(buildMessagePayload('  o que é TCP?  '), {
+    content: 'o que é TCP?',
+  });
+});
+
+test('a pergunta escolhida não viaja para um turno de conceito', () => {
+  // O selector desaparece em CONCEPT, mas a escolha continua no estado. Enviá-la na
+  // mesma fez o backend citar como fonte de uma resposta de conceito uma questão
+  // que o aluno nunca perguntou.
+  const payload = buildSessionPayload({
+    statementId: 1,
+    mode: 'CONCEPT',
+    questionId: 2,
+    studentAnswer: '/24',
+  });
+  assert.deepEqual(payload, { statementId: 1, mode: 'CONCEPT' });
+});
+
+test('uma resposta errada vazia não viaja: o campo é opcional', () => {
+  const payload = buildSessionPayload({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 2, studentAnswer: '   ' });
+  assert.equal('studentAnswer' in payload, false);
+  assert.equal(payload.questionId, 2);
+});
+
+test('a resposta errada é limitada ao mesmo tamanho que o backend aceita', () => {
+  const payload = buildSessionPayload({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 2, studentAnswer: 'z'.repeat(5000) });
+  assert.equal((payload.studentAnswer as string).length, MAX_STUDENT_ANSWER);
+});
+
+test('o link não carrega um treatise: corta o que é contexto e o que é número', () => {
+  const many = new Map(Array.from({ length: 30 }, (_, i) => [i + 1, 'z'.repeat(2000)]));
+  const parsed = parseWrongAnswers(wrongAnswersParam(many).slice('&respostas='.length));
+  assert.equal(parsed.size, 10);
+  assert.equal(parsed.get(1)?.length, 500);
+  // e o endereço não fica com dezenas de milhares de caracteres
+  assert.ok(wrongAnswersParam(many).length < 12_000);
+});
+
+test('as respostas erradas sobrevivem a uma ida e volta pelo endereço', () => {
+  const answers = new Map([[2, 'escolhi a opção C, porque me pareceu mais simples = 3']]);
+  const param = wrongAnswersParam(answers);
+  assert.ok(param.startsWith('&respostas='));
+  assert.deepEqual([...parseWrongAnswers(param.slice('&respostas='.length))], [...answers]);
+});
+
+test('uma resposta com vírgula, igual ou acentos não parte o mapa ao meio', () => {
+  const raw = encodeURIComponent(JSON.stringify([[3, 'a, b = c; d']]));
+  assert.equal(parseWrongAnswers(raw).get(3), 'a, b = c; d');
+});
+
+test('o que vier da barra de endereços e não for um par é ignorado', () => {
+  assert.equal(parseWrongAnswers('isto não é json').size, 0);
+  assert.equal(parseWrongAnswers(encodeURIComponent('{"2":"A"}')).size, 0);
+  const mixed = encodeURIComponent(JSON.stringify([[0, 'A'], [-1, 'B'], ['2', 'C'], [2, '  '], [4, 'D']]));
+  assert.deepEqual([...parseWrongAnswers(mixed)], [[4, 'D']]);
+});
+
+test('a resposta de uma questão que o aluno não errou não é inventada', () => {
+  const answers = new Map([[2, 'A']]);
+  assert.equal(answerTo(answers, 2), 'A');
+  assert.equal(answerTo(answers, 5), undefined);
+  assert.equal(answerTo(answers, null), undefined);
 });

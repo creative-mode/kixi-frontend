@@ -5,6 +5,7 @@ import {
   formatDelta,
   formatDuration,
   formatScore,
+  givenAnswers,
   inOrder,
   optionTag,
   toReview,
@@ -78,8 +79,39 @@ test('a etiqueta da opção é a da prova, ou a letra pela posição', () => {
   assert.equal(optionTag({ id: 1, optionLabel: ' ', optionText: 'x' }, 2), 'C');
 });
 
-// ── questões com alíneas ─────────────────────────────────────────────────────
+test('o que o aluno respondeu viaja para o tutor pelo número da questão', () => {
+  const list = [
+    q({ number: 1, isCorrect: true, selectedOptionId: 1, options: [{ id: 1, optionText: 'Certa' }] }),
+    q({ number: 2, isCorrect: false, selectedOptionId: 9, options: [{ id: 9, optionText: '/24' }] }),
+    q({ number: 3, isCorrect: false, selectedOptionId: null, answerText: 'porque sim' }),
+  ];
+  assert.deepEqual([...givenAnswers(list)], [[2, '/24'], [3, 'porque sim']]);
+});
 
+test('uma questão em branco não leva resposta nenhuma', () => {
+  assert.equal(givenAnswers([q({ number: 4, isCorrect: false })]).size, 0);
+  assert.equal(givenAnswers([q({ number: 5, isCorrect: false, answerText: '   ' })]).size, 0);
+});
+
+test('uma resposta por corrigir não é tratada como erro do aluno', () => {
+  const list = [q({ number: 6, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answerText: 'texto' })];
+  assert.equal(givenAnswers(list).size, 0);
+});
+
+test('a resposta de uma alínea viaja no número da questão inteira', () => {
+  // O link leva `questoes=3` e a resposta vinha com a chave 301. O `?respostas=` era
+  // procurado pelo 3 e nunca a encontrava: a resposta chegava ao link e nunca
+  // chegava ao tutor.
+  const list = [
+    rq(1, 301, { isCorrect: false, answerText: 'a) Verdade' }),
+    rq(2, 302, { isCorrect: false, answerText: 'b) Falso' }),
+  ];
+  assert.deepEqual([...givenAnswers(list)], [[3, 'a) Verdade\nb) Falso']]);
+  // e as chaves são as mesmas que o link põe em `questoes`
+  assert.deepEqual([...givenAnswers(list).keys()], wholeNumbers(toReview(list)));
+});
+
+// ── questões com alíneas ─────────────────────────────────────────────────────
 
 const rq = (questionId: number, number: number, extra: Partial<ResultQuestion> = {}): ResultQuestion => ({ questionId, number, text: `Q${number}`, ...extra });
 /** Na ordem do servidor: cada alínea já vem a seguir à sua questão. */

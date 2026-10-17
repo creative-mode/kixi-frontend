@@ -3,6 +3,14 @@ import 'server-only';
 import { apiGet } from './api';
 import { getCatalogNames, type Named } from './catalog';
 import { currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
+import { getStatementFull } from './exam';
+import { isItem } from './question-number';
+import type { PaperQuestion } from './tutor-rules';
+
+/** How many questions the picker lists. A cap, so a pathological paper cannot turn the
+ *  composer into a list of hundreds of options — and a cap that is stated rather than
+ *  silent: past it, the questions are simply not offered. */
+const MAX_PICKER_QUESTIONS = 50;
 
 /** What `GET /statements/{id}` answers: a StatementSummary. No questions, no options,
  *  and no answer key — `StatementOcrResponse.from` withholds `isCorrect` from anyone
@@ -128,4 +136,39 @@ export async function getStatementTitle(id: number): Promise<string | null> {
   if (!Number.isInteger(id) || id <= 0) return null;
   const result = await apiGet<{ title?: string | null }>(`/statements/${id}`);
   return result.ok && result.data?.title ? result.data.title : null;
+}
+
+/**
+ * The paper's questions, for the tutor's "which question?" picker.
+ *
+ * From `GET /statements/{id}/full` — the same call the exam room already makes, and the
+ * one this app has evidence a STUDENT may read: `exam.ts` carries
+ * `StatementController.java:132-136` for the visible variant with the answer key
+ * stripped. `GET /statements/{id}/questions` covers the same data, but the only caller
+ * of it in this repo is the manager's admin screen, and no student call was ever traced
+ * to it. Choosing it would have made the picker quietly empty in production, while
+ * looking green against a mock that had just been taught to answer it.
+ *
+ * Like the title, a failure here is not fatal: the tutor falls back to the whole
+ * paper, and the question modes say so instead of refusing every turn.
+ */
+export async function getStatementQuestions(id: number): Promise<PaperQuestion[]> {
+  if (!Number.isInteger(id) || id <= 0) return [];
+  const result = await getStatementFull(id, { cached: true });
+  if (!result.ok) return [];
+  // Alíneas are dropped, not folded in. The server gives one a number under its parent
+  // (`301` → question 3) purely to keep the order, and the link from the result screen
+  // names whole questions — so a picker listing 301 would never resolve a link asking
+  // for 3, and "estudar os erros" would open on no question at all. Their parent is in
+  // the same list and carries the text.
+  return result.data.questions
+    .filter((question) => Number.isInteger(question.id) && question.id > 0)
+    .filter((question) => Number.isInteger(question.number) && !isItem({ number: question.number }))
+    .map((question) => ({
+      id: question.id,
+      number: question.number,
+      text: (question.text ?? '').trim(),
+    }))
+    .sort((a, b) => a.number - b.number)
+    .slice(0, MAX_PICKER_QUESTIONS);
 }

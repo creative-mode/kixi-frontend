@@ -5,7 +5,8 @@
  *  `ChatStreamEvent` discriminated by `type`:
  *
  *  - `delta { content }`   a fragment of the answer, in order;
- *  - `final { messageId, model }`  the answer is complete and stored;
+ *  - `final { messageId, model, sources }`  the answer is complete and stored, and
+ *                                  `sources` says what it was built from (kixi#115);
  *  - `error { code, message }`     the provider failed AFTER the stream began, so the
  *                                  HTTP status was already 200 — the only place a
  *                                  mid-answer failure can travel.
@@ -15,9 +16,69 @@
  *  spent), 503 (no provider key configured). `EventSource` cannot POST, so the client
  *  reads the body with `fetch` and this parser. */
 
+export type ChatMode = 'EXPLAIN_QUESTION' | 'SIMILAR_EXERCISES' | 'CONCEPT';
+
+export interface ChatSource {
+  kind: string;
+  statementId: number | null;
+  statementTitle: string | null;
+  questionId: number | null;
+  questionNumber: number | null;
+}
+
+/** What opens one tutor session in the backend (`POST /chat/sessions`, kixi#115). */
+export interface SessionPayload {
+  statementId: number;
+  mode: ChatMode;
+  questionId?: number;
+  studentAnswer?: string;
+}
+
+/** A question of the paper, as far as the tutor needs it. */
+export interface PaperQuestion {
+  id: number;
+  number: number;
+  text: string;
+}
+
+/** Same cap as `ChatSessionRequest.studentAnswer` in the backend. */
+export const MAX_STUDENT_ANSWER = 2000;
+
+/** The two modes that are about one named question. Without a chosen question they
+ *  have nothing to explain, so the backend refuses them and so does the picker. */
+export function modeNeedsQuestion(mode: ChatMode): boolean {
+  return mode === 'EXPLAIN_QUESTION' || mode === 'SIMILAR_EXERCISES';
+}
+
+/** The body to open one session, with only the optional fields that exist.
+ *
+ *  The question context belongs to the question modes and to nothing else. The picker
+ *  is hidden in `CONCEPT`, so a question chosen a moment earlier is still sitting in
+ *  state; sending it would make the backend cite as the source of a concept answer a
+ *  question the student never asked about. So the context is dropped, not merely
+ *  ignored. */
+export function buildSessionPayload(session: SessionPayload): Record<string, unknown> {
+  const payload: Record<string, unknown> = { statementId: session.statementId, mode: session.mode };
+  if (!modeNeedsQuestion(session.mode)) return payload;
+  if (session.questionId !== undefined) payload.questionId = session.questionId;
+  const studentAnswer = session.studentAnswer?.trim();
+  if (studentAnswer) payload.studentAnswer = studentAnswer.slice(0, MAX_STUDENT_ANSWER);
+  return payload;
+}
+
+/** One message turn (`POST /chat/sessions/{id}/messages`). */
+export function buildMessagePayload(content: string): Record<string, unknown> {
+  return { content: content.trim() };
+}
+
+/** How much of an answer a link carries, and how many. Well under the 2000 the
+ *  turn itself accepts: the text is context for the explanation, not the essay. */
+const MAX_WRONG_ANSWER_IN_LINK = 500;
+const MAX_WRONG_ANSWERS_IN_LINK = 10;
+
 export type StreamEvent =
   | { type: 'delta'; content: string }
-  | { type: 'final'; messageId: number | null; model: string | null }
+  | { type: 'final'; messageId: number | null; model: string | null; sources?: ChatSource[] }
   | { type: 'error'; code: string; message: string };
 
 /** Splits what has arrived so far into complete events and the unfinished remainder.
@@ -63,6 +124,9 @@ function toEvent(payload: unknown): StreamEvent | null {
       type: 'final',
       messageId: typeof p.messageId === 'number' ? p.messageId : null,
       model: typeof p.model === 'string' ? p.model : null,
+      sources: Array.isArray(p.sources)
+        ? p.sources.map(toSource).filter((source): source is ChatSource => source !== null)
+        : [],
     };
   }
   if (p.type === 'error') {
@@ -75,6 +139,26 @@ function toEvent(payload: unknown): StreamEvent | null {
   return null;
 }
 
+/** One `TutorSource`, with every field read as its declared type.
+ *
+ *  `TutorSource` declares all five fields optional, so "the field is missing" is the
+ *  normal case and not an edge case: a plain `{ kind }` is what arrives when the
+ *  backend had nothing but a kind to report. Checking only `kind` and casting the
+ *  rest would leave `statementId`/`questionNumber` as whatever came over the wire
+ *  while the type promised `number | null` — and the source key is built from them. */
+function toSource(value: unknown): ChatSource | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Record<string, unknown>;
+  if (typeof source.kind !== 'string' || !source.kind) return null;
+  return {
+    kind: source.kind,
+    statementId: typeof source.statementId === 'number' ? source.statementId : null,
+    statementTitle: typeof source.statementTitle === 'string' ? source.statementTitle : null,
+    questionId: typeof source.questionId === 'number' ? source.questionId : null,
+    questionNumber: typeof source.questionNumber === 'number' ? source.questionNumber : null,
+  };
+}
+
 export type Role = 'student' | 'tutor';
 
 export interface ChatMessage {
@@ -85,6 +169,12 @@ export interface ChatMessage {
   streaming?: boolean;
   /** The answer broke off; `text` is what arrived. */
   failed?: string;
+  /** What the answer was built from, as the final event reported it. */
+  sources?: ChatSource[];
+  /** The question this answer was about, when the turn named one. Kept on the message
+   *  because the picker can move on afterwards, and "exercises like **this** question"
+   *  has to mean the question this answer covered, not whatever is selected now. */
+  questionId?: number | null;
 }
 
 /** Applies one event to the answer being written, which is always the last message. */
@@ -93,7 +183,7 @@ export function applyEvent(messages: ChatMessage[], event: StreamEvent): ChatMes
   if (!last || last.role !== 'tutor') return messages;
   const head = messages.slice(0, -1);
   if (event.type === 'delta') return [...head, { ...last, text: last.text + event.content, streaming: true }];
-  if (event.type === 'final') return [...head, { ...last, streaming: false }];
+  if (event.type === 'final') return [...head, { ...last, streaming: false, sources: event.sources ?? [] }];
   return [...head, { ...last, streaming: false, failed: translateChatError(event.code, event.message) }];
 }
 
@@ -169,8 +259,55 @@ export function studyPrompt(numbers: number[]): string {
   return `Errei ${list} desta prova. Explica-me, passo a passo, onde posso ter errado.`;
 }
 
-/** Prompts offered as chips. They are plain questions, because the backend does not
- *  have the tutor's modes yet (BE-19, kixi#115): there is nothing to select. */
+/** The wrong answers the result screen hands to the tutor (`?respostas=`), keyed by
+ *  question number.
+ *
+ *  JSON rather than a hand-rolled `2=A,3=B` split: an answer is the student's own
+ *  text and may well contain commas, equals signs and accents, and a delimiter the
+ *  student can type is a delimiter that breaks. The value comes from the address
+ *  bar, so anything that is not a pair of a positive integer and a string is
+ *  dropped instead of trusted.
+ *
+ *  Capped tighter than the wire, because this rides in a URL: a link is not a place
+ *  to keep an essay, and twenty long answers would make an address bar give up. */
+export function parseWrongAnswers(raw: string | string[] | undefined): Map<number, string> {
+  const text = Array.isArray(raw) ? raw[0] : raw;
+  if (!text) return new Map();
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(decodeURIComponent(text));
+  } catch {
+    return new Map();
+  }
+  if (!Array.isArray(decoded)) return new Map();
+  const answers = new Map<number, string>();
+  for (const entry of decoded.slice(0, MAX_WRONG_ANSWERS_IN_LINK)) {
+    if (!Array.isArray(entry) || entry.length !== 2) continue;
+    const [number, answer] = entry as [unknown, unknown];
+    if (!Number.isInteger(number) || (number as number) <= 0) continue;
+    if (typeof answer !== 'string') continue;
+    const trimmed = answer.trim().slice(0, MAX_WRONG_ANSWER_IN_LINK);
+    if (trimmed) answers.set(number as number, trimmed);
+  }
+  return answers;
+}
+
+/** The same map as the query string the result screen builds. */
+export function wrongAnswersParam(answers: Map<number, string>): string {
+  const pairs = [...answers.entries()]
+    .slice(0, MAX_WRONG_ANSWERS_IN_LINK)
+    .map(([number, answer]) => [number, answer.trim().slice(0, MAX_WRONG_ANSWER_IN_LINK)]);
+  return pairs.length === 0 ? '' : `&respostas=${encodeURIComponent(JSON.stringify(pairs))}`;
+}
+
+/** The answer the student gave to one question, or nothing: a question they were not
+ *  wrong on has no answer to send, and the backend accepts a turn without one. */
+export function answerTo(answers: Map<number, string>, questionNumber: number | null): string | undefined {
+  if (questionNumber == null) return undefined;
+  return answers.get(questionNumber);
+}
+
+/** Prompts offered as chips; the selected mode is sent alongside each prompt. */
 export const SUGGESTIONS = [
   'Explica-me a primeira questão passo a passo',
   'Quais são os conceitos principais desta prova?',

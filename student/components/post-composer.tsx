@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { BookOpen, MessageCircle } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { canPublish } from '@/lib/feed-rules';
 import { publishPostAction } from '@/lib/feed-actions';
@@ -38,21 +37,30 @@ export function PostComposer({ classId }: { classId: number }) {
     });
   };
 
+  // `#publicar` (botão Publicar da barra lateral) leva o foco para aqui.
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const focusIfHash = () => { if (window.location.hash === '#publicar') field.current?.focus(); };
+    focusIfHash();
+    window.addEventListener('hashchange', focusIfHash);
+    return () => window.removeEventListener('hashchange', focusIfHash);
+  }, []);
+
   return (
-    <Card className="gap-3 py-4">
-      <form className="grid gap-3 px-4" onSubmit={publish}>
-        <div className="flex items-center gap-3">
-          <UserAvatar name={fullName(me)} src={photoUrl(me)} size={40} />
-          <Input className="h-11 rounded-full bg-secondary px-4" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha uma dúvida ou um tema com a turma" aria-label="Nova publicação" />
+    <form id="publicar" className="flex gap-3 border-b px-4 py-3" onSubmit={publish}>
+      <UserAvatar name={fullName(me)} src={photoUrl(me)} size={44} />
+      <div className="grid min-w-0 flex-1 gap-2">
+        <Input ref={field} className="h-11 border-0 bg-transparent px-0 text-lg shadow-none focus-visible:ring-0" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha uma dúvida ou um tema com a turma" aria-label="Nova publicação" />
+        <div className="flex items-center justify-between gap-2 border-t pt-2">
+          <div className="-ml-3 flex flex-wrap gap-0.5">
+            {SHORTCUTS.map((a) => (
+              <Button key={a.label} type="button" aria-label={a.label} variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setText((t) => t || a.label + ': ')}><a.icon /><span className="hidden sm:inline">{a.label}</span></Button>
+            ))}
+          </div>
           <Button type="submit" size="sm" disabled={!canPublish(text) || publishing}>Publicar</Button>
         </div>
-        <div className="flex flex-wrap gap-1.5 md:pl-[52px]">
-          {SHORTCUTS.map((a) => (
-            <Button key={a.label} type="button" variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setText((t) => t || a.label + ': ')}><a.icon />{a.label}</Button>
-          ))}
-        </div>
         {publishError && <Alert variant="destructive">{publishError}</Alert>}
-      </form>
-    </Card>
+      </div>
+    </form>
   );
 }

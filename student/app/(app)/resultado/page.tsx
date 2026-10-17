@@ -17,6 +17,7 @@ import {
   formatDelta,
   formatDuration,
   formatScore,
+  givenAnswers,
   inOrder,
   optionTag,
   verdict,
@@ -26,6 +27,7 @@ import {
   type Verdict,
 } from '@/lib/result-rules';
 import { displayNumber, topNumber, wholeNumbers } from '@/lib/question-number';
+import { wrongAnswersParam } from '@/lib/tutor-rules';
 
 export const metadata = { title: 'Resultado · Kixi' };
 
@@ -218,7 +220,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           {statementId != null && <RefazerSimulacao statementId={statementId} />}
           {statementId != null && hasMistakes && (
             <Button asChild>
-              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
+              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
