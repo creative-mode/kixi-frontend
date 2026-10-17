@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Award, BookOpen, Building2, CalendarDays, Check, Flame, LogOut, Users } from 'lucide-react';
-import { sairAction } from '@/lib/auth-actions';
+import { Award, BookOpen, Building2, CalendarDays, Check, Flame, Users } from 'lucide-react';
 import { Mastery } from '@/components/mastery';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
@@ -206,7 +205,7 @@ export function PerfilView({
           )}
         </TabsContent>
 
-        <TabsContent value="Definições" className="flex flex-col gap-4">
+        <TabsContent value="Definições">
           <Card><CardHeader><CardTitle>Definições</CardTitle></CardHeader>
             <CardContent className="divide-y">
               <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0">
@@ -228,7 +227,6 @@ export function PerfilView({
               </div>
             </CardContent>
           </Card>
-          <form action={sairAction}><Button type="submit" variant="outline"><LogOut />Terminar sessão</Button></form>
         </TabsContent>
       </Tabs>
     </>

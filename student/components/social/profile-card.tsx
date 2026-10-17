@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { Award, Flame } from 'lucide-react';
+import { Award, Flame, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { sairAction } from '@/lib/auth-actions';
 import { cn } from '@/lib/utils';
 import { levelProgress } from '@/lib/gamification-rules';
 import { contextLine, fullName, initials, photoUrl } from '@/lib/profile';
@@ -64,6 +65,9 @@ export function ProfileCard({ me, data, onProfile = false }: { me: Me; data: Soc
             <Progress value={levelProgress(stats.xp, stats.level)} aria-label={`Progresso para o nível ${stats.level + 1}`} />
           </div>
         )}
+        <form action={sairAction} className="px-0.5">
+          <Button type="submit" variant="ghost" size="sm" className="w-full justify-start text-muted-foreground"><LogOut aria-hidden />Terminar sessão</Button>
+        </form>
       </Card>
 
       <section aria-label="Os teus números" className="grid grid-cols-2 gap-2.5">
