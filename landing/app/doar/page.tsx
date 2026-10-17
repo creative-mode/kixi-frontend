@@ -11,9 +11,9 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: '/' },
+  alternates: { canonical: '/doar' },
   robots: { index: true, follow: true },
-  openGraph: { title: TITLE, description: DESCRIPTION, locale: 'pt_AO', type: 'website', siteName: 'Kixi' },
+  openGraph: { title: TITLE, description: DESCRIPTION, url: '/doar', locale: 'pt_AO', type: 'website', siteName: 'Kixi' },
   twitter: { card: 'summary', title: TITLE, description: DESCRIPTION },
 };
 

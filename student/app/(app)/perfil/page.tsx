@@ -1,19 +1,39 @@
 import { PerfilView } from '@/components/perfil-view';
+import { FriendsCard } from '@/components/social/friends-card';
+import { ProfileCard } from '@/components/social/profile-card';
+import { RightRail } from '@/components/social/right-rail';
+import { SocialLayout } from '@/components/social/social-layout';
+import { getFeed } from '@/lib/feed';
 import { getMe } from '@/lib/me';
-import { getStats, getBadges } from '@/lib/stats';
-import { getCatalog, getCatalogNames } from '@/lib/catalog';
-import { getPerformance } from '@/lib/performance';
+import { loadSocial } from '@/lib/social';
+import { ownPosts, profileTabOf } from '@/lib/social-rules';
 
-export default async function PerfilPage() {
-  const me = await getMe();
+/**
+ * O perfil, em três colunas. Ao meio, o cabeçalho, as últimas simulações e os separadores
+ * (publicações, atividade, desempenho, medalhas, histórico e definições). `?tab=` abre um separador
+ * e `?editar=1` abre o editor, que é para onde levam os atalhos do cartão do aluno.
+ */
+export default async function PerfilPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [me, query] = await Promise.all([getMe(), searchParams]);
+  if (!me) return null;
+  const classId = me.currentClass?.id ?? null;
 
-  // Sem matrícula, não há turma nem catálogo para pedir — mostra o perfil vazio em
-  // vez de três chamadas a um endpoint que ia devolver sempre nada.
-  if (!me) return <PerfilView me={null} stats={null} badges={[]} history={[]} performance={{ mastery: [], activity: [] }} />;
+  const [social, feed] = await Promise.all([loadSocial(me), classId ? getFeed(classId, 1, 30) : Promise.resolve(null)]);
 
-  const [stats, badges, names, performance] = await Promise.all([getStats(), getBadges(), getCatalogNames(), getPerformance()]);
-  const catalog = await getCatalog({ size: 50 }, names);
-  const history = catalog.ok ? catalog.items.filter((item) => item.state === 'done') : [];
-
-  return <PerfilView me={me} stats={stats} badges={badges} history={history} performance={performance} />;
+  return (
+    <SocialLayout identity={<ProfileCard me={me} data={social} onProfile />} friends={<FriendsCard friends={social.friends} />} rail={<RightRail data={social} />}>
+      <PerfilView
+        me={me}
+        stats={social.stats}
+        badges={social.badges}
+        history={social.history}
+        performance={social.performance}
+        classId={classId}
+        posts={feed?.ok ? ownPosts(feed.data, me.accountId) : []}
+        feedError={feed && !feed.ok ? feed.message : null}
+        initialTab={profileTabOf(query.tab)}
+        startEditing={query.editar === '1'}
+      />
+    </SocialLayout>
+  );
 }
