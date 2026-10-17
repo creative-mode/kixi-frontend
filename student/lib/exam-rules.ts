@@ -214,6 +214,17 @@ export function remainingMs(deadline: string | null | undefined, now: number): n
   return at - now;
 }
 
+/** The server keeps taking answers for a few seconds after the nominal end
+ *  (`app.simulations.tolerance-seconds`, 10 by default). The student's clock does not
+ *  count that grace: a 60 minute exam must start at 60:00, not 1:00:09, and a clock
+ *  that reaches 00:00 while the form still accepts answers is the kind side of the same
+ *  margin. The form keeps using the real deadline. */
+export const GRACE_MS = 10_000;
+
+export function displayRemainingMs(left: number | null): number | null {
+  return left === null ? null : Math.max(0, left - GRACE_MS);
+}
+
 /** What the header shows, which is not the same as the number of milliseconds left.
  *
  *  Three states, and the distinction is the point:

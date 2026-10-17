@@ -79,7 +79,7 @@ export function EntrarForm() {
         </FieldGroup>
       </form>
       <p className="text-center text-sm text-muted-foreground">
-        Ainda não tens conta? <Link href="/cadastro" className="font-semibold text-primary underline-offset-4 hover:underline">Criar conta</Link>
+        Ainda não tens conta? <Link href="/cadastro" className="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline-offset-4 hover:underline">Criar conta</Link>
       </p>
     </div>
   );
@@ -170,7 +170,7 @@ export function CadastroForm() {
         </FieldGroup>
       </form>
       <p className="text-center text-sm text-muted-foreground">
-        Já tens conta? <Link href="/entrar" className="font-semibold text-primary underline-offset-4 hover:underline">Entrar</Link>
+        Já tens conta? <Link href="/entrar" className="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline-offset-4 hover:underline">Entrar</Link>
       </p>
     </div>
   );
