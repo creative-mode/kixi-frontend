@@ -28,7 +28,7 @@ export default function Privacidade() {
       </p>
 
       <h2>Que dados recolhemos e porquê</h2>
-      <div className="lg-tablewrap">
+      <div className="lg-tablewrap" role="region" aria-label="Tabela de dados tratados" tabIndex={0}>
         <table>
           <thead><tr><th>Dados</th><th>Para quê</th></tr></thead>
           <tbody>

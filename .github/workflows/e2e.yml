@@ -27,6 +27,7 @@ jobs:
           CI: true
           JWT_SECRET: e2e-ci-secret-that-is-at-least-32-characters-long
           KIXI_MOCK: 'true'
+          KIXI_ALLOW_MOCK_IN_PROD: 'true'
           E2E_ADMIN_USERNAME: admin@kixi.ao
           E2E_TEACHER_USERNAME: professor@kixi.ao
           E2E_PASSWORD: Kixi1234!

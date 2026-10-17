@@ -59,14 +59,15 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
             ))}
           </nav>
         </div>
-        <Link href="/perfil" aria-label={`Perfil de ${name}`} title={name} className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary">
+        <Link href="/perfil" title={name} className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary">
+          <span className="sr-only">Perfil de {name}</span>
           <UserAvatar name={name} src={photoUrl(me)} size={40} />
         </Link>
       </header>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur md:hidden">
-          <Link href="/perfil" aria-label={`Perfil de ${name}`}><UserAvatar name={name} src={photoUrl(me)} size={32} /></Link>
+          <Link href="/perfil"><span className="sr-only">Perfil de {name}</span><UserAvatar name={name} src={photoUrl(me)} size={32} /></Link>
           <Link href="/inicio" aria-label="Kixi, início"><Logo size={22} wordmark /></Link>
           <Button asChild variant="ghost" size="icon" aria-label="Procurar provas"><Link href="/provas"><Search /></Link></Button>
         </header>

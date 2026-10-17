@@ -31,7 +31,7 @@ npm --prefix landing run dev   # landing :3004
 | --- | --- | --- |
 | `BACKEND_API_URL` | raiz, student | sim em prod (ex.: `http://localhost:8080/api/v1`) |
 | `JWT_SECRET` | raiz, student | sim quando `KIXI_MOCK=false` (igual à do backend) |
-| `KIXI_MOCK` | raiz | não (`true` = backend simulado local) |
+| `KIXI_MOCK` | raiz, student | não (`true` = backend simulado local; em produção só arranca com `KIXI_ALLOW_MOCK_IN_PROD=true` também) |
 | `APP_ORIGIN` | raiz, student | sim em prod (ex.: `https://kixi.ao`) — endereço público do gateway |
 | `NEXT_PUBLIC_MANAGER_URL` | student | não (fallback: `${APP_ORIGIN}/manager`) |
 | `NEXT_PUBLIC_APP_URL` | landing | não |
@@ -111,5 +111,9 @@ docker compose up --build   # http://localhost:3000
 
 Cada app (landing, aluno, manager) corre no seu contentor e na sua porta interna (3004, 3003, 3002); só o **gateway** (`scripts/gateway.mjs`, porta 3000) é publicado. O browser vê uma origem única: `/` landing, `/aluno` app do aluno, `/manager` gestor. Para abrir cada app na sua porta (depuração): `docker compose -f docker-compose.yml -f docker-compose.debug.yml up`.
 
-- `KIXI_MOCK=true` (por omissão) usa o backend simulado; com `false` é obrigatório `JWT_SECRET` (o mesmo do backend) e `BACKEND_API_URL`.
+- `KIXI_MOCK=true` (por omissão fora de produção) usa o backend simulado; em produção as apps recusam arrancar com ele ligado, salvo `KIXI_ALLOW_MOCK_IN_PROD=true` (demonstração); com `false` é obrigatório `JWT_SECRET` (o mesmo do backend) e `BACKEND_API_URL`.
 - Atrás de um proxy TLS (nginx, Caddy, Traefik) aponte-o para a porta 3000 e envie `X-Forwarded-Proto`/`X-Forwarded-Host`.
+
+## Contrato com o backend
+
+`node scripts/check-endpoints.mjs <pasta-do-backend>` confirma que o backend (no ramo de destino) expõe todos os endpoints que o aluno chama. Corre na CI em pull requests para QUA e PRD (`.github/workflows/contrato.yml`), com o segredo `BACKEND_READ_TOKEN`. Quando se acrescenta uma chamada nova no aluno, o backend de destino tem de a ter antes da promoção.

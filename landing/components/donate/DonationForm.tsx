@@ -216,7 +216,7 @@ export function DonationForm() {
   return (
     <form ref={formRef} className="dn-console" onSubmit={onSubmit} noValidate aria-busy={sending}>
       <div className="dn-label">
-        <p className="dn-pips" aria-label={`Passo ${step + 1} de ${STEPS.length}`}>{STEPS.map((name, i) => <span key={name} className={i <= step ? 'is-on' : ''} />)}</p>
+        <div className="dn-pips" role="img" aria-label={`Passo ${step + 1} de ${STEPS.length}`}>{STEPS.map((name, i) => <span key={name} className={i <= step ? 'is-on' : ''} />)}</div>
       </div>
 
       <div className="dn-screenwrap"><div className="dn-lcd">

@@ -41,8 +41,6 @@ export const viewport: Viewport = {
   themeColor: "#f6f8f5",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 }
 
 import { ManagerNavbar } from "@/components/manager-navbar"
@@ -58,9 +56,6 @@ export default async function RootLayout({
   const user = await getCurrentUser()
   return (
     <html lang="pt" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('kixi-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} />
-      </head>
       <body
         className={`${jakarta.variable} ${mono.variable} font-sans antialiased`}
       >

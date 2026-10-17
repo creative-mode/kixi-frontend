@@ -2,6 +2,8 @@ import { TutorChat } from '@/components/tutor-chat';
 import { getStatementQuestions, getStatementTitle } from '@/lib/statement-detail';
 import { parseQuestionNumbers, parseWrongAnswers, studyPrompt } from '@/lib/tutor-rules';
 
+export const metadata = { title: 'Tutor · Kixi' };
+
 /**
  * The tutor, optionally about one paper.
  *

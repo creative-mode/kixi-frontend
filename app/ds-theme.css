@@ -1,5 +1,4 @@
 /* Kixi design system · mapeamento para o Tailwind v4 (cores, raios, tipo). Cópia gerada por `npm run ds:sync`. */
-@custom-variant dark (&:is(.dark *, [data-theme='dark'] *));
 
 @theme inline {
   --animate-shimmer: kx-shimmer 1.6s ease-in-out infinite;

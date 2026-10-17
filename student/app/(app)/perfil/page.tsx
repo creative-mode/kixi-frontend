@@ -5,6 +5,8 @@ import { getProfile } from '@/lib/me';
 import { loadSocial } from '@/lib/social';
 import { ownPosts, profileTabOf } from '@/lib/social-rules';
 
+export const metadata = { title: 'Perfil · Kixi' };
+
 /**
  * O perfil, na coluna central: o cabeçalho, as últimas simulações e os separadores
  * (publicações, atividade, desempenho, medalhas, histórico e definições). `?tab=` abre um separador
