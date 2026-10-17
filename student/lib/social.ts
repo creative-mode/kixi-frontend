@@ -47,7 +47,7 @@ export const loadSocial = cache(async (me: Me): Promise<SocialData> => {
     friends: friends.filter((f) => f.accepted),
     performance,
     history: catalog.ok ? catalog.items.filter((item) => item.state === 'done') : [],
-    classTop: leaderboard?.ok ? leaderboard.data.entries.slice(0, 3) : [],
+    classTop: leaderboard?.ok ? leaderboard.data.entries.slice(0, 5) : [],
     invitations,
   };
 });
