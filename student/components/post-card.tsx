@@ -22,6 +22,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
   const [count, setCount] = useState(post.commentCount);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
   // A conversa só é lida quando se abre o painel, e as regras dessa leitura - uma vez
   // só, sem perder um pedido a meio de outro - estão em lib/feed-conversation.ts, onde
   // são testáveis sem DOM. Aqui fica o espelho em `ref` para o `apply` poder ler o
@@ -79,6 +80,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
     const text = draft.trim();
     if (!text) return;
     setDraft('');
+    setCommentError(null);
     startTransition(async () => {
       const result = await addCommentAction(post.id, text);
       // A contagem só sobe depois de o servidor dizer que aceitou. Antes subia na
@@ -86,6 +88,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
       // voltava, porque o aluno não escreve outra vez o que já escreveu.
       if (!result.ok) {
         setDraft(text);
+        setCommentError(result.message);
         return;
       }
       setCount((c) => c + 1);
@@ -209,9 +212,10 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
           </div>
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
             <UserAvatar name={myName} size={32} />
-            <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" />
+            <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Send /></Button>
           </form>
+          {commentError && <Alert variant="destructive">{commentError}</Alert>}
         </div>
       )}
       </div>
