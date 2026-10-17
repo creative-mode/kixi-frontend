@@ -48,3 +48,31 @@ html[data-reduce-motion='true'] *::after {
   animation-iteration-count: 1 !important;
   scroll-behavior: auto !important;
 }
+
+/*
+ * O início e o perfil têm três colunas (como numa rede social). Em ecrã estreito empilham por
+ * ordem de importância: cartão do aluno, conteúdo, amigos, widgets. `.px-step` são os cantos em
+ * degrau da landing, usados em fotos, azulejos e números.
+ */
+.social-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
+.social-grid > [data-area='identity'] { order: 1; }
+.social-grid > [data-area='main'] { order: 2; }
+.social-grid > [data-area='friends'] { order: 3; }
+.social-grid > [data-area='rail'] { order: 4; }
+@media (min-width: 1100px) {
+  .social-grid {
+    grid-template-columns: 272px minmax(0, 1fr) 300px;
+    grid-template-areas: 'identity main rail' 'friends main rail';
+    grid-template-rows: auto 1fr;
+  }
+  .social-grid > [data-area='identity'] { grid-area: identity; }
+  .social-grid > [data-area='main'] { grid-area: main; }
+  .social-grid > [data-area='friends'] { grid-area: friends; }
+  .social-grid > [data-area='rail'] { grid-area: rail; }
+}
+.social-rail { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 768px) and (max-width: 1099px) { .social-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.px-step {
+  --step: 4px;
+  clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step)));
+}

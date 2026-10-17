@@ -12,6 +12,9 @@ export function Audiences() {
             <article key={a.id} id={a.id} className="aud__col">
               <h3 className="aud__title">{a.title}</h3>
               <p className="aud__line">{a.line}</p>
+              <ul className="aud__list">
+                {a.items.map((it) => <li key={it}>{it}</li>)}
+              </ul>
             </article>
           ))}
         </div>

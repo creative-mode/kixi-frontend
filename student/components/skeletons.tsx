@@ -1,4 +1,5 @@
-import { Column, Page, Rail } from '@/components/page';
+import { Column, Page } from '@/components/page';
+import { SocialLayout } from '@/components/social/social-layout';
 import { Card } from '@/components/ui/card';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 
@@ -54,18 +55,32 @@ function RailCardSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
+/** As três colunas do início e do perfil enquanto carregam, com as mesmas alturas aproximadas. */
+function SocialSkeleton({ children }: { children: React.ReactNode }) {
+  return (
+    <SocialLayout
+      identity={
+        <>
+          <Card className="gap-3 p-3"><div className="flex gap-3.5 min-[1100px]:flex-col"><Skeleton className="aspect-square w-24 shrink-0 rounded-none min-[1100px]:w-full" /><div className="grid flex-1 content-start gap-2"><Skeleton className="h-5 w-40 max-w-full" /><Skeleton className="h-3.5 w-52 max-w-full" /><Skeleton className="h-9 w-full" /></div></div></Card>
+          <div className="grid grid-cols-2 gap-2.5">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-16 rounded-none" />)}</div>
+        </>
+      }
+      friends={<RailCardSkeleton rows={3} />}
+      rail={<><RailCardSkeleton rows={2} /><RailCardSkeleton /><RailCardSkeleton rows={2} /></>}
+    >
+      <StatusLabel />
+      {children}
+    </SocialLayout>
+  );
+}
+
 export function InicioSkeleton() {
   return (
-    <Page variant="feed">
-      <StatusLabel />
-      <Column>
-        <Card className="gap-4 p-5"><Skeleton className="h-4 w-40" /><Skeleton className="h-6 w-3/4" /><Skeleton className="h-2 w-full rounded-full" /><Skeleton className="h-10 w-36" /></Card>
-        <Card className="flex-row items-center gap-3 p-4"><Skeleton className="size-10 shrink-0 rounded-full" /><Skeleton className="h-10 flex-1" /></Card>
-        <div className="flex gap-2"><Skeleton className="h-9 w-24" /><Skeleton className="h-9 w-24" /><Skeleton className="h-9 w-24" /></div>
-        <PostSkeleton /><PostSkeleton />
-      </Column>
-      <Rail><RailCardSkeleton /><RailCardSkeleton /><RailCardSkeleton rows={2} /></Rail>
-    </Page>
+    <SocialSkeleton>
+      <HeaderSkeleton />
+      <Card className="flex-row items-center gap-3 p-4"><Skeleton className="size-10 shrink-0 rounded-full" /><Skeleton className="h-10 flex-1" /></Card>
+      <PostSkeleton /><PostSkeleton />
+    </SocialSkeleton>
   );
 }
 
@@ -122,17 +137,15 @@ export function TutorSkeleton() {
 
 export function PerfilSkeleton() {
   return (
-    <Page>
-      <StatusLabel />
-      <Column className="gap-5">
-        <Card className="gap-0 overflow-hidden py-0">
-          <Skeleton className="h-28 w-full rounded-none" />
-          <div className="grid gap-3 p-5"><Skeleton className="-mt-12 size-20 rounded-full ring-4 ring-card" /><Skeleton className="h-6 w-48" /><Skeleton className="h-3.5 w-64 max-w-full" /></div>
-        </Card>
-        <div className="grid gap-3 sm:grid-cols-3">{Array.from({ length: 3 }, (_, i) => <Card key={i} className="gap-2 px-4 py-3.5"><Skeleton className="h-6 w-16" /><Skeleton className="h-3 w-24" /></Card>)}</div>
-        <RailCardSkeleton rows={4} />
-      </Column>
-    </Page>
+    <SocialSkeleton>
+      <Card className="gap-0 overflow-hidden py-0">
+        <Skeleton className="h-16 w-full rounded-none" />
+        <div className="grid gap-3 p-5"><Skeleton className="h-6 w-48" /><Skeleton className="h-3.5 w-64 max-w-full" /></div>
+      </Card>
+      <div className="grid gap-4 sm:grid-cols-2"><RailCardSkeleton rows={2} /><RailCardSkeleton rows={2} /></div>
+      <Skeleton className="h-11 w-full" />
+      <PostSkeleton />
+    </SocialSkeleton>
   );
 }
 
