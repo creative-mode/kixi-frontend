@@ -7,6 +7,7 @@
  * com o mapa do site em vez de uma página vazia.
  */
 
+import { SITE_URL } from '@/lib/content';
 import { donateMarkdown, homeMarkdown, notFoundMarkdown } from '@/lib/markdown.ts';
 import { trustMarkdown } from '@/lib/trust-pages';
 
@@ -19,9 +20,17 @@ const MARKDOWN = {
   Vary: 'Accept',
 } as const;
 
-/** As páginas que existem: `/`, `/doar` e as três de confiança. `trustMarkdown` devolve
- *  null para o resto, e anunciar uma página que dá 404 a quem segue o link é pior do que
- *  não a anunciar. */
+/**
+ * Páginas que existem mas não têm um gêmeo em Markdown.
+ *
+ * <p>São as legais, escritas em JSX (#300). Devolvê-las como 404 seria mentira — a
+ * página existe, e é a que o `llms.txt` manda ler. Devolver o HTML inteiro aqui seria
+ * fingir que há uma versão Markdown que não há. O que sai é o apontamento: o que a
+ * página é e onde a ler.</p> */
+const SO_EM_HTML: Record<string, string> = {
+  '/privacidade': 'Que dados recolhemos, porquê, por quanto tempo e como exerces os teus direitos.',
+  '/cookies': 'Que cookies e que analítica usamos, e como mudares a tua escolha.',
+};
 function pageFor(pathname: string): string | null {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (path === '/') return homeMarkdown();
@@ -43,6 +52,22 @@ export async function GET(request: Request, context: { params: Promise<{ slug?: 
 
   if (body) {
     return new Response(`${body}\n`, { status: 200, headers: MARKDOWN });
+  }
+
+  const soHtml = SO_EM_HTML[pathname];
+  if (soHtml) {
+    const url = `${SITE_URL}${pathname}`;
+    return new Response(
+      [
+        `# ${pathname.slice(1)}`,
+        '',
+        soHtml,
+        '',
+        `Esta página é HTML e não tem versão em Markdown: [${url}](${url}).`,
+        '',
+      ].join('\n'),
+      { status: 200, headers: MARKDOWN },
+    );
   }
 
   return new Response(`${notFoundMarkdown(pathname)}\n`, { status: 404, headers: MARKDOWN });

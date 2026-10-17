@@ -1,4 +1,4 @@
-/** As páginas de confiança: `/about`, `/contact` e `/privacy` (#218).
+/** As páginas de confiança: `/about` e `/contact` (#218).
  *
  * Vivem em `content.ts` como o resto do texto, e saem daqui para HTML e para Markdown —
  * um agente tem de poder ler a mesma coisa que um humano lê. */
@@ -45,7 +45,8 @@ já tem continua onde estava.
 - Sítio: ${SITE_URL}/
 - Criar conta: ${SIGNUP_URL}
 - Contacto: ${SITE_URL}/contact
-- Privacidade: ${SITE_URL}/privacy
+- Privacidade: ${SITE_URL}/privacidade
+- Cookies: ${SITE_URL}/cookies
 - Mapa do site: ${SITE_URL}/sitemap.xml
 - Descrição para agentes: ${SITE_URL}/llms.txt
 `;
@@ -73,44 +74,6 @@ ${CONTACT_EMAIL ? `- **Email:** ${CONTACT_EMAIL} — a via mais directa para qua
 - Pedidos de remoção de enunciados doados por terceiros.
 `;
 
-export const privacyMd = `# Privacidade
-
-O que o Kixi guarda, e porquê. É a descrição do que o sistema faz, não um documento
-jurídico: quem responder por esta página é a equipa do Kixi.
-
-## O que uma conta guarda
-
-- **Identificação** — nome, email e palavra-passe com hash. A palavra-passe nunca é
-  guardada em claro.
-- **Sessão** — um cookie \`auth_token\` guarda o estado da sessão. É httpOnly, expira, e
-  não é partilhado com o website público.
-- **Desempenho escolar** — notas de simulação, tempo de entrega e acertos, para o
-  aluno ver o seu progresso e o professor ver o da turma.
-
-## O que o website público não guarda
-
-A landing não tem analytics nem cookies de seguimento. Um evento de medição só é
-guardado depois de consentimento.
-
-## O que sai do sistema e para onde
-
-- **Modelo de linguagem** — o tutor e a leitura de enunciados pedem a um serviço
-  externo. O que vai é o conteúdo da pergunta ou do enunciado, não a identidade da
-  conta.
-- **Reconhecimento de imagem** — a fotografia de um enunciado é processada para virar
-  texto, e não fica guardada depois de convertida.
-
-## Quem pode ver o quê
-
-- O aluno vê o seu desempenho e o da turma, e as resoluções partilhadas pelos colegas.
-- O professor vê as turmas de que é titular.
-- Um enunciado doado por alguém é público para todos os alunos registados, com a
-  assinatura que o doador quiser.
-- O website público não tem contas nem dados de alunos.
-
-Para o que o sistema faz e o que diz de si, ver ${SITE_URL}/about, ou o mapa do
-site em ${SITE_URL}/sitemap.xml.
-`;
 
 /** As três páginas, com o texto e o que cada uma diz no cartão de partilhada.
  *
@@ -128,11 +91,5 @@ export const TRUST_PAGES = {
     description:
       'Como falar com o Kixi: email, criação de conta e doação de enunciados. A via mais rápida para a maioria das dúvidas não é o email.',
     markdown: contactMd,
-  },
-  privacy: {
-    title: 'Privacidade · Kixi',
-    description:
-      'O que o Kixi guarda, o que não guarda, o que sai do sistema e para onde, e quem vê o quê.',
-    markdown: privacyMd,
-  },
+  }
 } as const;

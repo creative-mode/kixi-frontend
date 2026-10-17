@@ -7,7 +7,8 @@ import { markdownToReact } from '@/lib/markdown-render';
 import { TRUST_PAGES as PAGES, type TrustPath as PageKey } from '@/lib/trust-pages';
 
 /**
- * As páginas de confiança (#218): `/about`, `/contact` e `/privacy`.
+ * As páginas de confiança (#218): `/about` e `/contact`. A privacidade e os cookies
+ * têm as suas, desde o #300, e não são repetidas aqui.
  *
  * Vivem em `lib/trust-pages.ts` em Markdown e são renderizadas daqui, para o HTML e
  * para a rota de Markdown dizerem a mesma coisa em vez de duas versões que divergem.

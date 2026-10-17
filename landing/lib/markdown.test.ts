@@ -58,7 +58,7 @@ test('cada página em Markdown só anuncia páginas que existem', () => {
       // O ponto final de uma frase entra no endereço; não é um caminho.
       const path = new URL(url.replace(/[.,;:]+$/, '')).pathname;
       assert.ok(
-        ['/', '/doar', '/about', '/contact', '/privacy', '/sitemap.xml', '/llms.txt'].includes(path) || path.startsWith('/aluno'),
+        ['/', '/doar', '/about', '/contact', '/privacidade', '/cookies', '/sitemap.xml', '/llms.txt'].includes(path) || path.startsWith('/aluno'),
         `anuncia uma página que não existe: ${path}`,
       );
     }
