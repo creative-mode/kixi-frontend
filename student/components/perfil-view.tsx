@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Award, BookOpen, Building2, CalendarDays, Check, Flame, Users } from 'lucide-react';
+import { Award, BookOpen, Building2, CalendarDays, Check, Flame, LogOut, Users } from 'lucide-react';
+import { sairAction } from '@/lib/auth-actions';
 import { Mastery } from '@/components/mastery';
 import { Page, PageHeader } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
@@ -78,7 +79,12 @@ export function PerfilView({
         <div className="px-4 pb-4">
           <div className="flex items-end justify-between gap-3">
             <div className="-mt-12 rounded-full border-4 border-background bg-background"><UserAvatar name={name} src={photoUrl(me)} size={88} /></div>
-            {!editing && <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button>}
+            {!editing && (
+              <div className="flex items-center gap-2">
+                <form action={sairAction}><Button type="submit" variant="ghost" className="text-muted-foreground"><LogOut aria-hidden />Terminar sessão</Button></form>
+                <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button>
+              </div>
+            )}
           </div>
           <h2 className="mt-2 text-xl leading-tight font-extrabold tracking-tight">{name}</h2>
           {!context && <p className="text-[15px] text-muted-foreground">Sem afiliação académica: matricula-te para veres o teu feed.</p>}
