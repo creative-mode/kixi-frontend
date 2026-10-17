@@ -326,9 +326,10 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    // Uma conta visível abre.
+    // Uma conta visível abre. O nome aparece duas vezes — no `h1` da página e no `h2`
+    // do cartão — por isso o alvo é o `h1`, que é o que a página é.
     await page.goto('/aluno/u/4');
-    await expect(page.getByRole('heading', { name: 'Nuno Dias' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Nuno Dias' })).toBeVisible();
 
     // A ocultada devolve 404, e não uma página a dizer que foi ocultada: dizer isso
     // seria confirmar que o perfil existe.
