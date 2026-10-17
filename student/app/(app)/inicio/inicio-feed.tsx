@@ -12,6 +12,7 @@ import { useMe } from '@/lib/me-context';
 import { fullName, photoUrl } from '@/lib/profile';
 import type { Invitation } from '@/lib/exam-room-rules';
 import type { FeedPost } from '@/lib/feed';
+import type { FeedAuthor } from '@/lib/feed-rules';
 
 /** O centro do início: as salas de prova, o compositor e o feed da turma. Os dados vêm por props:
  *  este ficheiro é cliente e tudo se lê no servidor, com o cookie da sessão (ver ./page.tsx). */
@@ -21,6 +22,7 @@ export function InicioFeed({
   myAccountId,
   classId,
   posts,
+  authors = {},
   feedError,
 }: {
   invitations?: Invitation[];
@@ -28,6 +30,7 @@ export function InicioFeed({
   myAccountId: number | null;
   classId: number | null;
   posts: FeedPost[];
+  authors?: Record<number, FeedAuthor>;
   feedError?: string | null;
 }) {
   const me = useMe();
@@ -58,7 +61,7 @@ export function InicioFeed({
       ) : posts.length === 0 ? (
         <EmptyState title="Ainda não há nada por aqui" message="Sê o primeiro a partilhar uma dúvida ou um tema com a turma." />
       ) : (
-        posts.map((p) => <PostCard key={p.id} post={p} myAccountId={myAccountId} myName={fullName(me)} myPhoto={photoUrl(me)} />)
+        posts.map((p) => <PostCard key={p.id} post={p} author={authors[p.authorAccountId]} myClassId={classId} myAccountId={myAccountId} myName={fullName(me)} myPhoto={photoUrl(me)} />)
       )}
     </Page>
   );

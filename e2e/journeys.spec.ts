@@ -89,6 +89,27 @@ test.afterEach(() => {
 });
 
 test.describe('jornadas críticas do Kixi', () => {
+  test('o feed mostra o nome verdadeiro de quem publicou e a etiqueta de colega de turma', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    const post = page.getByRole('article').filter({ hasText: 'Resumo rápido: o /28' });
+    await expect(post).toBeVisible();
+    await expect(post.getByText('Colega de turma')).toBeVisible();
+    await expect(post.getByRole('link').first()).not.toHaveText(/^Colega/);
+    await expect(page.getByText('Um colega da turma')).toHaveCount(0);
+
+    // O nome leva ao perfil da pessoa, que tem o mesmo modelo do teu: foto, nome, nível e separadores.
+    await post.getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/aluno\/u\/\d+/);
+    await expect(page.getByRole('heading', { name: 'Nuno Dias', level: 2 })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Publicações' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Medalhas' })).toBeVisible();
+    await expect(page.getByText('Resumo rápido: o /28')).toBeVisible();
+  });
+
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
