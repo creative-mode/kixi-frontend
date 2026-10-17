@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowRight, Clock, GraduationCap, Target, Users } from 'lucide-react';
 import { getClassDashboard, getDashboard } from '@/app/actions/analytics';
+import { ACTION_TIMEOUT_MS, withDeadline } from '@/lib/timeout';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -19,6 +20,9 @@ const STATUS: Record<ClassStudentStats['status'], { label: string; variant: 'des
   OK: { label: 'Bem', variant: 'success' },
 };
 
+/** Uma secção que não chegou porque a chamada falhou — nunca fica pendente. */
+const failed = <T,>(message = 'Não foi possível carregar. Tente novamente.'): Section<T> => ({ ok: false, error: message });
+
 /**
  * O dashboard do professor (FE-16): uma turma de cada vez, com o que pede ação
  * primeiro. A questão mais falhada aparece logo ao abrir, sem clicar em nada:
@@ -29,16 +33,24 @@ const STATUS: Record<ClassStudentStats['status'], { label: string; variant: 'des
  */
 export function TeacherPerformance() {
   const [base, setBase] = useState<Dashboard | null>(null);
+  const [baseError, setBaseError] = useState<string | null>(null);
   const [classId, setClassId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ClassDashboard | null>(null);
   const request = useRef(0);
 
   const loadBase = useCallback(async () => {
     setBase(null);
-    const result = await getDashboard(30);
-    setBase(result);
-    const first = result.classes.ok ? result.classes.data[0] : undefined;
-    if (first) setClassId((current) => current ?? first.id);
+    setBaseError(null);
+    try {
+      const result = await withDeadline(getDashboard(30), ACTION_TIMEOUT_MS);
+      setBase(result);
+      const first = result.classes.ok ? result.classes.data[0] : undefined;
+      if (first) setClassId((current) => current ?? first.id);
+    } catch {
+      // A própria chamada à server action falhou (rede em baixo): sem isto o
+      // esqueleto ficava para sempre. Erro explícito com "Tentar novamente" (#191).
+      setBaseError('Não foi possível contactar o servidor. Tente novamente.');
+    }
   }, []);
 
   useEffect(() => {
@@ -49,8 +61,12 @@ export function TeacherPerformance() {
   const loadDetail = useCallback(async (id: number) => {
     const mine = ++request.current;
     setDetail(null);
-    const result = await getClassDashboard(id);
-    if (mine === request.current) setDetail(result);
+    try {
+      const result = await withDeadline(getClassDashboard(id), ACTION_TIMEOUT_MS);
+      if (mine === request.current) setDetail(result);
+    } catch {
+      if (mine === request.current) setDetail({ students: failed(), weekly: failed(), questions: failed() });
+    }
   }, []);
 
   useEffect(() => {
@@ -94,7 +110,9 @@ export function TeacherPerformance() {
         ) : null}
       </div>
 
-      {base && !base.classes.ok ? (
+      {baseError ? (
+        <Card><CardContent><SectionError message={baseError} onRetry={() => void loadBase()} /></CardContent></Card>
+      ) : base && !base.classes.ok ? (
         <Card><CardContent><SectionError message={base.classes.error} onRetry={() => void loadBase()} /></CardContent></Card>
       ) : classes && classes.length === 0 ? (
         <Card>
