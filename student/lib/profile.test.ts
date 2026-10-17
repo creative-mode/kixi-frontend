@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { initials, photoUrl } from './profile.ts';
+import { initials, photoUrl, safePhoto } from './profile.ts';
 
 // Este ficheiro não existia (#344). `photoUrl` decide que endereço de foto entra no
 // `<img>`, e o que ele não aceita tem de acabar em `null` — um endereço vindo do
@@ -46,4 +46,13 @@ test('initials dá as iniciais do primeiro e do último nome', () => {
   assert.equal(initials('  ana   verde  '), 'AV');
   assert.equal(initials('Abner'), 'A');
   assert.equal(initials(''), '');
+});
+test('safePhoto serve as fotos dos outros: aceita só o que photoUrl aceita e esvazia o resto (#345)', () => {
+  assert.equal(safePhoto('/uploads/images/avatar/abc-123.png'), '/uploads/images/avatar/abc-123.png');
+  assert.equal(safePhoto('https://cdn.exemplo.ao/a.png'), 'https://cdn.exemplo.ao/a.png');
+  assert.equal(safePhoto('  '), null);
+  assert.equal(safePhoto(null), null);
+  assert.equal(safePhoto(undefined), null);
+  assert.equal(safePhoto('javascript:alert(1)'), null);
+  assert.equal(safePhoto('/uploads/images/avatar/../../etc/passwd'), null);
 });

@@ -28,8 +28,10 @@ export function contextLine(me: Me | null): string {
 
 /** Remote images and the ones sent from the device (`/uploads/images/avatar/…`) are rendered; anything else falls
  *  back to the initials avatar. */
-export function photoUrl(me: Me | null): string | null {
-  const photo = me?.photo?.trim();
-  if (!photo) return null;
-  return /^(?:https?:\/\/\S+|\/uploads\/images\/avatar\/[A-Za-z0-9._-]+)$/i.test(photo) ? photo : null;
+export function safePhoto(photo: string | null | undefined): string | null {
+  const value = photo?.trim();
+  if (!value) return null;
+  return /^(?:https?:\/\/\S+|\/uploads\/images\/avatar\/[A-Za-z0-9._-]+)$/i.test(value) ? value : null;
 }
+
+export const photoUrl = (me: Me | null): string | null => safePhoto(me?.photo);
