@@ -1,0 +1,137 @@
+import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+/**
+ * Qualidade que as jornadas felizes não apanham (#317): acessibilidade com axe-core, ecrãs de erro,
+ * títulos por página e telemóvel. Estas verificações teriam falhado com o aviso partido, a prova sem
+ * saída e os botões sem nome que chegaram a produção.
+ */
+const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
+const ADMIN = process.env.E2E_ADMIN_USERNAME ?? 'admin@kixi.ao';
+
+test.setTimeout(120_000);
+
+const VIEWPORTS = [
+  { nome: 'portátil', size: { width: 1366, height: 860 } },
+  { nome: 'telemóvel', size: { width: 390, height: 844 } },
+] as const;
+
+async function alunoLogin(page: Page) {
+  await page.goto('/aluno/entrar');
+  await page.getByLabel('Utilizador ou email').fill('12345');
+  await page.locator('#password').fill(PASSWORD);
+  await page.getByTestId('aluno-entrar-submeter').click();
+  await expect(page).toHaveURL(/\/aluno\/inicio/);
+}
+
+async function gestorLogin(page: Page) {
+  await page.goto('/manager/login');
+  await page.getByLabel('Username ou email').fill(ADMIN);
+  await page.locator('#password').fill(PASSWORD);
+  await page.getByTestId('gestor-entrar-submeter').click();
+  await expect(page).toHaveURL(/\/manager\/?$/);
+}
+
+/** Violações sérias ou críticas, em texto legível para o relatório. */
+async function graves(page: Page) {
+  const { violations } = await new AxeBuilder({ page }).disableRules(['region']).analyze();
+  return violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id} x${v.nodes.length}: ${v.nodes[0]?.html.slice(0, 120)}`);
+}
+
+const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
+const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms'];
+const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
+
+for (const vp of VIEWPORTS) {
+  test.describe(`acessibilidade, ${vp.nome}`, () => {
+    test.use({ viewport: vp.size, isMobile: vp.size.width < 500 });
+
+    test('aluno sem violações sérias', async ({ page }) => {
+      await alunoLogin(page);
+      for (const rota of ALUNO) {
+        await page.goto(rota);
+        await page.waitForLoadState('networkidle');
+        expect(await graves(page), rota).toEqual([]);
+        if (vp.size.width < 500) await test.info().attach(`aluno${rota.replaceAll('/', '-')}`, { body: await page.screenshot(), contentType: 'image/png' });
+      }
+    });
+
+    test('gestor sem violações sérias', async ({ page }) => {
+      await gestorLogin(page);
+      for (const rota of GESTOR) {
+        await page.goto(rota);
+        await page.waitForLoadState('networkidle');
+        expect(await graves(page), rota).toEqual([]);
+      }
+    });
+
+    test('landing sem violações sérias', async ({ page }) => {
+      for (const rota of LANDING) {
+        await page.goto(rota);
+        await page.waitForLoadState('networkidle');
+        expect(await graves(page), rota).toEqual([]);
+      }
+    });
+  });
+}
+
+test.describe('ecrãs de erro do aluno', () => {
+  test('prova inexistente: em português, com saída e sem tentar de novo', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/prova/999999');
+    await expect(page.getByText('Esta prova não existe ou já não está disponível.')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Voltar às provas' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tentar de novo' })).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText(/statement not found|not found/i);
+  });
+
+  test('página que não existe tem título e saída', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/nao-existe');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible();
+  });
+});
+
+test.describe('avisos do aluno', () => {
+  test('um aviso sem ícone ocupa a largura toda e não parte o texto em colunas', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/ranking');
+    await page.getByRole('tab', { name: 'Amigos' }).click();
+    const aviso = page.locator('[data-slot="alert"]').first();
+    await expect(aviso).toBeVisible();
+    const caixa = await aviso.boundingBox();
+    // Antes da correção o texto ficava numa coluna de largura zero: mais de 280 px de altura.
+    expect(caixa!.height).toBeLessThan(120);
+    expect(caixa!.width).toBeGreaterThan(250);
+  });
+});
+
+test.describe('títulos', () => {
+  test('cada página do aluno e do gestor tem o seu título', async ({ page }) => {
+    const titulos = new Map<string, string>();
+    const ver = async (rota: string) => {
+      await page.goto(rota);
+      await page.waitForLoadState('networkidle');
+      const titulo = await page.title();
+      expect(titulo, rota).not.toBe('');
+      expect(titulos.get(titulo), `${rota} repete o título de ${titulos.get(titulo)}: ${titulo}`).toBeUndefined();
+      titulos.set(titulo, rota);
+    };
+    await alunoLogin(page);
+    for (const rota of ALUNO) await ver(rota);
+    const ctx = await page.context().browser()!.newContext();
+    const gestor = await ctx.newPage();
+    await gestorLogin(gestor);
+    for (const rota of GESTOR) {
+      await gestor.goto(rota);
+      await gestor.waitForLoadState('networkidle');
+      const titulo = await gestor.title();
+      expect(titulos.get(titulo), `${rota} repete o título de ${titulos.get(titulo)}: ${titulo}`).toBeUndefined();
+      titulos.set(titulo, rota);
+    }
+    await ctx.close();
+  });
+});
