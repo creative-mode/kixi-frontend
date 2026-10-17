@@ -8,6 +8,10 @@ import '@/components/forbidden/forbidden.css';
 export const metadata: Metadata = {
   title: '403 · Acesso não permitido',
   description: 'Área restrita do Kixi. A porta não abre para esta conta.',
+  // Um 403 no índice é uma página de erro indexada: o buscador guarda-a, alguém
+  // clica e leva a uma porta fechada. O `robots.txt` já a barra; isto é o pedido
+  // explícito, para o que a busca já tenha guardado saber que já não vale.
+  robots: { index: false, follow: false },
 };
 
 type PageProps = { searchParams: Promise<{ reason?: string | string[] }> };

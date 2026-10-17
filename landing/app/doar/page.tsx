@@ -14,7 +14,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/doar' },
   robots: { index: true, follow: true },
   openGraph: { title: TITLE, description: DESCRIPTION, url: '/doar', locale: 'pt_AO', type: 'website', siteName: 'Kixi' },
-  twitter: { card: 'summary', title: TITLE, description: DESCRIPTION },
+  // `summary` em vez de `summary_large_image` dava um cartão diferente do da raiz
+  // na mesma partilha. A imagem é a da raiz (a única que existe); um cartão
+  // `summary` que a descarta era pior do que o mesmo cartão nas duas rotas.
+  twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION },
 };
 
 export default function Donate() {

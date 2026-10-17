@@ -11,6 +11,36 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://kixi.creat
 /** Só aparece no rodapé quando está definido: não inventamos um endereço de contacto. */
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? '';
 
+/**
+ * Morada postal e telefone, para o `Organization` que os agentes usam para responder a
+ * perguntas de contacto (#218).
+ *
+ * <p>Saem do build e não estão no código porque são dados de uma entidade real: quem os
+ * escrever aqui é que os declara. Sem eles o JSON-LD vai sem `address` e sem telefone —
+ * meio contacto é pior do que nenhum, porque parece verificado quando não está.</p>
+ */
+export const CONTACT_POSTAL_ADDRESS = {
+  street: process.env.NEXT_PUBLIC_CONTACT_STREET ?? '',
+  locality: process.env.NEXT_PUBLIC_CONTACT_LOCALITY ?? '',
+  postalCode: process.env.NEXT_PUBLIC_CONTACT_POSTAL_CODE ?? '',
+  addressCountry: process.env.NEXT_PUBLIC_CONTACT_COUNTRY ?? 'AO',
+} as const;
+
+export const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE ?? '';
+
+/**
+ * As páginas de confiança (#218).
+ *
+ * <p>Entram no rodapé de todas as páginas, e não só no `sitemap.xml`: uma página que
+ * ninguém consegue encontrar a partir da navegação é uma página que ninguém lê. São
+ * as duas que faltavam para um agente poder verificar quem está por trás da
+ * plataforma antes de a recomendar a uma escola — a privacidade e os cookies já têm
+ * página e ligação no rodapé desde o #300, e não são repetidas aqui.</p> */
+export const TRUST_LINKS = [
+  { href: '/about', label: 'Sobre' },
+  { href: '/contact', label: 'Contacto' },
+] as const;
+
 export const NAV = [
   { href: '#solucao', label: 'Solução' },
   { href: '#modulos', label: 'Módulos' },
