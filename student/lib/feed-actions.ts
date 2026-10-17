@@ -57,9 +57,12 @@ export async function addCommentAction(
   postId: number,
   content: string,
 ): Promise<{ ok: true; comment: PostComment } | { ok: false; message: string }> {
-  if (!content.trim()) return { ok: false, message: 'Escreve alguma coisa antes de enviar.' };
+  if (!content.trim()) return { ok: false, message: 'Escreve o comentário.' };
+  if (content.trim().length > 500) return { ok: false, message: 'O comentário tem no máximo 500 caracteres.' };
   const result = await addComment(postId, content.trim());
-  if (!result.ok) return { ok: false, message: result.message };
+  if (!result.ok) {
+    return { ok: false, message: result.status === 429 ? 'Estás a comentar depressa demais. Espera um minuto e tenta de novo.' : result.message };
+  }
   revalidatePath('/inicio');
   return { ok: true, comment: result.data };
 }
