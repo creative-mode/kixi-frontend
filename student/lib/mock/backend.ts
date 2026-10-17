@@ -2,6 +2,7 @@ import 'server-only';
 import { catalogPage } from './catalog-page';
 import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
+import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
 import {
   deadlineFor,
   expired,
@@ -1247,13 +1248,9 @@ export async function mockHandle(
       });
     }
     if (pathname === '/profiles/search') {
-      const q = (search.get('q') ?? '').trim().toLowerCase();
-      if (q.length < 2) return problem(400, 'q must have at least 2 characters');
-      return json(
-        db.institutions
-          .filter((i) => `${i.name} ${i.code} ${i.short_name ?? ''}`.toLowerCase().includes(q))
-          .map(card),
-      );
+      const q = search.get('q') ?? '';
+      if (q.trim().length < 2) return problem(400, 'q must have at least 2 characters');
+      return json(db.institutions.filter((i) => matchesSearch(q, i)).map(card));
     }
     if (pathname === '/profiles/me/visibility') {
       if (accountId === null) return problem(401, 'Unauthorized');
@@ -1265,7 +1262,7 @@ export async function mockHandle(
       if (!target) return problem(404, 'Profile not found');
       const visibility = db.visibility[target.id] ?? 'school';
       const mine = accountId === target.id;
-      const restricted = !mine && visibility === 'private';
+      const restricted = isRestricted(visibility as Visibility, mine);
       const classIds = db.enrollments.filter((e) => e.accountId === target.id).map((e) => e.classId);
       const schoolIds = new Set(db.classes.filter((c) => classIds.includes(c.id)).map((c) => c.institutionId));
       return json({
@@ -1288,7 +1285,7 @@ export async function mockHandle(
   if (pathname === '/profiles/me/visibility' && method === 'PUT') {
     if (accountId === null) return problem(401, 'Unauthorized');
     const value = text('visibility');
-    if (!['public', 'school', 'private'].includes(value)) return problem(400, 'Visibility must be public, school or private');
+    if (!isVisibility(value)) return problem(400, 'Visibility must be public, school or private');
     db.visibility[accountId] = value;
     return json({ visibility: value });
   }
