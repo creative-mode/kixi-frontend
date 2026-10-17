@@ -24,7 +24,16 @@ import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="grid gap-1.5"><Label>{label}</Label>{children}</div>;
+  // O `Label` envolve o controlo em vez de ser irmao: um `<label>` que envolve o
+  // `<select>` associa-lhe o nome sem precisar de `htmlFor` nem de ids. Antes eram
+  // irmaos, e o campo ficava sem nome acessivel — o `getByLabel` nao o encontrava
+  // e um leitor de ecra anunciava «caixa de selecao, sem rotulo».
+  return (
+    <Label className="grid h-auto items-stretch gap-1.5">
+      <span>{label}</span>
+      {children}
+    </Label>
+  );
 }
 
 /** A prova que acabou de ser guardada: serve para dizer onde está e para a poder dar a uma turma. */
