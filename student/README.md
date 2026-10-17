@@ -1,6 +1,6 @@
 # Kixi · App do aluno
 
-Next.js 16 (App Router) + React 19 + TypeScript. Interface mobile-first do aluno, com o design system **Kixi v6 "Ecrã portátil, a cores"** (Press Start 2P + Plus Jakarta Sans, tokens em CSS variables, temas `light` "Ecrã" e `dark` "Noite").
+Next.js 16 (App Router) + React 19 + TypeScript. Interface mobile-first do aluno, com o design system **Kixi v6 "Ecrã portátil, a cores"** (Press Start 2P + Plus Jakarta Sans, tokens em CSS variables, só o tema claro, no modelo de rede social: barra lateral, coluna central e coluna da direita).
 
 ```bash
 cd student
@@ -21,11 +21,11 @@ npm run build
 | `/resultado` | Nota, respostas certas, domínio por tema e questões a rever |
 | `/ranking` | A turma: média por aluno (turma, escola ou amigos) |
 | `/tutor` | Conversa com o tutor, com a fonte de cada resposta |
-| `/perfil` | Perfil com os dados reais da conta, atividade, desempenho, guardados, edição de nome e foto, e definições (tema escuro, +25% de tempo) |
+| `/perfil` | Perfil com os dados reais da conta, atividade, desempenho, guardados, edição de nome e foto, e definições (reduzir movimento, +25% de tempo) |
 
 ## Estrutura
 
-- `styles/theme.css`: tokens (cores claro/escuro, raios, tipo) e fonte Plus Jakarta Sans.
+- `styles/theme.css`: tokens (cores, raios, tipo) e fonte Plus Jakarta Sans.
 - Estilo: Tailwind v4 + componentes shadcn (`components/ui`) sobre os tokens do design system partilhado (`design-system/README.md`; `npm run ds:sync` na raiz). Em ecrãs largos há barra lateral e painel à direita; no telemóvel, barra superior e separadores em baixo.
 - `components/brand.tsx`, `icon.tsx`, `user-avatar.tsx`, `mastery.tsx`: marca, ícones, avatar e barra de domínio. `components/Shell.tsx`: navegação. `components/AuthShell.tsx`: ecrã de entrada/cadastro.
 - `lib/data.ts`: dados de exemplo do **conteúdo** (feed, provas, ranking, tutor). O perfil do aluno já não vem daqui.

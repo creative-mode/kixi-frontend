@@ -2,15 +2,11 @@ import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { getMe } from '@/lib/me';
 import { getFeed } from '@/lib/feed';
 import { loadSocial } from '@/lib/social';
-import { FriendsCard } from '@/components/social/friends-card';
-import { ProfileCard } from '@/components/social/profile-card';
-import { RightRail } from '@/components/social/right-rail';
-import { SocialLayout } from '@/components/social/social-layout';
 import { InicioFeed } from './inicio-feed';
 
 /**
- * O início, em três colunas: o aluno e os amigos à esquerda, as salas de prova e o feed da turma
- * ao meio, e os widgets à direita.
+ * O início: as salas de prova que pedem ação, o compositor e o feed da turma, na coluna central.
+ * Os widgets estão na coluna da direita, global (ver `(app)/layout.tsx`).
  *
  * Os convites leem-se aqui, no servidor, porque `GET /exam-rooms/mine` precisa do cookie da sessão.
  * Uma falha a ler as salas não leva o feed com ela. O feed social só se pede quando há turma: sem
@@ -25,15 +21,13 @@ export default async function InicioPage() {
   const invResult = social.invitations;
 
   return (
-    <SocialLayout identity={<ProfileCard me={me} data={social} />} friends={<FriendsCard friends={social.friends} />} rail={<RightRail data={social} />}>
-      <InicioFeed
-        invitations={invResult.ok ? invResult.data : []}
-        invitationsError={invitationsErrorOf(invResult)}
-        myAccountId={me.accountId}
-        classId={classId}
-        posts={feed?.ok ? feed.data : []}
-        feedError={feed && !feed.ok ? feed.message : null}
-      />
-    </SocialLayout>
+    <InicioFeed
+      invitations={invResult.ok ? invResult.data : []}
+      invitationsError={invitationsErrorOf(invResult)}
+      myAccountId={me.accountId}
+      classId={classId}
+      posts={feed?.ok ? feed.data : []}
+      feedError={feed && !feed.ok ? feed.message : null}
+    />
   );
 }

@@ -7,7 +7,6 @@ import { UserAvatar } from '@/components/user-avatar';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -123,48 +122,47 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
   const author = authorLabel(post.authorAccountId, myAccountId);
 
   return (
-    <Card className="gap-3 pt-4 pb-0">
-      <CardContent className="grid gap-3">
-        <header className="flex items-center gap-3">
-          <UserAvatar name={author === 'Tu' ? myName : 'Colega'} src={author === 'Tu' ? myPhoto : null} size={44} />
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="font-bold">{author}</div>
-            <div className="text-[13px] text-muted-foreground">{sinceLabel(post.createdAt) ?? ''}</div>
-          </div>
-          <Badge variant="secondary">{postTypeLabel(post.type)}</Badge>
+    <article className="flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
+      <UserAvatar name={author === 'Tu' ? myName : 'Colega'} src={author === 'Tu' ? myPhoto : null} size={44} />
+      <div className="min-w-0 flex-1">
+        <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">
+          <span className="font-bold">{author}</span>
+          <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>
+          <Badge variant="secondary" className="ml-auto">{postTypeLabel(post.type)}</Badge>
         </header>
-        {post.title && <h3 className="font-semibold">{post.title}</h3>}
-        {post.simulation && <SimulationCard card={post.simulation} />}
-        {post.simulation && post.content && (
-          <p className="-mb-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">{REFLECTION_LABEL}</p>
-        )}
-        {post.content && <p className="max-w-[62ch] leading-relaxed">{post.content}</p>}
-      </CardContent>
+        <div className="mt-1 grid gap-2.5">
+          {post.title && <h3 className="font-semibold">{post.title}</h3>}
+          {post.simulation && <SimulationCard card={post.simulation} />}
+          {post.simulation && post.content && (
+            <p className="-mb-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">{REFLECTION_LABEL}</p>
+          )}
+          {post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
+        </div>
 
-      <div className="flex flex-wrap items-center gap-0.5 border-t px-2 py-1">
-        <Button variant="ghost" className={act} aria-pressed={reacted} disabled={pending} onClick={toggleReaction}>
-          <ThumbsUp className={cn(reacted && 'fill-primary/15')} />Aplaudir
-        </Button>
-        <Button variant="ghost" className={act} aria-expanded={open} onClick={togglePanel}>
-          <MessageCircle />Comentar<span className="tabular-nums">{count}</span>
-        </Button>
-        <Button
-          variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
-          aria-pressed={reporting || reported} aria-label="Denunciar publicação" disabled={reported}
-          onClick={() => setReporting((v) => !v)}
-        >
-          <Flag className={cn((reporting || reported) && 'fill-destructive/15')} />
-        </Button>
-      </div>
+        <div className="-ml-3 mt-1 flex flex-wrap items-center gap-0.5 py-0.5">
+          <Button variant="ghost" className={act} aria-pressed={reacted} disabled={pending} onClick={toggleReaction}>
+            <ThumbsUp className={cn(reacted && 'fill-primary/15')} />Aplaudir
+          </Button>
+          <Button variant="ghost" className={act} aria-expanded={open} onClick={togglePanel}>
+            <MessageCircle />Comentar<span className="tabular-nums">{count}</span>
+          </Button>
+          <Button
+            variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
+            aria-pressed={reporting || reported} aria-label="Denunciar publicação" disabled={reported}
+            onClick={() => setReporting((v) => !v)}
+          >
+            <Flag className={cn((reporting || reported) && 'fill-destructive/15')} />
+          </Button>
+        </div>
 
       {reported && (
-        <div className="border-t px-5 py-3">
+        <div className="pb-3">
           <Alert variant="success">Denúncia enviada. A equipa da escola vai rever.</Alert>
         </div>
       )}
 
       {reporting && !reported && (
-        <form className="grid gap-2 border-t px-5 py-4" onSubmit={sendReport}>
+        <form className="grid gap-2 pb-3" onSubmit={sendReport}>
           <Input
             value={reportReason} onChange={(e) => setReportReason(e.target.value)}
             placeholder="Porque estás a denunciar esta publicação?" aria-label="Motivo da denúncia" autoFocus
@@ -177,7 +175,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
       )}
 
       {open && (
-        <div className="grid gap-3 border-t px-5 py-4">
+        <div className="grid gap-3 border-t py-3">
           <div className="grid gap-3">
             {conversation.error ? (
               <Alert variant="destructive">
@@ -216,6 +214,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
           </form>
         </div>
       )}
-    </Card>
+      </div>
+    </article>
   );
 }
