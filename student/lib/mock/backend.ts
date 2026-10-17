@@ -4,6 +4,7 @@ import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
 import * as friends from './friends';
+import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
 import {
   deadlineFor,
@@ -130,6 +131,8 @@ type Store = {
   /** Amizades (kixi#121); o ranking de amigos só conta as aceites. */
   friendships: friends.Friendship[];
   nextFriendship: number;
+  /** Quem aceitou ser comparado com outras escolas (ADR-0013); sem entrada, não. */
+  crossConsent: number[];
   /** Quem pode ver o perfil de cada conta (#336); sem entrada vale 'school'. */
   visibility: Record<number, string>;
   institutions: Institution[];
@@ -343,6 +346,7 @@ function seed(): Store {
       { id: 2, requesterId: 4, addresseeId: 3, accepted: false },
     ],
     nextFriendship: 3,
+    crossConsent: [],
     visibility: { 5: 'private' },
     institutions,
     courses,
@@ -1035,31 +1039,37 @@ export async function mockHandle(
     const scope = search.get('scope') ?? 'class';
     const period = search.get('period') ?? 'all';
     const statementId = filter('statementId');
-    if (!['class', 'school', 'friends'].includes(scope)) {
-      return problem(400, 'scope must be class, school or friends');
+    const metric = search.get('metric') ?? 'average';
+    if (!['class', 'school', 'friends', 'global'].includes(scope)) {
+      return problem(400, 'scope must be class, school, friends or global');
+    }
+    if (!['average', 'xp'].includes(metric)) return problem(400, 'metric must be average or xp');
+    if (scope === 'global' && !db.crossConsent.includes(account.id)) {
+      return problem(403, 'Consent is required to be ranked across institutions');
     }
     if (statementId !== undefined && !db.statements.some((s) => s.id === statementId)) {
       return problem(404, 'Statement not found');
     }
 
     const mine = db.enrollments.find((e) => e.accountId === account.id && e.status === 'ACTIVE');
-    const empty = { scope, groupId: null, statementId: statementId ?? null, period, totalStudents: 0, rankedStudents: 0, smallGroup: true, myPosition: null, myAverage: null, entries: [] };
+    const empty = { scope, groupId: null, statementId: statementId ?? null, period, metric, institutionsCounted: 0, totalStudents: 0, rankedStudents: 0, smallGroup: true, myPosition: null, myAverage: null, entries: [] };
     if (!mine) return json(empty);
     const klass = db.classes.find((c) => c.id === mine.classId);
     if (!klass) return json(empty);
-    const groupId = scope === 'friends' ? null : scope === 'class' ? mine.classId : klass.institutionId;
+    const groupId = scope === 'friends' || scope === 'global' ? null : scope === 'class' ? mine.classId : klass.institutionId;
     // Amigos: o aluno e quem aceitou, esteja em que turma estiver (da mesma escola, como o backend).
     const circle = new Set([account.id, ...friends.friendIds(db.friendships, account.id)]);
 
     const members = db.enrollments.filter((e) => {
       if (e.status !== 'ACTIVE' || e.schoolYearId !== mine.schoolYearId) return false;
       if (scope === 'friends') return circle.has(e.accountId);
+      if (scope === 'global') return db.crossConsent.includes(e.accountId);
       if (scope === 'class') return e.classId === groupId;
       return db.classes.find((c) => c.id === e.classId)?.institutionId === groupId;
     });
 
     const since = period === 'month' ? Date.now() - 30 * 24 * 3600 * 1000 : null;
-    const averages = members
+    const base = members
       .map((e) => {
         const sims = db.simulations.filter(
           (s) =>
@@ -1077,7 +1087,27 @@ export async function mockHandle(
       .sort((a, b) => b.average - a.average)
       .map((row, i) => ({ ...row, position: i + 1 }));
 
-    const totalStudents = members.length;
+    // Global: percentil dentro da própria escola, só com escolas acima do mínimo (ADR-0013).
+    // XP: ordena pelo XP acumulado, como `metric=xp` no backend.
+    type Row = { accountId: number; average: number; position: number; percentile?: number; xp?: number };
+    const institutionOf = (id: number) => {
+      const seat = db.enrollments.find((e) => e.accountId === id && e.status === 'ACTIVE');
+      return db.classes.find((c) => c.id === seat?.classId)?.institutionId ?? 0;
+    };
+    const scored = base.map((r) => ({ accountId: r.accountId, institutionId: institutionOf(r.accountId), average: r.average }));
+    let averages: Row[] = scope === 'global' ? rankGlobal(scored) : base;
+    const institutionsCounted = scope === 'global' ? countInstitutions(scored) : 0;
+    if (metric === 'xp') {
+      const xpOf = (id: number) => db.userStats[id]?.xp ?? null;
+      averages = averages
+        .map((r) => ({ ...r, xp: xpOf(r.accountId) ?? undefined }))
+        .sort((a, b) => (b.xp ?? -Infinity) - (a.xp ?? -Infinity))
+        .map((r, i, all) => ({ ...r, position: i > 0 && all[i - 1].xp === r.xp ? 0 : i + 1 }));
+      let last = 1;
+      averages = averages.map((r) => { last = r.position || last; return { ...r, position: last }; });
+    }
+
+    const totalStudents = scope === 'global' ? averages.length : members.length;
     const rankedStudents = averages.length;
     const smallGroup = Math.min(totalStudents, rankedStudents) < 10;
     const myRow = averages.find((r) => r.accountId === account.id) ?? null;
@@ -1105,16 +1135,27 @@ export async function mockHandle(
       return {
         position: row.position,
         accountId: row.accountId === account.id ? account.id : null,
-        displayName: maskedName(db, row.accountId) ?? 'Aluno',
+        // No global o nome sai por inteiro: nem o nome abreviado, junto da escola, se esconde (ADR-0013).
+        displayName: scope === 'global' && row.accountId !== account.id ? 'Aluno de outra escola' : (maskedName(db, row.accountId) ?? 'Aluno'),
         average: row.average,
+        percentile: scope === 'global' ? (row.percentile ?? null) : null,
+        xp: metric === 'xp' ? (row.xp ?? null) : null,
         me: row.accountId === account.id,
       };
     });
 
     return json({
-      scope, groupId, statementId: statementId ?? null, period, totalStudents, rankedStudents,
-      smallGroup, myPosition: myRow?.position ?? null, myAverage: myRow?.average ?? null, entries,
+      scope, groupId, statementId: statementId ?? null, period, metric, institutionsCounted, totalStudents, rankedStudents,
+      smallGroup, myPosition: myRow?.position ?? null, myAverage: myRow?.average ?? null,
+      myPercentile: scope === 'global' ? (myRow?.percentile ?? null) : null, entries,
     });
+  }
+
+  if (pathname === '/leaderboard/consent' && method === 'PUT') {
+    if (typeof body.crossInstitution !== 'boolean') return problem(400, 'crossInstitution is required: true to be ranked across institutions');
+    db.crossConsent = db.crossConsent.filter((id) => id !== account.id);
+    if (body.crossInstitution) db.crossConsent.push(account.id);
+    return json({ crossInstitution: body.crossInstitution });
   }
 
   // ── feed social da turma/escola (#120/#30) ──────────────────────────────────
