@@ -6,6 +6,8 @@ import { Comecar } from '@/components/comecar-prova';
 import { SalaProva } from '@/components/sala-prova';
 import { RefreshError } from '@/components/refresh-error';
 
+export const metadata = { title: 'Fazer prova · Kixi' };
+
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
 function statementId(raw: string | string[] | undefined): number | null {

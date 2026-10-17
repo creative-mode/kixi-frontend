@@ -8,6 +8,8 @@ import { SalaProva } from '@/components/sala-prova';
 import { RefreshError } from '@/components/refresh-error';
 import { Button } from '@/components/ui/button';
 
+export const metadata = { title: 'Sala de prova · Kixi' };
+
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
 const WAITING: Record<string, string> = {
