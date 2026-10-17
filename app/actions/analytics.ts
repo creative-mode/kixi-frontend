@@ -17,13 +17,22 @@ import type {
   StatementStats,
 } from '@/types/analytics';
 import { apiFetch } from '@/lib/mock/fetch';
+import { TIMEOUT_MESSAGE, isTimeout, timeoutSignal, withDeadline } from '@/lib/timeout';
 
 const BASE = `${API_BASE}/analytics`;
 
 async function get<T>(path: string): Promise<T> {
   const headers = await getAuthHeaders();
   // Dashboards must never be served from a cache: the numbers change as students finish simulations.
-  const res = await apiFetch(`${BASE}${path}`, { headers, cache: 'no-store' });
+  // E nunca devem esperar para sempre: o prazo transforma um pedido pendurado
+  // num erro de secção com "Tentar novamente" (#191).
+  let res: Response;
+  try {
+    res = await withDeadline(apiFetch(`${BASE}${path}`, { headers, cache: 'no-store', signal: timeoutSignal() }));
+  } catch (err) {
+    if (isTimeout(err)) throw new Error(TIMEOUT_MESSAGE);
+    throw err;
+  }
 
   if (!res.ok) {
     if (res.status === 401) throw new Error('Sessão expirada. Inicie sessão novamente.');
