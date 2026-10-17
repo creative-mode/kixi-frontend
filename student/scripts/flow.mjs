@@ -183,7 +183,7 @@ async function main() {
     // `next start` corre em produção, e lá `APP_ORIGIN` é obrigatório: sem esta variável a
     // app recusa servir. Defini-lo aqui é também o cenário real, em que o redireccionamento
     // do `/403` e a passagem ao gestor têm um destino de confiança.
-    env: { ...process.env, KIXI_MOCK: 'true', APP_ORIGIN: BASE },
+    env: { ...process.env, KIXI_MOCK: 'true', KIXI_ALLOW_MOCK_IN_PROD: 'true', APP_ORIGIN: BASE },
     stdio: ['ignore', 'ignore', 'pipe'],
     detached: true,
   });

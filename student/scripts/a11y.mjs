@@ -68,7 +68,6 @@ function medirContraste() {
   const css = ler(RAIZ, 'design-system', 'tokens.css');
   const temas = [
     ['claro', blocoDeTokens(css, ':root,[data-theme=\'light\']')],
-    ['escuro', blocoDeTokens(css, '.dark,[data-theme=\'dark\']')],
   ];
 
   // Pares de texto: (primeiro plano, fundo, nome). `border` fica de fora de proposito

@@ -56,10 +56,10 @@ export async function toggleReactionAction(postId: number): Promise<{ ok: boolea
 export async function addCommentAction(
   postId: number,
   content: string,
-): Promise<{ ok: true; comment: PostComment } | { ok: false }> {
-  if (!content.trim()) return { ok: false };
+): Promise<{ ok: true; comment: PostComment } | { ok: false; message: string }> {
+  if (!content.trim()) return { ok: false, message: 'Escreve alguma coisa antes de enviar.' };
   const result = await addComment(postId, content.trim());
-  if (!result.ok) return { ok: false };
+  if (!result.ok) return { ok: false, message: result.message };
   revalidatePath('/inicio');
   return { ok: true, comment: result.data };
 }

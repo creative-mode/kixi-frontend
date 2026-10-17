@@ -4,6 +4,8 @@ import { getFeed } from '@/lib/feed';
 import { loadSocial } from '@/lib/social';
 import { InicioFeed } from './inicio-feed';
 
+export const metadata = { title: 'Início · Kixi' };
+
 /**
  * O início: as salas de prova que pedem ação, o compositor e o feed da turma, na coluna central.
  * Os widgets estão na coluna da direita, global (ver `(app)/layout.tsx`).

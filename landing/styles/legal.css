@@ -13,6 +13,7 @@
 .lg-body th, .lg-body td { text-align: left; vertical-align: top; padding: 10px 12px; border: 2px solid var(--line-strong); }
 .lg-body th { background: var(--surface-high); }
 .lg-tablewrap { overflow-x: auto; }
+.lg-tablewrap:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .lg-back { margin: 40px 0 0; }
 
 /* Banner de cookies: fixo em baixo, sem tapar a navegação do topo; em ecrã estreito os botões ocupam a largura. */

@@ -146,13 +146,13 @@ export default function SchoolYearsManager() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" asChild>
-                          <Link href={`/school-year/${year.id}`}>
+                          <Link href={`/school-year/${year.id}`} aria-label={`Ver o ano letivo ${year.startYear}–${year.endYear}`}>
                             <Eye size={16} />
                           </Link>
                         </Button>
 
                         <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" asChild>
-                          <Link href={`/school-year/${year.id}/edit`}>
+                          <Link href={`/school-year/${year.id}/edit`} aria-label={`Editar o ano letivo ${year.startYear}–${year.endYear}`}>
                             <Edit size={16} />
                           </Link>
                         </Button>
@@ -162,6 +162,7 @@ export default function SchoolYearsManager() {
                           size="sm"
                           className="text-muted-foreground hover:text-destructive hover:bg-danger-soft"
                           disabled={deletingId === year.id}
+                          aria-label={`Mover o ano letivo ${year.startYear}–${year.endYear} para a reciclagem`}
                           onClick={() => handleSoftDelete(year)}
                         >
                           {deletingId === year.id ? (

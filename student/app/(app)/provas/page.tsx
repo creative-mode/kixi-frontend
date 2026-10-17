@@ -13,6 +13,8 @@ import { listInvitations } from '@/lib/exam-room';
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 
+export const metadata = { title: 'Provas · Kixi' };
+
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
 const PAGE_SIZE = 10;
@@ -254,7 +256,8 @@ export default async function Provas({ searchParams }: { searchParams: Params })
             // The card opens the detail (#19), not the room: the three modes live
             // there, and going straight to the room would make them unreachable from
             // the list — which is exactly what the acceptance criterion asks for.
-            <Link key={item.id} href={`/prova/${item.id}/detalhe`} aria-label={`${actionOf(item.state)}: ${item.kind} ${item.title}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
+            <Link key={item.id} href={`/prova/${item.id}/detalhe`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
+              <span className="sr-only">{actionOf(item.state)}: </span>
               <div className="min-w-0"><div className="leading-snug font-bold">{item.kind} · {item.title}</div><div className="mt-0.5 text-[13px] text-muted-foreground">{[item.school, item.year, item.subject].filter(Boolean).join(' · ')}</div></div>
               <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><State item={item} /></div>
               <span className="px-btn inline-flex h-10 items-center justify-center px-4 text-sm font-semibold [--face:var(--card)] [--edge:var(--input)] [--txt:var(--foreground)]">{actionOf(item.state)}</span>

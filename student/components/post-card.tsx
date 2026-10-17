@@ -32,6 +32,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
   const [reporting, setReporting] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reported, setReported] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   /** Escreve o estado nos dois sítios: o `ref` é lido no mesmo instante, antes de o
@@ -79,6 +80,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
     const text = draft.trim();
     if (!text) return;
     setDraft('');
+    setSendError(null);
     startTransition(async () => {
       const result = await addCommentAction(post.id, text);
       // A contagem só sobe depois de o servidor dizer que aceitou. Antes subia na
@@ -86,6 +88,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
       // voltava, porque o aluno não escreve outra vez o que já escreveu.
       if (!result.ok) {
         setDraft(text);
+        setSendError(result.message);
         return;
       }
       setCount((c) => c + 1);
@@ -207,6 +210,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
               </ol>
             )}
           </div>
+          {sendError && <Alert variant="destructive">{sendError}</Alert>}
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
             <UserAvatar name={myName} size={32} />
             <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" />
