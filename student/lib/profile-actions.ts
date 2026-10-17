@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiPut, authHeaders, problem } from './api';
+import type { Visibility } from './profiles';
 import { BACKEND } from './session';
 import type { Me } from './types';
 
@@ -66,4 +67,13 @@ export async function atualizarPerfilAction(
   revalidatePath('/perfil');
   revalidatePath('/inicio');
   return { saved: true };
+}
+
+/** Quem pode ver o meu perfil: toda a gente, a minha escola ou só eu (#336). */
+export async function definirVisibilidadeAction(value: Visibility): Promise<{ error?: string }> {
+  if (!['public', 'school', 'private'].includes(value)) return { error: 'Escolha inválida.' };
+  const result = await apiPut<{ visibility: string }>('/profiles/me/visibility', { visibility: value });
+  if (!result.ok) return { error: result.message };
+  revalidatePath('/perfil');
+  return {};
 }

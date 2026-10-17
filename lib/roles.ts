@@ -38,6 +38,7 @@ const ADMIN_ONLY_ROUTES = [
   '/users',
   '/sessions',
   '/donations',
+  '/verification',
 ];
 
 const isUnder = (pathname: string, route: string) => pathname === route || pathname.startsWith(`${route}/`);

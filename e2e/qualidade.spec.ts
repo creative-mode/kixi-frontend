@@ -99,13 +99,21 @@ test.describe('avisos do aluno', () => {
   test('um aviso sem ícone ocupa a largura toda e não parte o texto em colunas', async ({ page }) => {
     await alunoLogin(page);
     await page.goto('/aluno/ranking');
-    await page.getByRole('tab', { name: 'Amigos' }).click();
-    const aviso = page.locator('[data-slot="alert"]').first();
-    await expect(aviso).toBeVisible();
-    const caixa = await aviso.boundingBox();
-    // Antes da correção o texto ficava numa coluna de largura zero: mais de 280 px de altura.
-    expect(caixa!.height).toBeLessThan(120);
-    expect(caixa!.width).toBeGreaterThan(250);
+    await page.waitForLoadState('networkidle');
+    // Um aviso aparece quando o servidor falha ao carregar a aba (o ranking de amigos já tem dados reais).
+    const definir = (mode: string) => page.request.post('/aluno/api/mock-fault', { data: { mode } });
+    try {
+      expect((await definir('500')).ok()).toBeTruthy();
+      await page.getByRole('tab', { name: 'Escola' }).click();
+      const aviso = page.locator('[data-slot="alert"]').first();
+      await expect(aviso).toBeVisible();
+      const caixa = await aviso.boundingBox();
+      // Antes da correção o texto ficava numa coluna de largura zero: mais de 280 px de altura.
+      expect(caixa!.height).toBeLessThan(120);
+      expect(caixa!.width).toBeGreaterThan(250);
+    } finally {
+      await definir('');
+    }
   });
 });
 
@@ -133,5 +141,117 @@ test.describe('títulos', () => {
       titulos.set(titulo, rota);
     }
     await ctx.close();
+  });
+});
+
+/** Alvos de toque (#348): o axe só falha abaixo de 24 px; no telemóvel exigimos mais nos ecrãs principais. */
+test.describe('alvos de toque no telemóvel', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('os alvos do aluno não ficam abaixo dos 24 px e o cabeçalho cumpre os 44 px', async ({ page }) => {
+    await alunoLogin(page);
+    for (const rota of ['/aluno/inicio', '/aluno/provas', '/aluno/perfil']) {
+      await page.goto(rota);
+      await page.waitForLoadState('networkidle');
+      const pequenos = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('a,button,input:not([type=hidden]),select,textarea')]
+          .filter((e) => {
+            const r = e.getBoundingClientRect();
+            const inline = e.tagName === 'A' && getComputedStyle(e).display === 'inline';
+            return r.width > 0 && r.height > 0 && !e.closest('.sr-only') && !inline && (r.width < 24 || r.height < 24);
+          })
+          .map((e) => `${e.tagName} ${Math.round(e.getBoundingClientRect().width)}x${Math.round(e.getBoundingClientRect().height)} ${(e.getAttribute('aria-label') ?? e.textContent ?? '').trim().slice(0, 30)}`),
+      );
+      expect(pequenos, rota).toEqual([]);
+    }
+    await page.goto('/aluno/inicio');
+    for (const nome of [/Perfil de/, /Kixi, início/, /Procurar provas/]) {
+      const caixa = await page.locator('header.sticky').getByRole('link', { name: nome }).first().boundingBox();
+      expect(caixa?.height ?? 0, String(nome)).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
+/** Backend a falhar (#350): o aluno fica na aplicação com uma mensagem e uma saída, nunca no login nem em branco. */
+test.describe('backend a falhar', () => {
+  for (const modo of ['500', 'timeout'] as const) {
+    test(`com o servidor em ${modo} o aluno continua dentro e vê uma mensagem`, async ({ page }) => {
+      await alunoLogin(page);
+      const definir = (mode: string) => page.request.post('/aluno/api/mock-fault', { data: { mode } });
+      try {
+        expect((await definir(modo)).ok()).toBeTruthy();
+        for (const rota of ['/aluno/inicio', '/aluno/provas', '/aluno/perfil']) {
+          await page.goto(rota);
+          await page.waitForLoadState('networkidle');
+          await expect(page, rota).not.toHaveURL(/entrar/);
+          await expect(page.locator('#conteudo, main').first(), rota).toContainText(/\S/);
+          expect(await page.getByRole('button', { name: /tentar (de )?novo/i }).count() + (await page.getByRole('link', { name: /tentar (de )?novo/i }).count()), `${rota} sem «Tentar de novo»`).toBeGreaterThan(0);
+        }
+      } finally {
+        await definir('');
+      }
+      await page.goto('/aluno/inicio');
+      await expect(page).toHaveURL(/\/aluno\/inicio/);
+    });
+  }
+});
+
+/** Amigos (#139): convidar, aceitar e o ranking de amigos com dados reais em vez de "chega em breve". */
+test.describe('amigos e ranking de amigos', () => {
+  test('o aluno aceita um pedido recebido e vê o amigo e o ranking de amigos', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/ranking');
+    // Sem esperar pela hidratação o clique no separador perde-se na build de produção.
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('tab', { name: 'Amigos' }).click();
+    await expect(page.getByRole('region', { name: 'Amigos' })).toBeVisible();
+    await expect(page.getByText(/chega em breve|não está disponível/i)).toHaveCount(0);
+    // A lista chega depois da hidratação: espera pela amiga que já está aceite antes de olhar para os pedidos.
+    await expect(page.getByRole('region', { name: 'Amigos' })).toContainText('Sara P.');
+    // O mock guarda o estado entre tentativas: numa repetição o pedido já foi aceite.
+    const pedidos = page.getByRole('region', { name: 'Pedidos recebidos' });
+    if (await pedidos.isVisible()) {
+      await pedidos.getByRole('button', { name: 'Aceitar' }).click();
+    }
+    await expect(page.getByRole('region', { name: 'Amigos' })).toContainText('Nuno D.');
+    await expect(pedidos).toHaveCount(0);
+    expect(await graves(page)).toEqual([]);
+  });
+});
+
+/** Comparação entre escolas (#129): consentimento, escolas com poucos alunos e a métrica de XP. */
+test.describe('ranking global e métrica', () => {
+  test('o global pede consentimento, explica porque está vazio e o XP muda a tabela', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/ranking');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('tab', { name: 'Global' }).click();
+    // O mock guarda o consentimento entre tentativas: numa repetição já foi dado.
+    const participar = page.getByRole('button', { name: 'Quero participar' });
+    const retirar = page.getByRole('button', { name: /Deixar de participar/ });
+    // Espera pela resposta do servidor: antes dela a página ainda mostra a tabela da aba anterior.
+    await expect(page.getByText(/Comparar-te com alunos de outras escolas|pelo menos 10 alunos/)).toBeVisible();
+    if (await participar.isVisible()) {
+      // Um clique dado antes de a página reagir perde-se: repete até a explicação aparecer.
+      await expect(async () => {
+        if (await participar.isVisible()) await participar.click();
+        await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible({ timeout: 2000 });
+      }).toPass({ timeout: 15_000 });
+    }
+    await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible();
+    await expect(retirar).toBeVisible();
+    expect(await graves(page)).toEqual([]);
+    await retirar.click();
+    await expect(participar).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Turma' }).click();
+    await page.getByLabel('Ordenar por').selectOption('xp');
+    await expect(page.locator('th', { hasText: /^XP$/ })).toBeVisible();
+    await page.getByLabel('Período').selectOption('month');
+    // O período entra no pedido: sem erro, com a tabela ou com o estado vazio, mas nunca um aviso.
+    await expect(page.getByLabel('Período')).toHaveValue('month');
+    await expect(page.locator('th', { hasText: /^XP$/ }).or(page.getByText('Ainda não há dados'))).toBeVisible();
+    await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
+    expect(await graves(page)).toEqual([]);
   });
 });

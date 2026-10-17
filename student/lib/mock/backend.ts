@@ -2,6 +2,10 @@ import 'server-only';
 import { catalogPage } from './catalog-page';
 import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
+import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
+import * as friends from './friends';
+import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
+import { effectiveFault, normalizeFault, type Fault } from './fault';
 import {
   deadlineFor,
   expired,
@@ -37,6 +41,14 @@ export const MOCK = process.env.KIXI_MOCK !== 'false';
  *  keeps a student in the feed when the server is down instead of logging them out — is
  *  unreachable while designing, and a regression there would pass every test. */
 export const FAULT = (process.env.KIXI_MOCK_FAULT ?? '').toLowerCase();
+
+/** A falha em vigor: a mudada em runtime por `setFault` (para o e2e ligar e desligar a falha sem
+ *  reiniciar o servidor) ou, na falta dela, a do ambiente. */
+export const currentFault = (): Fault => effectiveFault(G.__kixiFault, FAULT);
+
+export function setFault(mode: string): void {
+  G.__kixiFault = normalizeFault(mode);
+}
 
 const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -116,6 +128,13 @@ type SimulationRow = {
 type Store = {
   accounts: Account[];
   nextAccount: number;
+  /** Amizades (kixi#121); o ranking de amigos só conta as aceites. */
+  friendships: friends.Friendship[];
+  nextFriendship: number;
+  /** Quem aceitou ser comparado com outras escolas (ADR-0013); sem entrada, não. */
+  crossConsent: number[];
+  /** Quem pode ver o perfil de cada conta (#336); sem entrada vale 'school'. */
+  visibility: Record<number, string>;
   institutions: Institution[];
   courses: Course[];
   schoolYears: SchoolYear[];
@@ -212,7 +231,7 @@ type MockUserBadge = {
   unlockedAt: string;
 };
 
-const G = globalThis as unknown as { __kixiStudentMock?: Store };
+const G = globalThis as unknown as { __kixiStudentMock?: Store; __kixiFault?: Fault };
 
 const hash = (pw: string) => crypto.createHash('sha256').update(`kixi:${pw}`).digest('hex');
 const b64 = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
@@ -321,6 +340,14 @@ function seed(): Store {
   return {
     accounts,
     nextAccount: 7,
+    // A Sara já é amiga do aluno; o Nuno pediu e espera resposta.
+    friendships: [
+      { id: 1, requesterId: 3, addresseeId: 5, accepted: true },
+      { id: 2, requesterId: 4, addresseeId: 3, accepted: false },
+    ],
+    nextFriendship: 3,
+    crossConsent: [],
+    visibility: { 5: 'private' },
     institutions,
     courses,
     schoolYears,
@@ -878,8 +905,9 @@ export async function mockHandle(
   token: string | null,
   bodyText: string,
 ): Promise<Response> {
-  if (FAULT === 'timeout') throw new TypeError('fetch failed');
-  if (FAULT === '500') {
+  const fault = currentFault();
+  if (fault === 'timeout') throw new TypeError('fetch failed');
+  if (fault === '500') {
     return problem(500, 'Injected failure');
   }
   const db = store();
@@ -962,6 +990,46 @@ export async function mockHandle(
     return json(db.userBadges[account.id] ?? []);
   }
 
+  // ── amizades (kixi#121): o FriendshipService, com as regras em ./friends ──────
+  if (pathname.startsWith('/friends') && accountId !== null) {
+    const me = accountId;
+    const nameOf = (id: number) => maskedName(db, id) ?? 'Aluno';
+    if (pathname === '/friends' && method === 'GET') return json(friends.listFriends(db.friendships, me, nameOf));
+    if (pathname === '/friends/requests' && method === 'GET') return json(friends.listRequests(db.friendships, me, nameOf));
+    if (pathname === '/friends/search' && method === 'GET') {
+      const mineEnrollment = db.enrollments.find((e) => e.accountId === me && e.status === 'ACTIVE');
+      if (!mineEnrollment) return problem(409, 'An active enrollment in a school is needed to search colleagues');
+      const colleagues = db.enrollments
+        .filter((e) => e.status === 'ACTIVE' && e.schoolYearId === mineEnrollment.schoolYearId)
+        .map((e) => ({ id: e.accountId, name: nameOf(e.accountId) }));
+      return json(friends.searchable(db.friendships, me, colleagues, search.get('q') ?? ''));
+    }
+    if (pathname === '/friends' && method === 'POST') {
+      const made = friends.request(db.friendships, me, body.accountId, db.nextFriendship);
+      if (!made.ok) return problem(made.status, made.message);
+      const target = Number(body.accountId);
+      const mineEnrollment = db.enrollments.find((e) => e.accountId === me && e.status === 'ACTIVE');
+      const same = db.enrollments.some((e) => e.accountId === target && e.status === 'ACTIVE' && e.schoolYearId === mineEnrollment?.schoolYearId);
+      if (!same) return problem(400, 'That colleague is not in your school this year');
+      db.nextFriendship += 1;
+      db.friendships.push(made.value);
+      return json(friends.viewOf(made.value, me, nameOf), 201);
+    }
+    const act = pathname.match(/^\/friends\/(\d+)(\/accept)?$/);
+    if (act && act[2] && method === 'POST') {
+      const done = friends.accept(db.friendships, me, Number(act[1]));
+      if (!done.ok) return problem(done.status, done.message);
+      done.value.accepted = true;
+      return json(friends.viewOf(done.value, me, nameOf));
+    }
+    if (act && !act[2] && method === 'DELETE') {
+      const done = friends.remove(db.friendships, me, Number(act[1]));
+      if (!done.ok) return problem(done.status, done.message);
+      db.friendships = db.friendships.filter((r) => r.id !== done.value.id);
+      return new Response(null, { status: 204 });
+    }
+  }
+
   // ── ranking (#117/#31) ──────────────────────────────────────────────────────
   // Espelha o LeaderboardController real: o grupo nunca vem de um parâmetro do
   // pedido, só da própria matrícula do chamador - não há combinação de query
@@ -971,31 +1039,37 @@ export async function mockHandle(
     const scope = search.get('scope') ?? 'class';
     const period = search.get('period') ?? 'all';
     const statementId = filter('statementId');
-    if (!['class', 'school', 'friends'].includes(scope)) {
-      return problem(400, 'scope must be class, school or friends');
+    const metric = search.get('metric') ?? 'average';
+    if (!['class', 'school', 'friends', 'global'].includes(scope)) {
+      return problem(400, 'scope must be class, school, friends or global');
+    }
+    if (!['average', 'xp'].includes(metric)) return problem(400, 'metric must be average or xp');
+    if (scope === 'global' && !db.crossConsent.includes(account.id)) {
+      return problem(403, 'Consent is required to be ranked across institutions');
     }
     if (statementId !== undefined && !db.statements.some((s) => s.id === statementId)) {
       return problem(404, 'Statement not found');
     }
-    if (scope === 'friends') {
-      return problem(404, 'The friends ranking is not available yet; it arrives with friendships (issue #121)');
-    }
 
     const mine = db.enrollments.find((e) => e.accountId === account.id && e.status === 'ACTIVE');
-    const empty = { scope, groupId: null, statementId: statementId ?? null, period, totalStudents: 0, rankedStudents: 0, smallGroup: true, myPosition: null, myAverage: null, entries: [] };
+    const empty = { scope, groupId: null, statementId: statementId ?? null, period, metric, institutionsCounted: 0, totalStudents: 0, rankedStudents: 0, smallGroup: true, myPosition: null, myAverage: null, entries: [] };
     if (!mine) return json(empty);
     const klass = db.classes.find((c) => c.id === mine.classId);
     if (!klass) return json(empty);
-    const groupId = scope === 'class' ? mine.classId : klass.institutionId;
+    const groupId = scope === 'friends' || scope === 'global' ? null : scope === 'class' ? mine.classId : klass.institutionId;
+    // Amigos: o aluno e quem aceitou, esteja em que turma estiver (da mesma escola, como o backend).
+    const circle = new Set([account.id, ...friends.friendIds(db.friendships, account.id)]);
 
     const members = db.enrollments.filter((e) => {
       if (e.status !== 'ACTIVE' || e.schoolYearId !== mine.schoolYearId) return false;
+      if (scope === 'friends') return circle.has(e.accountId);
+      if (scope === 'global') return db.crossConsent.includes(e.accountId);
       if (scope === 'class') return e.classId === groupId;
       return db.classes.find((c) => c.id === e.classId)?.institutionId === groupId;
     });
 
     const since = period === 'month' ? Date.now() - 30 * 24 * 3600 * 1000 : null;
-    const averages = members
+    const base = members
       .map((e) => {
         const sims = db.simulations.filter(
           (s) =>
@@ -1013,7 +1087,27 @@ export async function mockHandle(
       .sort((a, b) => b.average - a.average)
       .map((row, i) => ({ ...row, position: i + 1 }));
 
-    const totalStudents = members.length;
+    // Global: percentil dentro da própria escola, só com escolas acima do mínimo (ADR-0013).
+    // XP: ordena pelo XP acumulado, como `metric=xp` no backend.
+    type Row = { accountId: number; average: number; position: number; percentile?: number; xp?: number };
+    const institutionOf = (id: number) => {
+      const seat = db.enrollments.find((e) => e.accountId === id && e.status === 'ACTIVE');
+      return db.classes.find((c) => c.id === seat?.classId)?.institutionId ?? 0;
+    };
+    const scored = base.map((r) => ({ accountId: r.accountId, institutionId: institutionOf(r.accountId), average: r.average }));
+    let averages: Row[] = scope === 'global' ? rankGlobal(scored) : base;
+    const institutionsCounted = scope === 'global' ? countInstitutions(scored) : 0;
+    if (metric === 'xp') {
+      const xpOf = (id: number) => db.userStats[id]?.xp ?? null;
+      averages = averages
+        .map((r) => ({ ...r, xp: xpOf(r.accountId) ?? undefined }))
+        .sort((a, b) => (b.xp ?? -Infinity) - (a.xp ?? -Infinity))
+        .map((r, i, all) => ({ ...r, position: i > 0 && all[i - 1].xp === r.xp ? 0 : i + 1 }));
+      let last = 1;
+      averages = averages.map((r) => { last = r.position || last; return { ...r, position: last }; });
+    }
+
+    const totalStudents = scope === 'global' ? averages.length : members.length;
     const rankedStudents = averages.length;
     const smallGroup = Math.min(totalStudents, rankedStudents) < 10;
     const myRow = averages.find((r) => r.accountId === account.id) ?? null;
@@ -1041,16 +1135,27 @@ export async function mockHandle(
       return {
         position: row.position,
         accountId: row.accountId === account.id ? account.id : null,
-        displayName: maskedName(db, row.accountId) ?? 'Aluno',
+        // No global o nome sai por inteiro: nem o nome abreviado, junto da escola, se esconde (ADR-0013).
+        displayName: scope === 'global' && row.accountId !== account.id ? 'Aluno de outra escola' : (maskedName(db, row.accountId) ?? 'Aluno'),
         average: row.average,
+        percentile: scope === 'global' ? (row.percentile ?? null) : null,
+        xp: metric === 'xp' ? (row.xp ?? null) : null,
         me: row.accountId === account.id,
       };
     });
 
     return json({
-      scope, groupId, statementId: statementId ?? null, period, totalStudents, rankedStudents,
-      smallGroup, myPosition: myRow?.position ?? null, myAverage: myRow?.average ?? null, entries,
+      scope, groupId, statementId: statementId ?? null, period, metric, institutionsCounted, totalStudents, rankedStudents,
+      smallGroup, myPosition: myRow?.position ?? null, myAverage: myRow?.average ?? null,
+      myPercentile: scope === 'global' ? (myRow?.percentile ?? null) : null, entries,
     });
+  }
+
+  if (pathname === '/leaderboard/consent' && method === 'PUT') {
+    if (typeof body.crossInstitution !== 'boolean') return problem(400, 'crossInstitution is required: true to be ranked across institutions');
+    db.crossConsent = db.crossConsent.filter((id) => id !== account.id);
+    if (body.crossInstitution) db.crossConsent.push(account.id);
+    return json({ crossInstitution: body.crossInstitution });
   }
 
   // ── feed social da turma/escola (#120/#30) ──────────────────────────────────
@@ -1216,6 +1321,74 @@ export async function mockHandle(
     // rather than nulling it; the client treats blank as "no picture".
     if (body.photo !== undefined) account.photo = photo;
     return json(meResponse(db, account));
+  }
+
+  // ── perfis (#331/#336/#338): escolas, pessoas, pesquisa ───────────────────────
+  if (pathname.startsWith('/profiles/') && method === 'GET' || pathname === '/profiles/me/visibility') {
+    const card = (i: Institution) => ({
+      id: i.id, code: i.code, name: i.name, shortName: i.short_name, logo: i.logo, verified: i.id === 1,
+    });
+    const school = pathname.match(/^\/profiles\/institutions\/(\d+)(\/teachers)?$/);
+    if (school) {
+      const inst = db.institutions.find((i) => i.id === Number(school[1]));
+      if (!inst) return problem(404, 'Institution not found');
+      const classIds = new Set(db.classes.filter((c) => c.institutionId === inst.id).map((c) => c.id));
+      if (school[2]) {
+        return json(
+          inst.id === 1
+            ? [{ id: 1, accountId: 2, displayName: 'Bruno Mendes', photo: null, specialty: 'Redes', verified: true }]
+            : [],
+        );
+      }
+      return json({
+        ...card(inst),
+        verifiedAt: inst.id === 1 ? '2026-01-15T10:00:00' : null,
+        teacherCount: inst.id === 1 ? 1 : 0,
+        studentCount: db.enrollments.filter((e) => classIds.has(e.classId)).length,
+        statementCount: db.statements.filter((x) => x.institutionId === inst.id).length,
+      });
+    }
+    if (pathname === '/profiles/search') {
+      const q = search.get('q') ?? '';
+      if (q.trim().length < 2) return problem(400, 'q must have at least 2 characters');
+      return json(db.institutions.filter((i) => matchesSearch(q, i)).map(card));
+    }
+    if (pathname === '/profiles/me/visibility') {
+      if (accountId === null) return problem(401, 'Unauthorized');
+      return json({ visibility: db.visibility[accountId] ?? 'school' });
+    }
+    const person = pathname.match(/^\/profiles\/(?:accounts|users)\/(\d+)$/);
+    if (person) {
+      const target = db.accounts.find((a) => a.id === Number(person[1]));
+      if (!target) return problem(404, 'Profile not found');
+      const visibility = db.visibility[target.id] ?? 'school';
+      const mine = accountId === target.id;
+      const restricted = isRestricted(visibility as Visibility, mine);
+      const classIds = db.enrollments.filter((e) => e.accountId === target.id).map((e) => e.classId);
+      const schoolIds = new Set(db.classes.filter((c) => classIds.includes(c.id)).map((c) => c.institutionId));
+      return json({
+        userId: target.id,
+        displayName: `${target.firstName} ${target.lastName}`,
+        photo: target.photo,
+        kind: target.roles.includes('TEACHER') ? 'TEACHER' : 'STUDENT',
+        verified: target.roles.includes('TEACHER'),
+        restricted,
+        visibility,
+        schools: restricted
+          ? []
+          : db.institutions.filter((i) => schoolIds.has(i.id) || (target.roles.includes('TEACHER') && i.id === 1)).map(card),
+        level: restricted ? null : 3,
+        xp: restricted ? null : 240,
+        badges: restricted ? [] : ['Primeira prova'],
+      });
+    }
+  }
+  if (pathname === '/profiles/me/visibility' && method === 'PUT') {
+    if (accountId === null) return problem(401, 'Unauthorized');
+    const value = text('visibility');
+    if (!isVisibility(value)) return problem(400, 'Visibility must be public, school or private');
+    db.visibility[accountId] = value;
+    return json({ visibility: value });
   }
 
   if (pathname === '/institutions' && method === 'GET') {

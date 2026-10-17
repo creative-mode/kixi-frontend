@@ -17,6 +17,7 @@ import {
   Sparkles,
   UserCheck,
   Gift,
+  BadgeCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,13 @@ const allNavLinks = [
     label: "Doações",
     description: "Enunciados enviados pela página pública",
     icon: Gift,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/verification",
+    label: "Verificação",
+    description: "Selo de verificação das escolas",
+    icon: BadgeCheck,
     color: "bg-accent text-primary",
   },
   ...NAV_KEYS.map((k) => {

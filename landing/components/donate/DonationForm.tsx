@@ -14,6 +14,7 @@ import {
   type FieldErrors,
 } from '@/lib/donation-rules';
 import { inspectImage, messageFor, type Assessment } from '@/lib/image-quality';
+import { imagesFrom } from '@/lib/clipboard-images';
 
 type Phase = 'editing' | 'sending' | 'done';
 
@@ -45,6 +46,8 @@ export function DonationForm() {
   const [step, setStep] = useState(0);
   // Veredicto da análise de cada foto (undefined = ainda a analisar); os PDFs não são analisados.
   const [checks, setChecks] = useState<Record<string, Assessment | null>>({});
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<number | null>(null);
   const heading = useRef<HTMLLegendElement>(null);
 
   // O momento em que o formulário apareceu: o backend recusa quem preenche mais depressa que uma pessoa.
@@ -52,10 +55,34 @@ export function DonationForm() {
     startedAt.current = Date.now();
   }, []);
 
+  // O `addFiles` fecha sobre os ficheiros atuais; o ouvinte de `paste` lê sempre o mais recente.
+  const addFilesRef = useRef(addFiles);
+  useEffect(() => { addFilesRef.current = addFiles; });
+
+  // Colar uma imagem (Ctrl+V, ou uma captura no telemóvel) entra pela mesma via dos ficheiros
+  // escolhidos: mesmas regras de tipo, tamanho e número, e a mesma análise de qualidade.
+  // Ouve-se a janela porque a área dos ficheiros não recebe foco por si — assim o Ctrl+V
+  // funciona em qualquer ponto do primeiro ecrã, e o texto colado nos campos segue normal.
+  useEffect(() => {
+    if (phase !== 'editing' || step !== 0) return;
+    function onPaste(event: ClipboardEvent) {
+      const items = event.clipboardData ? Array.from(event.clipboardData.items) : [];
+      const images = imagesFrom(items);
+      if (images.length === 0) return;
+      event.preventDefault();
+      addFilesRef.current(images);
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [phase, step]);
+
+  // O temporizador do «Copiado!» não pode sobreviver ao ecrã.
+  useEffect(() => () => { if (copyTimer.current !== null) window.clearTimeout(copyTimer.current); }, []);
+
   const id = (name: string) => `${uid}-${name}`;
   const describe = (name: keyof FieldErrors) => (errors[name] ? `${id(name)}-err` : undefined);
 
-  function addFiles(list: FileList | null) {
+  function addFiles(list: FileList | readonly File[] | null) {
     if (!list) return;
     const next = [...files];
     for (const file of Array.from(list)) {
@@ -75,6 +102,20 @@ export function DonationForm() {
     setFiles(next);
     setChecks((c) => { const { [keyOf(files[index])]: _gone, ...rest } = c; return rest; });
     setErrors((e) => ({ ...e, files: next.length ? validateFiles(next) ?? undefined : undefined }));
+  }
+
+  /** Copia a referência; se o clipboard não existir ou for negado, fica a seleção à mão como saída. */
+  async function copyReference() {
+    if (!reference) return;
+    try {
+      if (!navigator.clipboard?.writeText) return;
+      await navigator.clipboard.writeText(reference);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+    copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
   }
 
   function send(form: FormData) {
@@ -180,7 +221,19 @@ export function DonationForm() {
       <div className="dn-console" data-state="done">
         <div className="dn-screenwrap"><div className="dn-lcd dn-done" role="status" aria-live="polite" tabIndex={-1}>
           <h2 className="dn-done__title">Recebido. Obrigado!</h2>
-          <p className="dn-done__ref" aria-label={`Referência ${reference}`}>{reference}</p>
+          <div className="dn-done__refrow">
+            <p className="dn-done__ref" aria-label={`Referência ${reference}`}>{reference}</p>
+            <span className="kx-btn-wrap kx-scope">
+              <button
+                type="button"
+                className="kx-btn kx-btn--sm kx-btn--secondary"
+                onClick={copyReference}
+                aria-label="Copiar referência"
+              >
+                <span className="kx-btn__label">{copied ? 'Copiado!' : 'Copiar'}</span>
+              </button>
+            </span>
+          </div>
           <p className="dn-done__text">
             Guarda este código: é com ele que falas connosco sobre esta doação. Vamos rever o enunciado antes de o publicar.
           </p>
@@ -194,6 +247,8 @@ export function DonationForm() {
               setErrors({});
               setProblem(null);
               setReference(null);
+              setCopied(false);
+              if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
               setPhase('editing');
               setStep(0);
               startedAt.current = Date.now();
@@ -238,7 +293,7 @@ export function DonationForm() {
               <span className="dn-drop__hint">
                 JPG, PNG, WEBP ou PDF · até {MAX_FILES} ficheiros · {MAX_FILE_BYTES / (1024 * 1024)} MB cada
               </span>
-              <span className="dn-drop__tip">Folha inteira, em pé, com luz e sem tremer.</span>
+              <span className="dn-drop__tip">Folha inteira, em pé, com luz e sem tremer. Ou cola com Ctrl+V (Cmd+V no Mac).</span>
             </label>
             <input
               ref={picker}
