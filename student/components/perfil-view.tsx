@@ -3,6 +3,8 @@
 import { useCallback, useState } from 'react';
 import { Award, BookOpen, Building2, CalendarDays, Check, Flame, Users } from 'lucide-react';
 import { Mastery } from '@/components/mastery';
+import { Page, PageHeader } from '@/components/page';
+import { UserAvatar } from '@/components/user-avatar';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
 import { ProfileEditor } from '@/components/profile-editor';
@@ -15,8 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { contextLine, fullName } from '@/lib/profile';
-import { setTheme, useNightTheme } from '@/lib/theme';
+import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setReduceMotion, useReduceMotion } from '@/lib/motion';
 import { sinceLabel } from '@/lib/attempt-history';
 import { formatAverage } from '@/lib/ranking-rules';
@@ -57,7 +58,6 @@ export function PerfilView({
   startEditing?: boolean;
 }) {
   const [editing, setEditing] = useState(startEditing);
-  const night = useNightTheme();
   const reduceMotion = useReduceMotion();
   const close = useCallback(() => setEditing(false), []);
 
@@ -66,41 +66,34 @@ export function PerfilView({
   const recent = performance.activity.slice(0, 3);
 
   return (
-    <>
-      <Card className="gap-0 overflow-hidden py-0">
-        <div aria-hidden className="h-16 border-b bg-gradient-to-br from-accent to-secondary" />
-        <div className="grid gap-3 px-5 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-[22px] leading-tight font-bold tracking-tight">{name}</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">{context || 'Sem afiliação académica: matricula-te para veres o teu feed.'}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {stats && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {stats.level}</Pill>}
-              {stats && stats.streak > 0 && <Pill variant="outline"><Flame className="size-3" aria-hidden />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
-              {!editing && <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>Editar perfil</Button>}
-            </div>
+    <Page className="gap-0 p-0 pb-24 md:pb-10">
+      <PageHeader title={name} kicker={`${performance.activity.length} ${performance.activity.length === 1 ? 'simulação' : 'simulações'}`} back="/inicio" className="m-0" />
+
+      <section aria-label="Perfil" className="border-b">
+        <div aria-hidden className="h-32 bg-gradient-to-br from-accent to-secondary" />
+        <div className="px-4 pb-4">
+          <div className="flex items-end justify-between gap-3">
+            <div className="-mt-12 rounded-full border-4 border-background bg-background"><UserAvatar name={name} src={photoUrl(me)} size={88} /></div>
+            {!editing && <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button>}
           </div>
-          <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+          <h2 className="mt-2 text-xl leading-tight font-extrabold tracking-tight">{name}</h2>
+          {!context && <p className="text-[15px] text-muted-foreground">Sem afiliação académica: matricula-te para veres o teu feed.</p>}
+          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
             {me.school && <Fact icon={Building2}>{me.school.name}</Fact>}
             {me.course && <Fact icon={BookOpen}>{me.course.name}</Fact>}
             {me.currentClass && <Fact icon={Users}>Turma {me.currentClass.code}</Fact>}
             {me.currentClass?.school_year && <Fact icon={CalendarDays}>Ano letivo {me.currentClass.school_year}</Fact>}
           </ul>
-        </div>
-        {editing && <ProfileEditor me={me} onDone={close} />}
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="gap-3 p-4">
-          <h2 className="text-sm font-bold tracking-tight">Últimas simulações</h2>
-          {recent.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">As provas que entregares aparecem aqui, com a nota.</p>
-          ) : (
-            <ul className="grid grid-cols-3 gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {stats && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {stats.level}</Pill>}
+            {stats && stats.streak > 0 && <Pill variant="outline"><Flame className="size-3" aria-hidden />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
+            {stats && <Pill variant="outline">{stats.xp} XP</Pill>}
+          </div>
+          {recent.length > 0 && (
+            <ul aria-label="Últimas simulações" className="mt-4 grid grid-cols-3 gap-2">
               {recent.map((a) => (
                 <li key={a.id}>
-                  <Link href={`/resultado?prova=${a.id}`} className="px-step grid h-full content-between gap-2 bg-secondary p-2.5 transition-colors hover:bg-accent">
+                  <Link href={`/resultado?prova=${a.id}`} className="px-box grid h-full content-between gap-2 p-3 [--px-face:var(--secondary)] hover:[--px-face:var(--accent)]">
                     <b className="text-lg leading-none tabular-nums">{formatAverage(a.score)}</b>
                     <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{shortTitle(a.title, 32)}</span>
                   </Link>
@@ -108,28 +101,17 @@ export function PerfilView({
               ))}
             </ul>
           )}
-        </Card>
-        <Card className="gap-3 p-4">
-          <h2 className="text-sm font-bold tracking-tight">Sequência de estudo</h2>
-          {stats ? (
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="px-step bg-secondary px-1 py-2.5"><b className="block text-lg leading-none tabular-nums">{stats.streak}</b><span className="text-[12px] text-muted-foreground">agora</span></div>
-              <div className="px-step bg-secondary px-1 py-2.5"><b className="block text-lg leading-none tabular-nums">{stats.longestStreak}</b><span className="text-[12px] text-muted-foreground">melhor</span></div>
-              <div className="px-step bg-secondary px-1 py-2.5"><b className="block text-lg leading-none tabular-nums">{stats.freePauses}</b><span className="text-[12px] text-muted-foreground">pausas</span></div>
-            </div>
-          ) : (
-            <p className="text-[13px] text-muted-foreground">A tua sequência aparece aqui depois da primeira prova.</p>
-          )}
-        </Card>
-      </div>
+        </div>
+        {editing && <div className="border-t"><ProfileEditor me={me} onDone={close} /></div>}
+      </section>
 
       <Tabs defaultValue={initialTab}>
         <TabsList aria-label="Perfil">{PROFILE_TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
 
-        <TabsContent value="Publicações" className="flex flex-col gap-4">
+        <TabsContent value="Publicações" className="flex flex-col">
           {classId && <PostComposer classId={classId} />}
           {feedError ? (
-            <Alert variant="destructive">{feedError}</Alert>
+            <div className="p-4"><Alert variant="destructive">{feedError}</Alert></div>
           ) : !classId ? (
             <EmptyState title="Matricula-te para publicares" message="As publicações da tua turma aparecem aqui depois da matrícula." />
           ) : posts.length === 0 ? (
@@ -139,7 +121,7 @@ export function PerfilView({
           )}
         </TabsContent>
 
-        <TabsContent value="Atividade">
+        <TabsContent value="Atividade" className="p-4">
           <Card className="gap-0 divide-y py-0">
             {performance.activity.length === 0 && (
               <div className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
@@ -156,7 +138,7 @@ export function PerfilView({
           </Card>
         </TabsContent>
 
-        <TabsContent value="Desempenho">
+        <TabsContent value="Desempenho" className="p-4">
           <Card><CardHeader><CardTitle>Domínio por prova</CardTitle></CardHeader>
             <CardContent className="grid gap-3.5">
               {performance.mastery.length === 0
@@ -166,7 +148,7 @@ export function PerfilView({
           </Card>
         </TabsContent>
 
-        <TabsContent value="Medalhas">
+        <TabsContent value="Medalhas" className="p-4">
           {badges.length === 0 ? (
             <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
               <b className="text-foreground">Ainda não desbloqueaste medalhas</b>
@@ -184,7 +166,7 @@ export function PerfilView({
           )}
         </TabsContent>
 
-        <TabsContent value="Histórico">
+        <TabsContent value="Histórico" className="p-4">
           {history.length === 0 ? (
             <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
               <b className="text-foreground">Ainda não terminaste nenhuma prova</b>
@@ -205,14 +187,10 @@ export function PerfilView({
           )}
         </TabsContent>
 
-        <TabsContent value="Definições">
+        <TabsContent value="Definições" className="p-4">
           <Card><CardHeader><CardTitle>Definições</CardTitle></CardHeader>
             <CardContent className="divide-y">
               <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0">
-                <Label htmlFor="def-night" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Tema escuro</span><span className="text-[13px] font-normal text-muted-foreground">Fundo escuro, para estudar à noite.</span></Label>
-                <Switch id="def-night" checked={night} onCheckedChange={setTheme} />
-              </div>
-              <div className="flex items-center justify-between gap-4 py-3.5">
                 <Label htmlFor="def-motion" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Reduzir movimento</span><span className="text-[13px] font-normal text-muted-foreground">Menos animações na interface.</span></Label>
                 <Switch id="def-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
               </div>
@@ -229,6 +207,6 @@ export function PerfilView({
           </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </Page>
   );
 }

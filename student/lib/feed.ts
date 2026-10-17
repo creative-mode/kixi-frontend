@@ -73,10 +73,32 @@ export async function toggleReaction(postId: number, reaction: ReactionType = 'a
   return apiPost<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction: reaction.toUpperCase() });
 }
 
-/** Não há GET para listar comentários (só a contagem em cada FeedPost) - por isso só
- *  se escreve um, não se mostra a conversa. */
+/** Um comentário tal como o backend o devolve (#179). `displayName` vem já mascarado
+ *  (primeiro nome e inicial do apelido) e é null quando a conta não tem perfil - um
+ *  comentário não se perde por não haver nome para o mostrar. */
+export interface PostComment {
+  id: number;
+  postId: number;
+  authorAccountId: number;
+  content: string;
+  isHidden: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** O backend diz se a linha é do aluno, para o cliente não comparar ids. */
+  mine: boolean;
+  displayName: string | null;
+}
+
+/** A conversa de uma publicação, do mais antigo para o mais novo (GET
+ *  /feed/posts/{id}/comments). Um post de outra escola é 404, como o próprio post. */
+export async function getComments(postId: number, page = 1, limit = 20): Promise<Result<PostComment[]>> {
+  return apiGet<PostComment[]>(`/feed/posts/${postId}/comments`, { page, limit });
+}
+
+/** Escreve um comentário. A resposta é a linha completa — nome mascarado e `mine` —,
+ *  para o painel a poder mostrar sem esperar por outra leitura. */
 export async function addComment(postId: number, content: string) {
-  return apiPost<{ id: number }>(`/feed/posts/${postId}/comments`, { content });
+  return apiPost<PostComment>(`/feed/posts/${postId}/comments`, { content });
 }
 
 export async function reportPost(postId: number, reason: string) {

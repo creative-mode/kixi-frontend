@@ -21,6 +21,14 @@ export function authorLabel(authorAccountId: number, myAccountId: number | null)
   return myAccountId != null && authorAccountId === myAccountId ? 'Tu' : 'Um colega da turma';
 }
 
+/** Quem escreveu um comentário: "Tu" é o próprio aluno (mesmo sem nome no perfil),
+ *  os outros são o nome mascarado que o backend devolveu, e quem não tem perfil
+ *  fica "Colega" - o mesmo rótulo de quem não tem nome, sem inventar nenhum. */
+export function commentAuthorLabel(displayName: string | null | undefined, mine: boolean): string {
+  if (mine) return 'Tu';
+  return displayName?.trim() ? displayName : 'Colega';
+}
+
 /** Uma publicação só se envia depois de 5 caracteres (o mínimo que o backend aceita,
  *  @Size(min = 5)) - mostrar isto antes do 400 poupa uma viagem ao servidor para dizer
  *  o que o próprio formulário já sabe. */

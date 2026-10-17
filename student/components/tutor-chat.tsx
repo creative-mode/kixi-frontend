@@ -7,6 +7,7 @@ import { Column, Page, PageHeader } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { BASE_PATH } from '@/lib/base-path';
@@ -15,11 +16,17 @@ import { fullName } from '@/lib/profile';
 import {
   MAX_MESSAGE,
   SUGGESTIONS,
+  answerTo,
   applyEvent,
+  buildMessagePayload,
+  buildSessionPayload,
   describeHttpFailure,
+  modeNeedsQuestion,
   parseRetryAfter,
   parseSse,
   type ChatMessage,
+  type ChatMode,
+  type PaperQuestion,
 } from '@/lib/tutor-rules';
 
 /** What survives a reload, per paper: the session id (the backend keeps the history on
@@ -72,27 +79,48 @@ class HttpFailure extends Error {
  * paper this screen asks for one instead of pretending to chat. The answer streams in
  * over server-sent events, read with `fetch` because `EventSource` cannot POST.
  *
- * Not here yet, on purpose: the three modes, "fonte da resposta" and "Fazer exercício
- * semelhante". They are BE-19 (kixi#115), still open, and the response carries no
- * `sources` to show. The chips are plain questions, not modes.
+ * Each turn carries its mode and, when the student picked a question, that question
+ * with the answer they gave it (kixi#115). Sources arrive with the final SSE event
+ * and are kept on the tutor message, so a reload preserves the provenance shown.
  */
 export function TutorChat({
   statementId,
   paperTitle,
   initialDraft = '',
+  initialMode = 'CONCEPT',
+  initialQuestionNumber = null,
+  questions = [],
+  wrongAnswers = new Map(),
 }: {
   statementId?: number;
   paperTitle?: string | null;
   /** Written into the box but never sent: "estudar os erros" opens with the question
    *  ready, and sending it is the second click. */
   initialDraft?: string;
+  /** "Estudar os erros" arrives with the questions to review, so the mode it opens in
+   *  is explaining one; a bare tutor opens on concepts. */
+  initialMode?: ChatMode;
+  /** The first question to review, by number: preselected so the first turn is about it. */
+  initialQuestionNumber?: number | null;
+  /** The paper's questions, so "explicar questão" can name one. Without them the
+   *  mode still works, on the whole paper. */
+  questions?: PaperQuestion[];
+  /** What the student answered wrongly, by question number, from the result screen. */
+  wrongAnswers?: Map<number, string>;
 }) {
   const me = useMe();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState(initialDraft);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<ChatMode>(initialMode);
+  const [questionId, setQuestionId] = useState<number | null>(
+    initialQuestionNumber == null
+      ? null
+      : questions.find((question) => question.number === initialQuestionNumber)?.id ?? null,
+  );
   const [notice, setNotice] = useState<string | null>(null);
   const sessionId = useRef<number | null>(null);
+  const sessionContext = useRef<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const nextId = useRef(1);
   const end = useRef<HTMLDivElement>(null);
@@ -102,6 +130,7 @@ export function TutorChat({
     if (statementId == null) return;
     const saved = load(statementId);
     sessionId.current = saved.sessionId;
+    sessionContext.current = null;
     nextId.current = saved.messages.reduce((max, m) => Math.max(max, m.id), 0) + 1;
     setMessages(saved.messages);
   }, [statementId]);
@@ -113,22 +142,40 @@ export function TutorChat({
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [messages]);
   useEffect(() => () => abort.current?.abort(), []);
 
-  const openSession = useCallback(async (signal: AbortSignal): Promise<number> => {
+  const openSession = useCallback(async (
+    signal: AbortSignal,
+    payload: Record<string, unknown>,
+    contextKey: string,
+  ): Promise<number> => {
     const res = await fetch(`${BASE_PATH}/api/tutor/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statementId }),
+      body: JSON.stringify(payload),
       signal,
     });
     if (!res.ok) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')));
     const created = (await res.json()) as { id: number };
     sessionId.current = created.id;
+    sessionContext.current = contextKey;
     return created.id;
-  }, [statementId]);
+  }, []);
 
-  const ask = useCallback(async (content: string, { repeat = false }: { repeat?: boolean } = {}) => {
+  const ask = useCallback(async (
+    content: string,
+    { repeat = false, asMode, asQuestionId }: { repeat?: boolean; asMode?: ChatMode; asQuestionId?: number | null } = {},
+  ) => {
     const text = content.trim();
     if (!text || busy || statementId == null) return;
+    // `asMode`/`asQuestionId` carry what the caller wants, not what the state still
+    // says: setState is asynchronous, so a button that switched the mode and asked in
+    // the same click would otherwise send the previous turn's context.
+    const desiredMode = asMode ?? mode;
+    const desiredQuestionId = asQuestionId === undefined ? questionId : asQuestionId;
+    const selected = questions.find((question) => question.id === desiredQuestionId) ?? null;
+    if (modeNeedsQuestion(desiredMode) && !selected) {
+      setNotice('Escolhe uma questão para esse modo.');
+      return;
+    }
     lastSent.current = text;
     setNotice(null);
     setBusy(true);
@@ -136,11 +183,20 @@ export function TutorChat({
     const controller = new AbortController();
     abort.current = controller;
 
+    const sessionPayload = buildSessionPayload({
+      statementId,
+      mode: desiredMode,
+      questionId: selected?.id,
+      studentAnswer: answerTo(wrongAnswers, selected?.number ?? null),
+    });
+    const messagePayload = buildMessagePayload(text);
+    const contextKey = JSON.stringify(sessionPayload);
+
     const tutorId = nextId.current + (repeat ? 0 : 1);
     setMessages((prev) => {
       const base = repeat ? prev.filter((m) => !(m.role === 'tutor' && m.failed && m.text === '')) : prev;
       const withStudent = repeat ? base : [...base, { id: nextId.current, role: 'student' as const, text }];
-      return [...withStudent, { id: tutorId, role: 'tutor' as const, text: '', streaming: true }];
+      return [...withStudent, { id: tutorId, role: 'tutor' as const, text: '', streaming: true, questionId: selected?.id ?? null }];
     });
     nextId.current = tutorId + 1;
     if (!repeat) setDraft('');
@@ -149,7 +205,7 @@ export function TutorChat({
       const res = await fetch(`${BASE_PATH}/api/tutor/sessions/${id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify(messagePayload),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')));
@@ -157,14 +213,17 @@ export function TutorChat({
     };
 
     try {
-      let id = sessionId.current ?? (await openSession(controller.signal));
+      let id =
+        sessionId.current != null && sessionContext.current === contextKey
+          ? sessionId.current
+          : await openSession(controller.signal, sessionPayload, contextKey);
       let body: ReadableStream<Uint8Array>;
       try {
         body = await send(id);
       } catch (error) {
         // The session is gone on the server's side (404): open a fresh one, once.
         if (!(error instanceof HttpFailure) || error.status !== 404) throw error;
-        id = await openSession(controller.signal);
+        id = await openSession(controller.signal, sessionPayload, contextKey);
         body = await send(id);
       }
 
@@ -198,7 +257,7 @@ export function TutorChat({
       setBusy(false);
       abort.current = null;
     }
-  }, [busy, openSession, statementId]);
+  }, [busy, mode, openSession, questionId, questions, statementId, wrongAnswers]);
 
   function stop() {
     abort.current?.abort();
@@ -227,6 +286,15 @@ export function TutorChat({
   }
 
   const limit = draft.length > MAX_MESSAGE;
+  const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
+  const needsQuestion = modeNeedsQuestion(mode);
+  // Only the latest finished answer offers it: asking again on every bubble would
+  // stack copies of the same request. And only when that answer was about a question:
+  // "exercises like this one" needs a "this one", and the request it opens is refused
+  // without it.
+  const lastAnswer = [...messages].reverse().find((m) => m.role === 'tutor' && !m.streaming);
+  const lastAnswerQuestionId = lastAnswer?.questionId ?? null;
+  const selectedAnswer = answerTo(wrongAnswers, selectedQuestion?.number ?? null);
 
   return (
     <Page>
@@ -263,6 +331,47 @@ export function TutorChat({
                       <TriangleAlert className="size-3.5" aria-hidden />{m.failed}
                     </div>
                   )}
+                  {m.id === lastAnswer?.id && !m.failed && lastAnswerQuestionId != null && (
+                    <div className="mt-2 border-t pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        disabled={busy || statementId == null}
+                        onClick={() => {
+                          // The mode and the question travel in the call, not in the state:
+                          // this is the same click that asks, and setState lands after it.
+                          setMode('SIMILAR_EXERCISES');
+                          setQuestionId(lastAnswerQuestionId);
+                          void ask('Dá-me exercícios parecidos com esta questão, para eu tentar antes de ver as soluções.', {
+                            asMode: 'SIMILAR_EXERCISES',
+                            asQuestionId: lastAnswerQuestionId,
+                          });
+                        }}
+                      >
+                        Fazer exercício semelhante
+                      </Button>
+                    </div>
+                  )}
+                  {m.role === 'tutor' && m.sources && m.sources.length > 0 && !m.streaming && (
+                    <details className="mt-3 border-t pt-2 text-xs">
+                      <summary className="cursor-pointer font-semibold">Fonte da resposta</summary>
+                      <div className="mt-2 grid gap-2 text-muted-foreground">
+                        {m.sources.map((source, index) => (
+                          <div key={`${source.statementId}-${source.questionId}-${index}`}>
+                            <p className="font-medium text-foreground">
+                              {source.kind === 'CATALOG_QUESTION'
+                                ? `Exercício semelhante · ${source.statementTitle ?? 'Prova'}`
+                                : source.questionNumber
+                                  ? `Questão ${source.questionNumber}`
+                                  : source.statementTitle ?? 'Enunciado'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               </div>
             ))}
@@ -270,6 +379,58 @@ export function TutorChat({
           </div>
 
           <div className="grid gap-2.5 border-t p-3.5 md:px-5">
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Modo do tutor">
+              {([
+                ['CONCEPT', 'Conceito'],
+                ['EXPLAIN_QUESTION', 'Explicar questão'],
+                ['SIMILAR_EXERCISES', 'Exercícios semelhantes'],
+              ] as const).map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={mode === value ? 'default' : 'outline'}
+                  size="sm"
+                  aria-pressed={mode === value}
+                  onClick={() => setMode(value)}
+                  disabled={busy}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {needsQuestion && questions.length > 0 && (
+              <div className="grid gap-1.5">
+                <label htmlFor="tutor-question" className="text-xs font-medium text-muted-foreground">
+                  {mode === 'SIMILAR_EXERCISES'
+                    ? 'Qual questão queres usar como base?'
+                    : 'Qual questão queres que eu explique?'}
+                </label>
+                <NativeSelect
+                  id="tutor-question"
+                  value={questionId ?? ''}
+                  onChange={(e) => setQuestionId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={busy}
+                >
+                  {/* In a mode that is about one question, "the whole paper" is not a
+                    * choice: the turn is refused without a question. Offering it as a
+                    * selectable option is offering something that cannot be sent, so it
+                    * stays visible — the student still needs to see the list start here —
+                    * but it cannot be picked. */}
+                  <option value="" disabled>A prova toda</option>
+                  {questions.map((question) => (
+                    <option key={question.id} value={question.id}>
+                      Questão {question.number}: {question.text.slice(0, 60)}
+                    </option>
+                  ))}
+                </NativeSelect>
+                {selectedAnswer && (
+                  <p className="text-xs text-muted-foreground">Incluo a tua resposta: {selectedAnswer}</p>
+                )}
+              </div>
+            )}
+            {needsQuestion && questions.length === 0 && (
+              <p className="text-xs text-muted-foreground">Este modo precisa de uma questão da prova.</p>
+            )}
             {notice && (
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 <TriangleAlert className="size-4 shrink-0" aria-hidden />

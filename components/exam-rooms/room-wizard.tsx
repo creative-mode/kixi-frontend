@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { FormSkeleton } from '@/components/crud/loading';
 import { createRoom, roomContext, type RoomContext } from '@/app/actions/exam-rooms';
+import { ACTION_TIMEOUT_MS, TIMEOUT_MESSAGE, isTimeout, withDeadline } from '@/lib/timeout';
 import { draftProblem, formatWall, luandaNowInput, preselectFromStatement, statementFitsRoom, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
 import { RoomHead } from './room-head';
 
@@ -33,6 +35,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
   const router = useRouter();
   const [ctx, setCtx] = useState<RoomContext | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [inviteClass, setInviteClass] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<RoomDraft>(() => {
@@ -43,8 +46,11 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
 
   useEffect(() => {
     let alive = true;
-    roomContext().then((r) => {
+    setCtx(null);
+    setError(null);
+    withDeadline(roomContext(), ACTION_TIMEOUT_MS).then((r) => {
       if (!alive) return;
+      setError(null);
       if (!r.ok) return setError(r.error);
       setCtx(r.data);
       // Vindo de um enunciado (`?statementId=`), a turma e a prova já vêm escolhidas.
@@ -55,13 +61,18 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
           return { ...d, classId: from.classId, statementId: from.statementId, durationMinutes: String(duration), endsAt: from.statementId ? plusMinutes(d.startsAt, duration + 10) : d.endsAt };
         });
       } else if (r.data.classes.length === 1) setDraft((d) => ({ ...d, classId: String(r.data.classes[0].id) }));
+    }).catch((e) => {
+      // A chamada à server action falhou ou excedeu o prazo do cliente: sem isto
+      // ficava no esqueleto para sempre.
+      if (alive) setError(isTimeout(e) ? TIMEOUT_MESSAGE : 'Não foi possível contactar o servidor. Tente novamente.');
     });
     return () => {
       alive = false;
     };
-    // Corre uma vez: o enunciado de origem não muda enquanto o assistente está aberto.
+    // `attempt` só muda quando o professor pede para tentar de novo; o enunciado
+    // de origem não muda enquanto o assistente está aberto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   const statements = useMemo(
     () => (ctx && draft.classId ? ctx.statements.filter((s) => statementFitsRoom(s, Number(draft.classId), ctx.admin)) : []),
@@ -98,7 +109,14 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
         back={{ href: '/exam-rooms', label: 'Voltar às salas' }}
       />
       {error ? (
-        <p className="py-12 text-center text-sm text-destructive">{error}</p>
+        <Card>
+          <CardContent role="status" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <p className="max-w-sm text-sm text-destructive">{error}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
       ) : !ctx ? (
         <Card><CardContent className="p-6"><FormSkeleton fields={5} /></CardContent></Card>
       ) : ctx.classes.length === 0 ? (

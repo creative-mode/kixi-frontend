@@ -410,7 +410,53 @@ async function main() {
 
       const semChave = await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoTutor}/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: '[[sem-chave]]' }) });
       registar('sem chave do provider é 503', semChave.status === 503 ? null : `veio ${semChave.status}`);
+
+      // #115 · modos e contexto via abertura da sessão. A mensagem leva só conteúdo.
+      const sessaoComContexto = await fetch(`${BASE}/aluno/api/tutor/sessions`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 1, studentAnswer: '/8' }),
+      });
+      const sessaoComContextoId = sessaoComContexto.ok ? (await sessaoComContexto.json()).id : null;
+      const comContexto = sessaoComContextoId
+        ? await fetch(`${BASE}/aluno/api/tutor/sessions/${sessaoComContextoId}/messages`, {
+            method: 'POST',
+            headers: json,
+            body: JSON.stringify({ content: 'Onde errei?' }),
+          })
+        : null;
+      const corpoContexto = comContexto ? await comContexto.text() : '';
+      registar(
+        'explicar uma questão nomeada devolve a fonte dessa questão',
+        corpoContexto.includes('"questionId":1') && corpoContexto.includes('"kind":"QUESTION"') ? null : `faltou a fonte: ${corpoContexto.slice(-160)}`,
+      );
+
+      const modoInvalido = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 1, mode: 'INVADIR' }) });
+      registar('um modo que não existe é 400, não uma resposta', modoInvalido.status === 400 ? null : `veio ${modoInvalido.status}`);
+
+      const questaoAlheia = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 999 }) });
+      registar('uma questão que não é desta prova é 404', questaoAlheia.status === 404 ? null : `veio ${questaoAlheia.status}`);
     }
+
+    // O link do resultado: chega em modo «explicar», com a primeira questão escolhida
+    // e a resposta que o aluno deu.
+    await passo('estudar os erros abre o tutor na questão a explicar', 'GET', '/aluno/tutor?statementId=1&questoes=2&respostas=%5B%5B2%2C%22%2F24%22%5D%5D', {}, async (r) => {
+      const html = await r.text();
+      const temSelector = html.includes('Qual questão queres que eu explique?') && html.includes('Quantos hosts utilizáveis');
+      // `<option value="2" selected="">` é o que prova que a questão 2 ficou escolhida
+      const temEscolha = /<option value="(\d+)" selected(?:=""|>)/.test(html);
+      const temResposta = html.includes('/24');
+      return temSelector && temEscolha && temResposta
+        ? null : `selector ${temSelector}, escolha ${temEscolha}, resposta ${temResposta}`;
+    });
+
+    // A resposta do aluno é contexto: se o tipo não for texto, o turno segue sem a
+    // resposta que o chamador julgava ter enviado — e isso é pior do que recusar.
+    const respostaNaoTexto = await fetch(`${BASE}/aluno/api/tutor/sessions`, {
+      method: 'POST', headers: json,
+      body: JSON.stringify({ statementId: 1, mode: 'EXPLAIN_QUESTION', questionId: 1, studentAnswer: 42 }),
+    });
+    registar('uma resposta que não é texto é 400, não um turno sem resposta', respostaNaoTexto.status === 400 ? null : `veio ${respostaNaoTexto.status}`);
 
     const alheia = await fetch(`${BASE}/aluno/api/tutor/sessions/9999/messages`, { method: 'POST', headers: json, body: JSON.stringify({ content: 'olá' }) });
     registar('uma sessão que não é da conta é 404', alheia.status === 404 ? null : `veio ${alheia.status}`);

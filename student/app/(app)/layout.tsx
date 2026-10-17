@@ -3,6 +3,8 @@ import { getProfile } from '@/lib/me';
 import { requireStudent } from '@/lib/guard';
 import { MeProvider } from '@/lib/me-context';
 import { Shell } from '@/components/Shell';
+import { RightRail } from '@/components/right-rail';
+import { loadSocial } from '@/lib/social';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireStudent();
@@ -19,9 +21,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/onboarding');
   }
 
+  // A coluna da direita é global; sem resposta do backend, o Shell mostra só o conteúdo.
+  const social = profile.kind === 'ok' ? await loadSocial(profile.me) : null;
+
   return (
     <MeProvider me={profile.me}>
-      <Shell>{children}</Shell>
+      <Shell rail={social && profile.kind === 'ok' ? <RightRail me={profile.me} data={social} /> : undefined}>{children}</Shell>
     </MeProvider>
   );
 }

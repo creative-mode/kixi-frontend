@@ -76,3 +76,18 @@ html[data-reduce-motion='true'] *::after {
   --step: 4px;
   clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step)));
 }
+
+/* Botões e caixas da marca, os mesmos da landing: cantos em degrau, contorno de 2 px e uma aresta de 4 px que cede ao toque. */
+:root { --kx-step: 4px; --kx-clip: polygon(0 var(--kx-step), var(--kx-step) var(--kx-step), var(--kx-step) 0, calc(100% - var(--kx-step)) 0, calc(100% - var(--kx-step)) var(--kx-step), 100% var(--kx-step), 100% calc(100% - var(--kx-step)), calc(100% - var(--kx-step)) calc(100% - var(--kx-step)), calc(100% - var(--kx-step)) 100%, var(--kx-step) 100%, var(--kx-step) calc(100% - var(--kx-step)), 0 calc(100% - var(--kx-step))); }
+@layer components {
+.px-btn { --face: var(--primary); --edge: #0d2a15; --txt: var(--primary-foreground); --face-hover: #2a7a3c; position: relative; isolation: isolate; background: var(--edge); color: var(--txt); clip-path: var(--kx-clip); padding-bottom: var(--kx-step); }
+.px-btn::before { content: ''; position: absolute; z-index: -1; left: 2px; right: 2px; top: 2px; bottom: var(--kx-step); background: var(--face); clip-path: var(--kx-clip); }
+.px-btn:hover:not(:disabled):not([aria-disabled='true']) { --face: var(--face-hover); }
+.px-btn:active:not(:disabled):not([aria-disabled='true']) { padding-top: var(--kx-step); padding-bottom: 0; }
+.px-btn:active:not(:disabled):not([aria-disabled='true'])::before { top: var(--kx-step); bottom: 2px; }
+/* O anel de foco seria cortado pelo recorte: a aresta passa a verde vivo e o texto sublinha-se. */
+.px-btn:focus-visible { --edge: var(--ring); text-decoration: underline; text-underline-offset: 3px; }
+.px-box { --px-edge: #c9d4c5; --px-face: var(--card); position: relative; clip-path: var(--kx-clip); background: var(--px-edge); }
+.px-box::before { content: ''; position: absolute; inset: 2px; z-index: 0; background: var(--px-face); clip-path: var(--kx-clip); }
+.px-box > * { position: relative; z-index: 1; }
+}

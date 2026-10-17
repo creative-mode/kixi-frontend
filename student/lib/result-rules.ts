@@ -85,6 +85,34 @@ export function toReview(questions: ResultQuestion[] | undefined): ResultQuestio
   });
 }
 
+/**
+ * What the student answered to each wrong question, for the tutor link.
+ *
+ * An objective answer is the text of the option they chose, not its letter: the tutor
+ * reads the paper's options, and a letter means nothing without them. A question left
+ * blank contributes nothing — there is no answer to explain. Open answers keep the
+ * student's own words, since that is what has to be reviewed.
+ *
+ * Keyed by the **whole** question number. An alínea is stored under the number of its
+ * parent (`301` → `3`), because that is the number the same link puts in `questoes`,
+ * and the tutor's picker lists whole questions. Keying the raw number wrote an answer
+ * the tutor would look up under a question it does not have, so the answer reached the
+ * link and never reached the tutor. Several alíneas of one question are joined: the
+ * wire takes one string, and all of them are what has to be reviewed.
+ */
+export function givenAnswers(questions: ResultQuestion[] | undefined): Map<number, string> {
+  const parts = new Map<number, string[]>();
+  for (const question of toReview(questions)) {
+    const answer =
+      (question.options?.find((option) => option.id === question.selectedOptionId)?.optionText ?? '').trim()
+      || (question.answerText ?? '').trim();
+    if (!answer) continue;
+    const number = topNumber(question.number);
+    parts.set(number, [...(parts.get(number) ?? []), answer]);
+  }
+  return new Map([...parts].map(([number, answers]) => [number, answers.join('\n')]));
+}
+
 /** `16,4`: the decimal the server computed, with the Portuguese comma. Null stays
  *  null — no score is not a zero. */
 export function formatScore(score: number | null | undefined): string | null {
