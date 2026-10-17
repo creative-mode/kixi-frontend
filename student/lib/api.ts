@@ -3,7 +3,7 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { BACKEND, COOKIE } from './session';
 import { MOCK, mockHandle } from './mock/backend';
-import type { Problem } from './types';
+import { messageForStatus } from './error-messages';
 
 /** Same shape as lib/crud/http.ts in the manager: no exceptions for expected
  *  failures, so a Server Component can degrade instead of blowing up. */
@@ -26,29 +26,12 @@ export async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
-/** Turns an error response into a sentence for the student.
- *  The security layer answers 401/403 with an empty body, so the status has to be
- *  readable on its own; validation errors carry a per-field `properties` map whose
- *  values are either a string or `{ message }`, and we drop the request metadata. */
+/** Turns an error response into a sentence in Portuguese for the student.
+ *  The server's own `detail` is technical and in English, so it is not shown: the status
+ *  decides the sentence (lib/error-messages.ts). The security layer answers 401/403 with an
+ *  empty body, so the status has to be readable on its own anyway. */
 export async function problem(res: Response): Promise<{ status: number; message: string }> {
-  const body = (await res.json().catch(() => null)) as Problem | null;
-
-  const fields =
-    body?.properties && typeof body.properties === 'object'
-      ? Object.entries(body.properties)
-          .filter(([key]) => key !== 'instance' && key !== 'requestId')
-          .map(([, value]) =>
-            typeof value === 'string' ? value : (value as { message?: string } | null)?.message,
-          )
-          .filter((message): message is string => typeof message === 'string' && message.length > 0)
-      : [];
-
-  const detail = [body?.detail, ...fields].filter(Boolean).join(' · ') || body?.title;
-  if (detail) return { status: res.status, message: detail };
-
-  if (res.status === 401) return { status: 401, message: 'A sessão expirou. Entra novamente.' };
-  if (res.status === 403) return { status: 403, message: 'Não tens permissão para fazer isto.' };
-  return { status: res.status, message: `Erro ${res.status}` };
+  return { status: res.status, message: messageForStatus(res.status) };
 }
 
 async function request<T>(
