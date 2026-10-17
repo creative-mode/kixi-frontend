@@ -134,7 +134,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           {author.mine ? (
             <span className="font-bold">{author.name}</span>
           ) : (
-            <Link href={`/u/${post.authorAccountId}`} className="font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
+            <Link href={`/u/${post.authorAccountId}`} className="inline-flex min-h-6 items-center font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
           )}
           {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
           {author.classmate && <Badge variant="outline" className="self-center">{CLASSMATE_LABEL}</Badge>}
