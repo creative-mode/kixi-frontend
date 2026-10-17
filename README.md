@@ -1,12 +1,50 @@
-# Kixi — frontend
+<p align="center">
+  <img src=".github/assets/kixi-logo.svg" alt="Kixi" width="260">
+</p>
 
-Três apps Next.js no mesmo repo (gestão, aluno e landing), servidas por um gateway único.
+<p align="center">
+  <strong>As aplicações web do Kixi: aluno, gestor e landing.</strong><br>
+  Três apps Next.js no mesmo repositório, servidas por um gateway único.
+</p>
+
+<p align="center">
+  <a href="https://github.com/creative-mode/kixi-frontend/actions/workflows/quality.yml"><img alt="Qualidade" src="https://github.com/creative-mode/kixi-frontend/actions/workflows/quality.yml/badge.svg?branch=DEV"></a>
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-1c2420">
+  <img alt="React 19" src="https://img.shields.io/badge/React-19-1c2420">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-1f5a2c">
+  <img alt="Playwright" src="https://img.shields.io/badge/e2e-Playwright-1f5a2c">
+</p>
+
+---
+
+## O que é
+
+Este repositório é a face do [Kixi](https://github.com/creative-mode/kixi). O **aluno** faz simulados, vê o resultado,
+fala com o tutor, consulta o ranking e os perfis. O **gestor** é onde professores e administradores montam provas,
+criam salas, tratam a estrutura académica e verificam instituições. A **landing** apresenta o produto ao público.
+O backend, o serviço de OCR e as decisões de arquitectura vivem no repositório
+[creative-mode/kixi](https://github.com/creative-mode/kixi), que inclui este como submódulo.
+
+```
+  Browser ──► Gateway :3000 ──┬─ /          Landing  (landing/, :3004)
+                              ├─ /aluno     Aluno    (student/, :3003)
+                              └─ /manager   Gestor   (raiz,     :3002)
+                                     │
+                                     ▼  JWT
+                              Backend Spring Boot (BACKEND_API_URL)
+```
+
+## Apps
 
 | App | Pasta | Porta (dev) | No gateway `:3000` |
 | --- | --- | --- | --- |
 | Gestor (admin/professor) | `./` (raiz, `app/`) | 3002 | `/manager` |
 | Aluno | `student/` | 3003 | `/aluno` |
 | Landing | `landing/` | 3004 | `/` |
+
+Cada app tem a sua própria pasta de dependências, e o design system partilhado fica em `design-system/`
+(sincronizado com `npm run ds:sync`). Para o aluno há um [README próprio](student/README.md), com o ranking, o
+tutor e o mock do backend.
 
 ## Arranque rápido (5 min)
 
@@ -117,3 +155,34 @@ Cada app (landing, aluno, manager) corre no seu contentor e na sua porta interna
 ## Contrato com o backend
 
 `node scripts/check-endpoints.mjs <pasta-do-backend>` confirma que o backend (no ramo de destino) expõe todos os endpoints que o aluno chama. Corre na CI em pull requests para QUA e PRD (`.github/workflows/contrato.yml`), com o segredo `BACKEND_READ_TOKEN`. Quando se acrescenta uma chamada nova no aluno, o backend de destino tem de a ter antes da promoção.
+
+## Qualidade
+
+Cada pull request passa por checks automáticos antes de entrar:
+
+| Check | O que verifica |
+| --- | --- |
+| Verificar branch, destino e issue | Branch `feat/<n>-…` ou `fix/<n>-…` e `Closes #<n>` no pull request |
+| Manager: lint, testes e build | ESLint, testes unitários e `next build` do gestor |
+| Aluno: tipos, testes e fluxo | `tsc`, testes unitários e o fluxo de ponta a ponta contra o mock |
+| Typecheck da landing | Tipos da landing |
+| Auto-revisão | As regras que já custaram um bug (ver acima) |
+| Playwright: jornadas críticas | Jornadas reais no browser, incluindo acessibilidade e alvos de toque |
+| Contrato com o backend | Em promoções para QUA e PRD, que o backend já expõe o que o aluno chama |
+
+## Fluxo de trabalho e entregas
+
+| Ramo | Para que serve |
+| --- | --- |
+| `DEV` | Integração. Todo o trabalho novo parte daqui e volta para aqui. |
+| `QUA` | Qualidade. Recebe o que foi promovido de `DEV`. |
+| `PRD` | Produção. É o que o submódulo `frontend/` do backend fixa. |
+
+Cada alteração começa num issue e numa branch `feat/<n>-…` ou `fix/<n>-…`, e o pull request fecha o issue com
+`Closes #<n>`. Imagens Docker são publicadas por `publish-images.yml`, e as notas de versão de cada promoção para
+produção são geradas pelo agente do repositório do backend.
+
+## Segurança e decisões
+
+As notas de segurança estão em [`docs/seguranca.md`](docs/seguranca.md) e os registos de decisão em
+[`docs/adr/`](docs/adr).
