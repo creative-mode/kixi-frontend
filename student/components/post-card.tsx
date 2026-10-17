@@ -203,7 +203,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
                   <li key={c.id} className="flex items-start gap-2.5">
                     <UserAvatar
                       name={commentAuthorLabel(c.displayName, c.mine)}
-                      src={c.mine ? myPhoto : null}
+                      src={c.mine ? myPhoto : c.photo}
                       size={32}
                     />
                     <div className="min-w-0 flex-1 rounded-2xl bg-secondary px-3 py-2">
@@ -223,7 +223,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             )}
           </div>
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
-            <UserAvatar name={myName} size={32} />
+            <UserAvatar name={myName} src={myPhoto} size={32} />
             <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Send /></Button>
           </form>

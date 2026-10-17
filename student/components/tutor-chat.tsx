@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { BASE_PATH } from '@/lib/base-path';
 import { useMe } from '@/lib/me-context';
-import { fullName } from '@/lib/profile';
+import { fullName, photoUrl } from '@/lib/profile';
 import {
   MAX_MESSAGE,
   SUGGESTIONS,
@@ -322,7 +322,7 @@ export function TutorChat({
               <div key={m.id} className={cn('flex max-w-[94%] gap-2.5 md:max-w-[86%]', m.role === 'student' && 'flex-row-reverse self-end')}>
                 {m.role === 'tutor'
                   ? <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-[13px] font-bold text-background" aria-hidden="true">K</span>
-                  : <UserAvatar name={fullName(me)} size={32} className="max-md:hidden" />}
+                  : <UserAvatar name={fullName(me)} src={photoUrl(me)} size={32} className="max-md:hidden" />}
                 <div className={cn('whitespace-pre-wrap rounded-xl border px-3.5 py-2.5 leading-relaxed', m.role === 'student' ? 'border-primary bg-primary text-primary-foreground' : 'bg-secondary')}>
                   {m.text || (m.streaming ? <span className="text-muted-foreground">A pensar…</span> : null)}
                   {m.streaming && m.text && <span className="ml-0.5 inline-block h-4 w-1.5 motion-safe:animate-pulse bg-current align-middle" aria-hidden />}
