@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isRetryable, messageForStatus } from './error-messages.ts';
+import { friendlyMessage, isRetryable, messageForStatus } from './error-messages.ts';
 
 test('devolve português para cada estado que o backend usa', () => {
   for (const status of [400, 401, 403, 404, 408, 409, 413, 422, 429, 500, 502, 503, 418]) {
@@ -18,4 +18,13 @@ test('não confunde sessão expirada com falta de permissão', () => {
 test('só deixa repetir o que pode passar sozinho', () => {
   for (const s of [0, 408, 429, 500, 503]) assert.equal(isRetryable(s), true, String(s));
   for (const s of [400, 401, 403, 404, 409, 422]) assert.equal(isRetryable(s), false, String(s));
+});
+
+test('mantém a causa exacta dos textos que já conhecemos', () => {
+  assert.equal(friendlyMessage(409, 'This simulation has already been submitted'), 'Esta prova já foi entregue.');
+  assert.match(friendlyMessage(403, 'You are not invited to this room'), /convidado/);
+});
+
+test('texto desconhecido em inglês cai na frase do estado, nunca é mostrado', () => {
+  assert.equal(friendlyMessage(404, 'Something odd happened'), messageForStatus(404));
 });
