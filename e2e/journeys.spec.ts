@@ -201,7 +201,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // o aluno lê a mesma prova como se a tivesse feito duas vezes. Compila, passa o
     // lint e o type checking — nada o apanha, porque não há sintaxe inválida.
     //
-    // O teste conta. E conta nos quatro separadores, porque o padrão de duplicação
+    // O teste conta. E conta nos seis separadores, porque o padrão de duplicação
     // pode ter escapado noutro ecrã.
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -213,8 +213,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     // O invariante nao depende dos dados: um `TabsContent` por separador. Com dois
     // blocos de mesmo `value`, o Radix monta os dois e o `tabpanel` aparece duas
-    // vezes — que e a raiz do bug da #240, e vale para os quatro separadores.
-    const separadores = ['Atividade', 'Desempenho', 'Medalhas', 'Histórico'];
+    // vezes — que e a raiz do bug da #240, e vale para os seis separadores.
+    const separadores = ['Publicações', 'Atividade', 'Desempenho', 'Medalhas', 'Histórico', 'Definições'];
     await expect(page.getByRole('tab'), `esperava ${separadores.length} separadores`).toHaveCount(separadores.length);
 
     for (const separador of separadores) {

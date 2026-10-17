@@ -1,6 +1,7 @@
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { initials } from '@/lib/profile';
 import { cn } from '@/lib/utils';
 
 const TONES = [
@@ -12,10 +13,6 @@ const TONES = [
 ];
 const tone = (s: string) => [...s].reduce((a, c) => a + c.charCodeAt(0), 0) % TONES.length;
 
-export function initials(name: string) {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
-}
 
 /** Avatar com a foto quando existe e as iniciais quando não; a cor vem do nome, para a
  *  mesma pessoa ter sempre a mesma cor. O AvatarImage cai no fallback se a imagem falhar. */
