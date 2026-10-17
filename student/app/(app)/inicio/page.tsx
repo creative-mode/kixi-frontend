@@ -1,45 +1,39 @@
-import { listInvitations } from '@/lib/exam-room';
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { getMe } from '@/lib/me';
 import { getFeed } from '@/lib/feed';
-import { getPerformance } from '@/lib/performance';
-import { getLeaderboard } from '@/lib/ranking';
+import { loadSocial } from '@/lib/social';
+import { FriendsCard } from '@/components/social/friends-card';
+import { ProfileCard } from '@/components/social/profile-card';
+import { RightRail } from '@/components/social/right-rail';
+import { SocialLayout } from '@/components/social/social-layout';
 import { InicioFeed } from './inicio-feed';
 
 /**
- * O início, com as salas de prova do aluno por cima do feed.
+ * O início, em três colunas: o aluno e os amigos à esquerda, as salas de prova e o feed da turma
+ * ao meio, e os widgets à direita.
  *
- * Os convites leem-se aqui, no servidor, porque `GET /exam-rooms/mine` precisa do
- * cookie da sessão. O resto do feed é estado do cliente. Uma falha a ler as salas
- * não leva o feed com ela: a secção simplesmente não aparece.
- *
- * Trazido do #125 (Cxdy008), sobre a secção do #128.
- *
- * O feed social (#120/#30) só se pede quando há turma: sem matrícula não há
- * `classId` para o `GET /feed/posts` exigir, e pedir sem ele dava 400 em vez de um
- * feed vazio - que é o que quem ainda não se matriculou deve ver.
+ * Os convites leem-se aqui, no servidor, porque `GET /exam-rooms/mine` precisa do cookie da sessão.
+ * Uma falha a ler as salas não leva o feed com ela. O feed social só se pede quando há turma: sem
+ * matrícula não há `classId` para o `GET /feed/posts` exigir, e pedir sem ele dava 400.
  */
 export default async function InicioPage() {
   const me = await getMe();
-  const classId = me?.currentClass?.id ?? null;
+  if (!me) return null;
+  const classId = me.currentClass?.id ?? null;
 
-  const [invResult, feed, performance, leaderboard] = await Promise.all([
-    listInvitations(),
-    classId ? getFeed(classId) : Promise.resolve(null),
-    getPerformance(),
-    classId ? getLeaderboard('class') : Promise.resolve(null),
-  ]);
+  const [feed, social] = await Promise.all([classId ? getFeed(classId) : Promise.resolve(null), loadSocial(me)]);
+  const invResult = social.invitations;
 
   return (
-    <InicioFeed
-      invitations={invResult.ok ? invResult.data : []}
-      invitationsError={invitationsErrorOf(invResult)}
-      myAccountId={me?.accountId ?? null}
-      classId={classId}
-      posts={feed?.ok ? feed.data : []}
-      feedError={feed && !feed.ok ? feed.message : null}
-      reviewTopics={performance.mastery.slice(0, 3)}
-      classTop={leaderboard?.ok ? leaderboard.data.entries.slice(0, 3) : []}
-    />
+    <SocialLayout identity={<ProfileCard me={me} data={social} />} friends={<FriendsCard friends={social.friends} />} rail={<RightRail data={social} />}>
+      <InicioFeed
+        invitations={invResult.ok ? invResult.data : []}
+        invitationsError={invitationsErrorOf(invResult)}
+        myAccountId={me.accountId}
+        classId={classId}
+        posts={feed?.ok ? feed.data : []}
+        feedError={feed && !feed.ok ? feed.message : null}
+      />
+    </SocialLayout>
   );
 }

@@ -1,5 +1,11 @@
 import type { Me } from './types';
 
+/** As iniciais de um nome: a primeira letra do primeiro e do último nome, em maiúsculas. */
+export function initials(name: string): string {
+  const p = name.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
+}
+
 /** Full name, with the username as a last resort so the header is never blank. */
 export function fullName(me: Me | null): string {
   if (!me) return '';

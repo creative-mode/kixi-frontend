@@ -1,220 +1,236 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Award, Check, Flame, LogOut } from 'lucide-react';
+import { Award, BookOpen, Building2, CalendarDays, Check, Flame, LogOut, Users } from 'lucide-react';
 import { sairAction } from '@/lib/auth-actions';
-import { Column, Page } from '@/components/page';
 import { Mastery } from '@/components/mastery';
-import { UserAvatar } from '@/components/user-avatar';
+import { PostCard } from '@/components/post-card';
+import { PostComposer } from '@/components/post-composer';
 import { ProfileEditor } from '@/components/profile-editor';
+import { EmptyState } from '@/components/states';
+import Link from 'next/link';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge as Pill } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { contextLine, fullName, photoUrl } from '@/lib/profile';
+import { contextLine, fullName } from '@/lib/profile';
 import { setTheme, useNightTheme } from '@/lib/theme';
 import { setReduceMotion, useReduceMotion } from '@/lib/motion';
-import { levelProgress } from '@/lib/gamification-rules';
 import { sinceLabel } from '@/lib/attempt-history';
 import { formatAverage } from '@/lib/ranking-rules';
+import { PROFILE_TABS, shortTitle, type ProfileTab } from '@/lib/social-rules';
 import type { Performance } from '@/lib/performance-rules';
 import type { CatalogItem } from '@/lib/catalog';
+import type { FeedPost } from '@/lib/feed';
 import type { Badge, Stats } from '@/lib/stats';
 import type { Me } from '@/lib/types';
 
-const TABS = ['Atividade', 'Desempenho', 'Medalhas', 'Histórico'] as const;
+function Fact({ icon: Icon, children }: { icon: typeof Building2; children: React.ReactNode }) {
+  return <li className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground"><Icon className="size-4 shrink-0" aria-hidden /><span className="min-w-0 truncate">{children}</span></li>;
+}
 
+/** O centro do perfil: cabeçalho, últimas simulações, sequência de estudo e separadores. */
 export function PerfilView({
   me,
   stats,
   badges,
   history,
   performance,
+  classId,
+  posts,
+  feedError,
+  initialTab = 'Publicações',
+  startEditing = false,
 }: {
-  me: Me | null;
+  me: Me;
   stats: Stats | null;
   badges: Badge[];
   history: CatalogItem[];
   performance: Performance;
+  classId: number | null;
+  /** As publicações da própria conta, da turma onde está matriculado. */
+  posts: FeedPost[];
+  feedError?: string | null;
+  initialTab?: ProfileTab;
+  startEditing?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const night = useNightTheme();
   const reduceMotion = useReduceMotion();
-
   const close = useCallback(() => setEditing(false), []);
 
   const name = fullName(me) || 'Aluno';
   const context = contextLine(me);
-
-  // Facts the backend actually knows about the student right now. The performance
-  // figures this card used to show were placeholders; they arrive with the real
-  // simulations data rather than being invented here.
-  const facts: [string, string][] = me
-    ? [
-        [me.currentClass?.code ?? '—', 'turma'],
-        [me.currentClass?.school_year ?? '—', 'ano letivo'],
-        [me.course?.code ?? '—', 'curso'],
-      ]
-    : [];
+  const recent = performance.activity.slice(0, 3);
 
   return (
-    <Page>
-      <Column className="gap-5">
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="h-24 border-b bg-gradient-to-br from-accent to-secondary" />
-          <div className="grid gap-3.5 px-5 pb-5">
-            <div className="-mt-9 flex flex-wrap items-end justify-between gap-3">
-              <UserAvatar name={name} src={photoUrl(me)} size={84} className="border-4 border-card" />
-              {me && !editing && (
-                <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
-                  Editar perfil
-                </Button>
-              )}
+    <>
+      <Card className="gap-0 overflow-hidden py-0">
+        <div aria-hidden className="h-16 border-b bg-gradient-to-br from-accent to-secondary" />
+        <div className="grid gap-3 px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-[22px] leading-tight font-bold tracking-tight">{name}</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">{context || 'Sem afiliação académica: matricula-te para veres o teu feed.'}</p>
             </div>
-            <div>
-              <h1 className="text-[22px] font-bold tracking-tight">{name}</h1>
-              <p className="text-sm text-muted-foreground">
-                {context || 'Sem afiliação académica — matricula-te para veres o teu feed.'}
-              </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {stats && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {stats.level}</Pill>}
+              {stats && stats.streak > 0 && <Pill variant="outline"><Flame className="size-3" aria-hidden />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
+              {!editing && <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>Editar perfil</Button>}
             </div>
-            {facts.length > 0 && (
-              <div className="grid gap-3 sm:grid-cols-3">
-                {facts.map(([value, label]) => (
-                  <div key={label} className="rounded-lg border px-4 py-3">
-                    <b className="block text-[22px] tracking-tight tabular-nums">{value}</b>
-                    <span className="text-[13px] text-muted-foreground">{label}</span>
-                  </div>
-                ))}
+          </div>
+          <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+            {me.school && <Fact icon={Building2}>{me.school.name}</Fact>}
+            {me.course && <Fact icon={BookOpen}>{me.course.name}</Fact>}
+            {me.currentClass && <Fact icon={Users}>Turma {me.currentClass.code}</Fact>}
+            {me.currentClass?.school_year && <Fact icon={CalendarDays}>Ano letivo {me.currentClass.school_year}</Fact>}
+          </ul>
+        </div>
+        {editing && <ProfileEditor me={me} onDone={close} />}
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="gap-3 p-4">
+          <h2 className="text-sm font-bold tracking-tight">Últimas simulações</h2>
+          {recent.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">As provas que entregares aparecem aqui, com a nota.</p>
+          ) : (
+            <ul className="grid grid-cols-3 gap-2">
+              {recent.map((a) => (
+                <li key={a.id}>
+                  <Link href={`/resultado?prova=${a.id}`} className="px-step grid h-full content-between gap-2 bg-secondary p-2.5 transition-colors hover:bg-accent">
+                    <b className="text-lg leading-none tabular-nums">{formatAverage(a.score)}</b>
+                    <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{shortTitle(a.title, 32)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card className="gap-3 p-4">
+          <h2 className="text-sm font-bold tracking-tight">Sequência de estudo</h2>
+          {stats ? (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="px-step bg-secondary px-1 py-2.5"><b className="block text-lg leading-none tabular-nums">{stats.streak}</b><span className="text-[12px] text-muted-foreground">agora</span></div>
+              <div className="px-step bg-secondary px-1 py-2.5"><b className="block text-lg leading-none tabular-nums">{stats.longestStreak}</b><span className="text-[12px] text-muted-foreground">melhor</span></div>
+              <div className="px-step bg-secondary px-1 py-2.5"><b className="block text-lg leading-none tabular-nums">{stats.freePauses}</b><span className="text-[12px] text-muted-foreground">pausas</span></div>
+            </div>
+          ) : (
+            <p className="text-[13px] text-muted-foreground">A tua sequência aparece aqui depois da primeira prova.</p>
+          )}
+        </Card>
+      </div>
+
+      <Tabs defaultValue={initialTab}>
+        <TabsList aria-label="Perfil">{PROFILE_TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
+
+        <TabsContent value="Publicações" className="flex flex-col gap-4">
+          {classId && <PostComposer classId={classId} />}
+          {feedError ? (
+            <Alert variant="destructive">{feedError}</Alert>
+          ) : !classId ? (
+            <EmptyState title="Matricula-te para publicares" message="As publicações da tua turma aparecem aqui depois da matrícula." />
+          ) : posts.length === 0 ? (
+            <EmptyState title="Ainda não publicaste nada" message="Partilha uma dúvida ou um tema com a turma e fica aqui." />
+          ) : (
+            posts.map((p) => <PostCard key={p.id} post={p} myAccountId={me.accountId} myName={name} myPhoto={me.photo} />)
+          )}
+        </TabsContent>
+
+        <TabsContent value="Atividade">
+          <Card className="gap-0 divide-y py-0">
+            {performance.activity.length === 0 && (
+              <div className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
+                <b className="text-foreground">Ainda não há atividade</b>
+                <span>As provas que entregares aparecem aqui.</span>
               </div>
             )}
-          </div>
-          {editing && me && <ProfileEditor me={me} onDone={close} />}
-        </Card>
-
-        {stats && (
-          <Card>
-            <CardContent className="grid gap-3.5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground">
-                    <Award className="size-[18px]" />
-                  </span>
-                  <div className="leading-snug">
-                    <b className="block text-sm">Nível {stats.level}</b>
-                    <span className="text-[13px] text-muted-foreground">{stats.xp} XP</span>
-                  </div>
-                </div>
-                <Pill variant="outline">
-                  <Flame className="size-3" />
-                  {stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos
-                </Pill>
+            {performance.activity.slice(0, 10).map((a) => (
+              <div key={a.id} className="flex items-center gap-3.5 px-5 py-3.5">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Check className="size-[18px]" /></span>
+                <div className="leading-snug"><b className="block text-sm">Concluíste {a.title}</b><span className="text-[13px] text-muted-foreground">Nota {formatAverage(a.score)}{sinceLabel(a.finishedAt) ? ` · ${sinceLabel(a.finishedAt)}` : ''}</span></div>
               </div>
-              <Progress value={levelProgress(stats.xp, stats.level)} aria-label={`Progresso para o nível ${stats.level + 1}`} />
+            ))}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="Desempenho">
+          <Card><CardHeader><CardTitle>Domínio por prova</CardTitle></CardHeader>
+            <CardContent className="grid gap-3.5">
+              {performance.mastery.length === 0
+                ? <p className="text-sm text-muted-foreground">Entrega uma prova para veres aqui o teu domínio.</p>
+                : performance.mastery.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}
             </CardContent>
           </Card>
-        )}
+        </TabsContent>
 
-        <Tabs defaultValue="Atividade">
-          <TabsList aria-label="Perfil">{TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
-          <TabsContent value="Atividade">
+        <TabsContent value="Medalhas">
+          {badges.length === 0 ? (
+            <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
+              <b className="text-foreground">Ainda não desbloqueaste medalhas</b>
+              <span>Termina a primeira simulação para ganhar a primeira.</span>
+            </Card>
+          ) : (
+            <div className="grid gap-3.5 sm:grid-cols-2">
+              {badges.map((b) => (
+                <Card key={b.code} className="flex-row items-center gap-3.5 px-5 py-3.5">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Award className="size-5" /></span>
+                  <div className="leading-snug"><b className="block text-sm">{b.name}</b><span className="text-[13px] text-muted-foreground">{b.description}</span></div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="Histórico">
+          {history.length === 0 ? (
+            <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
+              <b className="text-foreground">Ainda não terminaste nenhuma prova</b>
+              <span>As provas concluídas aparecem aqui, com a nota.</span>
+            </Card>
+          ) : (
             <Card className="gap-0 divide-y py-0">
-              {performance.activity.length === 0 && (
-                <div className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
-                  <b className="text-foreground">Ainda não há atividade</b>
-                  <span>As provas que entregares aparecem aqui.</span>
-                </div>
-              )}
-              {performance.activity.slice(0, 10).map((a) => (
-                <div key={a.id} className="flex items-center gap-3.5 px-5 py-3.5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Check className="size-[18px]" /></span>
-                  <div className="leading-snug"><b className="block text-sm">Concluíste {a.title}</b><span className="text-[13px] text-muted-foreground">Nota {formatAverage(a.score)}{sinceLabel(a.finishedAt) ? ` · ${sinceLabel(a.finishedAt)}` : ''}</span></div>
+              {history.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-3.5 px-5 py-3.5">
+                  <div className="leading-snug">
+                    <b className="block text-sm">{item.title}</b>
+                    <span className="text-[13px] text-muted-foreground">{[item.kind, item.subject, item.school].filter(Boolean).join(' · ')}</span>
+                  </div>
+                  <Pill variant="success">{item.score}</Pill>
                 </div>
               ))}
             </Card>
-          </TabsContent>
-          <TabsContent value="Desempenho">
-            <Card><CardHeader><CardTitle>Domínio por prova</CardTitle></CardHeader>
-              <CardContent className="grid gap-3.5">
-                {performance.mastery.length === 0
-                  ? <p className="text-sm text-muted-foreground">Entrega uma prova para veres aqui o teu domínio.</p>
-                  : performance.mastery.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="Medalhas">
-            {badges.length === 0 ? (
-              <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
-                <b className="text-foreground">Ainda não desbloqueaste medalhas</b>
-                <span>Termina a primeira simulação para ganhar a primeira.</span>
-              </Card>
-            ) : (
-              <div className="grid gap-3.5 sm:grid-cols-2">
-                {badges.map((b) => (
-                  <Card key={b.code} className="flex-row items-center gap-3.5 px-5 py-3.5">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground">
-                      <Award className="size-5" />
-                    </span>
-                    <div className="leading-snug">
-                      <b className="block text-sm">{b.name}</b>
-                      <span className="text-[13px] text-muted-foreground">{b.description}</span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-          <TabsContent value="Histórico">
-            {history.length === 0 ? (
-              <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
-                <b className="text-foreground">Ainda não terminaste nenhuma prova</b>
-                <span>As provas concluídas aparecem aqui, com a nota.</span>
-              </Card>
-            ) : (
-              <Card className="gap-0 divide-y py-0">
-                {history.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3.5 px-5 py-3.5">
-                    <div className="leading-snug">
-                      <b className="block text-sm">{item.title}</b>
-                      <span className="text-[13px] text-muted-foreground">{[item.kind, item.subject, item.school].filter(Boolean).join(' · ')}</span>
-                    </div>
-                    <Pill variant="success">{item.score}</Pill>
-                  </div>
-                ))}
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
+          )}
+        </TabsContent>
 
-        <Card><CardHeader><CardTitle>Definições</CardTitle></CardHeader>
-          <CardContent className="divide-y">
-            <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0">
-              <Label htmlFor="def-night" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Tema escuro</span><span className="text-[13px] font-normal text-muted-foreground">Fundo escuro, para estudar à noite.</span></Label>
-              <Switch id="def-night" checked={night} onCheckedChange={setTheme} />
-            </div>
-            <div className="flex items-center justify-between gap-4 py-3.5">
-              <Label htmlFor="def-motion" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Reduzir movimento</span><span className="text-[13px] font-normal text-muted-foreground">Menos animações na interface.</span></Label>
-              <Switch id="def-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
-            </div>
-            {/* Issue #107: o tempo extra é do aluno, mas só um administrador o liga —
-                é uma decisão da escola, não uma preferência de interface, por isso
-                aparece aqui como estado e não como interruptor. */}
-            <div className="flex items-center justify-between gap-4 py-3.5 last:pb-0">
-              <div className="grid gap-0.5 leading-snug">
-                <span className="text-[15px]">+25% de tempo nas provas</span>
-                <span className="text-[13px] font-normal text-muted-foreground">Definido pela escola, não por ti.</span>
+        <TabsContent value="Definições" className="flex flex-col gap-4">
+          <Card><CardHeader><CardTitle>Definições</CardTitle></CardHeader>
+            <CardContent className="divide-y">
+              <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0">
+                <Label htmlFor="def-night" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Tema escuro</span><span className="text-[13px] font-normal text-muted-foreground">Fundo escuro, para estudar à noite.</span></Label>
+                <Switch id="def-night" checked={night} onCheckedChange={setTheme} />
               </div>
-              <Pill variant={me?.accessibility_extra_time ? 'success' : 'secondary'}>
-                {me?.accessibility_extra_time ? 'Ativo' : 'Inativo'}
-              </Pill>
-            </div>
-          </CardContent>
-        </Card>
-
-        <form action={sairAction}><Button type="submit" variant="outline"><LogOut />Terminar sessão</Button></form>
-      </Column>
-    </Page>
+              <div className="flex items-center justify-between gap-4 py-3.5">
+                <Label htmlFor="def-motion" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Reduzir movimento</span><span className="text-[13px] font-normal text-muted-foreground">Menos animações na interface.</span></Label>
+                <Switch id="def-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
+              </div>
+              {/* Issue #107: o tempo extra é do aluno, mas só um administrador o liga: é uma decisão da
+                  escola, não uma preferência de interface, por isso aparece aqui como estado e não como interruptor. */}
+              <div className="flex items-center justify-between gap-4 py-3.5 last:pb-0">
+                <div className="grid gap-0.5 leading-snug">
+                  <span className="text-[15px]">+25% de tempo nas provas</span>
+                  <span className="text-[13px] font-normal text-muted-foreground">Definido pela escola, não por ti.</span>
+                </div>
+                <Pill variant={me.accessibility_extra_time ? 'success' : 'secondary'}>{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</Pill>
+              </div>
+            </CardContent>
+          </Card>
+          <form action={sairAction}><Button type="submit" variant="outline"><LogOut />Terminar sessão</Button></form>
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }
