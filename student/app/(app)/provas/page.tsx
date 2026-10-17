@@ -13,6 +13,8 @@ import { listInvitations } from '@/lib/exam-room';
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 
+export const metadata = { title: 'Provas · Kixi' };
+
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
 const PAGE_SIZE = 10;
