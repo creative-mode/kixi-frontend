@@ -58,9 +58,6 @@ export default async function RootLayout({
   const user = await getCurrentUser()
   return (
     <html lang="pt" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('kixi-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} />
-      </head>
       <body
         className={`${jakarta.variable} ${mono.variable} font-sans antialiased`}
       >
