@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-/** Mesmo padrão de lib/theme.ts: o estado vive no atributo `data-reduce-motion`
+/** O estado vive no atributo `data-reduce-motion`
  *  de <html>, escrito pelo script inline de app/layout.tsx antes da primeira
  *  pintura, e lido como um external store para se manter em sincronia se
  *  mudar noutro separador. Sem campo no backend para isto (ao contrário do

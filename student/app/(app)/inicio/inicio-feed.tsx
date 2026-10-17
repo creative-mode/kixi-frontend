@@ -1,7 +1,7 @@
 'use client';
 
 import { Alert } from '@/components/ui/alert';
-import { PageHeader } from '@/components/page';
+import { Page, PageHeader } from '@/components/page';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
 import { SalasDeProva } from '@/components/salas-de-prova';
@@ -37,20 +37,22 @@ export function InicioFeed({
   const hidden = invitations.length - pending.length;
 
   return (
-    <>
-      <PageHeader title="Início" />
+    <Page className="gap-0 p-0 pb-24 md:pb-10">
+      <PageHeader title="Início" className="m-0" />
 
+      <div className="grid gap-3 px-4 pt-3 empty:hidden">
       <SalasDeProva invitations={pending} invitationsError={invitationsError} />
       {hidden > 0 && (
         <p className="text-[13px] text-muted-foreground">
           {hidden === 1 ? '1 sala já entregue ou terminada' : `${hidden} salas já entregues ou terminadas`} · <Link href="/provas" className="font-semibold text-primary hover:underline">ver em Provas</Link>
         </p>
       )}
+      </div>
 
       {classId && <PostComposer classId={classId} />}
 
       {feedError ? (
-        <Alert variant="destructive">{feedError}</Alert>
+        <div className="p-4"><Alert variant="destructive">{feedError}</Alert></div>
       ) : !classId ? (
         <EmptyState title="Matricula-te para veres o feed" message="As publicações da tua turma aparecem aqui depois da matrícula." />
       ) : posts.length === 0 ? (
@@ -58,6 +60,6 @@ export function InicioFeed({
       ) : (
         posts.map((p) => <PostCard key={p.id} post={p} myAccountId={myAccountId} myName={fullName(me)} myPhoto={photoUrl(me)} />)
       )}
-    </>
+    </Page>
   );
 }
