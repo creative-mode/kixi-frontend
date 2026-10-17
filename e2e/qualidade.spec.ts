@@ -135,3 +135,31 @@ test.describe('títulos', () => {
     await ctx.close();
   });
 });
+
+/** Alvos de toque (#348): o axe só falha abaixo de 24 px; no telemóvel exigimos mais nos ecrãs principais. */
+test.describe('alvos de toque no telemóvel', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('os alvos do aluno não ficam abaixo dos 24 px e o cabeçalho cumpre os 44 px', async ({ page }) => {
+    await alunoLogin(page);
+    for (const rota of ['/aluno/inicio', '/aluno/provas', '/aluno/perfil']) {
+      await page.goto(rota);
+      await page.waitForLoadState('networkidle');
+      const pequenos = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('a,button,input:not([type=hidden]),select,textarea')]
+          .filter((e) => {
+            const r = e.getBoundingClientRect();
+            const inline = e.tagName === 'A' && getComputedStyle(e).display === 'inline';
+            return r.width > 0 && r.height > 0 && !e.closest('.sr-only') && !inline && (r.width < 24 || r.height < 24);
+          })
+          .map((e) => `${e.tagName} ${Math.round(e.getBoundingClientRect().width)}x${Math.round(e.getBoundingClientRect().height)} ${(e.getAttribute('aria-label') ?? e.textContent ?? '').trim().slice(0, 30)}`),
+      );
+      expect(pequenos, rota).toEqual([]);
+    }
+    await page.goto('/aluno/inicio');
+    for (const nome of [/Perfil de/, /Kixi, início/, /Procurar provas/]) {
+      const caixa = await page.locator('header.sticky').getByRole('link', { name: nome }).first().boundingBox();
+      expect(caixa?.height ?? 0, String(nome)).toBeGreaterThanOrEqual(44);
+    }
+  });
+});

@@ -121,7 +121,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto }: { post: FeedPos
     if (next) readComments();
   };
 
-  const act = 'h-10 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
+  const act = 'h-11 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
   const author = authorLabel(post.authorAccountId, myAccountId);
 
   return (
