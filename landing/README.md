@@ -17,6 +17,8 @@ npm run lint     # tsc --noEmit
 - `NEXT_PUBLIC_CONTACT_EMAIL` — opcional. Quando definido, o rodapé mostra o contacto; sem ele, não aparece nenhum endereço. Entra também no `Organization` do JSON-LD.
 - `NEXT_PUBLIC_CONTACT_PHONE` — opcional. Telefone no `ContactPoint` do JSON-LD.
 - `NEXT_PUBLIC_CONTACT_STREET`, `NEXT_PUBLIC_CONTACT_LOCALITY`, `NEXT_PUBLIC_CONTACT_POSTAL_CODE`, `NEXT_PUBLIC_CONTACT_COUNTRY` — opcionais. Rua e localidade juntas formam o `PostalAddress`; sem as duas, o JSON-LD vai sem morada. São dados de uma entidade real: quem os escrever é que os declara.
+
+Todas estas entram no **build** (`ARG`/`ENV` em `docker/app.Dockerfile`, `build.args` no `docker-compose.yml`, `vars` em `publish-images.yml`, e o `.env.example`). Defini-las só no ambiente de execução não chega: `NEXT_PUBLIC_*` é embebido no bundle. Sem o caminho aberto, o `Organization` ia sempre sem `PostalAddress` nem `telephone`.
 - `NEXT_PUBLIC_APP_URL` — endereço do app do aluno. opcional. Por omissão o app do aluno está no mesmo endereço, em `/aluno`: "Entrar" abre `/aluno/entrar` e "Começar a estudar" abre `/aluno/cadastro`. Só é preciso se o app do aluno estiver noutro domínio.
 
 ## Estrutura
