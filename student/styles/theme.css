@@ -4,7 +4,7 @@
 
 /* Modelo social do aluno: tela branca, módulos em cinza-verde claro e linhas finas. Só tema claro. */
 :root{
-  --background:#fff;
+  --background:#fcfdfc;
   --secondary:#f5f7f4;
   --muted:#f1f4ef;
   --border:#e3e8e2;

@@ -183,7 +183,7 @@ export function AuthSkeleton({ fields = 2 }: { fields?: number }) {
     <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
       <span className="sr-only" role="status">A carregar…</span>
       <Skeleton className="h-7 w-28" />
-      <div className="grid w-full max-w-[400px] gap-6 rounded-xl border bg-card p-6 shadow-xs sm:p-8">
+      <div className="grid w-full max-w-[400px] gap-6 px-box p-6 sm:p-8">
         <div className="grid gap-2"><Skeleton className="h-7 w-32" /><Skeleton className="h-3.5 w-3/4" /></div>
         <div className="grid gap-5">
           {Array.from({ length: fields }, (_, i) => <div key={i} className="grid gap-2"><Skeleton className="h-3.5 w-24" /><Skeleton className="h-10 w-full" /></div>)}
