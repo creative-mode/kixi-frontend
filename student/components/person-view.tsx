@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CLASSMATE_LABEL, type FeedAuthor } from '@/lib/feed-rules';
 import type { FeedPost } from '@/lib/feed';
 import type { PersonProfile } from '@/lib/profiles';
+import { PersonActions } from './person-actions';
 
 /**
  * O perfil de outra pessoa, no mesmo modelo do teu: faixa, foto grande sobreposta, nome, factos,
@@ -70,6 +71,16 @@ export function PersonView({
           </>
         )}
       </ProfileHero>
+
+      {/* Denunciar e bloquear (#323). Não aparece no próprio perfil: denunciar-se a si
+          não tem moderação que resolva, e bloquear-se a si dá sempre erro. */}
+      <div className="border-t pt-4">
+        <PersonActions
+          accountId={person.accountId}
+          nome={person.displayName}
+          podeBloquear={myAccountId !== null && myAccountId !== person.accountId}
+        />
+      </div>
 
       {!person.restricted && (
         <Tabs defaultValue="Publicações">
