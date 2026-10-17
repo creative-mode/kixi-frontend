@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { loadPhotos } from './photos';
 import { createPost, createSimulationPost, addComment, getComments, reportPost, toggleReaction, type PostComment, type PostType } from './feed';
 import { canPublish, canPublishReflection } from './feed-rules';
 
@@ -76,7 +77,8 @@ export async function getCommentsAction(
 ): Promise<{ ok: true; comments: PostComment[] } | { ok: false; message: string }> {
   const result = await getComments(postId, page, limit);
   if (!result.ok) return { ok: false, message: result.message };
-  return { ok: true, comments: result.data };
+  const photos = await loadPhotos(result.data.filter((c) => !c.mine).map((c) => c.authorAccountId)).catch(() => ({}) as Record<number, string>);
+  return { ok: true, comments: result.data.map((c) => ({ ...c, photo: c.mine ? null : (photos[c.authorAccountId] ?? null) })) };
 }
 
 export async function reportPostAction(postId: number, reason: string): Promise<{ ok: boolean }> {

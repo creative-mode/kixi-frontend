@@ -88,6 +88,8 @@ export interface PostComment {
   /** O backend diz se a linha é do aluno, para o cliente não comparar ids. */
   mine: boolean;
   displayName: string | null;
+  /** Acrescentada pelo servidor a partir do perfil; null deixa as iniciais. */
+  photo?: string | null;
 }
 
 /** A conversa de uma publicação, do mais antigo para o mais novo (GET
