@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Locator } from '@playwright/test';
 
 const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin@kixi.ao';
@@ -39,6 +39,23 @@ async function managerLogin(page: Page, username: string, landing: RegExp, headi
   await page.getByTestId('gestor-entrar-submeter').click();
   await expect(page).toHaveURL(landing);
   await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+}
+
+/**
+ * Escolhe a primeira opção com valor, em vez de `index: 1`: não depende da ordem nem
+ * de quantas opções existem, que é o que muda contra um backend real.
+ *
+ * Espera explicitamente pela opção. `selectOption({ index })` esperava sozinho
+ * pelas opções que ainda não tinham chegado do servidor; um `evaluateAll` não
+ * espera, e a corrida dava «o select não tem opções com valor» logo a seguir a
+ * escolher a escola. Aprendi à custa: a falha apareceu só em stack nova.
+ */
+async function escolherOpcao(select: Locator) {
+  const primeira = select.locator('option:not([value=""])').first();
+  await primeira.waitFor({ state: 'attached' });
+  const valor = await primeira.getAttribute('value');
+  if (valor === null) throw new Error('a primeira opção não tem valor');
+  await select.selectOption(valor);
 }
 
 const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
@@ -91,13 +108,15 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByTestId('aluno-cadastro-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/onboarding/);
 
-    await page.locator('#escola').selectOption({ label: 'Instituto de Telecomunicações' });
+    // Primeira escola com valor, e nao o ITEL pelo nome: num ambiente real o
+    // nome da escola de seed nao existe, e o teste nao deve depender dele.
+    await escolherOpcao(page.locator('#escola'));
     await page.getByRole('button', { name: 'Continuar' }).click();
     await expect(page.locator('#curso')).toBeVisible();
-    await page.locator('#curso').selectOption({ index: 1 });
+    await escolherOpcao(page.locator('#curso'));
     await page.getByRole('button', { name: 'Continuar' }).click();
     await expect(page.locator('#classId')).toBeVisible();
-    await page.locator('#classId').selectOption({ index: 1 });
+    await escolherOpcao(page.locator('#classId'));
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
@@ -145,12 +164,12 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // O extrato entra no rascunho. Publicar exige disciplina e turma — o proprio
     // botao diz isso no `title` — e so depois de a prova existir.
     await expect(page.getByText('ocr-sample.pdf')).toBeVisible();
-    // O `Field` do construtor renderiza o `<Label>` sem `htmlFor`, portanto
-    // `getByLabel` nao chega aqui. Os selects vao por posicao, como no flow.mjs:
-    // Escola, Disciplina, Turma.
-    const selects = page.locator('select');
-    await selects.nth(1).selectOption({ index: 1 });
-    await selects.nth(2).selectOption({ index: 1 });
+    // Por label, nao por posicao: o `Field` do construtor passou a envolver o
+    // controlo no `<label>`, que e o que da ao campo um nome acessivel. Antes o
+    // teste ia por `select` a dedo (Escola, Disciplina, Turma), e isso partia se o
+    // backend trouxesse outro numero de opcoes ou outra ordem.
+    await escolherOpcao(page.getByLabel('Disciplina'));
+    await escolherOpcao(page.getByLabel('Turma'));
 
     // Publicar é bloqueado enquanto a prova tiver problemas, e o construtor diz
     // quais: o OCR não traz cotação nem adivinha o gabarito. Resolve-se o que a
@@ -187,8 +206,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.goto('/manager/classes/new');
     await page.getByLabel('Código').fill(`T${id}`);
     await page.getByLabel('Classe').fill('12');
-    await page.getByLabel('Curso').selectOption({ index: 1 });
-    await page.getByLabel('Ano letivo').selectOption({ index: 1 });
+    await escolherOpcao(page.getByLabel('Curso'));
+    await escolherOpcao(page.getByLabel('Ano letivo'));
     await page.getByRole('button', { name: 'Criar turma' }).click();
     await expect(page).toHaveURL(/\/manager\/classes$/);
 
