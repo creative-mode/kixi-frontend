@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorLabel, canPublish, canPublishReflection, postTypeLabel, scorePercent } from './feed-rules.ts';
+import { authorLabel, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
 
 test('a própria conta é "Tu", outra conta é um colega sem nome', () => {
   assert.equal(authorLabel(3, 3), 'Tu');
@@ -36,6 +36,18 @@ test('a reflexão que acompanha o resultado é opcional, mas tem o mesmo limite'
   assert.equal(canPublishReflection(''), true);
   assert.equal(canPublishReflection('a'.repeat(2000)), true);
   assert.equal(canPublishReflection('a'.repeat(2001)), false);
+});
+
+test('num comentário, o próprio é "Tu" mesmo sem nome no perfil', () => {
+  assert.equal(commentAuthorLabel(null, true), 'Tu');
+  assert.equal(commentAuthorLabel('Nuno D.', true), 'Tu');
+});
+
+test('num comentário de outro, o nome mascarado; sem perfil, "Colega"', () => {
+  assert.equal(commentAuthorLabel('Nuno D.', false), 'Nuno D.');
+  assert.equal(commentAuthorLabel(null, false), 'Colega');
+  assert.equal(commentAuthorLabel('   ', false), 'Colega');
+  assert.equal(commentAuthorLabel(undefined, false), 'Colega');
 });
 
 test('a percentagem só existe com nota e cotação positiva', () => {

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createPost, createSimulationPost, addComment, reportPost, toggleReaction, type PostType } from './feed';
+import { createPost, createSimulationPost, addComment, getComments, reportPost, toggleReaction, type PostComment, type PostType } from './feed';
 import { canPublish, canPublishReflection } from './feed-rules';
 
 export type FeedActionState = { error?: string } | undefined;
@@ -53,12 +53,27 @@ export async function toggleReactionAction(postId: number): Promise<{ ok: boolea
   return { ok: true, reacted: result.data.reacted };
 }
 
-export async function addCommentAction(postId: number, content: string): Promise<{ ok: boolean }> {
+export async function addCommentAction(
+  postId: number,
+  content: string,
+): Promise<{ ok: true; comment: PostComment } | { ok: false }> {
   if (!content.trim()) return { ok: false };
   const result = await addComment(postId, content.trim());
   if (!result.ok) return { ok: false };
   revalidatePath('/inicio');
-  return { ok: true };
+  return { ok: true, comment: result.data };
+}
+
+/** Lê a conversa de uma publicação. Não faz `revalidatePath`: um GET não muda nada do
+ *  servidor, e revalidar aqui só custaria uma segunda leitura da página. */
+export async function getCommentsAction(
+  postId: number,
+  page = 1,
+  limit = 20,
+): Promise<{ ok: true; comments: PostComment[] } | { ok: false; message: string }> {
+  const result = await getComments(postId, page, limit);
+  if (!result.ok) return { ok: false, message: result.message };
+  return { ok: true, comments: result.data };
 }
 
 export async function reportPostAction(postId: number, reason: string): Promise<{ ok: boolean }> {
