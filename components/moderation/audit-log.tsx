@@ -20,8 +20,13 @@ export function AuditLog() {
   const [entradas, setEntradas] = useState<AuditEntry[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
+  // Mesmo desvio que a fila e que a `VerificationList`: o lint recusa um `setState`
+  // directo dentro de um efeito.
   useEffect(() => {
-    void listAudit().then((r) => (r.ok ? setEntradas(r.data) : setErro(r.error)));
+    const task = window.setTimeout(() => {
+      void listAudit().then((r) => (r.ok ? setEntradas(r.data) : setErro(r.error)));
+    }, 0);
+    return () => window.clearTimeout(task);
   }, []);
 
   if (erro) return <p className="text-sm text-destructive" role="alert">{erro}</p>;

@@ -372,7 +372,11 @@ function seed(): Store {
 
   return {
     accounts,
-    nextAccount: 7,
+    // Derivado, não escrito à mão: semeei a conta 7 e o `nextAccount` ficou em 7, e a
+    // primeira pessoa a registar-se recebeu o id de uma conta que já existia. O perfil
+    // dela passou a mostrar «Perfil Oculto» — outra pessoa. Numa app de demonstração
+    // isso é uma usurpação de identidade, que é o que a #323 vem impedir.
+    nextAccount: Math.max(...accounts.map((a) => a.id)) + 1,
     // A Sara já é amiga do aluno; o Nuno pediu e espera resposta.
     friendships: [
       { id: 1, requesterId: 3, addresseeId: 5, accepted: true },

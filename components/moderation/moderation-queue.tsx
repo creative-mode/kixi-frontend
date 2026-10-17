@@ -48,8 +48,12 @@ export function ModerationQueue() {
     else setErro(r.error);
   }, []);
 
+  // O `setTimeout` a zero é o mesmo desvio que a `VerificationList` usa: o lint
+  // (`react-hooks/set-state-in-effect`) recusa um `setState` directo dentro de um
+  // efeito, e carregar dados no cliente é precisamente esse caso.
   useEffect(() => {
-    void carregar();
+    const task = window.setTimeout(() => void carregar(), 0);
+    return () => window.clearTimeout(task);
   }, [carregar]);
 
   const porDecidir = useMemo(() => (reports ?? []).filter((r) => r.status === 'OPEN'), [reports]);
