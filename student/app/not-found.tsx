@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/states';
 
+export const metadata = { title: 'Página não encontrada · Kixi' };
+
 /** 404 do app do aluno: página não existe ou foi movida. */
 export default function NotFound() {
   return (

@@ -788,7 +788,8 @@ function simulationResult(db: Store, row: SimulationRow) {
     status: row.status,
     finalScore: row.finalScore,
     correctAnswers: answers.filter((a) => a.isCorrect === true).length,
-    totalQuestions: questions.length,
+    // O total é o da prova, e não só o das questões respondidas: «0 de 5» e não «0 de 1».
+    totalQuestions: (QUESTIONS_BY_STATEMENT[row.statementId] ?? []).filter((id) => !db.questions.some((q) => q.parentId === id)).length || questions.length,
     pendingReviewCount: pending,
     timeSpentSeconds: row.timeSpentSeconds,
     finishedAt: row.finishedAt,

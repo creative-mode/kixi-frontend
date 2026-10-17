@@ -254,4 +254,23 @@ test.describe('ranking global e métrica', () => {
     await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
     expect(await graves(page)).toEqual([]);
   });
+
+  test('no telemóvel os filtros das provas ficam recolhidos e aplicam-se ao mudar', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(process.env.E2E_PASSWORD ?? 'Kixi1234!');
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/provas');
+    const filtros = page.getByRole('button', { name: /^Filtros/ });
+    await expect(filtros).toBeVisible();
+    await expect(page.getByLabel('Tipo de prova')).toBeHidden();
+    await filtros.click();
+    await expect(page.getByLabel('Tipo de prova')).toBeVisible();
+    const opcao = await page.getByLabel('Tipo de prova').locator('option:not([value=""])').first().getAttribute('value');
+    await page.getByLabel('Tipo de prova').selectOption(opcao!);
+    await expect(page).toHaveURL(/tipo=/);
+    await expect(page.getByRole('button', { name: /^Filtros \(1\)/ })).toBeVisible();
+  });
 });

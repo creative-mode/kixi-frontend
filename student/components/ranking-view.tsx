@@ -119,7 +119,7 @@ export function RankingView({
               title={scope === 'friends' ? 'Ainda não há dados dos teus amigos' : 'Ainda não há dados'}
               message={scope === 'friends'
                 ? 'Aparecem aqui quando os teus amigos tiverem provas corrigidas. Convida colegas abaixo.'
-                : scope === 'global' ? GLOBAL_EMPTY_HINT : 'Aparecem aqui quando houver provas corrigidas neste grupo.'}
+                : scope === 'global' ? GLOBAL_EMPTY_HINT : 'Entrega a tua primeira prova para entrares neste ranking. Aparecem aqui quando houver provas corrigidas neste grupo.'}
             />
           </Card>
         ) : (

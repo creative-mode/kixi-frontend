@@ -165,6 +165,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await escolherOpcao(page.locator('#classId'));
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
+    // Conta nova, sem nenhuma prova: o início diz por onde começar.
+    await expect(page.getByRole('region', { name: 'Primeiros passos' })).toBeVisible();
 
     // Follow the catalogue for the class selected during onboarding so the test does
     // not assume a fixed class-to-statement mapping.
