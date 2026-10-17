@@ -3,6 +3,7 @@ import { catalogPage } from './catalog-page';
 import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
+import { effectiveFault, normalizeFault, type Fault } from './fault';
 import {
   deadlineFor,
   expired,
@@ -38,6 +39,14 @@ export const MOCK = process.env.KIXI_MOCK !== 'false';
  *  keeps a student in the feed when the server is down instead of logging them out — is
  *  unreachable while designing, and a regression there would pass every test. */
 export const FAULT = (process.env.KIXI_MOCK_FAULT ?? '').toLowerCase();
+
+/** A falha em vigor: a mudada em runtime por `setFault` (para o e2e ligar e desligar a falha sem
+ *  reiniciar o servidor) ou, na falta dela, a do ambiente. */
+export const currentFault = (): Fault => effectiveFault(G.__kixiFault, FAULT);
+
+export function setFault(mode: string): void {
+  G.__kixiFault = normalizeFault(mode);
+}
 
 const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
@@ -215,7 +224,7 @@ type MockUserBadge = {
   unlockedAt: string;
 };
 
-const G = globalThis as unknown as { __kixiStudentMock?: Store };
+const G = globalThis as unknown as { __kixiStudentMock?: Store; __kixiFault?: Fault };
 
 const hash = (pw: string) => crypto.createHash('sha256').update(`kixi:${pw}`).digest('hex');
 const b64 = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
@@ -882,8 +891,9 @@ export async function mockHandle(
   token: string | null,
   bodyText: string,
 ): Promise<Response> {
-  if (FAULT === 'timeout') throw new TypeError('fetch failed');
-  if (FAULT === '500') {
+  const fault = currentFault();
+  if (fault === 'timeout') throw new TypeError('fetch failed');
+  if (fault === '500') {
     return problem(500, 'Injected failure');
   }
   const db = store();

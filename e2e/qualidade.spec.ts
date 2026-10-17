@@ -162,4 +162,26 @@ test.describe('alvos de toque no telemóvel', () => {
       expect(caixa?.height ?? 0, String(nome)).toBeGreaterThanOrEqual(44);
     }
   });
+/** Backend a falhar (#350): o aluno fica na aplicação com uma mensagem e uma saída, nunca no login nem em branco. */
+test.describe('backend a falhar', () => {
+  for (const modo of ['500', 'timeout'] as const) {
+    test(`com o servidor em ${modo} o aluno continua dentro e vê uma mensagem`, async ({ page }) => {
+      await alunoLogin(page);
+      const definir = (mode: string) => page.request.post('/aluno/api/mock-fault', { data: { mode } });
+      try {
+        expect((await definir(modo)).ok()).toBeTruthy();
+        for (const rota of ['/aluno/inicio', '/aluno/provas', '/aluno/perfil']) {
+          await page.goto(rota);
+          await page.waitForLoadState('networkidle');
+          await expect(page, rota).not.toHaveURL(/entrar/);
+          await expect(page.locator('#conteudo, main').first(), rota).toContainText(/\S/);
+          expect(await page.getByRole('button', { name: /tentar (de )?novo/i }).count() + (await page.getByRole('link', { name: /tentar (de )?novo/i }).count()), `${rota} sem «Tentar de novo»`).toBeGreaterThan(0);
+        }
+      } finally {
+        await definir('');
+      }
+      await page.goto('/aluno/inicio');
+      await expect(page).toHaveURL(/\/aluno\/inicio/);
+    });
+  }
 });
