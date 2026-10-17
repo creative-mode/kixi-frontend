@@ -25,7 +25,37 @@ const forwarded = (req) => ({
   'x-forwarded-proto': req.headers['x-forwarded-proto'] ?? 'http',
 });
 
+// Cabeçalhos de segurança, definidos só aqui para as três apps ficarem iguais.
+// A CSP começa em modo "só relatório": mostra no console o que partiria sem bloquear nada.
+// Passa a bloqueio com CSP_ENFORCE=true quando o relatório estiver limpo (docs/seguranca.md).
+const CSP = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com",
+  "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
+].join('; ');
+const CSP_HEADER = process.env.CSP_ENFORCE === 'true' ? 'content-security-policy' : 'content-security-policy-report-only';
+
+const securityHeaders = (req) => {
+  const h = {
+    [CSP_HEADER]: CSP,
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'permissions-policy': 'camera=(self), microphone=(), geolocation=(), payment=()',
+  };
+  if ((req.headers['x-forwarded-proto'] ?? '') === 'https') h['strict-transport-security'] = 'max-age=31536000; includeSubDomains';
+  return h;
+};
+
 const server = http.createServer((req, res) => {
+  for (const [k, v] of Object.entries(securityHeaders(req))) res.setHeader(k, v);
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'text/plain' });
     return res.end('ok');
