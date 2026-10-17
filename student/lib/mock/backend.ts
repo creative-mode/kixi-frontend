@@ -4,6 +4,7 @@ import { catalogPage } from './catalog-page';
 import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
+import { validateReport, blockPair, bloqueadoEntre, deveDesaparecer, visibilidadePara } from '@/lib/moderation';
 import * as friends from './friends';
 import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
@@ -65,6 +66,10 @@ type Account = {
   firstName: string;
   lastName: string;
   photo: string | null;
+  /** Oculta ou suspensa por decisao de moderacao (#323). Ocultado devolve 404 a
+   *  terceiros; suspenso devolve 404 e deixa de permitir entrar. */
+  hidden?: boolean;
+  suspended?: boolean;
   /** Read-only from the student's side; the backend has already folded it into the
    *  simulation's `deadline`, so the mock mirrors that rather than recomputing it. */
   accessibilityExtraTime: boolean;
@@ -182,6 +187,23 @@ type Store = {
    *  a anterior em vez de duplicar, como o `unique(account_id, statement_id)` real. */
   solutionShares: MockSolutionShare[];
   nextShare: number;
+  /** Denúncias de perfil e de escola (#323). As de publicação eram descartadas: o
+   *  endpoint existia, respondia 201, e não guardava nada. */
+  reports: MockReport[];
+  nextReport: number;
+  /** Bloqueios de pessoa (#323). Guardados como par normalizado: `blockPair` garante
+   *  que o mesmo bloqueio nunca existe nos dois sentidos. */
+  blocks: { accountId: number; blockedAccountId: number; createdAt: string }[];
+};
+
+type MockReport = {
+  id: number;
+  target: 'ACCOUNT' | 'INSTITUTION';
+  targetId: number;
+  reporterAccountId: number;
+  reason: string;
+  note: string;
+  createdAt: string;
 };
 
 type MockSolutionShare = {
@@ -314,6 +336,11 @@ function seed(): Store {
     firstName: string,
     lastName: string,
     accessibilityExtraTime = false,
+    // Ocultada por moderação (#323). Sem esta conta semeada, o critério de aceitação —
+    // «perfil ocultado devolve 404 a terceiros» — não é demonstrável neste mock: os
+    // dois mocks são processos separados, e uma decisão do Manager só chega ao mock
+    // do aluno quando o backend real existir.
+    hidden = false,
   ): Account => ({
     id,
     username,
@@ -321,6 +348,7 @@ function seed(): Store {
     passwordHash: hash(SEED_PASSWORD),
     roles: [role],
     active: true,
+    hidden,
     firstName,
     lastName,
     photo: null,
@@ -336,6 +364,10 @@ function seed(): Store {
     account(4, 'nuno.dias', 'nuno.dias@kixi.ao', 'STUDENT', 'Nuno', 'Dias'),
     account(5, 'sara.pinto', 'sara.pinto@kixi.ao', 'STUDENT', 'Sara', 'Pinto'),
     account(6, 'ines.lopes', 'ines.lopes@kixi.ao', 'STUDENT', 'Inês', 'Lopes'),
+    // Perfil ocultado por moderação, para o 404 a terceiros ter com que ser
+    // demonstrado. Aparece no ranking e na busca — ocultar o perfil não apaga a
+    // pessoa, tira-lhe o perfil.
+    { ...account(7, 'perfil.oculto', 'oculto@kixi.ao', 'STUDENT', 'Perfil', 'Oculto'), hidden: true },
   ];
 
   return {
@@ -592,6 +624,9 @@ function seed(): Store {
       { id: 1, simulationId: 3, anonymous: true, displayName: null, consentAt: toLocalDateTime(new Date(Date.now() - 46 * 3600 * 1000)) },
     ],
     nextShare: 2,
+    reports: [],
+    nextReport: 1,
+    blocks: [],
   };
 }
 
@@ -1367,13 +1402,74 @@ export async function mockHandle(
       if (accountId === null) return problem(401, 'Unauthorized');
       return json({ visibility: db.visibility[accountId] ?? 'school' });
     }
-    const person = pathname.match(/^\/profiles\/(?:accounts|users)\/(\d+)$/);
-    if (person) {
-      const target = db.accounts.find((a) => a.id === Number(person[1]));
-      if (!target) return problem(404, 'Profile not found');
-      const visibility = db.visibility[target.id] ?? 'school';
-      const mine = accountId === target.id;
-      const restricted = isRestricted(visibility as Visibility, mine);
+  /* ── denúncia e bloqueio (#323) ────────────────────────────────────────────
+   * O endpoint de denúncia de publicação existia e não guardava nada: respondia 201
+   * e a denúncia desaparecia. Aqui passa a haver registo, para o Manager ter fila.
+   */
+  const personReport = pathname.match(/^\/profiles\/accounts\/(\d+)\/reports$/);
+  if (personReport && method === 'POST') {
+    const target = db.accounts.find((a) => a.id === Number(personReport[1]));
+    if (!target) return problem(404, 'Profile not found');
+    const parsed = validateReport({ target: 'ACCOUNT', reason: body?.reason, note: typeof body?.note === 'string' ? body.note : '', reporterId: accountId, targetId: target.id });
+    if (!parsed.ok) return problem(400, parsed.error);
+    // Uma pessoa nao se denuncia a si mesma: nao ha moderacao que resolva isto.
+    if (target.id === accountId) return problem(400, 'Nao podes denunciar-te a ti.');
+    const row = { id: db.nextReport++, target: 'ACCOUNT' as const, targetId: target.id, reporterAccountId: accountId!, reason: parsed.reason, note: parsed.note, createdAt: toLocalDateTime(new Date()) };
+    db.reports.push(row);
+    return json(row, 201);
+  }
+
+  const schoolReport = pathname.match(/^\/institutions\/(\d+)\/reports$/);
+  if (schoolReport && method === 'POST') {
+    const target = db.institutions.find((i) => i.id === Number(schoolReport[1]));
+    if (!target) return problem(404, 'Institution not found');
+    const parsed = validateReport({ target: 'INSTITUTION', reason: body?.reason, note: typeof body?.note === 'string' ? body.note : '', reporterId: accountId, targetId: target.id });
+    if (!parsed.ok) return problem(400, parsed.error);
+    const row = { id: db.nextReport++, target: 'INSTITUTION' as const, targetId: target.id, reporterAccountId: accountId!, reason: parsed.reason, note: parsed.note, createdAt: toLocalDateTime(new Date()) };
+    db.reports.push(row);
+    return json(row, 201);
+  }
+
+  /** PUT /profiles/accounts/{id}/block — alterna o bloqueio nos dois sentidos. */
+  const block = pathname.match(/^\/profiles\/accounts\/(\d+)\/block$/);
+  if (block && method === 'PUT') {
+    if (accountId === null) return problem(401, 'Unauthorized');
+    const target = db.accounts.find((a) => a.id === Number(block[1]));
+    if (!target) return problem(404, 'Profile not found');
+    const par = blockPair(accountId, target.id);
+    if (!par) return problem(400, 'Alvo invalido');
+    const i = db.blocks.findIndex((b) => b.accountId === par.accountId && b.blockedAccountId === par.blockedAccountId);
+    if (i >= 0) {
+      db.blocks.splice(i, 1);
+      return json({ blocked: false });
+    }
+    db.blocks.push({ ...par, createdAt: toLocalDateTime(new Date()) });
+    return json({ blocked: true });
+  }
+
+  const person = pathname.match(/^\/profiles\/(?:accounts|users)\/(\d+)$/);
+  if (person) {
+    const target = db.accounts.find((a) => a.id === Number(person[1]));
+    if (!target) return problem(404, 'Profile not found');
+    // Oculto ou suspenso devolve 404 a terceiros — o critério da #323. A si próprio
+    // o perfil continua visível: sem esta excepção, denunciar-se a si por engano
+    // deixava o aluno a ver o próprio perfil em 404.
+    if (deveDesaparecer({ hidden: target.hidden, suspended: target.suspended }) && target.id !== accountId) {
+      return problem(404, 'Profile not found');
+    }
+    const ownVisibility = (db.visibility[target.id] ?? 'school') as Visibility;
+    const mine = target.id === accountId;
+      // O bloqueio é invisibilidade mútua e nada mais: cada um deixa de ver o perfil
+      // do outro. Não impede comentários nem mensagens — é o que a issue pede.
+      const effective = visibilidadePara({
+        targetVisibility: ownVisibility,
+        targetOwnVisibility: ownVisibility,
+        mine,
+        bloqueado: bloqueadoEntre(db.blocks, target.id, accountId ?? -1),
+        desaparece: deveDesaparecer({ hidden: target.hidden, suspended: target.suspended }),
+      });
+      const visibility = effective;
+      const restricted = isRestricted(visibility, mine);
       const classIds = db.enrollments.filter((e) => e.accountId === target.id).map((e) => e.classId);
       const schoolIds = new Set(db.classes.filter((c) => classIds.includes(c.id)).map((c) => c.institutionId));
       return json({
@@ -1384,6 +1480,7 @@ export async function mockHandle(
         verified: target.roles.includes('TEACHER'),
         restricted,
         visibility,
+        blocked: mine ? false : bloqueadoEntre(db.blocks, target.id, accountId ?? -1),
         schools: restricted
           ? []
           : db.institutions.filter((i) => schoolIds.has(i.id) || (target.roles.includes('TEACHER') && i.id === 1)).map(card),

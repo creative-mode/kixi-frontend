@@ -313,4 +313,30 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.getByRole('tab', { name: 'Desempenho' }).click();
     await expect(page.getByRole('tabpanel').getByText('Domínio por prova')).toHaveCount(1);
   });
+ 
+  test('moderação: um perfil ocultado devolve 404 a terceiros (#323)', async ({ page }) => {
+    // Critério de aceitação da #323. A conta 7 está semeada como ocultada no mock:
+    // os dois mocks são processos separados, portanto uma decisão tomada no Manager
+    // não chega ao app do aluno enquanto o backend real não existir. O que o teste
+    // prova é o critério — ocultado é 404 — e não o transporte da decisão, que esse
+    // fica para quando houver backend.
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // Uma conta visível abre.
+    await page.goto('/aluno/u/4');
+    await expect(page.getByRole('heading', { name: 'Nuno Dias' })).toBeVisible();
+
+    // A ocultada devolve 404, e não uma página a dizer que foi ocultada: dizer isso
+    // seria confirmar que o perfil existe.
+    const resposta = await page.goto('/aluno/u/7');
+    expect(resposta?.status(), '/aluno/u/7 é um perfil ocultado e tem de dar 404').toBe(404);
+    // O 404 é o mesmo do resto da app: não diz que o perfil foi ocultado, porque
+    // dizer isso seria confirmar que o perfil existe.
+    await expect(page.getByRole('heading', { name: 'Página não encontrada' })).toBeVisible();
+    await expect(page.getByText('Perfil Oculto')).toHaveCount(0);
+  });
  });

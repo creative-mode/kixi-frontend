@@ -374,6 +374,30 @@ function verificationStore() {
   return G.__kixiVerification;
 }
 
+/**
+ * Denúncias e auditoria (#323).
+ *
+ * Store separada, à maneira da verificação: o mock do gestor não partilha memória com
+ * o do aluno (são processos diferentes), por isso uma denúncia feita no app do aluno
+ * não aparece aqui. O que este mock garante é que a fila e a auditoria têm conteúdo e
+ * que as decisões batem certo com o contrato.
+ */
+function moderationStore() {
+  G.__kixiModeration ??= {
+    next: 4,
+    reports: [
+      { id: 1, target: 'ACCOUNT', targetId: 1, targetName: 'Administrador Kixi', reporterAccountId: 3, reporterName: 'Abner Ede', reason: 'IMPERSONATION', note: 'Usa o selo da escola num perfil que nao e da escola.', status: 'OPEN', createdAt: '2026-10-14T09:12:00', decidedAt: null, decidedBy: null, decisionNote: null },
+      { id: 2, target: 'ACCOUNT', targetId: 4, targetName: 'Carlos Mendes', reporterAccountId: 1, reporterName: 'Administrador Kixi', reason: 'OFFENSIVE_PHOTO', note: '', status: 'OPEN', createdAt: '2026-10-14T08:40:00', decidedAt: null, decidedBy: null, decisionNote: null },
+      { id: 3, target: 'INSTITUTION', targetId: 2, targetName: 'Instituto Médio Industrial de Luanda', reporterAccountId: 3, reporterName: 'Abner Ede', reason: 'FAKE_SCHOOL', note: 'O nome existe mas o endereço nao corresponde a nenhuma escola registrada.', status: 'OPEN', createdAt: '2026-10-13T19:03:00', decidedAt: null, decidedBy: null, decisionNote: null },
+      { id: 4, target: 'INSTITUTION', targetId: 1, targetName: 'Instituto de Telecomunicações', reporterAccountId: 4, reporterName: 'Carlos Mendes', reason: 'OTHER', note: 'Looks legit, mas o selo caducou.', status: 'IGNORED', createdAt: '2026-10-12T11:20:00', decidedAt: '2026-10-12T15:02:00', decidedBy: 'Administrador Kixi', decisionNote: 'Escola verificada e com selo valido.' },
+    ],
+    audit: [
+      { id: 1, at: '2026-10-12T15:02:00', actor: 'Administrador Kixi', action: 'IGNORED', target: 'INSTITUTION', targetId: 1, targetName: 'Instituto de Telecomunicações', reportId: 4, note: 'Escola verificada e com selo valido.' },
+    ],
+  };
+  return G.__kixiModeration;
+}
+
 // Doações do mock: três, para a lista, o filtro e a revisão terem com que trabalhar.
 const PIXEL = ['iVBORw0KGgoAAA', 'ANSUhEUgAAAAE', 'AAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ', 'AA', 'AABJRU5ErkJg', 'g=='].join('');
 function donationStore() {
@@ -585,6 +609,56 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     }
 
     // ── verificação de escolas (#332): só o ADMIN revê ──
+    if ((m = path.match(/^\/api\/v1\/moderation\/(reports|audit)(?:\/(\d+)\/(ignore|hide|suspend))?$/))) {
+      if (!isAdmin) return problem(403, 'Forbidden');
+      const store = moderationStore();
+      if (m[2]) {
+        // Uma decisão por denúncia; o registo de auditoria é o critério de aceitação
+        // da issue, por isso escreve-se sempre, mesmo a ignorar.
+        const report = store.reports.find((r) => r.id === Number(m[2]));
+        if (!report) return problem(404, 'Report not found');
+        if (report.status !== 'OPEN') return problem(409, 'Esta denúncia já foi decidida.');
+        const action = m[3]!.toUpperCase();
+        const status = action === 'IGNORE' ? 'IGNORED' : action === 'HIDE' ? 'HIDDEN' : 'SUSPENDED';
+        if (report.target === 'INSTITUTION' && status === 'SUSPENDED') {
+          // Uma escola não tem sessão: suspender não tem sentido e o modelo recusa.
+          return problem(400, 'Uma escola pode ser ocultada, não suspensa.');
+        }
+        const note = String(readBody()?.note ?? '').trim();
+        // O token traz `sub` e `roles`, nao o email. A auditoria precisa de dizer QUEM
+        // decidiu, e o id serve: e o que o servidor consegue saber sem outro pedido.
+        // O nome nao esta em `accounts`, esta em `users`: `seedAccount` põe o primeiro e
+        // o ultimo nome na tabela `users` e devolve a conta. Uma auditoria com o actor
+        // a dizer "undefined undefined" e pior do que sem registo nenhum.
+        const conta = db.accounts.find((a) => String(a.id) === String(auth?.sub));
+        const pessoa = conta && db.users.find((u) => u.accountId === conta.id);
+        const actor = pessoa ? `${pessoa.firstName} ${pessoa.lastName}` : `conta ${auth?.sub ?? '?'}`;
+        if (report.target === 'INSTITUTION') {
+          const inst = activeInst(String(report.targetId));
+          if (!inst) return problem(404, 'Institution not found');
+          if (status === 'HIDDEN') inst.hidden = true;
+        } else {
+          const acc = db.accounts.find((a) => a.id === report.targetId);
+          if (!acc) return problem(404, 'Account not found');
+          if (status === 'HIDDEN') acc.hidden = true;
+          if (status === 'SUSPENDED') { acc.suspended = true; acc.active = false; }
+        }
+        report.status = status;
+        report.decidedAt = '2026-10-17T12:00:00';
+        report.decidedBy = actor;
+        report.decisionNote = note;
+        store.audit.push({
+          id: store.audit.length + 1, at: report.decidedAt, actor, action: status,
+          target: report.target, targetId: report.targetId, targetName: report.targetName,
+          reportId: report.id, note,
+        });
+        return json(200, report);
+      }
+      if (m[1] === 'audit') return json(200, [...store.audit].sort((a, b) => b.id - a.id));
+      const wanted = url.searchParams.get('status')?.toUpperCase();
+      return json(200, store.reports.filter((r) => !wanted || r.status === wanted).sort((a, b) => b.id - a.id));
+    }
+
     if ((m = path.match(/^\/api\/v1\/(verification-requests(?:\/(\d+)\/(approve|reject))?|institutions\/(\d+)\/verification\/revoke)$/))) {
       if (!isAdmin) return problem(403, 'Forbidden');
       const store = verificationStore();
