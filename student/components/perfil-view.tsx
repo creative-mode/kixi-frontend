@@ -5,7 +5,7 @@ import { Award, BookOpen, Building2, CalendarDays, Check, Flame, LogOut, Users }
 import { sairAction } from '@/lib/auth-actions';
 import { Mastery } from '@/components/mastery';
 import { Page, PageHeader } from '@/components/page';
-import { UserAvatar } from '@/components/user-avatar';
+import { ProfileHero } from '@/components/profile-hero';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
 import { VisibilityPicker } from '@/components/visibility-picker';
@@ -74,46 +74,42 @@ export function PerfilView({
     <Page className="gap-0 p-0 pb-24 md:pb-10">
       <PageHeader title={name} kicker={`${performance.activity.length} ${performance.activity.length === 1 ? 'simulação' : 'simulações'}`} back="/inicio" className="m-0" />
 
-      <section aria-label="Perfil" className="border-b">
-        <div aria-hidden className="h-32 bg-gradient-to-br from-accent to-secondary" />
-        <div className="px-4 pb-4">
-          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
-            <div className="-mt-12 rounded-full border-4 border-background bg-background"><UserAvatar name={name} src={photoUrl(me)} size={88} /></div>
-            {!editing && (
-              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                <form action={sairAction}><Button type="submit" variant="ghost" className="text-muted-foreground"><LogOut aria-hidden />Terminar sessão</Button></form>
-                <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button>
-              </div>
-            )}
-          </div>
-          <h2 className="mt-2 text-xl leading-tight font-extrabold tracking-tight">{name}</h2>
-          {!context && <p className="text-[15px] text-muted-foreground">Sem afiliação académica: matricula-te para veres o teu feed.</p>}
-          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-            {me.school && <Fact icon={Building2}>{me.school.name}</Fact>}
-            {me.course && <Fact icon={BookOpen}>{me.course.name}</Fact>}
-            {me.currentClass && <Fact icon={Users}>Turma {me.currentClass.code}</Fact>}
-            {me.currentClass?.school_year && <Fact icon={CalendarDays}>Ano letivo {me.currentClass.school_year}</Fact>}
-          </ul>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {stats && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {stats.level}</Pill>}
-            {stats && stats.streak > 0 && <Pill variant="outline"><Flame className="size-3" aria-hidden />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
-            {stats && <Pill variant="outline">{stats.xp} XP</Pill>}
-          </div>
-          {recent.length > 0 && (
-            <ul aria-label="Últimas simulações" className="mt-4 grid grid-cols-3 gap-2">
-              {recent.map((a) => (
-                <li key={a.id}>
-                  <Link href={`/resultado?prova=${a.id}`} className="px-box grid h-full content-between gap-2 p-3 [--px-face:var(--secondary)] hover:[--px-face:var(--accent)]">
-                    <b className="text-lg leading-none tabular-nums">{formatAverage(a.score)}</b>
-                    <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{shortTitle(a.title, 32)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+      <ProfileHero
+        name={name}
+        photo={photoUrl(me)}
+        actions={!editing ? (
+          <>
+            <form action={sairAction}><Button type="submit" variant="ghost" className="text-muted-foreground"><LogOut aria-hidden />Terminar sessão</Button></form>
+            <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button>
+          </>
+        ) : undefined}
+        footer={editing ? <div className="border-t"><ProfileEditor me={me} onDone={close} /></div> : undefined}
+      >
+        {!context && <p className="text-[15px] text-muted-foreground">Sem afiliação académica: matricula-te para veres o teu feed.</p>}
+        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+          {me.school && <Fact icon={Building2}>{me.school.name}</Fact>}
+          {me.course && <Fact icon={BookOpen}>{me.course.name}</Fact>}
+          {me.currentClass && <Fact icon={Users}>Turma {me.currentClass.code}</Fact>}
+          {me.currentClass?.school_year && <Fact icon={CalendarDays}>Ano letivo {me.currentClass.school_year}</Fact>}
+        </ul>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {stats && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {stats.level}</Pill>}
+          {stats && stats.streak > 0 && <Pill variant="outline"><Flame className="size-3" aria-hidden />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
+          {stats && <Pill variant="outline">{stats.xp} XP</Pill>}
         </div>
-        {editing && <div className="border-t"><ProfileEditor me={me} onDone={close} /></div>}
-      </section>
+        {recent.length > 0 && (
+          <ul aria-label="Últimas simulações" className="mt-4 grid grid-cols-3 gap-2">
+            {recent.map((a) => (
+              <li key={a.id}>
+                <Link href={`/resultado?prova=${a.id}`} className="px-box grid h-full content-between gap-2 p-3 [--px-face:var(--secondary)] hover:[--px-face:var(--accent)]">
+                  <b className="text-lg leading-none tabular-nums">{formatAverage(a.score)}</b>
+                  <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{shortTitle(a.title, 32)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </ProfileHero>
 
       <Tabs defaultValue={initialTab}>
         <TabsList aria-label="Perfil">{PROFILE_TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>

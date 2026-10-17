@@ -12,6 +12,8 @@ export function ProfileHero({
   photo,
   verified,
   verifiedLabel,
+  actions,
+  footer,
   children,
 }: {
   name: string;
@@ -20,19 +22,27 @@ export function ProfileHero({
   photo?: string | null;
   verified?: boolean;
   verifiedLabel?: string;
+  /** Botões à direita da foto (só o teu perfil os tem). */
+  actions?: React.ReactNode;
+  /** Por baixo do cabeçalho, ainda dentro da faixa (o editor do perfil). */
+  footer?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     <section aria-label="Perfil" className="border-b">
       <div aria-hidden className="h-32 bg-gradient-to-br from-accent to-secondary" />
       <div className="px-4 pb-4">
-        <div className="-mt-12 w-fit rounded-full border-4 border-background bg-background"><UserAvatar name={photoName ?? name} src={photo} size={88} /></div>
+        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
+          <div className="-mt-12 w-fit rounded-full border-4 border-background bg-background"><UserAvatar name={photoName ?? name} src={photo} size={88} /></div>
+          {actions && <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>}
+        </div>
         <h2 className="mt-2 flex items-center gap-1.5 text-xl leading-tight font-extrabold tracking-tight">
           {name}
           {verified && <VerifiedBadge label={verifiedLabel} />}
         </h2>
         {children}
       </div>
+      {footer}
     </section>
   );
 }

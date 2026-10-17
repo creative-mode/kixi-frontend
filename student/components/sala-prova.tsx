@@ -8,6 +8,7 @@ import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue
 import {
   backoffMs,
   cellState,
+  displayRemainingMs,
   formatClock,
   isChoice,
   remainingMs,
@@ -363,7 +364,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               em que o relógio do browser ainda não arrancou. Dizer "Sem tempo" nos
               dois casos mentiria ao aluno sobre uma prova que está a contar. */}
           <span className="tabular-nums">
-            {tempo === 'restante' ? formatClock(left ?? 0) : tempo === 'sem-limite' ? 'Sem tempo' : '—:—'}
+            {tempo === 'restante' ? formatClock(displayRemainingMs(left) ?? 0) : tempo === 'sem-limite' ? 'Sem tempo' : '—:—'}
           </span>
           {extraTime && (
             <small className="hidden text-xs font-semibold text-muted-foreground sm:inline">+25% de tempo</small>
