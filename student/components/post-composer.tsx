@@ -12,8 +12,8 @@ import { useMe } from '@/lib/me-context';
 import { fullName, photoUrl } from '@/lib/profile';
 
 const SHORTCUTS = [
-  { label: 'Fazer uma pergunta', icon: MessageCircle },
-  { label: 'Dica de estudo', icon: BookOpen },
+  { label: 'Fazer uma pergunta', short: 'Pergunta', icon: MessageCircle },
+  { label: 'Dica de estudo', short: 'Dica', icon: BookOpen },
 ];
 
 /** O compositor de publicações da turma, igual no início e no perfil. */
@@ -50,11 +50,11 @@ export function PostComposer({ classId }: { classId: number }) {
     <form id="publicar" className="flex gap-3 border-b px-4 py-3" onSubmit={publish}>
       <UserAvatar name={fullName(me)} src={photoUrl(me)} size={44} />
       <div className="grid min-w-0 flex-1 gap-2">
-        <Input ref={field} className="h-11 border-0 bg-transparent px-0 text-lg shadow-none focus-visible:ring-0" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha uma dúvida ou um tema com a turma" aria-label="Nova publicação" />
+        <Input ref={field} className="h-11 border-0 bg-transparent px-0 text-base shadow-none sm:text-lg focus-visible:ring-0" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha uma dúvida ou uma dica" aria-label="Nova publicação" />
         <div className="flex items-center justify-between gap-2 border-t pt-2">
           <div className="-ml-3 flex flex-wrap gap-0.5">
             {SHORTCUTS.map((a) => (
-              <Button key={a.label} type="button" aria-label={a.label} variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setText((t) => t || a.label + ': ')}><a.icon /><span className="hidden sm:inline">{a.label}</span></Button>
+              <Button key={a.label} type="button" aria-label={a.label} variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setText((t) => t || a.label + ': ')}><a.icon /><span className="hidden sm:inline">{a.label}</span><span className="sm:hidden">{a.short}</span></Button>
             ))}
           </div>
           <Button type="submit" size="sm" disabled={!canPublish(text) || publishing}>Publicar</Button>
