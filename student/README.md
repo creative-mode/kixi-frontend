@@ -68,6 +68,20 @@ Um aluno sem matrícula é levado para `/onboarding` e escolhe escola, curso e t
 A escola da turma é a do curso, nunca escolhida à parte: `Class` não tem escola própria, e a base de dados garante a igualdade com uma chave estrangeira composta. O `/me` responde com a escola da turma quando há matrícula, e com a escola da ligação administrativa quando não há — por isso um aluno que se matriculou sozinho vê a escola preenchida (creative-mode/kixi#100).
 
 
+## Ranking e comparação entre escolas
+
+O ecrã `/ranking` fala com `GET /leaderboard` (kixi#117, #121, #189, ADR-0013). O cliente só envia o que
+o contrato aceita: `scope` (`class`, `school`, `friends`, `global`), `period` (`all`, `month`) e `metric`
+(`average`, `xp`). O grupo nunca vai no pedido: o backend resolve-o pela matrícula do aluno.
+
+- **Global**: compara com alunos de outras escolas, só com consentimento (`PUT /leaderboard/consent`; sem ele
+  o `GET` responde 403 e a página oferece o interruptor). Cada aluno conta pelo percentil dentro da própria
+  escola, e os outros aparecem como "Aluno de outra escola", sem nome nem escola. Uma escola só entra com pelo
+  menos 10 alunos com nota e consentimento, por isso o ecrã pode estar vazio e explica porquê.
+- **Estados**: a carregar, erro com a mensagem do servidor, vazio (com a razão de cada aba) e grupo pequeno.
+- O mock (`lib/mock/backend.ts`) responde aos quatro scopes com as mesmas regras, em `lib/mock/global-ranking.ts`
+  e `lib/mock/friends.ts`, que têm testes.
+
 ## basePath
 
 A app é servida em `/aluno`, e o Next não aplica esse prefixo de forma uniforme. Duas regras

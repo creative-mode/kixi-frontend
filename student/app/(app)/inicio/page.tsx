@@ -1,5 +1,6 @@
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
-import { getMe } from '@/lib/me';
+import { RefreshError } from '@/components/refresh-error';
+import { getProfile } from '@/lib/me';
 import { getFeed } from '@/lib/feed';
 import { loadSocial } from '@/lib/social';
 import { InicioFeed } from './inicio-feed';
@@ -15,8 +16,18 @@ export const metadata = { title: 'Início · Kixi' };
  * matrícula não há `classId` para o `GET /feed/posts` exigir, e pedir sem ele dava 400.
  */
 export default async function InicioPage() {
-  const me = await getMe();
-  if (!me) return null;
+  const profile = await getProfile();
+  // Sem o perfil não há turma nem feed. Antes devolvia-se `null` e o aluno ficava com a página em
+  // branco quando o servidor caía; agora vê o motivo e pode tentar de novo (#350).
+  if (profile.kind !== 'ok') {
+    return (
+      <RefreshError
+        title="Não foi possível carregar o teu início"
+        message="O servidor não respondeu a tempo. Tenta de novo — se continuar, fala com o teu professor."
+      />
+    );
+  }
+  const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
   const [feed, social] = await Promise.all([classId ? getFeed(classId) : Promise.resolve(null), loadSocial(me)]);

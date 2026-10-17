@@ -4,6 +4,7 @@ import {
   getLeaderboard,
   setCrossInstitutionConsent,
   type Leaderboard,
+  type RankingMetric,
   type RankingPeriod,
   type RankingScope,
 } from './ranking';
@@ -18,8 +19,9 @@ export type BoardResult =
 export async function fetchLeaderboardAction(
   scope: RankingScope,
   period: RankingPeriod = 'all',
+  metric: RankingMetric = 'average',
 ): Promise<BoardResult> {
-  const result = await getLeaderboard(scope, period);
+  const result = await getLeaderboard(scope, period, undefined, metric);
   return result.ok
     ? { ok: true, data: result.data }
     : { ok: false, message: result.message, status: result.status };

@@ -1,6 +1,7 @@
 import { PerfilView } from '@/components/perfil-view';
 import { RefreshError } from '@/components/refresh-error';
 import { getFeed } from '@/lib/feed';
+import { getMyVisibility } from '@/lib/profiles';
 import { getProfile } from '@/lib/me';
 import { loadSocial } from '@/lib/social';
 import { ownPosts, profileTabOf } from '@/lib/social-rules';
@@ -31,11 +32,16 @@ export default async function PerfilPage({ searchParams }: { searchParams: Promi
   const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
-  const [social, feed] = await Promise.all([loadSocial(me), classId ? getFeed(classId, 1, 30) : Promise.resolve(null)]);
+  const [social, feed, visibility] = await Promise.all([
+    loadSocial(me),
+    classId ? getFeed(classId, 1, 30) : Promise.resolve(null),
+    getMyVisibility(),
+  ]);
 
   return (
     <PerfilView
         me={me}
+        visibility={visibility.ok ? visibility.data.visibility : 'school'}
         stats={social.stats}
         badges={social.badges}
         history={social.history}

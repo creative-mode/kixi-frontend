@@ -12,8 +12,9 @@ import { UserAvatar } from '@/components/user-avatar';
 import { fetchLeaderboardAction, setConsentAction } from '@/lib/ranking-actions';
 import { FriendsPanel } from '@/components/friends-panel';
 import { Button } from '@/components/ui/button';
-import { formatAverage, myPositionLabel, smallGroupNote, SCOPE_LABEL } from '@/lib/ranking-rules';
-import type { Leaderboard, RankingScope } from '@/lib/ranking';
+import { NativeSelect } from '@/components/ui/native-select';
+import { formatAverage, globalNote, myPositionLabel, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import type { Leaderboard, RankingMetric, RankingPeriod, RankingScope } from '@/lib/ranking';
 
 const SCOPES: RankingScope[] = ['class', 'school', 'friends', 'global'];
 
@@ -30,11 +31,13 @@ export function RankingView({
   const [board, setBoard] = useState(initial);
   const [boardError, setBoardError] = useState(error);
   const [needsConsent, setNeedsConsent] = useState(false);
+  const [period, setPeriod] = useState<RankingPeriod>('all');
+  const [metric, setMetric] = useState<RankingMetric>('average');
   const [pending, startTransition] = useTransition();
 
-  const load = (next: RankingScope) =>
+  const load = (next: RankingScope, nextPeriod = period, nextMetric = metric) =>
     startTransition(async () => {
-      const result = await fetchLeaderboardAction(next);
+      const result = await fetchLeaderboardAction(next, nextPeriod, nextMetric);
       if (result.ok) {
         setBoard(result.data);
         setBoardError(null);
@@ -62,6 +65,15 @@ export function RankingView({
       load('global');
     });
 
+  const changePeriod = (next: RankingPeriod) => {
+    setPeriod(next);
+    load(scope, next, metric);
+  };
+  const changeMetric = (next: RankingMetric) => {
+    setMetric(next);
+    load(scope, period, next);
+  };
+
   return (
     <Page variant="wide">
       <Column className="gap-5">
@@ -74,6 +86,21 @@ export function RankingView({
             {SCOPES.map((s) => <TabsTrigger key={s} value={s} aria-controls={undefined}>{SCOPE_LABEL[s]}</TabsTrigger>)}
           </TabsList>
         </Tabs>
+
+        <div className="flex flex-wrap gap-3">
+          <label className="grid min-w-40 flex-1 gap-1 text-[13px] text-muted-foreground">
+            Período
+            <NativeSelect value={period} disabled={pending} onChange={(e) => changePeriod(e.target.value as RankingPeriod)}>
+              {(Object.keys(PERIOD_LABEL) as RankingPeriod[]).map((p) => <option key={p} value={p}>{PERIOD_LABEL[p]}</option>)}
+            </NativeSelect>
+          </label>
+          <label className="grid min-w-40 flex-1 gap-1 text-[13px] text-muted-foreground">
+            Ordenar por
+            <NativeSelect value={metric} disabled={pending} onChange={(e) => changeMetric(e.target.value as RankingMetric)}>
+              {(Object.keys(METRIC_LABEL) as RankingMetric[]).map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
+            </NativeSelect>
+          </label>
+        </div>
 
         {scope === 'global' && needsConsent ? (
           <Card className="gap-3 px-5 py-6">
@@ -92,7 +119,7 @@ export function RankingView({
               title={scope === 'friends' ? 'Ainda não há dados dos teus amigos' : 'Ainda não há dados'}
               message={scope === 'friends'
                 ? 'Aparecem aqui quando os teus amigos tiverem provas corrigidas. Convida colegas abaixo.'
-                : 'Aparecem aqui quando houver provas corrigidas neste grupo.'}
+                : scope === 'global' ? GLOBAL_EMPTY_HINT : 'Aparecem aqui quando houver provas corrigidas neste grupo.'}
             />
           </Card>
         ) : (
@@ -103,6 +130,7 @@ export function RankingView({
               {board.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}</span>}
               {scope === 'global' && board.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
             </div>
+            {scope === 'global' && <p className="text-sm text-muted-foreground">{globalNote(board.institutionsCounted, metric)}</p>}
             {smallGroupNote(board.smallGroup) && (
               <p className="text-sm text-muted-foreground">{smallGroupNote(board.smallGroup)}</p>
             )}
@@ -113,6 +141,7 @@ export function RankingView({
                     <TableHead className="w-12">#</TableHead>
                     <TableHead>Aluno</TableHead>
                     <TableHead className="text-right">Média</TableHead>
+                    {metric === 'xp' && <TableHead className="text-right">XP</TableHead>}
                     {scope === 'global' && <TableHead className="text-right">Percentil</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -127,6 +156,7 @@ export function RankingView({
                         </span>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatAverage(entry.average)}</TableCell>
+                      {metric === 'xp' && <TableCell className="text-right tabular-nums">{entry.xp ?? '—'}</TableCell>}
                       {scope === 'global' && <TableCell className="text-right tabular-nums">{formatAverage(entry.percentile ?? null)}</TableCell>}
                     </TableRow>
                   ))}
