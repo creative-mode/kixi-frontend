@@ -71,7 +71,7 @@ export function RankingView({
         />
         <Tabs value={scope} onValueChange={(v) => changeScope(v as RankingScope)}>
           <TabsList aria-label="Comparar com">
-            {SCOPES.map((s) => <TabsTrigger key={s} value={s}>{SCOPE_LABEL[s]}</TabsTrigger>)}
+            {SCOPES.map((s) => <TabsTrigger key={s} value={s} aria-controls={undefined}>{SCOPE_LABEL[s]}</TabsTrigger>)}
           </TabsList>
         </Tabs>
 
