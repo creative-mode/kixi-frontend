@@ -9,8 +9,10 @@ x-app: &app
   environment: &env
     # Mesmo segredo no manager e no aluno: é ele que valida a sessão.
     JWT_SECRET: ${JWT_SECRET:-}
-    # true = backend simulado dentro do próprio app (demo). false = backend real em BACKEND_API_URL.
-    KIXI_MOCK: ${KIXI_MOCK:-true}
+    # false = backend real em BACKEND_API_URL (por omissão). Para uma demonstração com dados simulados:
+    #   KIXI_MOCK=true KIXI_ALLOW_MOCK_IN_PROD=true docker compose up
+    KIXI_MOCK: ${KIXI_MOCK:-false}
+    KIXI_ALLOW_MOCK_IN_PROD: ${KIXI_ALLOW_MOCK_IN_PROD:-false}
     BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:8080/api/v1}
     # Endereço público do gateway. É com ele que o gestor e o aluno constroem os
     # redireccionamentos para a landing e para a /403 canónica; os cabeçalhos Host e
