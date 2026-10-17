@@ -168,7 +168,7 @@ a { color: inherit; }
 .footer__nav { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; }
 .footer__nav a { text-decoration: none; font-weight: 600; font-size: 14px; color: #b9b6c8; }
 .footer__nav a:hover { color: #fff; }
-.footer__copy { margin: 0; font-size: 13px; color: #8d8aa3; }
+.footer__copy { margin: 0; font-size: 13px; color: var(--ink-muted); }
 .footer__lead { margin: 0; font-size: 15px; color: var(--lp-text-on-deep); }
 .footer__contact { margin: 0; font-size: 14px; color: #b9b6c8; }
 .footer__contact a { color: white; }
