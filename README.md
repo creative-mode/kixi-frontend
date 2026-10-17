@@ -113,3 +113,7 @@ Cada app (landing, aluno, manager) corre no seu contentor e na sua porta interna
 
 - `KIXI_MOCK=true` (por omissão fora de produção) usa o backend simulado; em produção as apps recusam arrancar com ele ligado, salvo `KIXI_ALLOW_MOCK_IN_PROD=true` (demonstração); com `false` é obrigatório `JWT_SECRET` (o mesmo do backend) e `BACKEND_API_URL`.
 - Atrás de um proxy TLS (nginx, Caddy, Traefik) aponte-o para a porta 3000 e envie `X-Forwarded-Proto`/`X-Forwarded-Host`.
+
+## Contrato com o backend
+
+`node scripts/check-endpoints.mjs <pasta-do-backend>` confirma que o backend (no ramo de destino) expõe todos os endpoints que o aluno chama. Corre na CI em pull requests para QUA e PRD (`.github/workflows/contrato.yml`), com o segredo `BACKEND_READ_TOKEN`. Quando se acrescenta uma chamada nova no aluno, o backend de destino tem de a ter antes da promoção.
