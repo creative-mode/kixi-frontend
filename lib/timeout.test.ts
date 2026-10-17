@@ -4,10 +4,20 @@
 // acaba em erro legível, não num esqueleto que fica para sempre.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TIMEOUT_MESSAGE, isTimeout, withDeadline } from './timeout.ts';
+import { ACTION_TIMEOUT_MS, REQUEST_TIMEOUT_MS, TIMEOUT_MESSAGE, isTimeout, withDeadline } from './timeout.ts';
 
 test('um pedido que termina a tempo devolve o valor', async () => {
   assert.equal(await withDeadline(Promise.resolve(7), 1000), 7);
+});
+
+test('o prazo do cliente protege sem cortar o do servidor (#191)', () => {
+  // A rede de segurança de fora tem de durar mais que o prazo de dentro: um
+  // ACTION_TIMEOUT_MS mais curto que REQUEST_TIMEOUT_MS ganha sempre a corrida
+  // e transforma em erro de rede um pedido que ainda ia responder a tempo.
+  assert.ok(
+    ACTION_TIMEOUT_MS > REQUEST_TIMEOUT_MS,
+    `ACTION_TIMEOUT_MS (${ACTION_TIMEOUT_MS}) tem de ser maior que REQUEST_TIMEOUT_MS (${REQUEST_TIMEOUT_MS})`,
+  );
 });
 
 test('um pedido que nunca termina acaba em timeout, não fica pendente (#191)', async () => {

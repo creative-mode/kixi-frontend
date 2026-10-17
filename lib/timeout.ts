@@ -14,11 +14,13 @@ export const REQUEST_TIMEOUT_MS = 15_000;
 
 export const TIMEOUT_MESSAGE = 'O servidor demorou a responder. Tente novamente.';
 
-/** Prazo no cliente para uma chamada a server action. O servidor já tem o seu
- *  (15 s); este é a rede de segurança para quando a chamada nem chega a
- *  responder — o action do Next retenta sozinho e, sem isto, o componente
- *  ficava no esqueleto para sempre (#191). */
-export const ACTION_TIMEOUT_MS = 12_000;
+/** Prazo no cliente para uma chamada a server action. A action já corre com o
+ *  prazo do servidor (15 s) por dentro; este é a rede de segurança para quando a
+ *  chamada nem chega a responder — o action do Next retenta sozinho e, sem isto,
+ *  o componente ficava no esqueleto para sempre (#191). Tem de ser *maior* que o
+ *  prazo do servidor: um de fora mais curto ganha sempre primeiro e trata como
+ *  falha de rede um pedido que ainda ia a tempo de responder. */
+export const ACTION_TIMEOUT_MS = 20_000;
 
 export function timeoutSignal(ms: number = REQUEST_TIMEOUT_MS): AbortSignal {
   return AbortSignal.timeout(ms);
