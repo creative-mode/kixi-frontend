@@ -42,7 +42,12 @@ export default async function SalaControladaPage({ params }: { params: Params })
   return (
     <div className="mx-auto grid min-h-dvh max-w-[760px] place-items-center p-6">
       {room.kind === 'error' ? (
-        <RefreshError title="Não conseguimos abrir a sala" message={message} />
+        <RefreshError
+          title="Não conseguimos abrir a sala"
+          message={room.status === 404 ? 'Esta sala não existe ou já não está disponível.' : message}
+          status={room.status}
+          back={{ href: '/provas?aba=salas', label: 'Voltar às salas' }}
+        />
       ) : (
         <div className="grid gap-4 text-center">
           <p className="text-lg font-semibold">{message.trim()}</p>

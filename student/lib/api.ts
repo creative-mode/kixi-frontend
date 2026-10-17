@@ -3,7 +3,7 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { BACKEND, COOKIE } from './session';
 import { MOCK, mockHandle } from './mock/backend';
-import { messageForStatus } from './error-messages';
+import { friendlyMessage } from './error-messages';
 
 /** Same shape as lib/crud/http.ts in the manager: no exceptions for expected
  *  failures, so a Server Component can degrade instead of blowing up. */
@@ -27,11 +27,13 @@ export async function authHeaders(): Promise<Record<string, string>> {
 }
 
 /** Turns an error response into a sentence in Portuguese for the student.
- *  The server's own `detail` is technical and in English, so it is not shown: the status
- *  decides the sentence (lib/error-messages.ts). The security layer answers 401/403 with an
+ *  The server's `detail` is in English: known texts have their own translation and the rest
+ *  falls back to a sentence per status (lib/error-messages.ts). The security layer answers 401/403 with an
  *  empty body, so the status has to be readable on its own anyway. */
 export async function problem(res: Response): Promise<{ status: number; message: string }> {
-  return { status: res.status, message: messageForStatus(res.status) };
+  const body = (await res.json().catch(() => null)) as { detail?: unknown; title?: unknown } | null;
+  const serverText = [body?.detail, body?.title].find((v): v is string => typeof v === 'string') ?? '';
+  return { status: res.status, message: friendlyMessage(res.status, serverText) };
 }
 
 async function request<T>(

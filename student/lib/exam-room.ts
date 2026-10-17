@@ -72,12 +72,12 @@ export type ControlledRoom =
   | { kind: 'submitted'; simulationId: number }
   | { kind: 'missing' }
   | { kind: 'unauthorized' }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; status: number; message: string };
 
 export async function getControlledRoom(roomId: number): Promise<ControlledRoom> {
   const probe = await apiGet<Invitation[]>('/exam-rooms/mine');
   if (!probe.ok) {
-    return probe.status === 401 ? { kind: 'unauthorized' } : { kind: 'error', message: translateRoomError(probe.message) };
+    return probe.status === 401 ? { kind: 'unauthorized' } : { kind: 'error', status: probe.status, message: translateRoomError(probe.message) };
   }
   const invitation = probe.data.find((i) => i.roomId === roomId);
   if (!invitation) return { kind: 'missing' };
@@ -89,7 +89,7 @@ export async function getControlledRoom(roomId: number): Promise<ControlledRoom>
   // Entrar é idempotente: a primeira vez cria a simulação da sala, as seguintes
   // devolvem a mesma. É o que torna seguro recarregar a página a meio da prova.
   const joined = await joinRoom(roomId);
-  if (!joined.ok) return { kind: 'error', message: translateRoomError(joined.message) };
+  if (!joined.ok) return { kind: 'error', status: joined.status, message: translateRoomError(joined.message) };
   const simulationId = Number(joined.data.simulationId);
   if (!Number.isInteger(simulationId) || simulationId <= 0) {
     return { kind: 'waiting', phase: 'lobby', invitation };
@@ -102,9 +102,9 @@ export async function getControlledRoom(roomId: number): Promise<ControlledRoom>
     // O enunciado de uma sala pode não estar no catálogo: se não abrir, a folha leva o molde em branco.
     getStatementFull(invitation.statementId, { cached: true }),
   ]);
-  if (!simulation.ok) return { kind: 'error', message: translateRoomError(simulation.message) };
+  if (!simulation.ok) return { kind: 'error', status: simulation.status, message: translateRoomError(simulation.message) };
   if ((simulation.data.status ?? '').toUpperCase() !== 'IN_PROGRESS') return { kind: 'submitted', simulationId };
-  if (!view.ok) return { kind: 'error', message: translateRoomError(view.message) };
+  if (!view.ok) return { kind: 'error', status: view.status, message: translateRoomError(view.message) };
 
   const questions = view.data.questions;
   const saved: RoomData['saved'] = {};
