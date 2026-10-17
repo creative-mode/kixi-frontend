@@ -116,6 +116,8 @@ type SimulationRow = {
 type Store = {
   accounts: Account[];
   nextAccount: number;
+  /** Quem pode ver o perfil de cada conta (#336); sem entrada vale 'school'. */
+  visibility: Record<number, string>;
   institutions: Institution[];
   courses: Course[];
   schoolYears: SchoolYear[];
@@ -321,6 +323,7 @@ function seed(): Store {
   return {
     accounts,
     nextAccount: 7,
+    visibility: { 5: 'private' },
     institutions,
     courses,
     schoolYears,
@@ -1216,6 +1219,78 @@ export async function mockHandle(
     // rather than nulling it; the client treats blank as "no picture".
     if (body.photo !== undefined) account.photo = photo;
     return json(meResponse(db, account));
+  }
+
+  // ── perfis (#331/#336/#338): escolas, pessoas, pesquisa ───────────────────────
+  if (pathname.startsWith('/profiles/') && method === 'GET' || pathname === '/profiles/me/visibility') {
+    const card = (i: Institution) => ({
+      id: i.id, code: i.code, name: i.name, shortName: i.short_name, logo: i.logo, verified: i.id === 1,
+    });
+    const school = pathname.match(/^\/profiles\/institutions\/(\d+)(\/teachers)?$/);
+    if (school) {
+      const inst = db.institutions.find((i) => i.id === Number(school[1]));
+      if (!inst) return problem(404, 'Institution not found');
+      const classIds = new Set(db.classes.filter((c) => c.institutionId === inst.id).map((c) => c.id));
+      if (school[2]) {
+        return json(
+          inst.id === 1
+            ? [{ id: 1, accountId: 2, displayName: 'Bruno Mendes', photo: null, specialty: 'Redes', verified: true }]
+            : [],
+        );
+      }
+      return json({
+        ...card(inst),
+        verifiedAt: inst.id === 1 ? '2026-01-15T10:00:00' : null,
+        teacherCount: inst.id === 1 ? 1 : 0,
+        studentCount: db.enrollments.filter((e) => classIds.has(e.classId)).length,
+        statementCount: db.statements.filter((x) => x.institutionId === inst.id).length,
+      });
+    }
+    if (pathname === '/profiles/search') {
+      const q = (search.get('q') ?? '').trim().toLowerCase();
+      if (q.length < 2) return problem(400, 'q must have at least 2 characters');
+      return json(
+        db.institutions
+          .filter((i) => `${i.name} ${i.code} ${i.short_name ?? ''}`.toLowerCase().includes(q))
+          .map(card),
+      );
+    }
+    if (pathname === '/profiles/me/visibility') {
+      if (accountId === null) return problem(401, 'Unauthorized');
+      return json({ visibility: db.visibility[accountId] ?? 'school' });
+    }
+    const person = pathname.match(/^\/profiles\/(?:accounts|users)\/(\d+)$/);
+    if (person) {
+      const target = db.accounts.find((a) => a.id === Number(person[1]));
+      if (!target) return problem(404, 'Profile not found');
+      const visibility = db.visibility[target.id] ?? 'school';
+      const mine = accountId === target.id;
+      const restricted = !mine && visibility === 'private';
+      const classIds = db.enrollments.filter((e) => e.accountId === target.id).map((e) => e.classId);
+      const schoolIds = new Set(db.classes.filter((c) => classIds.includes(c.id)).map((c) => c.institutionId));
+      return json({
+        userId: target.id,
+        displayName: `${target.firstName} ${target.lastName}`,
+        photo: target.photo,
+        kind: target.roles.includes('TEACHER') ? 'TEACHER' : 'STUDENT',
+        verified: target.roles.includes('TEACHER'),
+        restricted,
+        visibility,
+        schools: restricted
+          ? []
+          : db.institutions.filter((i) => schoolIds.has(i.id) || (target.roles.includes('TEACHER') && i.id === 1)).map(card),
+        level: restricted ? null : 3,
+        xp: restricted ? null : 240,
+        badges: restricted ? [] : ['Primeira prova'],
+      });
+    }
+  }
+  if (pathname === '/profiles/me/visibility' && method === 'PUT') {
+    if (accountId === null) return problem(401, 'Unauthorized');
+    const value = text('visibility');
+    if (!['public', 'school', 'private'].includes(value)) return problem(400, 'Visibility must be public, school or private');
+    db.visibility[accountId] = value;
+    return json({ visibility: value });
   }
 
   if (pathname === '/institutions' && method === 'GET') {
