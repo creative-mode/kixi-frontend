@@ -128,9 +128,17 @@ type Store = {
   answers: MockAnswer[];
   nextSimulation: number;
   nextAnswer: number;
-  /** Sessões do tutor: a (conta, enunciado) a que cada id pertence, e quantas mensagens
-   *  a conta já enviou, para o limite. */
-  chatSessions: { id: number; accountId: number; statementId: number }[];
+  /** Sessões do tutor: a (conta, enunciado) a que cada id pertence e o contexto da
+   *  sessão (#115), mais quantas mensagens a conta já enviou para o limite. */
+  chatSessions: {
+    id: number;
+    accountId: number;
+    statementId: number;
+    mode: 'GENERAL' | 'EXPLAIN_QUESTION' | 'SIMILAR_EXERCISES' | 'CONCEPT';
+    questionId: number | null;
+    selectedOptionId: number | null;
+    studentAnswer: string | null;
+  }[];
   chatSent: Record<number, number>;
   /** The institution each student profile belongs to; an administrator sets this. */
   institutionByAccount: Record<number, number>;
@@ -815,6 +823,31 @@ function meResponse(db: Store, account: Account): Me {
   };
 }
 
+function tutorSources(
+  statement: CatalogRow | undefined,
+  question: MockQuestion | null,
+  mode: 'GENERAL' | 'EXPLAIN_QUESTION' | 'SIMILAR_EXERCISES' | 'CONCEPT',
+) {
+  return [
+    {
+      kind: 'STATEMENT',
+      statementId: statement?.id ?? null,
+      statementTitle: statement?.title ?? null,
+      questionId: null,
+      questionNumber: null,
+    },
+    ...(question
+      ? [{
+          kind: mode === 'SIMILAR_EXERCISES' ? 'CATALOG_QUESTION' : 'QUESTION',
+          statementId: statement?.id ?? null,
+          statementTitle: statement?.title ?? null,
+          questionId: question.id,
+          questionNumber: question.number,
+        }]
+      : []),
+  ];
+}
+
 export async function mockHandle(
   method: string,
   path: string,
@@ -1412,7 +1445,7 @@ export async function mockHandle(
     return json(existing);
   }
 
-  // ── o tutor (BE-18) ──────────────────────────────────────────────────────────
+  // ── o tutor (BE-18 e BE-19) ───────────────────────────────────────────────────
   // POST /chat/sessions abre uma sessão presa a um enunciado que o aluno pode ler;
   // POST /chat/sessions/{id}/messages responde em text/event-stream: `delta`s, depois
   // `final`. Tudo o que falha ANTES do primeiro byte é um estado HTTP normal (404 de uma
@@ -1425,9 +1458,48 @@ export async function mockHandle(
     }
     const statement = db.statements.find((x) => x.id === statementId);
     if (!statement || (!staff && !statement.visible)) return problem(404, 'Statement not found');
-    const session = { id: db.chatSessions.length + 1, accountId: account.id, statementId };
+    const rawMode = body.mode ?? null;
+    const allowedModes = ['GENERAL', 'EXPLAIN_QUESTION', 'SIMILAR_EXERCISES', 'CONCEPT'];
+    if (rawMode !== null && !allowedModes.includes(String(rawMode))) {
+      return validationError({ mode: 'mode must be a known tutor mode' });
+    }
+    const mode = (rawMode === null ? 'GENERAL' : String(rawMode)) as 'GENERAL' | 'EXPLAIN_QUESTION' | 'SIMILAR_EXERCISES' | 'CONCEPT';
+    const rawQuestionId = body.questionId ?? null;
+    if (rawQuestionId !== null && (!Number.isInteger(Number(rawQuestionId)) || Number(rawQuestionId) <= 0)) {
+      return validationError({ questionId: 'questionId must be positive' });
+    }
+    const questionId = rawQuestionId === null ? null : Number(rawQuestionId);
+    if ((mode === 'EXPLAIN_QUESTION' || mode === 'SIMILAR_EXERCISES') && questionId === null) {
+      return validationError({ questionId: 'questionId is required for this mode' });
+    }
+    const askedQuestion =
+      questionId === null
+        ? null
+        : db.questions.find((q) => q.id === questionId && (QUESTIONS_BY_STATEMENT[statementId] ?? []).includes(q.id)) ?? null;
+    if (questionId !== null && !askedQuestion) return problem(404, 'Question is not part of this statement.');
+    const rawSelectedOptionId = body.selectedOptionId ?? null;
+    if (rawSelectedOptionId !== null && (!Number.isInteger(Number(rawSelectedOptionId)) || Number(rawSelectedOptionId) <= 0)) {
+      return validationError({ selectedOptionId: 'selectedOptionId must be positive' });
+    }
+    const selectedOptionId = rawSelectedOptionId === null ? null : Number(rawSelectedOptionId);
+    const studentAnswer = body.studentAnswer === undefined || body.studentAnswer === null ? null : String(body.studentAnswer);
+    if (studentAnswer !== null && studentAnswer.length > 2000) {
+      return validationError({ studentAnswer: 'studentAnswer must be at most 2000 characters' });
+    }
+    if ((selectedOptionId !== null || studentAnswer !== null) && questionId === null) {
+      return validationError({ questionId: 'questionId is required when an answer is provided' });
+    }
+    const session = {
+      id: db.chatSessions.length + 1,
+      accountId: account.id,
+      statementId,
+      mode,
+      questionId,
+      selectedOptionId,
+      studentAnswer,
+    };
     db.chatSessions.push(session);
-    return json({ id: session.id, statementId, createdAt: toLocalDateTime(new Date()) }, 201);
+    return json({ id: session.id, statementId, mode, questionId, sources: tutorSources(statement, askedQuestion, mode), createdAt: toLocalDateTime(new Date()) }, 201);
   }
 
   const chatMatch = /^\/chat\/sessions\/(\d+)\/messages$/.exec(pathname);
@@ -1439,6 +1511,8 @@ export async function mockHandle(
     if (!content) return validationError({ content: 'content is required' });
     if (content.length > 4000) return validationError({ content: 'content must be at most 4000 characters' });
     if (content.includes('[[sem-chave]]')) return problem(503, 'The AI provider is not configured');
+    const extra = Object.keys(body).filter((key) => key !== 'content');
+    if (extra.length > 0) return validationError({ content: 'message endpoint only accepts content' });
 
     db.chatSent[account.id] = (db.chatSent[account.id] ?? 0) + 1;
     if (content.includes('[[limite]]') || db.chatSent[account.id] > 30) {
@@ -1449,6 +1523,10 @@ export async function mockHandle(
     }
 
     const statement = db.statements.find((x) => x.id === session.statementId);
+    const askedQuestion =
+      session.questionId == null
+        ? null
+        : db.questions.find((q) => q.id === session.questionId && (QUESTIONS_BY_STATEMENT[session.statementId] ?? []).includes(q.id)) ?? null;
     const reply = content.includes('[[fora]]')
       ? 'Só acompanho o enunciado desta sessão, por isso não consigo ajudar com esse assunto.'
       : `Vamos por passos, sobre «${statement?.title ?? 'esta prova'}». Primeiro, identifica o que a questão pede. Depois, aplica a regra e confirma o resultado: a escolha final é tua.`;
@@ -1469,7 +1547,11 @@ export async function mockHandle(
           controller.enqueue(sse('delta', { content: piece }));
           await new Promise((resolve) => setTimeout(resolve, 15));
         }
-        controller.enqueue(sse('final', { messageId: db.chatSent[account.id], model: 'mock' }));
+        controller.enqueue(sse('final', {
+          messageId: db.chatSent[account.id],
+          model: 'mock',
+          sources: tutorSources(statement, askedQuestion, session.mode),
+        }));
         controller.close();
       },
     });

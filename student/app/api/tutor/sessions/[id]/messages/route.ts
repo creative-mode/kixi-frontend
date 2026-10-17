@@ -8,11 +8,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) return Response.json({ message: 'Conversa inválida.' }, { status: 404 });
 
-  const body = (await request.json().catch(() => null)) as { content?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const content = typeof body?.content === 'string' ? body.content.trim() : '';
   if (!content) return Response.json({ message: 'A mensagem está vazia.' }, { status: 400 });
   if (content.length > MAX_MESSAGE) {
     return Response.json({ message: `A mensagem passa os ${MAX_MESSAGE} caracteres.` }, { status: 400 });
+  }
+  const extra = Object.keys(body ?? {}).filter((key) => key !== 'content');
+  if (extra.length > 0) {
+    return Response.json({ message: 'Esta rota só aceita o conteúdo da mensagem.' }, { status: 400 });
   }
   return forwardToTutor(`/chat/sessions/${id}/messages`, { content }, request.signal);
 }
