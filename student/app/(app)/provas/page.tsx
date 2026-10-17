@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Camera, Search } from 'lucide-react';
-import { Column, Page, PageHeader } from '@/components/page';
+import { Page, PageHeader } from '@/components/page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { exams, subjects, type Exam } from '@/lib/data';
 
 function State({ e }: { e: Exam }) {
@@ -43,39 +43,40 @@ export default function Provas() {
   const action = (e: Exam) => (e.state === 'progress' ? 'Continuar' : e.state === 'done' ? 'Ver resultado' : 'Começar');
 
   return (
-    <Page variant="wide">
-      <Column className="gap-5">
-        <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
+    <Page>
+      <PageHeader title="Provas" subtitle="Simula provas anteriores e vê onde precisas de reforçar." />
 
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border-[1.5px] border-dashed border-input bg-card px-5 py-4">
+      <div className="border-b px-4 py-4">
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-input px-4 py-4">
           <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Camera className="size-5" /></span>
           <p className="min-w-[200px] flex-1 text-sm text-muted-foreground"><b className="block text-[15px] text-foreground">Carregar uma prova</b>Tira uma foto ou envia o PDF. O Kixi lê as questões e cria a simulação.</p>
           <Button variant="outline">Escolher ficheiro</Button>
         </div>
-
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground" />
-          <Input type="search" aria-label="Procurar provas" className="pl-10" placeholder="Procurar por disciplina, escola ou ano" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-[18px] -translate-y-1/2 text-muted-foreground" />
+          <Input type="search" aria-label="Procurar provas" className="h-11 rounded-full border-transparent bg-secondary pl-11" placeholder="Procurar por disciplina, escola ou ano" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por disciplina">
-          {subjects.map((s) => (
-            <Button key={s} type="button" variant="outline" size="sm" className="rounded-full text-muted-foreground aria-pressed:border-primary aria-pressed:bg-accent aria-pressed:text-accent-foreground" aria-pressed={s === filter} onClick={() => setFilter(s)}>{s}</Button>
-          ))}
-        </div>
+      </div>
 
-        <Card className="gap-0 divide-y overflow-hidden py-0" aria-label="Provas disponíveis">
-          {list.map((e) => (
-            <Link key={e.id} href={`/prova/${e.id}`} aria-label={`${action(e)}: ${e.kind} ${e.title}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
-              <div className="min-w-0"><div className="leading-snug font-bold">{e.kind} · {e.title}</div><div className="mt-0.5 text-[13px] text-muted-foreground">{e.school} · {e.year} · {e.subject}</div></div>
-              <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><State e={e} /></div>
-              <span className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-card px-3 text-sm font-semibold shadow-xs">{action(e)}</span>
-            </Link>
-          ))}
-          {list.length === 0 && (
-            <div className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground"><b className="text-foreground">Nenhuma prova encontrada</b><span>Muda o filtro ou carrega a prova que procuras.</span></div>
-          )}
-        </Card>
-      </Column>
+      <Tabs value={filter} onValueChange={(v) => setFilter(v as (typeof subjects)[number])}>
+        <TabsList aria-label="Filtrar por disciplina">{subjects.map((s) => <TabsTrigger key={s} value={s}>{s}</TabsTrigger>)}</TabsList>
+      </Tabs>
+
+      <section aria-label="Provas disponíveis">
+        {list.map((e) => (
+          <Link key={e.id} href={`/prova/${e.id}`} aria-label={`${action(e)}: ${e.kind} ${e.title}`} className="flex gap-3 border-b px-4 py-3.5 transition-colors hover:bg-secondary/40">
+            <span className="grid h-10 min-w-10 shrink-0 place-items-center rounded-full bg-accent px-2 text-[13px] font-bold text-accent-foreground">{e.kind}</span>
+            <div className="grid min-w-0 flex-1 gap-2">
+              <div><div className="leading-snug font-bold">{e.title}</div><div className="text-[13px] text-muted-foreground">{e.school} · {e.year} · {e.subject}</div></div>
+              <State e={e} />
+            </div>
+            <span className="inline-flex h-9 shrink-0 items-center self-center rounded-full border border-input px-4 text-sm font-semibold">{action(e)}</span>
+          </Link>
+        ))}
+        {list.length === 0 && (
+          <div className="grid justify-items-center gap-1 px-5 py-12 text-center text-sm text-muted-foreground"><b className="text-foreground">Nenhuma prova encontrada</b><span>Muda o filtro ou carrega a prova que procuras.</span></div>
+        )}
+      </section>
     </Page>
   );
 }

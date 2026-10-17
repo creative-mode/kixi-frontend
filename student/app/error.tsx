@@ -13,7 +13,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
 
   return (
     <main className="mx-auto grid w-full max-w-[760px] place-items-center p-4 py-16 md:p-7">
-      <div className="w-full rounded-xl border bg-card px-5 py-6">
+      <div className="w-full rounded-2xl border bg-card px-5 py-6">
         <ErrorState onRetry={reset} />
         <div className="mt-2 flex flex-wrap justify-center gap-2">
           <Button asChild variant="ghost">

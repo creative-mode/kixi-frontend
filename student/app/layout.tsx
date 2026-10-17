@@ -10,11 +10,7 @@ export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt" data-theme="light" suppressHydrationWarning>
-      <head>
-        {/* Aplica o tema guardado antes de pintar, para não piscar. */}
-        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('kixi-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} />
-      </head>
+    <html lang="pt">
       <body>{children}</body>
     </html>
   );

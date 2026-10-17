@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/states';
 export default function NotFound() {
   return (
     <main className="mx-auto grid w-full max-w-[760px] place-items-center p-4 py-16 md:p-7">
-      <div className="w-full rounded-xl border bg-card px-5 py-6">
+      <div className="w-full rounded-2xl border bg-card px-5 py-6">
         <EmptyState
           title="Esta página não existe"
           message="Pode ter sido movida ou o endereço está incompleto. Volta ao início e continua de onde paraste."

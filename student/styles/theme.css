@@ -1,3 +1,13 @@
 @font-face{font-family:'Plus Jakarta Sans';src:url('/aluno/fonts/plus-jakarta-sans-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:'Plus Jakarta Sans';src:url('/aluno/fonts/plus-jakarta-sans-latin-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
 @font-face{font-family:'Plus Jakarta Sans';src:url('/aluno/fonts/plus-jakarta-sans-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
+/* Modelo social do aluno: tela branca, módulos em cinza-verde claro e linhas finas. Só tema claro. */
+:root{
+  --background:#ffffff;
+  --secondary:#f5f7f4;
+  --muted:#f1f4ef;
+  --border:#e3e8e2;
+  --muted-foreground:#55625a;
+  --radius:.75rem;
+}

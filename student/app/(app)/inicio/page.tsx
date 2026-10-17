@@ -1,48 +1,53 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { Bookmark, CheckCircle2, ChevronRight, Dumbbell, Flame, MessageCircle, Send, ThumbsUp, TrendingUp, BookOpen, TriangleAlert, EyeOff } from 'lucide-react';
-import { Column, Page, PageHeader, Rail } from '@/components/page';
-import { Mastery } from '@/components/mastery';
+import { useEffect, useRef, useState } from 'react';
+import { Bookmark, CheckCircle2, Dumbbell, EyeOff, Flame, Lock, MessageCircle, Send, Share2, ThumbsUp, TrendingUp, BookOpen, HelpCircle, TriangleAlert, Activity, type LucideIcon } from 'lucide-react';
+import { Page } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { KIND_LABEL, goal, league, me, posts as seed, topicsToReview, upcoming, type Comment, type FeedPost } from '@/lib/data';
+import { KIND_LABEL, followed, goal, handle, me, posts as seed, type Comment, type FeedPost, type PostKind } from '@/lib/data';
 
-const TABS = ['Turma', 'Escola', 'A seguir'] as const;
-const SHORTCUTS = [
-  { label: 'Partilhar resultado', icon: TrendingUp },
-  { label: 'Fazer uma pergunta', icon: MessageCircle },
-  { label: 'Dica de estudo', icon: BookOpen },
+const TABS = ['Para ti', 'A seguir', `Turma ${me.turma}`] as const;
+type Tab = (typeof TABS)[number];
+
+const KIND_ICON: Record<PostKind, LucideIcon> = { resultado: Activity, duvida: MessageCircle, dica: BookOpen, treino: Dumbbell };
+const COMPOSE: { kind: PostKind; label: string; icon: LucideIcon; lead: string }[] = [
+  { kind: 'resultado', label: 'Partilhar resultado', icon: TrendingUp, lead: 'Resultado: ' },
+  { kind: 'duvida', label: 'Fazer uma pergunta', icon: HelpCircle, lead: '' },
+  { kind: 'dica', label: 'Dica de estudo', icon: BookOpen, lead: 'Dica: ' },
 ];
 
+/** Cartão incorporado na publicação: resultado, treino, tema ou excerto de uma questão. */
 function Attach({ p }: { p: FeedPost }) {
   const a = p.attach;
   if (!a) return null;
+  const box = 'mt-3 block rounded-2xl border px-4 py-3';
   if (a.type === 'questao') {
+    return <blockquote className={cn(box, 'text-[15px] text-foreground/80')}><b className="mb-0.5 block text-[13px] font-semibold text-muted-foreground">{a.title}</b>{a.excerpt}</blockquote>;
+  }
+  if (a.type === 'treino') {
     return (
-      <blockquote className="rounded-r-md border-l-[3px] border-input bg-secondary px-3.5 py-2.5 text-sm text-foreground/80">
-        <b className="mb-0.5 block text-[13px] font-semibold text-muted-foreground">{a.title}</b>{a.excerpt}
-      </blockquote>
+      <Link href={a.href} className={cn(box, 'hover:bg-secondary/60')}>
+        <span className="flex items-baseline justify-between gap-3 text-[13px] text-muted-foreground"><span>{a.title}</span><b className="font-semibold tabular-nums text-foreground">{a.done} / {a.total}</b></span>
+        <Progress className="mt-2 h-1" value={(a.done / a.total) * 100} aria-label="Respostas certas" />
+      </Link>
     );
   }
   return (
-    <Link href={a.href} className="flex items-center justify-between gap-4 rounded-md border bg-secondary/60 px-3.5 py-3 transition-colors hover:border-input hover:bg-secondary">
-      <span className="flex min-w-0 items-center gap-3">
-        {a.type === 'treino' && <span className="grid size-10 shrink-0 place-items-center rounded-md bg-accent text-accent-foreground"><Dumbbell className="size-5" /></span>}
-        <span className="min-w-0"><span className="block text-sm font-semibold">{a.title}</span><span className="text-[13px] text-muted-foreground">{a.meta}</span></span>
-      </span>
+    <Link href={a.href} className={cn(box, 'flex items-center justify-between gap-4 hover:bg-secondary/60')}>
+      <span className="min-w-0"><span className="block font-bold">{a.title}</span><span className="text-[13px] text-muted-foreground">{a.meta}</span></span>
       {a.type === 'resultado' && a.hidden ? (
-        <span className="flex shrink-0 items-center gap-1.5 text-right text-xs font-semibold leading-tight text-muted-foreground"><EyeOff className="size-4" />Nota escondida<br />pela autora</span>
+        <span className="flex shrink-0 items-center gap-1.5 text-right text-xs leading-tight font-semibold text-muted-foreground"><EyeOff className="size-4" />Nota escondida<br />pela autora</span>
       ) : a.type === 'resultado' ? (
-        <span className="shrink-0 text-right leading-tight"><b className="block text-2xl font-bold tracking-tight tabular-nums">{a.score}</b>{a.delta && <span className="text-xs font-semibold text-success">{a.delta}</span>}</span>
-      ) : <ChevronRight className="size-5 shrink-0 text-muted-foreground" />}
+        <span className="shrink-0 text-right leading-tight"><b className="block text-2xl font-bold tracking-tight tabular-nums">{a.score}<span className="text-sm font-semibold text-muted-foreground"> /20</span></b>{a.delta && <span className="text-xs font-semibold text-success">{a.delta}</span>}</span>
+      ) : null}
     </Link>
   );
 }
@@ -50,25 +55,29 @@ function Attach({ p }: { p: FeedPost }) {
 /** Frases que costumam magoar quem perguntou. Só um aviso, quem escreve decide. */
 const HARSH = /estudas pouco|é fácil|burr[oa]|est[úu]pid|idiota|não percebes nada|nunca vais/i;
 
-function CommentRow({ c, onHelp }: { c: Comment; onHelp: () => void }) {
+function CommentRow({ c }: { c: Comment }) {
   const [helped, setHelped] = useState(false);
+  const n = (c.helpful ?? 0) + (helped ? 1 : 0);
   return (
-    <div className="flex gap-2.5">
-      <UserAvatar name={c.name} size={32} />
-      <div className="min-w-0">
-        <div className="rounded-xl bg-secondary px-3 py-2 text-sm leading-snug">
-          <b className="mr-1.5 font-bold">{c.name}</b>
-          {c.hand && <Badge variant="success" className="mr-1.5 align-middle">Mão amiga</Badge>}
-          {c.text}
-        </div>
-        <div className="mt-0.5 ml-3 flex items-center gap-3 text-xs text-muted-foreground">
-          <span>{c.time}</span>
-          <button type="button" aria-pressed={helped} onClick={() => { setHelped((v) => !v); onHelp(); }} className="inline-flex min-h-8 items-center gap-1 font-semibold aria-pressed:text-primary">
-            <CheckCircle2 className="size-3.5" />Ajudou{(c.helpful ?? 0) + (helped ? 1 : 0) > 0 && <span className="tabular-nums">{(c.helpful ?? 0) + (helped ? 1 : 0)}</span>}
-          </button>
-        </div>
+    <div className="flex gap-3 border-t px-4 py-3">
+      <UserAvatar name={c.name} size={36} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-1.5 leading-tight"><b>{c.name}</b><span className="text-[13px] text-muted-foreground">{handle(c.name)} · {c.time}</span>{c.hand && <Badge variant="success">Mão amiga</Badge>}</div>
+        <p className="mt-0.5 leading-snug">{c.text}</p>
+        <button type="button" aria-pressed={helped} onClick={() => setHelped((v) => !v)} className="mt-1 -ml-2 inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-[13px] font-semibold text-muted-foreground hover:bg-secondary aria-pressed:text-primary">
+          <CheckCircle2 className="size-4" />Ajudou{n > 0 && <span className="tabular-nums">{n}</span>}
+        </button>
       </div>
     </div>
+  );
+}
+
+function Action({ label, icon: Icon, count, on, className, ...props }: { label: string; icon: LucideIcon; count?: number; on?: boolean } & React.ComponentProps<'button'>) {
+  return (
+    <button type="button" aria-label={label} className={cn('group -ml-2 inline-flex h-9 items-center gap-1.5 rounded-full px-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-primary aria-[pressed=true]:text-primary aria-expanded:text-primary', className)} {...props}>
+      <Icon className={cn('size-[18px]', on && 'fill-primary/15')} strokeWidth={on ? 2.2 : 1.8} />
+      {count !== undefined && count > 0 && <span className="tabular-nums">{count}</span>}
+    </button>
   );
 }
 
@@ -79,6 +88,7 @@ function Post({ p }: { p: FeedPost }) {
   const [list, setList] = useState(p.comments);
   const [draft, setDraft] = useState('');
   const [warn, setWarn] = useState(false);
+  const Ctx = KIND_ICON[p.kind];
 
   const post = () => {
     const t = draft.trim();
@@ -93,145 +103,118 @@ function Post({ p }: { p: FeedPost }) {
     if (HARSH.test(draft) && !warn) { setWarn(true); return; }
     post();
   };
-  const act = 'h-10 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
 
   return (
-    <Card className="gap-3 pt-4 pb-0">
-      <CardContent className="grid gap-3">
-        <header className="flex items-center gap-3">
-          <UserAvatar name={p.name} size={44} />
-          <div className="min-w-0 flex-1 leading-tight"><div className="font-bold">{p.name}</div><div className="text-[13px] text-muted-foreground">{p.meta}</div></div>
-          <Badge variant="secondary">{KIND_LABEL[p.kind]}</Badge>
-        </header>
-        <p className="max-w-[62ch] leading-relaxed">{p.text}</p>
-        <Attach p={p} />
-      </CardContent>
-
-      <div className="flex flex-wrap items-center gap-0.5 border-t px-2 py-1">
-        <Button variant="ghost" className={act} aria-pressed={useful} onClick={() => setUseful((v) => !v)}>
-          <ThumbsUp className={cn(useful && 'fill-primary/15')} />Útil<span className="tabular-nums">{p.useful + (useful ? 1 : 0)}</span>
-        </Button>
-        <Button variant="ghost" className={act} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          <MessageCircle />Comentar<span className="tabular-nums">{list.length}</span>
-        </Button>
-        <Button variant="ghost" size="icon" className="text-muted-foreground aria-pressed:text-primary" aria-pressed={saved} aria-label={saved ? 'Remover dos guardados' : 'Guardar'} onClick={() => setSaved((v) => !v)}>
-          <Bookmark className={cn(saved && 'fill-primary/15')} />
-        </Button>
-        {p.cta && <Button asChild variant="ghost" size="sm" className="ml-auto max-w-full text-primary"><Link href={p.cta.href}>{p.cta.label}</Link></Button>}
+    <article className="border-b transition-colors hover:bg-secondary/25">
+      <div className="px-4 pt-2.5 pb-1">
+        <p className="mb-0.5 flex items-center gap-2 pl-[52px] text-[13px] font-semibold text-muted-foreground"><Ctx className="size-3.5" />{KIND_LABEL[p.kind]}{p.attach?.type === 'questao' || p.kind === 'duvida' ? <span className="font-normal">· {p.group}</span> : null}</p>
+        <div className="flex gap-3">
+          <UserAvatar name={p.name} size={40} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 leading-tight"><b className="truncate">{p.name}</b><span className="truncate text-[15px] text-muted-foreground">{handle(p.name)} · {p.when}</span></div>
+            <p className="mt-0.5 leading-snug">{p.text}</p>
+            <Attach p={p} />
+            <div className="mt-1.5 flex max-w-[420px] items-center justify-between pb-1">
+              <Action label={`Comentar, ${list.length} comentários`} icon={MessageCircle} count={list.length} aria-expanded={open} onClick={() => setOpen((v) => !v)} />
+              <Action label={`Útil, ${p.useful + (useful ? 1 : 0)}`} icon={ThumbsUp} count={p.useful + (useful ? 1 : 0)} on={useful} aria-pressed={useful} onClick={() => setUseful((v) => !v)} />
+              <Action label={saved ? 'Remover dos guardados' : 'Guardar'} icon={Bookmark} on={saved} aria-pressed={saved} onClick={() => setSaved((v) => !v)} />
+              <Action label="Partilhar" icon={Share2} />
+              {p.cta && <Button asChild variant="ghost" size="sm" className="-mr-2 hidden text-primary sm:inline-flex"><Link href={p.cta.href}>{p.cta.label}</Link></Button>}
+            </div>
+          </div>
+        </div>
       </div>
 
       {open && (
-        <div className="grid gap-3 border-t px-5 py-4">
-          {list.map((c, i) => <CommentRow key={i} c={c} onHelp={() => {}} />)}
+        <div>
+          {list.map((c, i) => <CommentRow key={i} c={c} />)}
           {warn && (
-            <div role="alert" className="grid gap-2 rounded-xl border-2 border-foreground/80 bg-warning-soft p-3.5 text-sm">
+            <div role="alert" className="mx-4 mb-3 grid gap-2 rounded-2xl border-l-4 border-warning bg-warning-soft p-3.5 text-sm">
               <b className="flex items-center gap-2"><TriangleAlert className="size-4" />Antes de enviares</b>
               <p>Esta resposta pode magoar {p.name.split(' ')[0]}. Queres reformular para ajudares mesmo?</p>
               <div className="flex items-center gap-2"><Button type="button" size="sm" onClick={() => setWarn(false)}>Reformular</Button><Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={post}>Enviar assim</Button></div>
             </div>
           )}
-          <form className="flex items-center gap-2.5" onSubmit={send}>
-            <UserAvatar name={me.name} size={32} />
-            <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => { setDraft(e.target.value); setWarn(false); }} placeholder="Escreve um comentário" aria-label="Escrever um comentário" />
-            <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário"><Send /></Button>
+          <form className="flex items-center gap-3 border-t px-4 py-3" onSubmit={send}>
+            <UserAvatar name={me.name} size={36} />
+            <Input className="h-10 rounded-full border-transparent bg-secondary px-4" value={draft} onChange={(e) => { setDraft(e.target.value); setWarn(false); }} placeholder="Escreve a tua resposta" aria-label="Escrever uma resposta" />
+            <Button type="submit" size="icon" variant="ghost" aria-label="Enviar resposta" disabled={!draft.trim()}><Send /></Button>
           </form>
         </div>
       )}
-    </Card>
+    </article>
+  );
+}
+
+/** Atalhos para o telemóvel: a coluna da direita só aparece em ecrãs largos. */
+function Strip() {
+  return (
+    <div className="grid gap-px border-b bg-border lg:hidden">
+      <div className="flex items-center gap-3 bg-background px-4 py-3">
+        <Flame className="size-5 shrink-0 text-warning" />
+        <div className="grid min-w-0 flex-1 gap-1.5"><div className="flex justify-between text-sm"><b>{goal.streak} dias seguidos</b><span className="text-muted-foreground tabular-nums">{goal.done} de {goal.target} hoje</span></div><Progress value={(goal.done / goal.target) * 100} aria-label="Meta diária" /></div>
+        <Button asChild size="sm" variant="outline"><Link href="/provas">Treinar</Link></Button>
+      </div>
+      <Link href="/prova/redes-p1" className="flex items-center justify-between gap-3 bg-background px-4 py-3 text-sm"><span><b>P1 · Redes de Computadores</b><span className="block text-[13px] text-muted-foreground">Em curso · questão 5 de 12</span></span><span className="font-semibold text-primary">Continuar</span></Link>
+    </div>
   );
 }
 
 export default function Inicio() {
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Turma');
+  const [tab, setTab] = useState<Tab>('Para ti');
   const [text, setText] = useState('');
+  const [kind, setKind] = useState<PostKind>('duvida');
   const [mine, setMine] = useState<FeedPost[]>([]);
+  const box = useRef<HTMLTextAreaElement>(null);
+
+  // "Publicar" na barra lateral e o botão flutuante apontam para #publicar.
+  useEffect(() => {
+    if (window.location.hash === '#publicar') box.current?.focus();
+  }, []);
 
   const publish = (e: React.FormEvent) => {
     e.preventDefault();
     const t = text.trim();
     if (!t) return;
-    setMine((m) => [{ id: 'm' + m.length, kind: 'duvida', name: me.name, meta: `${me.turma} · ${me.escola} · agora`, text: t, useful: 0, comments: [] }, ...m]);
+    setMine((m) => [{ id: 'm' + m.length, kind, name: me.name, group: `${me.turma} · ${me.escola}`, when: 'agora', text: t, useful: 0, comments: [] }, ...m]);
     setText('');
   };
 
+  const all = [...mine, ...seed];
+  const shown = tab === 'A seguir' ? all.filter((p) => followed.includes(p.name) || p.name === me.name) : tab.startsWith('Turma') ? all.filter((p) => p.group.startsWith(me.turma)) : all;
+
   return (
-    <Page variant="feed">
-      <Column>
-        <PageHeader title="Início" />
-
-        <Card className="flex-row items-center gap-4 px-5 py-4" aria-label="Meta de hoje">
-          <div className="grid size-12 shrink-0 place-items-center rounded-md bg-accent text-accent-foreground"><Flame className="size-6" /></div>
-          <div className="grid min-w-0 flex-1 gap-2">
-            <div className="flex items-baseline justify-between gap-3"><b className="text-lg leading-none">{goal.streak} dias seguidos</b><span className="text-[13px] text-muted-foreground tabular-nums">{goal.done} de {goal.target} questões hoje</span></div>
-            <Progress value={(goal.done / goal.target) * 100} aria-label="Meta diária" />
-            <span className="text-[13px] text-muted-foreground">Faltam {goal.target - goal.done} para a meta de hoje.</span>
-          </div>
-          <Button asChild variant="outline"><Link href="/provas">Treinar</Link></Button>
-        </Card>
-
-        <Card className="flex-row items-center gap-4 px-5 py-4" aria-label="Simulação em curso">
-          <div className="grid min-w-0 flex-1 gap-2">
-            <div><div className="font-bold">P1 · Redes de Computadores</div><div className="text-[13px] text-muted-foreground">Em curso · questão 5 de 12 · 42 min restantes</div></div>
-            <Progress value={(5 / 12) * 100} aria-label="Progresso da simulação" />
-          </div>
-          <Button asChild><Link href="/prova/redes-p1">Continuar</Link></Button>
-        </Card>
-
-        <Card className="gap-3 py-4">
-          <form className="grid gap-3 px-4" onSubmit={publish}>
-            <div className="flex items-center gap-3">
-              <UserAvatar name={me.name} size={40} />
-              <Input className="h-11 rounded-full bg-secondary px-4" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha um resultado ou pergunta à turma" aria-label="Nova publicação" />
-              <Button type="submit" size="sm" disabled={!text.trim()}>Publicar</Button>
-            </div>
-            <div className="flex flex-wrap gap-1.5 md:pl-[52px]">
-              {SHORTCUTS.map((a) => (
-                <Button key={a.label} type="button" variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setText((t) => t || a.label + ': ')}><a.icon />{a.label}</Button>
-              ))}
-            </div>
-          </form>
-        </Card>
-
-        <Tabs value={tab} onValueChange={(v) => setTab(v as (typeof TABS)[number])}>
+    <Page>
+      <div className="sticky top-14 z-10 bg-background/85 backdrop-blur md:top-0">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList aria-label="Mostrar publicações de">{TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
         </Tabs>
+      </div>
 
-        {[...mine, ...seed].map((p) => <Post key={p.id} p={p} />)}
+      <Strip />
 
-        <Card className="items-center gap-3 border-2 border-foreground/80 bg-accent px-5 py-6 text-center shadow-[4px_4px_0_0_var(--foreground)]" aria-label="Fim do feed">
-          <span className="text-[11px] font-bold tracking-widest text-accent-foreground">ESTÁS EM DIA</span>
-          <p className="max-w-[40ch] text-sm leading-relaxed text-foreground/80">Já viste tudo o que a tua turma partilhou. Que tal treinar 5 minutos ou ajudar um colega com uma dúvida?</p>
-          <div className="flex flex-wrap justify-center gap-2"><Button asChild><Link href="/provas">Treinar agora</Link></Button><Button asChild variant="outline"><Link href="/tutor">Abrir o tutor</Link></Button></div>
-        </Card>
-      </Column>
-
-      <Rail>
-        <Card className="gap-4"><CardHeader><CardTitle>Para rever</CardTitle></CardHeader>
-          <CardContent className="grid gap-3.5">
-            {topicsToReview.map((t) => <Mastery key={t.label} label={t.label} value={t.value} />)}
-            <Button asChild variant="outline" size="sm"><Link href="/tutor">Rever com o tutor</Link></Button>
-          </CardContent>
-        </Card>
-
-        <Card className="gap-4"><CardHeader><CardTitle>{league.name}</CardTitle></CardHeader>
-          <CardContent className="grid gap-3">
-            <p className="text-2xl leading-tight font-bold tracking-tight">{league.rank}.º de {league.size}</p>
-            <p className="text-sm text-muted-foreground">Faltam {league.toGo} pontos para entrares na zona de subida. Contam treino e ajuda, não notas.</p>
-            <Button asChild variant="link" size="sm" className="justify-start px-0"><Link href="/ranking">Ver a liga</Link></Button>
-          </CardContent>
-        </Card>
-
-        <Card className="gap-4 md:col-span-2 xl:col-span-1"><CardHeader><CardTitle>Próximas provas</CardTitle></CardHeader>
-          <CardContent className="grid gap-3.5">
-            {upcoming.map((u) => (
-              <div className="flex items-center gap-3" key={u.title}>
-                <div className="grid size-11 shrink-0 place-items-center rounded-md bg-accent text-center text-[15px] leading-none font-bold text-accent-foreground"><span>{u.day}<small className="mt-0.5 block text-[10px] font-semibold opacity-80">{u.month}</small></span></div>
-                <div className="leading-tight"><div className="text-sm font-semibold">{u.title}</div><div className="text-[13px] text-muted-foreground">{u.meta}</div></div>
-              </div>
+      <form id="publicar" className="flex gap-3 border-b px-4 py-3" onSubmit={publish}>
+        <UserAvatar name={me.name} size={40} />
+        <div className="min-w-0 flex-1">
+          <Textarea ref={box} rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder="O que estudaste hoje?" aria-label="Nova publicação" className="min-h-0 resize-none border-0 bg-transparent px-0 py-2 text-xl shadow-none [field-sizing:content] focus-visible:ring-0" />
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {COMPOSE.map((c) => (
+              <Button key={c.kind} type="button" variant="ghost" size="icon" title={c.label} aria-label={c.label} aria-pressed={kind === c.kind} className="-ml-1 size-9 text-primary aria-pressed:bg-accent" onClick={() => { setKind(c.kind); setText((t) => t || c.lead); box.current?.focus(); }}><c.icon className="size-5" /></Button>
             ))}
-          </CardContent>
-        </Card>
-      </Rail>
+            <span className="ml-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground max-sm:hidden"><Lock className="size-3.5" />Só a tua turma</span>
+            <Button type="submit" className="ml-auto" disabled={!text.trim()}>Publicar</Button>
+          </div>
+        </div>
+      </form>
+
+      {shown.map((p) => <Post key={p.id} p={p} />)}
+      {shown.length === 0 && <p className="px-4 py-12 text-center text-[15px] text-muted-foreground">Ainda não há publicações aqui.</p>}
+
+      <section aria-label="Fim do feed" className="m-4 grid justify-items-center gap-3 rounded-2xl bg-accent px-5 py-6 text-center">
+        <span className="text-[11px] font-bold tracking-widest text-accent-foreground">ESTÁS EM DIA</span>
+        <p className="max-w-[40ch] text-[15px] leading-relaxed text-foreground/80">Já viste tudo o que a tua turma partilhou. Que tal treinar 5 minutos ou ajudar um colega com uma dúvida?</p>
+        <div className="flex flex-wrap justify-center gap-2"><Button asChild><Link href="/provas">Treinar agora</Link></Button><Button asChild variant="outline"><Link href="/tutor">Abrir o tutor</Link></Button></div>
+      </section>
     </Page>
   );
 }

@@ -9,31 +9,44 @@ export interface FeedPost {
   id: string;
   kind: PostKind;
   name: string;
-  meta: string;
+  /** Turma e escola de quem publicou. */
+  group: string;
+  when: string;
   text: string;
   useful: number;
   comments: Comment[];
   attach?:
     | { type: 'resultado'; title: string; meta: string; score: string; delta?: string; hidden?: boolean; href: string }
-    | { type: 'treino'; title: string; meta: string; href: string }
+    | { type: 'treino'; title: string; meta: string; done: number; total: number; href: string }
     | { type: 'questao'; title: string; excerpt: string }
     | { type: 'tema'; title: string; meta: string; href: string };
   cta?: { label: string; href: string };
 }
 
-export const KIND_LABEL: Record<PostKind, string> = { resultado: 'Resultado', duvida: 'Dúvida', dica: 'Dica de estudo', treino: 'Treino' };
+export const KIND_LABEL: Record<PostKind, string> = { resultado: 'Resultado', duvida: 'Dúvida', dica: 'Dica de estudo', treino: 'Treino concluído' };
+
+/** Identificador curto, como numa rede social: primeiro nome, sem acentos. */
+export const handle = (name: string) => '@' + name.split(' ')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** Quem o aluno já segue (separador "A seguir") e sugestões para a coluna da direita. */
+export const followed = ['Paulo Neto', 'Nuno Dias', 'Mariana Costa'];
+export const suggestions = [
+  { name: 'Nzuzi Paulo', meta: '12B · Física' },
+  { name: 'Tchizé Gomes', meta: '12A · Redes' },
+  { name: 'Luzia Fernandes', meta: '12B · Matemática' },
+];
 
 export const posts: FeedPost[] = [
   {
-    id: 'k', kind: 'treino', name: 'Kiala Mendes', meta: '12B · ITEL · há 20 min',
+    id: 'k', kind: 'treino', name: 'Kiala Mendes', group: '12B · ITEL', when: '20 min',
     text: 'Concluiu 12 questões de Redes, 9 certas.',
     useful: 7,
     comments: [],
-    attach: { type: 'treino', title: 'Treino de Redes', meta: '12 questões · 14 min', href: '/provas' },
+    attach: { type: 'treino', title: 'Treino de Redes · 14 min', meta: 'Subnetting continua a ser o ponto fraco', done: 9, total: 12, href: '/provas' },
     cta: { label: 'Treinar também', href: '/provas' },
   },
   {
-    id: 'f', kind: 'resultado', name: 'Kiala Mendes', meta: '12B · ITEL · há 1 h',
+    id: 'f', kind: 'resultado', name: 'Kiala Mendes', group: '12B · ITEL', when: '1 h',
     text: 'Finalmente percebi funções.',
     useful: 18,
     comments: [{ name: 'Nuno Dias', text: 'Também me custou. Refaz a Q6 amanhã, ajuda a fixar.', time: 'há 40 min', helpful: 3 }],
@@ -41,7 +54,7 @@ export const posts: FeedPost[] = [
     cta: { label: 'Fazer esta prova', href: '/prova/redes-p1' },
   },
   {
-    id: 'a', kind: 'resultado', name: 'Mariana Costa', meta: '12B · ITEL · há 2 h',
+    id: 'a', kind: 'resultado', name: 'Mariana Costa', group: '12B · ITEL', when: '2 h',
     text: 'Fiz a simulação da P1 de Redes. O subnetting finalmente entrou depois de refazer as questões 3 e 8 com o tutor.',
     useful: 24,
     comments: [
@@ -52,7 +65,7 @@ export const posts: FeedPost[] = [
     cta: { label: 'Fazer esta prova', href: '/prova/redes-p1' },
   },
   {
-    id: 'c', kind: 'duvida', name: 'Sara Pinto', meta: '12B · ITEL · ontem',
+    id: 'c', kind: 'duvida', name: 'Sara Pinto', group: '12B · ITEL', when: 'ontem',
     text: 'Alguém percebeu a Q4 do exame de Matemática Discreta de 2023? Não estou a ver como se faz a indução.',
     useful: 6,
     comments: [{ name: 'Nuno Dias', text: 'Começa pelo caso base n = 1 e escreve a hipótese antes de mexer na soma.', time: 'há 18 h', helpful: 6, hand: true }],
@@ -60,7 +73,7 @@ export const posts: FeedPost[] = [
     cta: { label: 'Abrir no tutor', href: '/tutor' },
   },
   {
-    id: 'b', kind: 'dica', name: 'Paulo Neto', meta: '12A · ITEL · ontem',
+    id: 'b', kind: 'dica', name: 'Paulo Neto', group: '12A · ITEL', when: 'ontem',
     text: 'O que me ajudou esta semana: dez minutos por dia só com os erros da última simulação. Em VLANs passei de 40% para 90% de domínio.',
     useful: 41,
     comments: [],

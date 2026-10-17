@@ -21,7 +21,7 @@ export default function SalaProva() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-card px-4 py-2.5 md:px-5">
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/90 px-4 py-2.5 backdrop-blur md:px-5">
         <Button asChild variant="ghost" size="icon" aria-label="Sair da prova"><Link href="/provas"><ChevronLeft /></Link></Button>
         <div className="min-w-0 leading-tight"><div className="truncate text-[15px] font-bold">P1 · Redes de Computadores</div><div className="text-xs text-muted-foreground">ITEL 2024 · simulação</div></div>
         <div className="ml-auto flex items-center gap-2 text-lg font-bold" role="timer" aria-label="Tempo restante"><Clock className="size-[18px]" /><span className="tabular-nums">42:10</span><small className="hidden text-xs font-semibold text-muted-foreground sm:inline">+25% de tempo</small></div>
@@ -29,12 +29,12 @@ export default function SalaProva() {
       </header>
 
       <div className="mx-auto grid w-full max-w-[1040px] flex-1 items-start gap-6 p-4 md:grid-cols-[minmax(0,1fr)_280px] md:p-6">
-        <Card className="gap-5 p-5 md:p-6" aria-labelledby="q-text">
+        <section className="grid gap-5 px-1 py-2 md:py-4" aria-labelledby="q-text">
           <div className="flex justify-between gap-3 text-[13px] font-semibold text-muted-foreground"><span>Questão {question.number} de {question.total}</span><span>{question.points} valores</span></div>
           <p id="q-text" className="max-w-[60ch] text-[17px] leading-relaxed md:text-[19px]">{question.text}</p>
           <fieldset className="grid gap-2.5" aria-label="Respostas">
             {question.options.map((text, i) => (
-              <label key={text} className="relative flex min-h-14 cursor-pointer items-center gap-3.5 rounded-lg border border-input bg-card px-4 py-3 text-base transition-colors hover:bg-secondary has-[:checked]:border-primary has-[:checked]:bg-accent has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/40">
+              <label key={text} className="relative flex min-h-14 cursor-pointer items-center gap-3.5 rounded-2xl border border-input bg-card px-4 py-3 text-base transition-colors hover:bg-secondary has-[:checked]:border-primary has-[:checked]:bg-accent has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/40">
                 <input className="peer sr-only" type="radio" name="resp" checked={sel === i} onChange={() => setSel(i)} />
                 <span className="grid size-7 shrink-0 place-items-center rounded-full border-[1.5px] border-input text-[13px] font-bold text-muted-foreground peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground">{'ABCD'[i]}</span>
                 <span className="tabular-nums">{text}</span>
@@ -48,9 +48,9 @@ export default function SalaProva() {
             <span className="flex-1" />
             <Button>Seguinte<ChevronRight /></Button>
           </div>
-        </Card>
+        </section>
 
-        <Card className="gap-4" aria-label="Questões">
+        <Card className="gap-4 border-0 bg-secondary" aria-label="Questões">
           <CardHeader><CardTitle>Questões</CardTitle></CardHeader>
           <CardContent className="grid gap-3.5">
             <div className="grid grid-cols-6 gap-2">
