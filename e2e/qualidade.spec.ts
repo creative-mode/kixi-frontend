@@ -162,6 +162,8 @@ test.describe('alvos de toque no telemóvel', () => {
       expect(caixa?.height ?? 0, String(nome)).toBeGreaterThanOrEqual(44);
     }
   });
+});
+
 /** Backend a falhar (#350): o aluno fica na aplicação com uma mensagem e uma saída, nunca no login nem em branco. */
 test.describe('backend a falhar', () => {
   for (const modo of ['500', 'timeout'] as const) {
