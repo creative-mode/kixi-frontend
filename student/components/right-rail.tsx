@@ -10,7 +10,8 @@ import { parseServerTime } from '@/lib/exam-rules';
 import { levelProgress } from '@/lib/gamification-rules';
 import { contextLine, fullName } from '@/lib/profile';
 import { formatAverage } from '@/lib/ranking-rules';
-import { groupBySubject } from '@/lib/social-rules';
+import { groupBySubject, shortTitle } from '@/lib/social-rules';
+import { sinceLabel } from '@/lib/attempt-history';
 import type { SocialData } from '@/lib/social';
 import type { Me } from '@/lib/types';
 
@@ -56,14 +57,11 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
   const subjects = groupBySubject(data.history);
   const top = Math.max(1, ...subjects.map((s) => s.count));
   const soon = upcoming(data.invitations.ok ? data.invitations.data : []);
-  const review = data.performance.mastery.slice(0, 3);
+  const review = data.performance.mastery.slice(0, 4);
+  const recent = data.performance.activity.slice(0, 3);
 
   return (
     <>
-      <Link href="/provas" className="sticky top-0 z-10 -mb-1 flex h-11 items-center gap-3 rounded-full bg-secondary px-4 text-[15px] text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40">
-        <Search className="size-[18px]" aria-hidden />Procurar provas
-      </Link>
-
       <Module title="O teu progresso" href="/perfil" linkLabel="Perfil">
         <div className="flex items-center gap-3">
           <UserAvatar name={name} size={44} />
@@ -96,10 +94,8 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
         </form>
       </Module>
 
-      <Module title="Próximas provas" href="/provas" linkLabel="Provas">
-        {soon.length === 0 ? (
-          <Empty>Sem salas de prova marcadas para ti.</Empty>
-        ) : (
+      {soon.length > 0 && <Module title="Próximas provas" href="/provas" linkLabel="Provas">
+        {(
           <ul className="grid gap-3">
             {soon.map((u) => (
               <li className="flex items-center gap-3" key={u.key}>
@@ -109,21 +105,32 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
             ))}
           </ul>
         )}
-      </Module>
+      </Module>}
 
-      <Module title="Para rever">
-        {review.length === 0 ? (
-          <Empty>Quando terminares uma prova, as que correram pior aparecem aqui.</Empty>
-        ) : (
+      {recent.length > 0 && (
+        <Module title="Última atividade" href="/perfil?tab=Atividade" linkLabel="Ver">
+          <ul className="grid gap-2.5">
+            {recent.map((a) => (
+              <li key={a.id}>
+                <Link href={`/resultado?prova=${a.id}`} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 transition-colors hover:bg-muted">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-background text-[15px] font-bold tabular-nums">{formatAverage(a.score)}</span>
+                  <span className="min-w-0 leading-tight"><span className="block truncate text-[15px] font-bold">{shortTitle(a.title, 40)}</span><span className="text-[13px] text-muted-foreground">{sinceLabel(a.finishedAt) ?? ''}</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Module>
+      )}
+
+      {review.length > 0 && (
+        <Module title="Para rever">
           <div className="grid gap-3">{review.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}</div>
-        )}
-        <Button asChild variant="outline" size="sm" className="w-fit"><Link href="/tutor">Rever com o tutor</Link></Button>
-      </Module>
+          <Button asChild variant="outline" size="sm" className="w-fit"><Link href="/tutor">Rever com o tutor</Link></Button>
+        </Module>
+      )}
 
-      <Module title="Na tua turma" href="/ranking" linkLabel="Liga">
-        {data.classTop.length === 0 ? (
-          <Empty>Ainda não há provas corrigidas na turma.</Empty>
-        ) : (
+      {data.classTop.length > 0 && <Module title="Na tua turma" href="/ranking" linkLabel="Liga">
+        {(
           <ol className="grid gap-2.5">
             {data.classTop.map((r) => (
               <li key={r.position} className="flex items-center gap-2.5 text-[15px]">
@@ -135,12 +142,10 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
             ))}
           </ol>
         )}
-      </Module>
+      </Module>}
 
-      <Module title="Medalhas" href="/perfil?tab=Medalhas">
-        {data.badges.length === 0 ? (
-          <Empty>Termina a primeira simulação para ganhares a primeira medalha.</Empty>
-        ) : (
+      {data.badges.length > 0 && <Module title="Medalhas" href="/perfil?tab=Medalhas">
+        {(
           <ul className="grid grid-cols-3 gap-2">
             {data.badges.slice(0, 6).map((b) => (
               <li key={b.code} title={b.description} className="grid justify-items-center gap-1.5 rounded-xl bg-accent px-1.5 py-3 text-center">
@@ -150,7 +155,7 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
             ))}
           </ul>
         )}
-      </Module>
+      </Module>}
 
       {subjects.length > 0 && (
         <Module title="Por disciplina" href="/provas" linkLabel="Provas">
