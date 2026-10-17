@@ -99,13 +99,21 @@ test.describe('avisos do aluno', () => {
   test('um aviso sem ícone ocupa a largura toda e não parte o texto em colunas', async ({ page }) => {
     await alunoLogin(page);
     await page.goto('/aluno/ranking');
-    await page.getByRole('tab', { name: 'Amigos' }).click();
-    const aviso = page.locator('[data-slot="alert"]').first();
-    await expect(aviso).toBeVisible();
-    const caixa = await aviso.boundingBox();
-    // Antes da correção o texto ficava numa coluna de largura zero: mais de 280 px de altura.
-    expect(caixa!.height).toBeLessThan(120);
-    expect(caixa!.width).toBeGreaterThan(250);
+    await page.waitForLoadState('networkidle');
+    // Um aviso aparece quando o servidor falha ao carregar a aba (o ranking de amigos já tem dados reais).
+    const definir = (mode: string) => page.request.post('/aluno/api/mock-fault', { data: { mode } });
+    try {
+      expect((await definir('500')).ok()).toBeTruthy();
+      await page.getByRole('tab', { name: 'Escola' }).click();
+      const aviso = page.locator('[data-slot="alert"]').first();
+      await expect(aviso).toBeVisible();
+      const caixa = await aviso.boundingBox();
+      // Antes da correção o texto ficava numa coluna de largura zero: mais de 280 px de altura.
+      expect(caixa!.height).toBeLessThan(120);
+      expect(caixa!.width).toBeGreaterThan(250);
+    } finally {
+      await definir('');
+    }
   });
 });
 
@@ -198,6 +206,8 @@ test.describe('amigos e ranking de amigos', () => {
     await page.getByRole('tab', { name: 'Amigos' }).click();
     await expect(page.getByRole('region', { name: 'Amigos' })).toBeVisible();
     await expect(page.getByText(/chega em breve|não está disponível/i)).toHaveCount(0);
+    // A lista chega depois da hidratação: espera pela amiga que já está aceite antes de olhar para os pedidos.
+    await expect(page.getByRole('region', { name: 'Amigos' })).toContainText('Sara P.');
     // O mock guarda o estado entre tentativas: numa repetição o pedido já foi aceite.
     const pedidos = page.getByRole('region', { name: 'Pedidos recebidos' });
     if (await pedidos.isVisible()) {
