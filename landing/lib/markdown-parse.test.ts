@@ -44,12 +44,22 @@ test('cada bloco do texto real sai lido como se espera', () => {
   ]);
 });
 
-test('uma citação ou uma tabela não são lidas como texto normal', () => {
-  // O parser não os sabe; o que não pode é engoli-los e parecer um parágrafo.
-  for (const markdown of ['> citação\n\ntexto', '| a | b |\n| - | - |\n| 1 | 2 |']) {
-    const blocks = parse(markdown);
-    assert.ok(blocks.length > 0, markdown.split('\n')[0]);
-    // Nenhum bloco pode ter ficado com o texto todo colado dentro de um só parágrafo.
-    assert.ok(!blocks.some((b) => b.kind === 'p' && b.lines.join(' ').includes('\n')));
+test('uma citação ou uma tabela lançam, em vez de virar um parágrafo', () => {
+  // Antes eram engolidas num parágrafo: a página saía com a sintaxe Markdown à vista e
+  // ninguém via o erro. A asserção antiga não apanhava isto — juntava as linhas com
+  // espaços e perguntava se sobrava alguma newline, o que nunca era verdade.
+  for (const markdown of [
+    '> citação\n\ntexto',
+    '| a | b |\n| - | - |\n| 1 | 2 |',
+    '### um subtitulo',
+    '```\ncodigo\n```',
+    '---',
+  ]) {
+    assert.throws(() => parse(markdown), /não lê/, markdown.split('\n')[0]);
   }
+});
+
+test('o erro diz o que não foi lido, não só que algo correu mal', () => {
+  assert.throws(() => parse('> citação'), /citação/);
+  assert.throws(() => parse('| a | b |'), /tabela/);
 });

@@ -20,6 +20,30 @@ export type Block =
   | { kind: 'p'; lines: string[] }
   | { kind: 'ul'; items: { text: string; sub: string[] }[] };
 
+/**
+ * Blocos de nível que o subconjunto não sabe ler.
+ *
+ * <p>Passam a lançar, e antes eram engolidos num parágrafo: uma citação ou uma tabela
+ * lidas como texto normal dão uma página que parece correcta e não está. O mesmo
+ * caminho que a lista órfã já fazia — o parser é pequeno de propósito, e o que ele não
+ * sabe tem de dizer que não sabe.</p>
+ */
+const NAO_SABE: [prefixo: string, nome: string][] = [
+  ['>', 'citação'],
+  ['```', 'bloco de código'],
+  ['###', 'cabeçalho de nível 3 ou maior'],
+  ['|', 'tabela'],
+];
+
+function blocoNaoSuportado(line: string): string | null {
+  for (const [prefixo, nome] of NAO_SABE) {
+    if (line.startsWith(prefixo)) return nome;
+  }
+  // Uma régua horizontal é `---`, `***` ou `___` a fechar a linha.
+  if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) return 'régua horizontal';
+  return null;
+}
+
 export function parse(markdown: string): Block[] {
   const blocks: Block[] = [];
   const lines = markdown.split('\n');
@@ -27,6 +51,11 @@ export function parse(markdown: string): Block[] {
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (line.trim() === '') continue;
+
+    const naoSuportado = blocoNaoSuportado(line);
+    if (naoSuportado) {
+      throw new Error(`Markdown com ${naoSuportado}, que o parser não lê: ${line}`);
+    }
 
     if (line.startsWith('## ')) {
       blocks.push({ kind: 'h2', text: line.slice(3) });

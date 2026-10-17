@@ -20,8 +20,8 @@ export function trustMarkdown(path: string): string | null {
 export const aboutMd = `# Sobre o Kixi
 
 O Kixi é uma plataforma de avaliação e estudo para escolas, feita por alunos do ITEL
-para alunos. Resolve um problema concreto: uma prova fica disponível em segundos e ninguém tem
-deficiência de a estudar como deve ser.
+para alunos. Resolve um problema concreto: uma prova fica disponível em segundos e ninguém
+tem dificuldade em a estudar como deve ser.
 
 O que o Kixi faz:
 

@@ -19,8 +19,9 @@ const MARKDOWN = {
   Vary: 'Accept',
 } as const;
 
-/** As páginas que existem. `/` e `/doar`, e nada mais: anunciar uma página que dá 404
- *  a quem segue o link é pior do que não a anunciar. */
+/** As páginas que existem: `/`, `/doar` e as três de confiança. `trustMarkdown` devolve
+ *  null para o resto, e anunciar uma página que dá 404 a quem segue o link é pior do que
+ *  não a anunciar. */
 function pageFor(pathname: string): string | null {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (path === '/') return homeMarkdown();
