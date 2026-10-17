@@ -6,7 +6,15 @@
 
 // A extensão é explícita porque os testes correm no node (node --test), que não
 // resolve um import sem extensão.
-import { AUDIENCES, CONTACT_EMAIL, FAQ, MODULES, SITE_URL } from './content.ts';
+import {
+  AUDIENCES,
+  CONTACT_EMAIL,
+  CONTACT_PHONE,
+  CONTACT_POSTAL_ADDRESS,
+  FAQ,
+  MODULES,
+  SITE_URL,
+} from './content.ts';
 
 const CONTEXT = 'https://schema.org';
 
@@ -24,16 +32,60 @@ export function jsonLdScript(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
-/** A organização. Sem `logo` e sem contactos inventados: `CONTACT_EMAIL` só entra
- *  quando o build o define, porque um endereço que ninguém escreveu não é contacto. */
+/**
+ * A organização, com o contacto que a publicação consegue declarar.
+ *
+ * <p>Cada campo entra só quando o build o define. Metade contacto é pior do que
+ * nenhum: um `Organization` com `email` e sem `address` parece verificado quando não
+ * está, e é o que um agente usa para responder a "quem é esta empresa".</p>
+ */
 export function organizationLd(): JsonLd {
+  return organizationLdFrom({ email: CONTACT_EMAIL, phone: CONTACT_PHONE, address: CONTACT_POSTAL_ADDRESS });
+}
+
+/** O mesmo, com o contacto à mão: o que entra na publicação vem do build, e esta
+ *  função é onde se decide se um campo entra ou fica de fora. */
+export function organizationLdFrom(contact: {
+  email?: string;
+  phone?: string;
+  address: { street: string; locality: string; postalCode: string; addressCountry: string };
+}): JsonLd {
+  const { email, phone } = contact;
+  const { street, locality, postalCode, addressCountry } = contact.address;
+  const hasAddress = Boolean(street && locality);
+
+  // Os campos vêm do que foi passado, não das constantes do módulo: quem chama passa o
+  // que a publicação declarou, e é esta função que decide o que entra.
+  const contactPoint = email
+    ? [
+        {
+          '@type': 'ContactPoint',
+          contactType: 'customer support',
+          ...(phone ? { telephone: phone } : {}),
+          email,
+          ...(hasAddress
+            ? {
+                address: {
+                  '@type': 'PostalAddress',
+                  ...(street ? { streetAddress: street } : {}),
+                  addressLocality: locality,
+                  ...(postalCode ? { postalCode } : {}),
+                  addressCountry,
+                },
+              }
+            : {}),
+        },
+      ]
+    : undefined;
+
   return {
     '@context': CONTEXT,
     '@type': 'Organization',
     '@id': `${SITE_URL}/#organizacao`,
     name: 'Kixi',
     url: `${SITE_URL}/`,
-    ...(CONTACT_EMAIL ? { contactPoint: [{ '@type': 'ContactPoint', contactType: 'customer support', email: CONTACT_EMAIL }] } : {}),
+    ...(hasAddress ? { address: { '@type': 'PostalAddress', streetAddress: street, addressLocality: locality, ...(postalCode ? { postalCode } : {}), addressCountry } } : {}),
+    ...(contactPoint ? { contactPoint } : {}),
   };
 }
 

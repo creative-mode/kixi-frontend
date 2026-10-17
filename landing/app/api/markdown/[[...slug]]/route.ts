@@ -8,6 +8,7 @@
  */
 
 import { donateMarkdown, homeMarkdown, notFoundMarkdown } from '@/lib/markdown.ts';
+import { trustMarkdown } from '@/lib/trust-pages';
 
 export const dynamic = 'force-static';
 
@@ -19,7 +20,7 @@ function pageFor(pathname: string): string | null {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (path === '/') return homeMarkdown();
   if (path === '/doar') return donateMarkdown();
-  return null;
+  return trustMarkdown(path);
 }
 
 /**

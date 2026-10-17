@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONTACT_EMAIL, FAQ, MODULES, SITE_URL } from './content.ts';
+import { TRUST_PAGES, trustMarkdown } from './trust-pages.ts';
 import { donateMarkdown, homeMarkdown, llmsTxt, notFoundMarkdown } from './markdown.ts';
 
 /** A landing em texto (#218). O que interesta: que diga o que a página diz, e que
@@ -57,7 +58,7 @@ test('cada página em Markdown só anuncia páginas que existem', () => {
       // O ponto final de uma frase entra no endereço; não é um caminho.
       const path = new URL(url.replace(/[.,;:]+$/, '')).pathname;
       assert.ok(
-        ['/', '/doar', '/sitemap.xml', '/llms.txt'].includes(path) || path.startsWith('/aluno'),
+        ['/', '/doar', '/about', '/contact', '/privacy', '/sitemap.xml', '/llms.txt'].includes(path) || path.startsWith('/aluno'),
         `anuncia uma página que não existe: ${path}`,
       );
     }
@@ -67,4 +68,25 @@ test('cada página em Markdown só anuncia páginas que existem', () => {
 test('o Markdown tem o mesmo tipo de linha que o resto', () => {
   assert.ok(homeMarkdown().startsWith('---\n'), 'metadados no topo');
   assert.match(donateMarkdown(), /# Doa um enunciado/);
+});
+test('cada página de confiança tem texto suficiente para ser lida por um agente', () => {
+  // São as páginas que um agente verifica antes de recomendar. Menos de 500 caracteres
+  // é um título com uma frase em volta.
+  for (const [path, page] of Object.entries(TRUST_PAGES)) {
+    assert.ok(page.markdown.length >= 500, `${path} tem ${page.markdown.length} caracteres`);
+    assert.ok(trustMarkdown(`/${path}`) === page.markdown);
+  }
+});
+
+test('um caminho que não é página de confiança não devolve texto nenhum', () => {
+  assert.equal(trustMarkdown('/nao-existe'), null);
+  assert.equal(trustMarkdown('/'), null);
+});
+
+test('as páginas de confiança têm metadata de cartão e canonical próprios', () => {
+  for (const [path, page] of Object.entries(TRUST_PAGES)) {
+    assert.ok(page.title.length > 0);
+    assert.ok(page.description.length > 60, `${path} sem descrição`);
+    assert.ok(page.markdown.includes(SITE_URL));
+  }
 });
