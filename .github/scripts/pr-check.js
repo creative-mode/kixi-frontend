@@ -3,13 +3,14 @@
 //
 // Regras:
 //  1. A branch segue  <tipo>/<n.º da issue>-<descricao-curta>   (ex.: feature/23-login-com-jwt)
-//  2. O PR fecha a issue:  "Closes #23"  (o n.º tem de coincidir com o da branch)
+//  2. O PR liga a issue:  "Closes #23" (fecha) ou "Refs #23" (não fecha:
+//     trabalho parcial ou critério noutra issue). O n.º tem de coincidir com o da branch.
 //  3. O PR aponta para a branch de integração (dev). Promoções seguem dev → qua → prod.
 //  4. hotfix/* pode apontar a qualquer ambiente.
 
 const TYPES = 'feature|feat|bug|fix|hotfix|refactor|docs|test|tests|chore|ci|devops|perf';
 const BRANCH_RE = new RegExp(`^(${TYPES})/(\\d+)-[a-z0-9][a-z0-9._-]*$`);
-const CLOSE_RE = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+((?:(?:[\w.-]+\/[\w.-]+)?#\d+(?:\s*,\s*|\s+e\s+|\s+and\s+)?)+)/gi;
+const CLOSE_RE = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s*:?\s+((?:(?:[\w.-]+\/[\w.-]+)?#\d+(?:\s*,\s*|\s+e\s+|\s+and\s+)?)+)/gi;
 const MARKER = '<!-- pr-check -->';
 
 function closingRefs(body, ownRepo) {
@@ -47,9 +48,9 @@ function evaluate({ head, base, body, ownRepo, branches, isBot = false }) {
 
   const refs = closingRefs(body, ownRepo);
   if (refs.length === 0) {
-    problems.push('O PR tem de fechar uma issue: escreve `Closes #<n.º>` na descrição.');
+    problems.push('O PR tem de ligar uma issue: escreve `Closes #<n.º>` (fecha) ou `Refs #<n.º>` (não fecha) na descrição.');
   } else if (m && !refs.includes(Number(m[2]))) {
-    problems.push(`A branch refere a issue #${m[2]}, mas o PR só fecha ${refs.map((n) => `#${n}`).join(', ')}. Acrescenta \`Closes #${m[2]}\` ou corrige o nome da branch.`);
+    problems.push(`A branch refere a issue #${m[2]}, mas o PR só liga ${refs.map((n) => `#${n}`).join(', ')}. Acrescenta \`Closes #${m[2]}\` (ou \`Refs #${m[2]}\`) ou corrige o nome da branch.`);
   }
   return problems;
 }
