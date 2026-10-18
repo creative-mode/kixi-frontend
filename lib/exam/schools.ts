@@ -102,6 +102,7 @@ function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
     options: kind === 'true_false' && options.length !== 2 ? trueFalseOptions() : options,
     kind,
     ...(raw?.review === true ? { review: true } : {}),
+    ...(typeof raw?.modelAnswer === 'string' && raw.modelAnswer.trim() ? { modelAnswer: raw.modelAnswer } : {}),
   };
 }
 
@@ -118,6 +119,7 @@ function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
     ...(kind ? { kind } : {}),
     ...(kind === 'group' ? { items } : {}),
     ...(raw?.review === true ? { review: true } : {}),
+    ...(typeof raw?.modelAnswer === 'string' && raw.modelAnswer.trim() ? { modelAnswer: raw.modelAnswer } : {}),
   };
 }
 
@@ -152,9 +154,10 @@ export const clearDraft = () => {
  * Não chega olhar ao título e ao texto das questões. O rascunho guarda muitos mais
  * campos que o professor edita — escola, disciplina, tipo, classe, fase, duração,
  * série, ano letivo, instruções, observação, local, data e professor — e as próprias
- * questões têm cotação, tipo e opções de resposta. Se o professor mexesse só num
- * desses campos, o rascunho continuava a parecer vazio e `clearDraft` apagava-o em
- * silêncio no efeito de guardar: a perda de trabalho que a #362 veio eliminar.
+ * questões têm cotação, tipo, opções de resposta e resposta esperada (`modelAnswer`).
+ * Se o professor mexesse só num desses campos, o rascunho continuava a parecer vazio
+ * e `clearDraft` apagava-o em silêncio no efeito de guardar: a perda de trabalho que
+ * a #362 veio eliminar.
  *
  * Por isso a regra passa a ser «é diferente do rascunho de base?». Um rascunho
  * intocado (só com os valores por omissão de `EMPTY_DRAFT`) não vale um aviso nem
@@ -168,13 +171,18 @@ export const draftHasContent = (d: ExamDraft): boolean =>
 const filled = (value: string) => value.trim() !== '';
 
 /**
- * Uma questão (ou alínea) tem trabalho quando tem texto, cotação, opções de resposta
- * ou alíneas com conteúdo. O `kind` sozinho não conta: um item normalizado traz
- * sempre um tipo derivado, e mudar o tipo de uma questão vazia e voltar atrás não
- * deixa trabalho nenhum — o que o tipo traz a mais são as opções, e essas contam.
+ * Uma questão (ou alínea) tem trabalho quando tem texto, cotação, opções de resposta,
+ * resposta esperada (`modelAnswer`) ou alíneas com conteúdo. O `kind` sozinho não
+ * conta: um item normalizado traz sempre um tipo derivado, e mudar o tipo de uma
+ * questão vazia e voltar atrás não deixa trabalho nenhum — o que o tipo traz a mais
+ * são as opções, e essas contam.
+ *
+ * A marca `review` do OCR conta também: é o que diz ao professor «olha para isto».
+ * Um item importado com essa marca e sem mais nada é o próprio trabalho da importação,
+ * e apagá-lo em silêncio era perder exatamente o aviso que o OCR deixou.
  */
 function itemHasContent(i: ExamDraft['items'][number]): boolean {
-  if (filled(i.text) || i.points !== '' || i.options.length > 0) return true;
+  if (filled(i.text) || filled(i.modelAnswer ?? '') || i.points !== '' || i.options.length > 0 || i.review === true) return true;
   return (i.items ?? []).some(itemHasContent);
 }
 

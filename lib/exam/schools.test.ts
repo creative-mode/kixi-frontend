@@ -102,3 +102,29 @@ test('cotação e opções das questões contam como trabalho (#362)', () => {
   // não guarda nada, e os itens normalizados trazem sempre um tipo derivado.
   assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], kind: 'open' }] }), false);
 });
+
+test('a resposta esperada conta como trabalho, na questão e na alínea (#362)', () => {
+  // O OCR preenche `modelAnswer` (lib/exam/from-statement.ts). Se for o único campo
+  // escrito, o rascunho era dado como vazio e o efeito de guardar apagava-o.
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], modelAnswer: 'x = 2' }] }), true);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], kind: 'group', items: [{ text: '', points: '', options: [], modelAnswer: 'a alínea' }] }] }), true);
+  // Só espaços em branco não é trabalho.
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], modelAnswer: '   ' }] }), false);
+});
+
+test('a resposta esperada sobrevive ao load do rascunho (#362)', () => {
+  // Sem isto o `normalizeDraft` descartava o `modelAnswer` e o aviso de arranque
+  // voltava a ver um rascunho vazio: o trabalho perdia-se de qualquer forma.
+  const questao = normalizeDraft({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], modelAnswer: 'x = 2' }] });
+  assert.equal(questao.items[0].modelAnswer, 'x = 2');
+  const grupo = normalizeDraft({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], kind: 'group', items: [{ text: '', points: '', options: [], modelAnswer: 'a alínea' }] }] });
+  assert.equal(grupo.items[0].items?.[0]?.modelAnswer, 'a alínea');
+});
+
+test('a marca de revisão do OCR conta como trabalho (#362)', () => {
+  // `review` foi posto pelo OCR a dizer «olha para isto». Um item assim não pode ser
+  // apagado em silêncio mesmo que não tenha texto, cotação nem opções.
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], review: true }] }), true);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], kind: 'group', items: [{ text: '', points: '', options: [], review: true }] }] }), true);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], review: false }] }), false);
+});
