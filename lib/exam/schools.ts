@@ -138,6 +138,29 @@ export function normalizeDraft(saved: Partial<ExamDraft>): ExamDraft {
 export const loadDraft = (): ExamDraft => normalizeDraft(read<Partial<ExamDraft>>(DRAFT_KEY, {}));
 export const saveDraft = (d: ExamDraft) => write(DRAFT_KEY, withoutImages(d));
 
+/**
+ * Limpa o rascunho local. É o que se faz ao começar do zero: a chave desaparece em
+ * vez de ficar com um rascunho vazio, para o próximo arranque não voltar a perguntar.
+ */
+export const clearDraft = () => {
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* quota / modo privado */ }
+};
+
+/**
+ * O rascunho tem trabalho por guardar? Parte do mesmo critério que o importador já
+ * usa (um título escrito ou alguma questão com texto) e estende-o às alíneas dos
+ * grupos: um grupo cuja cabeça está vazia mas cujas alíneas têm texto é trabalho a
+ * sério, e descartá-lo sem aviso era a maneira mais fácil de perder uma prova.
+ * Só um rascunho assim vale um aviso; um rascunho vazio (escola e opções por omissão)
+ * abre limpo sem incomodar quem entrou para montar outra prova.
+ */
+export const draftHasContent = (d: ExamDraft): boolean =>
+  d.title.trim() !== '' || d.items.some(itemHasText);
+
+function itemHasText(i: ExamDraft['items'][number]): boolean {
+  return i.text.trim() !== '' || (i.items ?? []).some(itemHasText);
+}
+
 /** Lê uma imagem e reduz-a (máx. 320px) para caber no armazenamento local. */
 export function imageToDataUri(file: File, max = 320): Promise<string> {
   return new Promise((resolve, reject) => {

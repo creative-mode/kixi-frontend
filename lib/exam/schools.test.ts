@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { kindOf } from './draft.ts';
-import { EMPTY_DRAFT, normalizeDraft } from './schools.ts';
+import { draftHasContent, EMPTY_DRAFT, normalizeDraft } from './schools.ts';
 
 test('um rascunho antigo, sem tipo nem alíneas nem cabeçalho novo, abre sem rebentar', () => {
   const antigo = { subject: 'Matemática', items: [{ text: 'q1', points: 2 }, { text: 'q2', points: 3, options: [{ text: 'a', correct: true }, { text: 'b' }] }] };
@@ -48,4 +48,16 @@ test('um grupo sem alíneas guardadas deixa de ser grupo, e um tipo desconhecido
 test('o cabeçalho guardado mantém título, duração, série e ano letivo', () => {
   const d = normalizeDraft({ title: 'Prova de OGI', duration: 90, variant: 'B', schoolYear: '2024/2025' } as never);
   assert.deepEqual([d.title, d.duration, d.variant, d.schoolYear], ['Prova de OGI', 90, 'B', '2024/2025']);
+});
+
+test('só um rascunho com título ou questão conta como trabalho por guardar', () => {
+  // Parte do critério do importador (título ou questão escritos), alargado às
+  // alíneas dos grupos: um rascunho de base não pode abrir um aviso, e trabalho
+  // dentro de um grupo não pode ser descartado sem aviso.
+  assert.equal(draftHasContent(EMPTY_DRAFT), false);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, title: '   ' }), false);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '  ', points: '', options: [] }] }), false);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, title: 'Prova de OGI' }), true);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '1 + 1?', points: '', options: [] }] }), true);
+  assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], kind: 'group', items: [{ text: 'a alínea', points: '', options: [] }] }] }), true);
 });

@@ -14,7 +14,7 @@ import { extractDonation, getDonation, linkDonationStatement } from '@/app/actio
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
-import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
+import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { attachFigures } from '@/app/actions/media';
 import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
@@ -60,7 +60,16 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
-    const task = window.setTimeout(() => setDraft(loadDraft()), 0);
+    // O construtor abre sempre limpo (#362). O rascunho em localStorage já não entra
+    // sozinho: um professor que voltasse para montar outra prova encontrava o
+    // formulário preenchido com a prova anterior, de outra escola ou de há semanas,
+    // sem o ter pedido. Se houver trabalho por guardar, pergunta-se — e só nesse caso.
+    const anterior = loadDraft();
+    const continuar = draftHasContent(anterior) && window.confirm('Tem um rascunho por guardar da última vez. Continuar esse rascunho? (Cancelar começa uma prova nova.)');
+    if (!continuar) clearDraft();
+    // `setDraft` vai dentro do timeout para não disparar em cima do efeito — a mesma
+    // razão pela qual já era adiado antes de a #362 existir.
+    const task = window.setTimeout(() => { if (continuar) setDraft(anterior); }, 0);
     myInstitutions().then((res) => {
       if (!res.ok) toast.error(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
@@ -68,7 +77,13 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     });
     return () => window.clearTimeout(task);
   }, []);
-  useEffect(() => { if (ready) saveDraft(draft); }, [draft, ready]);
+  // Um rascunho vazio não se guarda: assim «começar do zero» deixa a chave mesmo
+  // limpa, em vez de a reescrever vazia no instante a seguir ao aviso.
+  useEffect(() => {
+    if (!ready) return;
+    if (draftHasContent(draft)) saveDraft(draft);
+    else clearDraft();
+  }, [draft, ready]);
   // Uma doação aberta no construtor: os dados dela, para o administrador ver de onde vem a prova.
   useEffect(() => {
     if (donationId === null) return;
