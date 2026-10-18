@@ -1,6 +1,7 @@
 import 'server-only';
 
-import { apiGet } from './api';
+import { apiGet, viewerKey } from './api';
+import { TtlCache } from './ttl-cache';
 import { currentAttempt, formatScore, isFinished, type Attempt } from './attempt-history';
 
 /** Item do catálogo como o backend devolve (StatementSummary): só ids, sem nomes.
@@ -69,27 +70,38 @@ function yearLabel(year: SchoolYear): string {
 }
 
 /** Nomes para os ids do catálogo, cada endpoint carregado uma vez. */
-export async function getCatalogNames(): Promise<{
+type CatalogNames = {
   subjects: Named[];
   years: (Named & { label: string })[];
   schools: Named[];
-}> {
-  const [subjects, years, schools] = await Promise.all([
-    apiGet<{ id: number; name: string }[]>('/subjects'),
-    apiGet<SchoolYear[]>('/school-years'),
-    apiGet<{ id: number; name: string }[]>('/institutions'),
-  ]);
-  return {
-    subjects: subjects.ok && Array.isArray(subjects.data)
-      ? subjects.data.map((s) => ({ id: s.id, name: s.name }))
-      : [],
-    years: years.ok && Array.isArray(years.data)
-      ? years.data.map((y) => ({ id: y.id, name: `${y.startYear}–${y.endYear}`, label: yearLabel(y) }))
-      : [],
-    schools: schools.ok && Array.isArray(schools.data)
-      ? schools.data.map((s) => ({ id: s.id, name: s.name }))
-      : [],
-  };
+};
+
+/** Disciplinas, anos lectivos e escolas quase nunca mudam e eram pedidos em cada navegação (3 a 6 chamadas por página).
+ *  Guardam-se 5 minutos por utilizador, e só quando as três leituras correram bem. */
+const namesCache = new TtlCache<CatalogNames>(5 * 60_000, 500);
+
+export async function getCatalogNames(): Promise<CatalogNames> {
+  const viewer = await viewerKey();
+  // Cada chamador recebe a sua cópia: a cache é partilhada entre pedidos e quem ordena no sítio não a estraga.
+  return structuredClone(await namesCache.remember(viewer, async () => {
+    const [subjects, years, schools] = await Promise.all([
+      apiGet<{ id: number; name: string }[]>('/subjects'),
+      apiGet<SchoolYear[]>('/school-years'),
+      apiGet<{ id: number; name: string }[]>('/institutions'),
+    ]);
+    const value: CatalogNames = {
+      subjects: subjects.ok && Array.isArray(subjects.data)
+        ? subjects.data.map((s) => ({ id: s.id, name: s.name }))
+        : [],
+      years: years.ok && Array.isArray(years.data)
+        ? years.data.map((y) => ({ id: y.id, name: `${y.startYear}–${y.endYear}`, label: yearLabel(y) }))
+        : [],
+      schools: schools.ok && Array.isArray(schools.data)
+        ? schools.data.map((s) => ({ id: s.id, name: s.name }))
+        : [],
+    };
+    return { value, keep: subjects.ok && years.ok && schools.ok };
+  }));
 }
 
 /** Catálogo real, paginado no backend. Sem fallback: se o catálogo falhar,
