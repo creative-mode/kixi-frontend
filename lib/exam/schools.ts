@@ -147,18 +147,49 @@ export const clearDraft = () => {
 };
 
 /**
- * O rascunho tem trabalho por guardar? Parte do mesmo critério que o importador já
- * usa (um título escrito ou alguma questão com texto) e estende-o às alíneas dos
- * grupos: um grupo cuja cabeça está vazia mas cujas alíneas têm texto é trabalho a
- * sério, e descartá-lo sem aviso era a maneira mais fácil de perder uma prova.
- * Só um rascunho assim vale um aviso; um rascunho vazio (escola e opções por omissão)
- * abre limpo sem incomodar quem entrou para montar outra prova.
+ * O rascunho tem trabalho por guardar?
+ *
+ * Não chega olhar ao título e ao texto das questões. O rascunho guarda muitos mais
+ * campos que o professor edita — escola, disciplina, tipo, classe, fase, duração,
+ * série, ano letivo, instruções, observação, local, data e professor — e as próprias
+ * questões têm cotação, tipo e opções de resposta. Se o professor mexesse só num
+ * desses campos, o rascunho continuava a parecer vazio e `clearDraft` apagava-o em
+ * silêncio no efeito de guardar: a perda de trabalho que a #362 veio eliminar.
+ *
+ * Por isso a regra passa a ser «é diferente do rascunho de base?». Um rascunho
+ * intocado (só com os valores por omissão de `EMPTY_DRAFT`) não vale um aviso nem
+ * uma gravação; qualquer alteração — no cabeçalho, nas questões ou nas alíneas —
+ * vale. Espaços em branco não contam como trabalho.
  */
 export const draftHasContent = (d: ExamDraft): boolean =>
-  d.title.trim() !== '' || d.items.some(itemHasText);
+  d.title.trim() !== '' || d.items.some(itemHasContent) || headerHasContent(d);
 
-function itemHasText(i: ExamDraft['items'][number]): boolean {
-  return i.text.trim() !== '' || (i.items ?? []).some(itemHasText);
+/** O texto tem conteúdo real? Só espaços em branco não é trabalho. */
+const filled = (value: string) => value.trim() !== '';
+
+/**
+ * Uma questão (ou alínea) tem trabalho quando tem texto, cotação, opções de resposta
+ * ou alíneas com conteúdo. O `kind` sozinho não conta: um item normalizado traz
+ * sempre um tipo derivado, e mudar o tipo de uma questão vazia e voltar atrás não
+ * deixa trabalho nenhum — o que o tipo traz a mais são as opções, e essas contam.
+ */
+function itemHasContent(i: ExamDraft['items'][number]): boolean {
+  if (filled(i.text) || i.points !== '' || i.options.length > 0) return true;
+  return (i.items ?? []).some(itemHasContent);
+}
+
+/** Qualquer campo do cabeçalho diferente do rascunho de base é trabalho por guardar. */
+function headerHasContent(d: ExamDraft): boolean {
+  if (filled(d.schoolId) || filled(d.subject) || filled(d.variant) || filled(d.schoolYear)
+    || filled(d.note) || filled(d.date) || filled(d.teacher) || d.duration !== '') return true;
+  if (d.kind !== EMPTY_DRAFT.kind) return true;
+  if (d.grade.trim() !== EMPTY_DRAFT.grade.trim()) return true;
+  if (d.phase.trim() !== EMPTY_DRAFT.phase.trim()) return true;
+  if (d.place.trim() !== EMPTY_DRAFT.place.trim()) return true;
+  // As regras por omissão são duas e não vazias: apagar uma, escrever outra ou
+  // acrescentar uma é trabalho. Comparam-se pelo comprimento e pelo texto limpo.
+  if (d.rules.length !== EMPTY_DRAFT.rules.length) return true;
+  return d.rules.some((rule, i) => rule.trim() !== EMPTY_DRAFT.rules[i].trim());
 }
 
 /** Lê uma imagem e reduz-a (máx. 320px) para caber no armazenamento local. */

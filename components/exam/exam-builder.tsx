@@ -181,8 +181,9 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       setNotes(imported.notes);
       return void toast.error('Não foi possível ler questões nesta imagem.');
     }
-    const hasContent = draft.items.some((i) => i.text.trim()) || draft.title.trim() !== '';
-    if (hasContent && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return;
+    // A mesma noção de «conteúdo» do aviso de arranque: o OCR substitui o cabeçalho
+    // inteiro, por isso mexer só na escola/disciplina/duração também se avisa.
+    if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return;
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
     setSaved(null);
@@ -252,7 +253,10 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                   <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
                 ) : null}
                 <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button>
-                <Button variant="ghost" onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { setDraft({ ...EMPTY_DRAFT, schoolId: draft.schoolId }); setNotes([]); setSaved(null); } }}>
+                <Button variant="ghost" onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
+                  // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
+                  // voltar a ser guardado — um aviso a mais no arranque seguinte.
+                  setDraft(EMPTY_DRAFT); setNotes([]); setSaved(null); } }}>
                   <Plus aria-hidden />Nova prova
                 </Button>
               </CardContent>
