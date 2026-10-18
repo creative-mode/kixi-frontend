@@ -232,6 +232,15 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
     if (w.field === 'subjectName' || w.field === 'subject') continue; // já tratada acima
     notes.push(`O motor ficou inseguro com ${FIELD_NAMES[w.field] ?? `«${w.field}»`}. Confirme-o.`);
   }
+  if (codes.has('IMAGE_QUALITY')) {
+    // #263: o próprio pré-processamento já apontou a razão (desfocada, escura, queimada); a
+    // mensagem do motor é mais específica do que o genérico "não li questões" acima, por isso
+    // substitui-o em vez de se somar a ele.
+    const quality = (extraction.warnings ?? []).find((w) => (w.code ?? '').toUpperCase() === 'IMAGE_QUALITY');
+    const genericIndex = notes.indexOf('Não foi possível ler questões nesta imagem. Tente uma foto mais nítida e de frente, ou escreva as questões à mão.');
+    if (genericIndex !== -1) notes.splice(genericIndex, 1);
+    notes.unshift(quality?.message ?? 'A imagem pode estar ilegível. Tente fotografar de novo com mais luz e sem tremer.');
+  }
   if (figureCount > 0) notes.push(`${figureCount} figura(s), tabela(s) ou fórmula(s) ficaram ligadas às questões. Confirme se cada uma está na questão certa; pode retirá-la.`);
   if (reviewCount > 0) notes.push(`${reviewCount} questão(ões) ficaram marcadas «rever»: o texto pode ter erros de leitura.`);
   if (items.some((q) => q.kind === 'true_false' || (q.items ?? []).some((i) => i.kind === 'true_false'))) {

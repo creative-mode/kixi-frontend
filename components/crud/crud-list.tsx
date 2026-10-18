@@ -13,6 +13,7 @@ import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/l
 import { answerInScope, classInScope, simulationInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { isStructureEntity } from '@/lib/roles';
 import { AccountRoles } from './account-roles';
+import { ClassEnrollmentCodes } from './class-enrollment-codes';
 import { InstitutionMembers } from './institution-members';
 import { TeacherAccess } from './teacher-access';
 import { TeacherSchools } from '@/components/academic/teacher-overview';
@@ -194,6 +195,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                         {entityKey === 'institutions' && !readOnly ? <InstitutionMembers institution={row} /> : null}
                         {entityKey === 'teachers' && !readOnly ? <TeacherSchools teacherId={row.id} name={`${row.firstName} ${row.lastName}`} /> : null}
                         {entityKey === 'teachers' ? <TeacherAccess teacher={row} onChange={load} /> : null}
+                        {entityKey === 'classes' && !readOnly ? <ClassEnrollmentCodes classItem={row} /> : null}
                         {entityKey === 'subjects' && !readOnly ? <SubjectWhere code={row.code} name={row.name} /> : null}
                         {entityKey === 'courses' && !readOnly && row.institutionId ? (
                           <Button variant="ghost" size="sm" asChild aria-label={`Currículo e turmas de ${row.name}`} title="Currículo e turmas">

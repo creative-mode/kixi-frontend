@@ -235,7 +235,8 @@ async function main() {
     await passo(
       'a matrícula leva ao início, com o basePath',
       'POST', '/aluno/onboarding',
-      { form: camposDoForm(corpo, { turma: turma ?? '' }), seguir: true },
+      // Desde kixi#255 a auto-matrícula exige um código (TESTE1234 é o que o mock semeia).
+      { form: camposDoForm(corpo, { turma: turma ?? '', codigo: 'TESTE1234' }), seguir: true },
       (r, final, status) => destinoOk(final, '/aluno/inicio', status),
     );
 
