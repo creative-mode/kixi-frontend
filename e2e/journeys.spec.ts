@@ -353,4 +353,47 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.getByRole('tab', { name: 'Desempenho' }).click();
     await expect(page.getByRole('tabpanel').getByText('Domínio por prova')).toHaveCount(1);
   });
+
+  test('avatares: a foto do aluno aparece em todo o inicio depois de a por (#345)', async ({ page }) => {
+    // #345: o UserAvatar so mostra a foto se lhe passarem `src`; os avatares do proprio
+    // aluno sem src caiam nas iniciais sem dar erro nenhum. Aqui exige-se a foto no ecra,
+    // nas mesmas suturas que a issue apontou, e nao apenas no codigo.
+    const PHOTO = '/uploads/images/avatar/e2e-345.png';
+    // O mock guarda o endereco mas nao serve o ficheiro: serve-se uma imagem real para o
+    // AvatarImage carregar em vez de cair no fallback.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVR4nGP8z8Dwn4EIwDiqkL4KAcb1B0cAAAAASUVORK5CYII=', 'base64');
+    await page.route('**/uploads/images/avatar/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: png }));
+
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // Pelo editor: o upload do ficheiro vai a /images, que o mock nao serve, por isso
+    // escreve-se o endereco no campo escondido e submete-se o formulario.
+    await page.goto('/aluno/perfil?editar=1');
+    await page.locator('input[name="photo"]').first().evaluate((el, value) => {
+      (el as HTMLInputElement).value = value;
+      el.closest('form')!.requestSubmit();
+    }, PHOTO);
+    await expect(page.getByRole('button', { name: 'Editar perfil' })).toBeVisible();
+
+    await page.goto('/aluno/inicio');
+    await expect(page.getByRole('heading', { name: 'Início' })).toBeVisible();
+    // Abrir os comentarios para o compositor aparecer.
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+
+    const foto = '[data-slot="avatar"] img[src*="e2e-345.png"]';
+    // Cabecalho (a barra lateral, visivel a partir de md). O href leva o basePath /aluno.
+    await expect(page.locator(`header:visible a[href$="/perfil"] ${foto}`)).toBeVisible();
+    // "O teu progresso", na coluna da direita.
+    await expect(page.locator('section:visible').filter({ hasText: 'O teu progresso' }).locator(foto).first()).toBeVisible();
+    // "Na tua turma": a propria linha ("Tu") tambem e o proprio aluno.
+    await expect(page.locator('section:visible').filter({ hasText: 'Na tua turma' }).locator(foto).first()).toBeVisible();
+    // Autor da publicacao, que e o proprio aluno.
+    await expect(page.locator('article').filter({ hasText: 'subnetting' }).locator(foto).first()).toBeVisible();
+    // Compositor de comentarios, na publicacao aberta.
+    await expect(page.getByLabel('Escrever um comentário').locator('xpath=ancestor::form[1]').locator(foto)).toBeVisible();
+  });
  });
