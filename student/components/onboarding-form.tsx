@@ -8,6 +8,7 @@ import { Check, CircleAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { EmptyState } from '@/components/states';
 import { matricularAction } from '@/lib/enrollment-actions';
@@ -175,8 +176,8 @@ export function OnboardingForm({
 
       {step === 2 && (
         <form action={action} className="grid gap-6">
-          {/* The class carries its own school year, so the pair sent to /enrollments
-              always matches and the backend's consistency check never fires. */}
+          {/* A turma é só para confirmares que estás no sítio certo: quem decide onde
+              ficas matriculado é o código abaixo, que a tua escola te deu. */}
 
           <Field>
             <FieldLabel htmlFor="classId">E em que turma?</FieldLabel>
@@ -214,6 +215,25 @@ export function OnboardingForm({
               </>
             )}
           </Field>
+
+          {classes.length > 0 && (
+            <Field>
+              <FieldLabel htmlFor="codigo">Código de matrícula</FieldLabel>
+              <Input
+                id="codigo"
+                name="codigo"
+                type="text"
+                required
+                autoCapitalize="characters"
+                autoComplete="off"
+                placeholder="Ex.: AB3DK9F2"
+                className="font-mono uppercase tracking-wider"
+              />
+              <FieldDescription>
+                O código que a tua escola ou professor te deu. É ele que determina a turma onde ficas matriculado.
+              </FieldDescription>
+            </Field>
+          )}
 
           <div className="grid gap-2">
             {classes.length > 0 && <Submit>Entrar na turma</Submit>}
