@@ -54,6 +54,7 @@ export function examRooms(w: RoomWorld) {
   const { db } = w;
   db['exam-rooms'] ??= [];
   db['exam-room-participants'] ??= [];
+  db['integrity-events'] ??= [];
 
   const room = (id: number) => db['exam-rooms'].find((r: any) => r.id === id);
   const managed = (id: number, caller: number, admin: boolean): Outcome<any> => {
@@ -217,6 +218,35 @@ export function examRooms(w: RoomWorld) {
     });
   }
 
+  /**
+   * Os eventos do modo de avaliação (#192) de cada participante. Só o dono da sala
+   * (ou o ADMIN) os lê — é o mesmo cuidado do `live` e do `grades`, porque o que
+   * aqui está é comportamento de um aluno concreto.
+   *
+   * O aluno escreve os eventos no seu próprio processo e a base do gestor é outra;
+   * no backend verdadeiro é o mesmo `POST /simulations/{id}/integrity-events` a
+   * guardá-los, e é desta rota que o professor os lê.
+   */
+  function integrity(id: number, caller: number, admin: boolean): Outcome<any> {
+    const r = room(id);
+    if (!r || !(admin || r.teacherAccountId === caller)) return no(403, 'Only the room owner or ADMIN can view it');
+    const events: any[] = db['integrity-events'];
+    return ok({
+      roomId: r.id,
+      serverTime: w.clock(),
+      participants: participantsOf(id).map((p: any) => ({
+        accountId: p.accountId,
+        simulationId: p.simulationId ?? null,
+        events: p.simulationId
+          ? events
+              .filter((e: any) => e.simulationId === p.simulationId && !e.deletedAt)
+              .sort((a: any, b: any) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+              .map((e: any) => ({ id: e.id, kind: e.kind, at: e.at, questionId: e.questionId ?? null }))
+          : [],
+      })),
+    });
+  }
+
   function grades(id: number, caller: number, admin: boolean): Outcome<any> {
     const r = room(id);
     if (!r || !(admin || r.teacherAccountId === caller)) return no(403, 'Only the room owner or ADMIN can view it');
@@ -246,6 +276,7 @@ export function examRooms(w: RoomWorld) {
     join,
     live,
     grades,
+    integrity,
     owned: (caller: number) =>
       db['exam-rooms']
         .filter((r: any) => r.teacherAccountId === caller)

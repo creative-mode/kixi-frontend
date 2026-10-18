@@ -77,6 +77,71 @@ export const PARTICIPANT_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelada',
 };
 
+// ── modo de avaliação (#192) ────────────────────────────────────────────────
+
+/**
+ * `IntegrityEventResponse`: um evento que o modo de avaliação registou, com a hora
+ * que o SERVIDOR lhe deu — o cliente nunca a manda.
+ *
+ * Os nomes dos eventos têm de bater certo com `student/lib/integrity.ts`, de onde
+ * nascem, e com o contrato do backend. Há um teste de cada lado a fixá-los, como
+ * nas denúncias (#323), porque um evento que o aluno escreve e o professor não sabe
+ * ler é pior do que não o ter.
+ */
+export interface IntegrityEvent {
+  id: number;
+  kind: string;
+  at: string;
+  questionId: number | null;
+}
+
+/** `RoomIntegrityResponse.ParticipantIntegrity` */
+export interface ParticipantIntegrity {
+  accountId: number;
+  simulationId: number | null;
+  events: IntegrityEvent[];
+  /** Ainda não vem do backend; ver `participantName`. */
+  displayName?: string | null;
+}
+
+/** `RoomIntegrityResponse` */
+export interface RoomIntegrity {
+  roomId: number;
+  serverTime: string;
+  participants: ParticipantIntegrity[];
+}
+
+export const INTEGRITY_LABEL: Record<string, string> = {
+  TAB_HIDDEN: 'Saiu do separador',
+  TAB_VISIBLE: 'Voltou ao separador',
+  WINDOW_BLUR: 'Perdeu o foco da janela',
+  WINDOW_FOCUS: 'Recuperou o foco da janela',
+  PASTE_BLOCKED: 'Tentou colar uma resposta',
+  TUTOR_BLOCKED: 'Tentou abrir o tutor durante a prova',
+};
+
+/** Os eventos que, para o professor, contam como o aluno ter saído da prova: os
+ *  pares `TAB_VISIBLE`/`WINDOW_FOCUS` são o regresso e não somam. */
+const INTEGRITY_EXIT = new Set(['TAB_HIDDEN', 'WINDOW_BLUR']);
+
+export interface IntegritySummary {
+  total: number;
+  /** Saídas da prova (separador escondido ou janela sem foco). */
+  exits: number;
+  /** Quantos tipos de evento distintos, na ordem em que apareceram. */
+  byKind: { kind: string; label: string; count: number }[];
+}
+
+export function summarizeIntegrity(events: IntegrityEvent[]): IntegritySummary {
+  const counts = new Map<string, number>();
+  for (const e of events) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
+  return {
+    total: events.length,
+    exits: events.filter((e) => INTEGRITY_EXIT.has(e.kind)).length,
+    byKind: [...counts.entries()].map(([kind, count]) => ({ kind, label: INTEGRITY_LABEL[kind] ?? kind, count })),
+  };
+}
+
 /** O backend ainda não devolve o nome do aluno (pedido no kixi#181). Até lá,
  *  o número da conta é a única identificação que o professor pode ler. */
 export function participantName(p: { accountId: number; displayName?: string | null }): string {

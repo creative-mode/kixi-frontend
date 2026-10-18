@@ -14,9 +14,12 @@ import {
   roomActions,
   statementFitsRoom,
   summarizeGrades,
+  summarizeIntegrity,
+  INTEGRITY_LABEL,
   toLocalDateTime,
   wallMinutes,
   preselectFromStatement,
+  type IntegrityEvent,
 } from './model.ts';
 
 test('a hora de parede não passa pelo fuso do browser', () => {
@@ -181,4 +184,41 @@ test('só seguem as respostas por corrigir com nota válida; as já corrigidas f
 test('as notas inválidas são apontadas para o professor as ver', () => {
   assert.deepEqual(invalidDrafts(review, { 10: '5', 11: '2' }), [10]);
   assert.deepEqual(invalidDrafts(review, { 10: '', 11: '1' }), []);
+});
+
+test('os tipos de evento são os mesmos que o aluno escreve', () => {
+  // A lista do aluno (`student/lib/integrity.ts`) e o contrato do backend têm de
+  // falar destes nomes. Este é o lado do gestor: um evento que o aluno escreve e
+  // aqui não se sabe ler aparece como um código cru no ecrã do professor.
+  assert.deepEqual(
+    Object.keys(INTEGRITY_LABEL).sort(),
+    ['PASTE_BLOCKED', 'TAB_HIDDEN', 'TAB_VISIBLE', 'TUTOR_BLOCKED', 'WINDOW_BLUR', 'WINDOW_FOCUS'].sort(),
+  );
+});
+
+test('o resumo conta as saídas e não os regressos', () => {
+  const events: IntegrityEvent[] = [
+    { id: 1, kind: 'TAB_HIDDEN', at: '2026-10-18T09:00:00', questionId: null },
+    { id: 2, kind: 'WINDOW_BLUR', at: '2026-10-18T09:00:01', questionId: null },
+    { id: 3, kind: 'TAB_VISIBLE', at: '2026-10-18T09:00:30', questionId: null },
+    { id: 4, kind: 'PASTE_BLOCKED', at: '2026-10-18T09:01:00', questionId: 12 },
+  ];
+  const s = summarizeIntegrity(events);
+  assert.equal(s.total, 4);
+  // Duas saídas (esconder e perder o foco); o regresso não é uma saída.
+  assert.equal(s.exits, 2);
+  assert.deepEqual(s.byKind, [
+    { kind: 'TAB_HIDDEN', label: 'Saiu do separador', count: 1 },
+    { kind: 'WINDOW_BLUR', label: 'Perdeu o foco da janela', count: 1 },
+    { kind: 'TAB_VISIBLE', label: 'Voltou ao separador', count: 1 },
+    { kind: 'PASTE_BLOCKED', label: 'Tentou colar uma resposta', count: 1 },
+  ]);
+  assert.deepEqual(summarizeIntegrity([]), { total: 0, exits: 0, byKind: [] });
+});
+
+test('um evento que o gestor não conhece mostra o código, não um rótulo inventado', () => {
+  // O backend pode acrescentar um evento antes de o gestor o conhecer; mostrar o
+  // código cru diz ao professor que há ali algo novo, em vez de o esconder.
+  const s = summarizeIntegrity([{ id: 1, kind: 'NOVO_EVENTO', at: '2026-10-18T09:00:00', questionId: null }]);
+  assert.equal(s.byKind[0].label, 'NOVO_EVENTO');
 });
