@@ -217,6 +217,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('button', { name: 'Continuar' }).click();
     await expect(page.locator('#classId')).toBeVisible();
     await escolherOpcao(page.locator('#classId'));
+    // Desde kixi#255 a auto-matrícula exige um código (TESTE1234 é o que o mock semeia).
+    await page.getByLabel('Código de matrícula').fill('TESTE1234');
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     // Conta nova, sem nenhuma prova: o início diz por onde começar.
@@ -352,5 +354,114 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // E o sintoma que o aluno via: o cartao de dominio aparece uma vez so.
     await page.getByRole('tab', { name: 'Desempenho' }).click();
     await expect(page.getByRole('tabpanel').getByText('Domínio por prova')).toHaveCount(1);
+  });
+ 
+  test('moderação: um perfil ocultado devolve 404 a terceiros (#323)', async ({ page }) => {
+    // Critério de aceitação da #323. A conta 7 está semeada como ocultada no mock:
+    // os dois mocks são processos separados, portanto uma decisão tomada no Manager
+    // não chega ao app do aluno enquanto o backend real não existir. O que o teste
+    // prova é o critério — ocultado é 404 — e não o transporte da decisão, que esse
+    // fica para quando houver backend.
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // Uma conta visível abre. O nome aparece duas vezes — no `h1` da página e no `h2`
+    // do cartão — por isso o alvo é o `h1`, que é o que a página é.
+    await page.goto('/aluno/u/4');
+    await expect(page.getByRole('heading', { level: 1, name: 'Nuno Dias' })).toBeVisible();
+
+    // A ocultada devolve 404, e não uma página a dizer que foi ocultada: dizer isso
+    // seria confirmar que o perfil existe.
+    const resposta = await page.goto('/aluno/u/7');
+    expect(resposta?.status(), '/aluno/u/7 é um perfil ocultado e tem de dar 404').toBe(404);
+    // O 404 é o mesmo do resto da app: não diz que o perfil foi ocultado, porque
+    // dizer isso seria confirmar que o perfil existe.
+    await expect(page.getByRole('heading', { name: 'Página não encontrada' })).toBeVisible();
+    await expect(page.getByText('Perfil Oculto')).toHaveCount(0);
+  });
+
+  test('avatares: a foto do aluno aparece em todo o inicio depois de a por (#345)', async ({ page }) => {
+    // #345: o UserAvatar so mostra a foto se lhe passarem `src`; os avatares do proprio
+    // aluno sem src caiam nas iniciais sem dar erro nenhum. Aqui exige-se a foto no ecra,
+    // nas mesmas suturas que a issue apontou, e nao apenas no codigo.
+    const PHOTO = '/uploads/images/avatar/e2e-345.png';
+    // O mock guarda o endereco mas nao serve o ficheiro: serve-se uma imagem real para o
+    // AvatarImage carregar em vez de cair no fallback.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVR4nGP8z8Dwn4EIwDiqkL4KAcb1B0cAAAAASUVORK5CYII=', 'base64');
+    await page.route('**/uploads/images/avatar/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: png }));
+
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // Pelo editor: o upload do ficheiro vai a /images, que o mock nao serve, por isso
+    // escreve-se o endereco no campo escondido e submete-se o formulario.
+    await page.goto('/aluno/perfil?editar=1');
+    await page.locator('input[name="photo"]').first().evaluate((el, value) => {
+      (el as HTMLInputElement).value = value;
+      el.closest('form')!.requestSubmit();
+    }, PHOTO);
+    await expect(page.getByRole('button', { name: 'Editar perfil' })).toBeVisible();
+
+    await page.goto('/aluno/inicio');
+    await expect(page.getByRole('heading', { name: 'Início' })).toBeVisible();
+    // Abrir os comentarios para o compositor aparecer.
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+
+    const foto = '[data-slot="avatar"] img[src*="e2e-345.png"]';
+    // Cabecalho (a barra lateral, visivel a partir de md). O href leva o basePath /aluno.
+    await expect(page.locator(`header:visible a[href$="/perfil"] ${foto}`)).toBeVisible();
+    // "O teu progresso", na coluna da direita.
+    await expect(page.locator('section:visible').filter({ hasText: 'O teu progresso' }).locator(foto).first()).toBeVisible();
+    // "Na tua turma": a propria linha ("Tu") tambem e o proprio aluno.
+    await expect(page.locator('section:visible').filter({ hasText: 'Na tua turma' }).locator(foto).first()).toBeVisible();
+    // Autor da publicacao, que e o proprio aluno.
+    await expect(page.locator('article').filter({ hasText: 'subnetting' }).locator(foto).first()).toBeVisible();
+    // Compositor de comentarios, na publicacao aberta.
+    await expect(page.getByLabel('Escrever um comentário').locator('xpath=ancestor::form[1]').locator(foto)).toBeVisible();
+  });
+
+  test('construtor: abre limpo e so retoma o rascunho anterior depois de avisar (#362)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+
+    // Um rascunho anterior com trabalho por guardar era o que entrava sozinho no
+    // construtor, mesmo sendo de outra escola ou de há semanas (#362).
+    const rascunho = {
+      schoolId: '',
+      title: 'Prova de OGI da semana passada',
+      items: [{ text: 'Qual é a capital de Angola?', points: 2, options: [] }],
+    };
+    // Semeia-se a cada navegação, antes de o app arrancar: semear na página anterior
+    // deixava o efeito de guardar do construtor (que corre quando as escolas chegam)
+    // apagar a chave antes de a nova página a ler.
+    await page.addInitScript((d) => {
+      localStorage.setItem('kixi-exam-draft', JSON.stringify(d));
+    }, rascunho);
+
+    let avisos = 0;
+    let aceitar = false;
+    page.on('dialog', async (d) => {
+      avisos += 1;
+      if (aceitar) await d.accept();
+      else await d.dismiss();
+    });
+
+    // Recusar (começar do zero): o formulário abre limpo e a chave desaparece.
+    await page.goto('/manager/exam-builder');
+    await expect(page.getByRole('heading', { name: 'Montar prova' })).toBeVisible();
+    await expect.poll(() => avisos, { message: 'esperava o aviso do rascunho anterior' }).toBe(1);
+    await expect(page.getByLabel('Título')).toHaveValue('');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('kixi-exam-draft'))).toBeNull();
+
+    // Aceitar: o rascunho anterior volta.
+    aceitar = true;
+    await page.goto('/manager/exam-builder');
+    await expect(page.getByLabel('Título')).toHaveValue('Prova de OGI da semana passada');
+    await expect.poll(() => avisos).toBe(2);
   });
  });

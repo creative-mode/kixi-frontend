@@ -9,9 +9,11 @@ export type EnrollmentState = { error?: string; alreadyEnrolled?: boolean } | un
 
 /** Enrolls the signed-in student in the class they picked.
  *
- *  The school year travels with the class id because the endpoint validates the pair
- *  (a class that does not belong to that year is a 400), so the client cannot talk
- *  the backend into an inconsistent enrollment. */
+ *  A auto-matrícula passou a exigir um código emitido pela escola: é ele, e não o
+ *  classId/schoolYearId que o aluno escolheu no ecrã, que decide a turma no backend
+ *  (ver EnrollmentService#resolveBySelfEnrollCode). Continuamos a enviar o par
+ *  classId/schoolYearId porque o backend valida a consistência entre eles quando
+ *  presentes, mas quem manda é o código. */
 export async function matricularAction(
   _: EnrollmentState,
   form: FormData,
@@ -20,7 +22,10 @@ export async function matricularAction(
   if (!turma) return { error: 'Escolhe a tua turma para continuares.' };
   const { classId, schoolYearId } = turma;
 
-  const result = await apiPost<Enrollment>('/enrollments', { classId, schoolYearId });
+  const code = String(form.get('codigo') ?? '').trim();
+  if (!code) return { error: 'Introduz o código de matrícula que a tua escola te deu.' };
+
+  const result = await apiPost<Enrollment>('/enrollments', { classId, schoolYearId, code });
 
   if (!result.ok) {
     // 409: an active enrollment already exists for this school year. Sending them to
