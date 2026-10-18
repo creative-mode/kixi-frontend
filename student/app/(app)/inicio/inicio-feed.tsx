@@ -1,5 +1,6 @@
 'use client';
 
+import { useOptimistic } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Page, PageHeader } from '@/components/page';
 import { PostCard } from '@/components/post-card';
@@ -38,6 +39,8 @@ export function InicioFeed({
   feedError?: string | null;
 }) {
   const me = useMe();
+  // A publicação nova aparece no instante em que se carrega em Publicar e é substituída pela do servidor quando chega.
+  const [shown, addOptimistic] = useOptimistic(posts, (current: FeedPost[], post: FeedPost) => [post, ...current]);
   // O início só mostra as salas que pedem ação (a decorrer, abertas, por abrir); as já entregues ou
   // terminadas ficam em Provas, para o feed não ficar enterrado debaixo do histórico.
   const pending = invitations.filter((inv) => ['live', 'lobby', 'scheduled'].includes(phaseOf(inv)));
@@ -79,16 +82,16 @@ export function InicioFeed({
       )}
       </div>
 
-      {classId && <PostComposer classId={classId} />}
+      {classId && <PostComposer classId={classId} onOptimistic={addOptimistic} />}
 
       {feedError ? (
         <div className="p-4"><Alert variant="destructive">{feedError}</Alert></div>
       ) : !classId ? (
         <EmptyState title="Matricula-te para veres o feed" message="As publicações da tua turma aparecem aqui depois da matrícula." />
-      ) : posts.length === 0 ? (
+      ) : shown.length === 0 ? (
         <EmptyState title="Ainda não há nada por aqui" message="Sê o primeiro a partilhar uma dúvida ou um tema com a turma." />
       ) : (
-        posts.map((p) => <PostCard key={p.id} post={p} author={authors[p.authorAccountId]} myClassId={classId} myAccountId={myAccountId} myName={fullName(me)} myPhoto={photoUrl(me)} />)
+        shown.map((p) => <PostCard key={p.id} post={p} author={authors[p.authorAccountId]} myClassId={classId} myAccountId={myAccountId} myName={fullName(me)} myPhoto={photoUrl(me)} />)
       )}
     </Page>
   );

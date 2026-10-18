@@ -1,5 +1,6 @@
 'use server';
 
+import { forgetVisitedPages } from './refresh';
 import { redirect } from 'next/navigation';
 import { apiPost } from './api';
 import { parseTurma } from './enrollment-rules';
@@ -42,5 +43,6 @@ export async function matricularAction(
   // `matriculado=1` é o sinal de uso único do kixi-frontend#219 ("onboarding
   // concluído"): `/inicio` por si só não chega, porque é a página normal de entrada,
   // visitada em todas as sessões seguintes.
+  forgetVisitedPages();
   redirect('/inicio?matriculado=1');
 }

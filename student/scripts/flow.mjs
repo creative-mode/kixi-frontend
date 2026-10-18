@@ -16,10 +16,11 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.FLOW_PORT ?? 3103);
 const BASE = `http://127.0.0.1:${PORT}`;
-const APP = new URL('../', import.meta.url).pathname;
+const APP = fileURLToPath(new URL('../', import.meta.url));
 const COOKIE = 'auth_token';
 
 let cookie = '';
