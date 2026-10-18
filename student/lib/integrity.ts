@@ -90,17 +90,18 @@ export function shouldRecord(
 /**
  * O que o aluno lê. Sair não se vê — o ecrã está noutro lado — por isso o aviso
  * aparece **ao voltar**: vê-se o que ficou registado em vez de um silêncio.
- * Devolve `null` para os eventos que não precisam de aviso próprio.
+ * Devolve `null` para os eventos que não precisam de aviso próprio (a colagem tem
+ * o seu, junto ao campo, e não no topo).
  */
 export function noticeFor(kind: IntegrityKind): string | null {
   if (kind === 'TAB_VISIBLE' || kind === 'WINDOW_FOCUS') {
     return 'Voltaste à prova. O tempo em que estiveste fora ficou registado. Podes continuar a responder.';
   }
-  if (kind === 'PASTE_BLOCKED') {
-    return 'Colar está desativado durante a simulação. Escreve a resposta.';
-  }
   return null;
 }
+
+/** A resposta ao gesto de colar, mostrada junto ao campo onde se tentou colar. */
+export const PASTE_NOTICE = 'Colar está desativado durante a simulação. Escreve a resposta.';
 
 /** Numa questão de escolha não há onde colar. Só as respostas abertas recusam
  *  colagem: assim não se bloqueia o que não está em causa, e a acessibilidade do

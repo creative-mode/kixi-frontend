@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import {
   COALESCE_MS,
   INTEGRITY_KINDS,
+  PASTE_NOTICE,
   integridadeAplica,
   isIntegrityKind,
   noticeFor,
@@ -75,11 +76,13 @@ test('só as respostas abertas recusam colagem', () => {
   assert.equal(pasteBlocked({ options: [{ id: 1 }] }), false);
 });
 
-test('o aluno é avisado ao voltar, e da colagem, mas não de sair', () => {
+test('o aluno é avisado ao voltar, e da colagem junto ao campo', () => {
   // Sair não se vê — o ecrã está noutro lado. O aviso tem de estar à espera ao voltar.
   assert.match(noticeFor('TAB_VISIBLE') ?? '', /Voltaste à prova/);
   assert.match(noticeFor('WINDOW_FOCUS') ?? '', /Voltaste à prova/);
-  assert.match(noticeFor('PASTE_BLOCKED') ?? '', /Colar está desativado/);
+  assert.match(PASTE_NOTICE, /Colar está desativado/);
+  // A colagem tem o aviso dela, junto ao campo; o topo não repete.
+  assert.equal(noticeFor('PASTE_BLOCKED'), null);
   assert.equal(noticeFor('TAB_HIDDEN'), null);
   assert.equal(noticeFor('WINDOW_BLUR'), null);
 });

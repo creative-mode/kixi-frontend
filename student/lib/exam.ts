@@ -178,6 +178,31 @@ export async function submitSimulation(simulationId: number): Promise<Result<Sim
   return apiPost<SimulationResult>(`/simulations/${simulationId}/submit`, {});
 }
 
+/** `IntegrityEventResponse`. A hora é do servidor: o cliente manda o tipo e, quando
+ *  faz sentido, a questão, e o servidor carimba `at` e guarda. */
+export interface IntegrityEventResponse {
+  id: number;
+  simulationId: number;
+  kind: string;
+  at: string;
+  questionId?: number | null;
+}
+
+/** POST /simulations/{id}/integrity-events — o modo de avaliação (#192) a registar
+ *  um evento. Não há GET do lado do aluno: quem lê os eventos é o professor, pela
+ *  sala de prova. O corpo leva o tipo e, na colagem, a questão; nada de texto de
+ *  resposta. */
+export async function saveIntegrityEvent(
+  simulationId: number,
+  kind: string,
+  questionId: number | null,
+): Promise<Result<IntegrityEventResponse>> {
+  return apiPost<IntegrityEventResponse>(`/simulations/${simulationId}/integrity-events`, {
+    kind,
+    ...(questionId == null ? {} : { questionId }),
+  });
+}
+
 /** GET /question-images/question/{questionId} — the images of one question. A
  *  question carries no image field of its own, so each one is a separate request;
  *  losing it costs an illustration, not the room, so this degrades to an empty list. */

@@ -2,9 +2,12 @@
 
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, RefreshCw, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { guardarAction, submeterAction } from '@/lib/exam-actions';
 import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue';
+import { PASTE_NOTICE, pasteBlocked } from '@/lib/integrity';
+import { useIntegrity } from '@/components/use-integrity';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   backoffMs,
   cellState,
@@ -153,6 +156,36 @@ function Confirmar({
   );
 }
 
+/** O aviso de sair a meio (#192): a tentativa não termina, mas não se sai por um
+ *  toque a mais. Recebe o foco ao abrir, como o `Confirmar`, para quem usa teclado
+ *  ou leitor de ecrã dar por ele. */
+function SairDaProva({ href, onCancel }: { href: string; onCancel: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, []);
+  return (
+    <div className="px-4 pt-3 md:px-6 lg:mx-auto lg:w-full lg:max-w-[1480px]">
+      <Card ref={ref} tabIndex={-1} className="gap-3 p-4" role="alertdialog" aria-labelledby="sair-titulo" aria-describedby="sair-texto">
+        <p id="sair-titulo" className="text-[15px] font-bold">Sair da prova?</p>
+        <p id="sair-texto" className="text-sm text-muted-foreground">
+          A tentativa fica aberta até ao fim do prazo — podes voltar e continuar. O tempo em que estiveres
+          fora continua a contar.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href={href}>Sair</Link>
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+            Continuar a prova
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 /** Debounce of an open answer: long enough not to send a request per keystroke,
  *  short enough that closing the lid right after typing loses little. */
 const TEXT_DEBOUNCE_MS = 800;
@@ -230,6 +263,20 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   const closed =
     (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' ||
     (now !== null && left !== null && left <= 0);
+
+  /** O modo de avaliação (#192): regista o que o browser vê — separador escondido,
+   *  janela sem foco, o regresso — e avisa o aluno ao voltar. Só com a tentativa a
+   *  decorrer: entregue ou expirada, não há nada para vigiar. Não bloqueia a prova. */
+  const { notice: integrityNotice, dismiss: dismissIntegrityNotice, record } = useIntegrity({
+    simulationId: data.simulationId,
+    active: !closed,
+  });
+  /** Sair a meio não termina a tentativa, por isso é reversível — mas avisa-se,
+   *  para não se sair por um toque a mais. */
+  const [exitConfirm, setExitConfirm] = useState(false);
+  /** A colagem recusada dava um "não aconteceu nada" silencioso. Este aviso é a
+   *  resposta ao gesto, e limpa-se quando o aluno começa a escrever. */
+  const [pasteNotice, setPasteNotice] = useState(false);
 
   /** What the header shows. 'a-contar' only exists during the first render, before
    *  the browser's clock starts ticking — the server rendered this component too, and
@@ -347,9 +394,17 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-card px-4 py-2.5 md:px-5">
-        <Button asChild variant="ghost" size="icon" aria-label="Sair da prova">
-          <Link href={data.roomId ? '/provas?aba=salas' : '/provas'}><ChevronLeft /></Link>
-        </Button>
+        {/* A tentativa a decorrer não se abandona por um toque a mais: sai-se pelo
+            aviso. Fechada, o link direto chega. */}
+        {closed ? (
+          <Button asChild variant="ghost" size="icon" aria-label="Sair da prova">
+            <Link href={data.roomId ? '/provas?aba=salas' : '/provas'}><ChevronLeft /></Link>
+          </Button>
+        ) : (
+          <Button variant="ghost" size="icon" aria-label="Sair da prova" onClick={() => setExitConfirm(true)}>
+            <ChevronLeft />
+          </Button>
+        )}
         <div className="min-w-0 leading-tight">
           <h1 className="truncate text-[15px] font-bold">{data.title}</h1>
           <div className="text-xs text-muted-foreground">{data.subtitle}</div>
@@ -374,6 +429,27 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
         <Button variant="outline" size="sm" onClick={openConfirm} disabled={closed}>Entregar</Button>
       </header>
       <p className="sr-only" role="status" aria-live="assertive">{announcement}</p>
+
+      {/* O aviso do modo de avaliação: o aluno sai, volta, e vê que a saída ficou
+          registada. Não acusa nem reprova — diz o que aconteceu e deixa continuar. */}
+      {integrityNotice && (
+        <Alert variant="info" className="mx-4 mt-3 md:mx-6 lg:mx-auto lg:w-full lg:max-w-[1480px]">
+          <ShieldAlert aria-hidden />
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span>{integrityNotice}</span>
+            <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={dismissIntegrityNotice}>
+              Fechar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {exitConfirm && (
+        <SairDaProva
+          href={data.roomId ? '/provas?aba=salas' : '/provas'}
+          onCancel={() => setExitConfirm(false)}
+        />
+      )}
 
       <div className="mx-auto grid w-full max-w-[1480px] flex-1 items-start gap-4 p-4 md:gap-6 md:p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         {/* Abaixo de lg: a questão ou a folha, à escolha. */}
@@ -497,9 +573,26 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                   rows={5}
                   value={drafts[current.id]?.text ?? ''}
                   disabled={closed}
-                  onChange={(e) => writeText(current.id, e.target.value)}
+                  onChange={(e) => {
+                    setPasteNotice(false);
+                    writeText(current.id, e.target.value);
+                  }}
                   onBlur={sairDaQuestao}
+                  onPaste={(e) => {
+                    // Numa resposta aberta não há onde colar: o gesto é recusado e
+                    // registado, em vez de deixar entrar texto de fora. A escolha
+                    // múltipla não tem onde colar, por isso o teste é o mesmo da regra.
+                    if (!pasteBlocked(current)) return;
+                    e.preventDefault();
+                    record('PASTE_BLOCKED', current.id);
+                    setPasteNotice(true);
+                  }}
                 />
+                {pasteNotice && (
+                  <p role="status" className="text-[13px] font-medium text-destructive">
+                    {PASTE_NOTICE}
+                  </p>
+                )}
                 <p className="text-[13px] text-muted-foreground">As respostas abertas são corrigidas pelo professor.</p>
               </div>
             )}
