@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { initials } from '@/lib/profile';
 import { cn } from '@/lib/utils';
+import { assetUrl } from '@/lib/assets';
 
 const TONES = [
   'bg-accent text-accent-foreground',
@@ -19,7 +20,7 @@ const tone = (s: string) => [...s].reduce((a, c) => a + c.charCodeAt(0), 0) % TO
 export function UserAvatar({ name, src, size = 40, className }: { name: string; src?: string | null; size?: number; className?: string }) {
   return (
     <Avatar className={className} style={{ width: size, height: size }} aria-hidden="true">
-      {src ? <AvatarImage src={src} alt="" /> : null}
+      {src ? <AvatarImage src={assetUrl(src)} alt="" /> : null}
       <AvatarFallback className={cn(TONES[tone(name)])} style={{ fontSize: Math.round(size * 0.38) }}>{initials(name)}</AvatarFallback>
     </Avatar>
   );

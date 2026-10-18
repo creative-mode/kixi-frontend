@@ -7,6 +7,7 @@ import type { ExamOption, ExamQuestion } from '@/lib/exam-rules';
 import type { QuestionImage } from '@/lib/exam';
 import { BASE_PATH } from '@/lib/base-path';
 import { cn } from '@/lib/utils';
+import { assetUrl } from '@/lib/assets';
 
 export type { PaperAnswer, PaperMark, PaperStamp };
 
@@ -295,7 +296,7 @@ function Figures({ images }: { images?: QuestionImage[] }) {
       {images.map((image) => (
         <figure key={image.id} className="m-0 max-w-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image.imageUrl} alt={image.caption ?? 'Figura da questão'} className="max-h-72 max-w-full object-contain" />
+          <img src={assetUrl(image.imageUrl)} alt={image.caption ?? 'Figura da questão'} className="max-h-72 max-w-full object-contain" />
         </figure>
       ))}
     </span>
