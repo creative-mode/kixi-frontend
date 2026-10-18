@@ -15,7 +15,7 @@ const photoCache = new TtlCache<string | null>(10 * 60_000, 2000);
 
 /**
  * As fotos de outras contas, por id. Amigos, comentários e pesquisas só trazem o nome, por isso a foto vem do
- * perfil. Um perfil privado nunca mostra foto, e um perfil que não responde fica sem ela e não fica guardado:
+ * perfil. Um perfil privado também mostra a foto (só esconde o resto), e um perfil que não responde fica sem ela e não fica guardado:
  * as iniciais ocupam o lugar até à próxima leitura.
  */
 export async function loadPhotos(ids: Array<number | null | undefined>): Promise<Record<number, string>> {
@@ -26,7 +26,7 @@ export async function loadPhotos(ids: Array<number | null | undefined>): Promise
       const photo = await photoCache.remember(`${viewer}:${id}`, async () => {
         const r = await getPerson(id).catch(() => null);
         if (!r?.ok) return { value: null, keep: false };
-        return { value: r.data.restricted ? null : safePhoto(r.data.photo), keep: true };
+        return { value: safePhoto(r.data.photo), keep: true };
       });
       return photo ? ([id, photo] as const) : null;
     }),
