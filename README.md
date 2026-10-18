@@ -198,4 +198,5 @@ produção são geradas pelo agente do repositório do backend.
 ## Segurança e decisões
 
 As notas de segurança estão em [`docs/seguranca.md`](docs/seguranca.md) e os registos de decisão em
-[`docs/adr/`](docs/adr).
+[`docs/adr/`](docs/adr). O que o modo Simular vigia — e o que não substitui — está em
+[`docs/modo-avaliacao.md`](docs/modo-avaliacao.md).
