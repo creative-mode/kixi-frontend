@@ -22,6 +22,10 @@ jobs:
       E2E_ADMIN_USERNAME: admin@kixi.ao
       E2E_TEACHER_USERNAME: professor@kixi.ao
       E2E_PASSWORD: Kixi1234!
+      # Propriedade de teste para a analítica: com um id configurado, o e2e prova que o
+      # Google só é contactado depois de aceitar (#219). Sem ele, o caminho consentido
+      # nunca corria e o teste passava à toa.
+      NEXT_PUBLIC_GA_ID: G-E2E000000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

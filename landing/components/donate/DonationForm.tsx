@@ -15,6 +15,7 @@ import {
 } from '@/lib/donation-rules';
 import { inspectImage, messageFor, type Assessment } from '@/lib/image-quality';
 import { imagesFrom } from '@/lib/clipboard-images';
+import { EVENTS, track } from '@/lib/analytics';
 
 type Phase = 'editing' | 'sending' | 'done';
 
@@ -141,6 +142,8 @@ export function DonationForm() {
       if (request.status === 201 && body.reference) {
         setReference(body.reference);
         setPhase('done');
+        // Mínimo da v1 (#219): a doação foi mesmo aceite (referência devolvida), sem PII.
+        track(EVENTS.donationSubmitted);
         return;
       }
       setPhase('editing');
