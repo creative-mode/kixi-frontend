@@ -930,6 +930,9 @@ export async function mockHandle(
   token: string | null,
   bodyText: string,
 ): Promise<Response> {
+  // Latência simulada por pedido, só para medir (KIXI_MOCK_LATENCY_MS): o backend real não responde em 0 ms.
+  const latency = Number(process.env.KIXI_MOCK_LATENCY_MS ?? 0);
+  if (latency > 0) await new Promise((resolve) => setTimeout(resolve, latency));
   const fault = currentFault();
   if (fault === 'timeout') throw new TypeError('fetch failed');
   if (fault === '500') {

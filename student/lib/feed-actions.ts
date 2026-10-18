@@ -54,7 +54,7 @@ export async function publishSimulationAction(
 export async function toggleReactionAction(postId: number): Promise<{ ok: boolean; reacted?: boolean }> {
   const result = await toggleReaction(postId);
   if (!result.ok) return { ok: false };
-  revalidatePath('/inicio');
+  // Sem `revalidatePath`: o cartão já mostra o resultado, e recarregar o início custava as 15 leituras da página (#393).
   return { ok: true, reacted: result.data.reacted };
 }
 
@@ -68,7 +68,7 @@ export async function addCommentAction(
   if (!result.ok) {
     return { ok: false, message: result.status === 429 ? 'Estás a comentar depressa demais. Espera um minuto e tenta de novo.' : result.message };
   }
-  revalidatePath('/inicio');
+  // Idem: a linha nova entra na lista do cartão e a contagem sobe lá; o início não precisa de se recarregar (#393).
   return { ok: true, comment: result.data };
 }
 
