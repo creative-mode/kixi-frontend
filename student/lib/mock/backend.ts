@@ -22,6 +22,7 @@ import { invitationsOf, join, roomDeadline, studentView, type MockParticipant, t
 import { conversation, type MockPostComment } from './feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../post-blocks';
 import { parseServerTime } from '../exam-rules';
+import { validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes';
 import type {
   Course,
   Enrollment,
@@ -112,17 +113,6 @@ type CatalogRow = {
   needsReview: boolean;
   ocrConfidence: number | null;
   visible: boolean;
-};
-
-/** Código de matrícula (kixi#255): o espelho mínimo do que o backend real guarda,
- *  só o que a auto-matrícula precisa de validar. */
-type EnrollmentCode = {
-  id: number;
-  code: string;
-  maxUses: number;
-  uses: number;
-  expiresAt: string | null;
-  revokedAt: string | null;
 };
 
 type SimulationRow = {
@@ -1953,13 +1943,9 @@ export async function mockHandle(
 
     let codeEntry: EnrollmentCode | undefined;
     if (selfEnroll) {
-      codeEntry = db.enrollmentCodes.find((c) => c.code === code);
-      if (!codeEntry) return problem(400, 'Invalid enrollment code');
-      if (codeEntry.revokedAt) return problem(400, 'Enrollment code has been revoked');
-      if (codeEntry.expiresAt && new Date(codeEntry.expiresAt) <= new Date()) {
-        return problem(400, 'Enrollment code has expired');
-      }
-      if (codeEntry.uses >= codeEntry.maxUses) return problem(400, 'Enrollment code has no uses left');
+      const validacao = validarCodigoDeMatricula(db.enrollmentCodes, code, new Date());
+      if (!validacao.ok) return problem(validacao.status, validacao.detail);
+      codeEntry = validacao.entry;
     }
 
     const targetAccount = db.accounts.find((a) => a.id === target);
