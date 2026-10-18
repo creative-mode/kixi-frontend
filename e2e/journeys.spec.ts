@@ -110,6 +110,42 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText('Resumo rápido: o /28')).toBeVisible();
   });
 
+  test('construtor de publicações: cartão de estudo com imagem e desafio respondido no feed', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // O desafio que já está no feed: responde, vê se acertou e lê a explicação.
+    const desafio = page.getByRole('article').filter({ hasText: 'Desafio de sub-redes' });
+    await expect(desafio.getByText('Desafio', { exact: true })).toBeVisible();
+    await desafio.getByRole('button', { name: /^14/ }).click();
+    await expect(desafio.getByText('Certo!')).toBeVisible();
+    await expect(desafio.getByText(/primeiro é o da rede/)).toBeVisible();
+
+    // O construtor: modelo, blocos, imagem, pré-visualização e publicação.
+    await page.getByRole('link', { name: 'Criar publicação com imagens e blocos' }).click();
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
+    await page.getByLabel('Título 1', { exact: true }).fill('Endereços de uma rede');
+    await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
+    await page.getByLabel('Lista 3: linha 1').fill('Endereço da rede');
+    await page.getByRole('button', { name: 'Imagem', exact: true }).click();
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
+    await expect(page.getByText('Imagem pronta')).toBeVisible();
+    await page.getByLabel('Imagem 5: descrição da imagem').fill('Esquema de uma rede');
+    const previa = page.getByRole('region', { name: 'Pré-visualização' });
+    await expect(previa.getByRole('heading', { name: 'Endereços de uma rede', level: 4 })).toBeVisible();
+    await expect(previa.getByRole('img', { name: 'Esquema de uma rede' })).toBeVisible();
+    await page.getByRole('button', { name: 'Publicar' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    const novo = page.getByRole('article').filter({ hasText: 'Endereços de uma rede' }).first();
+    await expect(novo.getByText('Cartão de estudo')).toBeVisible();
+    await expect(novo.getByRole('img', { name: 'Esquema de uma rede' })).toBeVisible();
+  });
+
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto('/aluno/entrar');

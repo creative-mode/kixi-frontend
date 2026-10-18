@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { BookOpen, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+import { BookOpen, LayoutTemplate, MessageCircle } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,9 @@ export function PostComposer({ classId }: { classId: number }) {
             {SHORTCUTS.map((a) => (
               <Button key={a.label} type="button" aria-label={a.label} variant="ghost" size="sm" className="shrink-0 text-primary" onClick={() => setText((t) => t || a.label + ': ')}><a.icon /><span className="hidden sm:inline">{a.label}</span><span className="sm:hidden">{a.short}</span></Button>
             ))}
+            <Button asChild variant="ghost" size="sm" className="shrink-0 text-primary">
+              <Link href="/publicar" aria-label="Criar publicação com imagens e blocos"><LayoutTemplate /><span className="hidden sm:inline">Criar publicação</span><span className="sm:hidden">Criar</span></Link>
+            </Button>
           </div>
           <Button type="submit" size="sm" disabled={!canPublish(text) || publishing}>Publicar</Button>
         </div>
