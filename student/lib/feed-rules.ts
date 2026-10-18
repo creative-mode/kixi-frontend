@@ -60,6 +60,9 @@ export const POST_TYPE_LABEL: Record<string, string> = {
   exam: 'Prova',
   milestone: 'Marco',
   simulation: 'Prova simulada',
+  study_card: 'Cartão de estudo',
+  solution: 'Resolução',
+  challenge: 'Desafio',
 };
 
 export function postTypeLabel(type: string): string {
