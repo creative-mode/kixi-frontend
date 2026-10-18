@@ -135,7 +135,19 @@ function camposDoForm(html, extras = {}) {
  * única coisa que o denuncia é o 404.
  */
 function destinoOk(final, esperado, status) {
-  if (final !== esperado) return `esperado ${esperado}, o browser foi para ${final || '(sem destino)'}`;
+  // O que isto verifica é o basePath (ver o cabeçalho do ficheiro) e os parâmetros que
+  // quem chama pediu (ex.: "?reason=logged-out"). Um parâmetro A MAIS no browser não
+  // reprova: desde o kixi-frontend#219 algumas páginas chegam com um parâmetro de uso
+  // único para a analítica (`?matriculado=1`, `?iniciada=1`, ...), que não é parte do
+  // contrato aqui testado.
+  const [caminhoEsperado, queryEsperada] = esperado.split('?');
+  const [caminhoFinal, queryFinal] = (final || '').split('?');
+  const pedida = new URLSearchParams(queryEsperada ?? '');
+  const recebida = new URLSearchParams(queryFinal ?? '');
+  const faltaOuDifere = [...pedida.entries()].find(([chave, valor]) => recebida.get(chave) !== valor);
+  if (caminhoFinal !== caminhoEsperado || faltaOuDifere) {
+    return `esperado ${esperado}, o browser foi para ${final || '(sem destino)'}`;
+  }
   if (status !== 200) return `${esperado} respondeu ${status}`;
   return null;
 }

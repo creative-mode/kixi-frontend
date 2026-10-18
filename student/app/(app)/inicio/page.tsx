@@ -1,4 +1,5 @@
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
+import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
 import { getFeed, loadAuthors } from '@/lib/feed';
@@ -21,10 +22,13 @@ export default async function InicioPage() {
   // branco quando o servidor caía; agora vê o motivo e pode tentar de novo (#350).
   if (profile.kind !== 'ok') {
     return (
-      <RefreshError
-        title="Não foi possível carregar o teu início"
-        message="O servidor não respondeu a tempo. Tenta de novo — se continuar, fala com o teu professor."
-      />
+      <>
+        <FireEventOnce param="matriculado" event="onboarding_completed" />
+        <RefreshError
+          title="Não foi possível carregar o teu início"
+          message="O servidor não respondeu a tempo. Tenta de novo — se continuar, fala com o teu professor."
+        />
+      </>
     );
   }
   const me = profile.me;
@@ -36,15 +40,18 @@ export default async function InicioPage() {
   const authors = await loadAuthors(posts, me.accountId);
 
   return (
-    <InicioFeed
-      invitations={invResult.ok ? invResult.data : []}
-      invitationsError={invitationsErrorOf(invResult)}
-      myAccountId={me.accountId}
-      classId={classId}
-      posts={posts}
-      firstSteps={social.performance.activity.length === 0 && social.history.length === 0}
-      authors={authors}
-      feedError={feed && !feed.ok ? feed.message : null}
-    />
+    <>
+      <FireEventOnce param="matriculado" event="onboarding_completed" />
+      <InicioFeed
+        invitations={invResult.ok ? invResult.data : []}
+        invitationsError={invitationsErrorOf(invResult)}
+        myAccountId={me.accountId}
+        classId={classId}
+        posts={posts}
+        firstSteps={social.performance.activity.length === 0 && social.history.length === 0}
+        authors={authors}
+        feedError={feed && !feed.ok ? feed.message : null}
+      />
+    </>
   );
 }

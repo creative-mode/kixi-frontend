@@ -141,7 +141,13 @@ export async function cadastroAction(_: FormState, form: FormData): Promise<Form
   const destination = await startSession(data);
   if (!destination) return { error: 'Resposta de sessão inválida. Tenta novamente.', fields };
 
-  redirect(destination);
+  // Uma conta recém-criada nunca tem matrícula, por isso `destination` é sempre
+  // `/inicio` (o `managerUrl()` não se aplica a um registo próprio) — e o layout de
+  // `/inicio` manda-a logo para `/onboarding` outra vez. Ir lá diretamente poupa o
+  // salto e deixa um sinal de uso único (kixi-frontend#219: "registo concluído") que
+  // `/onboarding`, por si só, não tem — a página é revisitada por quem ainda não
+  // terminou a matrícula, não só por quem acaba de se registar.
+  redirect('/onboarding?novo=1');
 }
 
 export async function sairAction() {
