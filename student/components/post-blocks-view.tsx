@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Check, Info, Lightbulb, TriangleAlert, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TONE_LABEL, type CalloutTone, type PostBlock } from '@/lib/post-blocks';
+import { assetUrl } from '@/lib/assets';
 
 const TONE: Record<CalloutTone, { box: string; Icon: typeof Info }> = {
   info: { box: 'border-info/30 bg-info-soft', Icon: Info },
@@ -66,7 +67,7 @@ function Gallery({ images }: { images: PostBlock[] }) {
       {images.map((b, i) => (
         <figure key={i} className="grid gap-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={b.url} alt={b.alt ?? ''} loading="lazy" className="max-h-[420px] w-full rounded-lg border bg-secondary object-contain" />
+          <img src={assetUrl(b.url)} alt={b.alt ?? ''} loading="lazy" className="max-h-[420px] w-full rounded-lg border bg-secondary object-contain" />
           {b.caption && <figcaption className="text-[13px] text-muted-foreground">{b.caption}</figcaption>}
         </figure>
       ))}

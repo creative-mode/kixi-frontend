@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { enviarFotoAction } from '@/lib/profile-actions';
 import { Button } from '@/components/ui/button';
+import { assetUrl } from '@/lib/assets';
 
 /** A foto de perfil escolhida do dispositivo: envia-se ao escolher, e o formulário leva o endereço que o servidor devolve. */
 export function FotoDePerfil({ name, initial, defaultValue }: { name: string; initial: string; defaultValue: string }) {
@@ -31,7 +32,7 @@ export function FotoDePerfil({ name, initial, defaultValue }: { name: string; in
         <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full border bg-secondary text-lg font-bold text-muted-foreground">
           {url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt="A tua foto" className="size-full object-cover" />
+            <img src={assetUrl(url)} alt="A tua foto" className="size-full object-cover" />
           ) : (
             initial
           )}

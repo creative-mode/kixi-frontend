@@ -144,7 +144,10 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     const novo = page.getByRole('article').filter({ hasText: 'Endereços de uma rede' }).first();
     await expect(novo.getByText('Cartão de estudo')).toBeVisible();
-    await expect(novo.getByRole('img', { name: 'Esquema de uma rede' })).toBeVisible();
+    const figura = novo.getByRole('img', { name: 'Esquema de uma rede' });
+    await expect(figura).toBeVisible();
+    // Visível não chega: a imagem tem mesmo de ter carregado (antes o pedido ia dar à landing, 404).
+    await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   });
 
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
