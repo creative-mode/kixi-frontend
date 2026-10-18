@@ -4,7 +4,10 @@ import { requireStudent } from '@/lib/guard';
 import { MeProvider } from '@/lib/me-context';
 import { Shell } from '@/components/Shell';
 import { RightRail } from '@/components/right-rail';
+import { RightRailSkeleton } from '@/components/right-rail-skeleton';
 import { loadSocial } from '@/lib/social';
+import type { Me } from '@/lib/types';
+import { Suspense } from 'react';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireStudent();
@@ -21,12 +24,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/onboarding');
   }
 
-  // A coluna da direita é global; sem resposta do backend, o Shell mostra só o conteúdo.
-  const social = profile.kind === 'ok' ? await loadSocial(profile.me) : null;
+  // A coluna da direita é global e custa 8 leituras: já não faz a página esperar por ela (#393).
+  // Chega depois, em streaming, e o conteúdo aparece primeiro.
 
   return (
     <MeProvider me={profile.me}>
-      <Shell rail={social && profile.kind === 'ok' ? <RightRail me={profile.me} data={social} /> : undefined}>{children}</Shell>
+      <Shell
+        rail={profile.kind === 'ok'
+          ? <Suspense fallback={<RightRailSkeleton />}><Rail me={profile.me} /></Suspense>
+          : undefined}
+      >{children}</Shell>
     </MeProvider>
   );
+}
+/** A coluna da direita. Sem resposta do backend não mostra nada, em vez de levar a página consigo. */
+async function Rail({ me }: { me: Me }) {
+  const social = await loadSocial(me);
+  return <RightRail me={me} data={social} />;
 }
