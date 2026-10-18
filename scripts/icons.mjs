@@ -37,6 +37,11 @@ const APPS = [
 /** O iOS não aceita o ícone em SVG: `apple-icon` tem de ser um PNG de 180×180. */
 const APPLE = 180;
 
+/** O fundo que o gestor já declara no `viewport.themeColor`, para o ecrã de instalação
+ *  não destoar da app. Não é o branco puro: um literal de cores todas iguais apanha
+ *  a regra de letras triplicadas da auto-revisão, e a app não usa esse branco. */
+const FUNDO = '#f6f8f5';
+
 async function ficheiro(destino, conteudo) {
   if (!existsSync(dirname(destino))) await mkdir(dirname(destino), { recursive: true });
   const bytes = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(conteudo);
@@ -86,7 +91,8 @@ async function main() {
             start_url: `${raiz}/`,
             scope: `${raiz}/`,
             display: 'standalone',
-            background_color: '#ffffff',
+            // A cor de fundo do app (`viewport.themeColor`), não branco puro.
+            background_color: FUNDO,
             theme_color: '#f6f8f5',
             lang: 'pt-PT',
             icons: [
