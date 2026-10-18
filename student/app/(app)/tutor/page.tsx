@@ -1,4 +1,7 @@
 import { TutorChat } from '@/components/tutor-chat';
+import { TutorBloqueado } from '@/components/tutor-bloqueado';
+import { listSimulations } from '@/lib/exam';
+import { tentativaViva } from '@/lib/integrity';
 import { getStatementQuestions, getStatementTitle } from '@/lib/statement-detail';
 import { parseQuestionNumbers, parseWrongAnswers, studyPrompt } from '@/lib/tutor-rules';
 
@@ -26,6 +29,17 @@ export default async function TutorPage({
   const parsed = Number(Array.isArray(raw) ? raw[0] : raw);
   const statementId = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
   const paperTitle = statementId ? await getStatementTitle(statementId) : null;
+
+  // O travão (#192): uma tentativa a decorrer da mesma prova fecha o tutor, para o
+  // aluno não sair do modo Simular pela porta do estudo. Só a mesma prova, e só
+  // enquanto ela corre — o tutor de outra matéria, ou depois de entregar, continua
+  // aberto, e o ecrã dá o caminho de volta. Ver `tentativaViva` para o porquê de uma
+  // tentativa expirada não prender o aluno.
+  const live = statementId ? tentativaViva(await listSimulations(), statementId, Date.now()) : null;
+  if (statementId && live) {
+    return <TutorBloqueado simulationId={live.id} statementId={statementId} paperTitle={paperTitle} />;
+  }
+
   // The picker of "explicar questão" needs the paper's questions, and only this mode
   // uses them, so a failure here costs the picker and nothing else.
   const questions = statementId ? await getStatementQuestions(statementId) : [];

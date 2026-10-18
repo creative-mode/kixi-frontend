@@ -464,6 +464,29 @@ async function main() {
         ? null : `selector ${temSelector}, escolha ${temEscolha}, resposta ${temResposta}`;
     });
 
+    // O travão do tutor (#192): com uma tentativa a correr, o tutor da MESMA prova
+    // fecha — mas só essa, e com o caminho de volta. A prova 1 ainda não tem
+    // tentativa desta conta, por isso o ecrã é o de começar.
+    const comecarTravao = await (await fetch(`${BASE}/aluno/prova/1`, { headers: cabecalhos() })).text();
+    await passo(
+      'começar a prova 1 para pôr o travão à prova',
+      'POST', '/aluno/prova/1',
+      { form: camposDoForm(comecarTravao, { statementId: '1' }), seguir: true },
+      (r, final, status) => destinoOk(final, '/aluno/prova/1', status),
+    );
+
+    await passo('com a prova a correr, o tutor da mesma prova fecha', 'GET', '/aluno/tutor?statementId=1', {}, async (r) => {
+      const html = await r.text();
+      if (!html.includes('O tutor está fechado durante a prova')) return 'o tutor não fechou';
+      return html.includes('Voltar à prova') ? null : 'fechou sem caminho de volta';
+    });
+
+    // O travão é da prova, não do tutor todo: sem prova, continua a estudar-se.
+    await passo('o travão é só da mesma prova, e o tutor sem prova continua aberto', 'GET', '/aluno/tutor', {}, async (r) => {
+      const html = await r.text();
+      return html.includes('O tutor está fechado durante a prova') ? 'travou o tutor sem prova' : null;
+    });
+
     // A resposta do aluno é contexto: se o tipo não for texto, o turno segue sem a
     // resposta que o chamador julgava ter enviado — e isso é pior do que recusar.
     const respostaNaoTexto = await fetch(`${BASE}/aluno/api/tutor/sessions`, {
