@@ -54,3 +54,44 @@ test.describe('analítica atrás do consentimento (#219)', () => {
     expect((await pedidoGa).url()).toContain('googletagmanager.com');
   });
 });
+
+/** O app do aluno lê a mesma escolha de cookies (o gateway serve tudo na mesma origem). */
+test.describe('analítica do aluno (#219)', () => {
+  test('sem consentimento, o aluno não contacta terceiros', async ({ page }) => {
+    const terceiros = watchThirdParty(page);
+    await page.goto('/aluno/entrar');
+    await page.waitForLoadState('networkidle');
+    expect(terceiros, 'sem consentimento não pode haver pedidos a terceiros').toEqual([]);
+  });
+
+  test('com consentimento, o aluno carrega o Google Analytics', async ({ page }) => {
+    test.skip(!process.env.NEXT_PUBLIC_GA_ID, 'precisa de NEXT_PUBLIC_GA_ID no build (a CI define)');
+    await page.addInitScript(() => localStorage.setItem('kixi-consent', 'all'));
+    await page.route('**/googletagmanager.com/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }),
+    );
+    const pedidoGa = page.waitForRequest((request) => /googletagmanager\.com/.test(request.url()));
+    await page.goto('/aluno/entrar');
+    expect((await pedidoGa).url()).toContain('googletagmanager.com');
+  });
+
+  test('o evento do endereço dispara uma vez e sai do endereço', async ({ page }) => {
+    test.skip(!process.env.NEXT_PUBLIC_GA_ID, 'precisa de NEXT_PUBLIC_GA_ID no build (a CI define)');
+    await page.addInitScript(() => localStorage.setItem('kixi-consent', 'all'));
+    await page.route('**/googletagmanager.com/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }),
+    );
+    // O mesmo marcador que uma server action põe no redirect (ex.: `?evento=tutor_usado`).
+    await page.goto('/aluno/entrar?evento=tutor_usado');
+    const disparou = () =>
+      page.evaluate(() =>
+        (window.dataLayer ?? []).some((e) => {
+          const a = e as ArrayLike<unknown>;
+          return a[0] === 'event' && a[1] === 'tutor_usado';
+        }),
+      );
+    await expect.poll(disparou).toBe(true);
+    // E fica fora do endereço: um recarregar da página não o conta outra vez.
+    await expect(page).not.toHaveURL(/evento=/);
+  });
+});

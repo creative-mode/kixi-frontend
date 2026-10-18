@@ -39,6 +39,7 @@ jobs:
               APP_DIR=student
               PORT=3003
               NEXT_PUBLIC_MANAGER_URL=${{ vars.NEXT_PUBLIC_MANAGER_URL }}
+              NEXT_PUBLIC_GA_ID=${{ vars.NEXT_PUBLIC_GA_ID }}
           - name: landing
             dockerfile: docker/app.Dockerfile
             build_args: |

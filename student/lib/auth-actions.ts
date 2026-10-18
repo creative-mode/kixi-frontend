@@ -7,6 +7,7 @@ import { MOCK, mockPost } from './mock/backend';
 import { problem } from './api';
 import { authFailureMessage, forwardedFor, retryAfterSeconds } from './auth-rules';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
+import { EVENTS, withEvent } from './analytics';
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
 
@@ -141,7 +142,7 @@ export async function cadastroAction(_: FormState, form: FormData): Promise<Form
   const destination = await startSession(data);
   if (!destination) return { error: 'Resposta de sessão inválida. Tenta novamente.', fields };
 
-  redirect(destination);
+  redirect(withEvent(destination, EVENTS.registrationDone));
 }
 
 export async function sairAction() {

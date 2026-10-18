@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { apiPost } from './api';
 import { parseTurma } from './enrollment-rules';
+import { EVENTS, withEvent } from './analytics';
 import type { Enrollment } from './types';
 
 export type EnrollmentState = { error?: string; alreadyEnrolled?: boolean } | undefined;
@@ -34,5 +35,5 @@ export async function matricularAction(
   // Caminho cru, de propósito: numa server action o Next escreve este valor no
   // cabecalho `x-action-redirect` e o cliente acrescenta o basePath. Escrever
   // `/aluno/inicio` aqui dava `/aluno/aluno/inicio`. Ver `README.md`, "basePath".
-  redirect('/inicio');
+  redirect(withEvent('/inicio', EVENTS.onboardingDone));
 }

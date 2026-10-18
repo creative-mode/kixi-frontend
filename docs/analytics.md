@@ -24,24 +24,29 @@ origem**, por isso a escolha de cookies, guardada em `localStorage` com a chave
 
 ## Eventos v1
 
-O catálogo vive em `landing/lib/analytics.ts` (`EVENTS`); um nome de evento é contrato
-com os painéis e não se renomeia sem migrar o histórico. A coluna **Estado** diz o que
-já está instrumentado.
+Os catálogos vivem em `landing/lib/analytics.ts` e `student/lib/analytics.ts` (`EVENTS`);
+um nome de evento é contrato com os painéis e não se renomeia sem migrar o histórico. A
+coluna **Estado** diz o que já está instrumentado.
 
 | Evento | Onde | Quando dispara | Parâmetros | Estado |
 |---|---|---|---|---|
 | `doacao_submetida` | Landing (`/doar`) | o backend aceita a doação e devolve referência | nenhum | feito |
-| `registo_concluido` | Aluno (`/cadastro`) | a conta foi criada e a sessão começou | nenhum | por fazer |
-| `onboarding_concluido` | Aluno (`/onboarding`) | a matrícula no último passo foi aceite | nenhum | por fazer |
-| `prova_iniciada` | Aluno (`/prova/[id]`) | uma simulação nova foi criada | nenhum | por fazer |
-| `prova_submetida` | Aluno (`/sala/[id]`) | a prova foi entregue | nenhum | por fazer |
-| `tutor_usado` | Aluno (`/tutor`) | uma pergunta ao tutor foi respondida | nenhum | por fazer |
-| `sala_entrada` | Aluno (`/sala/[id]`) | entrou numa sala de prova | nenhum | por fazer |
+| `registo_concluido` | Aluno (`/cadastro`) | a conta foi criada e a sessão começou | nenhum | feito |
+| `onboarding_concluido` | Aluno (`/onboarding`) | a matrícula no último passo foi aceite | nenhum | feito |
+| `prova_iniciada` | Aluno (`/prova/[id]`) | uma simulação nova foi criada | nenhum | feito |
+| `prova_submetida` | Aluno (prova/sala) | a prova foi entregue (uma já entregue não se reconta) | nenhum | feito |
+| `tutor_usado` | Aluno (`/tutor`) | o tutor completou uma resposta (`final`) | nenhum | feito |
+| `sala_entrada` | Aluno (`/sala/[id]`) | entrou numa sala de prova a decorrer | nenhum | feito |
 
-Os eventos do aluno acontecem, hoje, dentro de *server actions* que terminam em
-`redirect`. A instrumentação dessas apps obriga a decidir como o evento chega ao
-cliente depois do redirect (um marcador de um só uso no destino, ou um aviso do
-servidor); é o passo seguinte a esta fatia.
+Os eventos do aluno fecham, em regra, dentro de *server actions* que terminam em
+`redirect` — e é o servidor, no sucesso, que redirecciona. O evento viaja como marcador de
+um só uso no caminho (`redirect(withEvent('/inicio', EVENTS.onboardingDone))`), o
+componente `Analytics` (no layout de raiz) dispara-o e limpa-o do endereço, para um
+recarregar da página não o contar duas vezes. `tutor_usado` é a excepção: fecha no
+cliente, no evento `final` do stream, por isso dispara-se aí.
+
+A app do **gestor** não tem nenhum evento da v1 (nenhum dos sete acontece lá), por isso
+fica fora desta fatia; só precisa de GA quando houver eventos seus.
 
 ## O que conta como «ativo» (proposta, a confirmar)
 
@@ -68,5 +73,9 @@ Vivem na conta do Google Analytics, não no repositório; este documento é a de
 
 `NEXT_PUBLIC_GA_ID` é lida no *build* da app. Vazia quer dizer «sem analytics» — todos
 os `track` viram no-ops e o banner continua a funcionar. A variável está em
-`.env.example`, no `docker-compose.yml` e no `publish-images.yml` (build da imagem da
-landing).
+`.env.example`, no `docker-compose.yml` e no `publish-images.yml`, e chega à landing e ao
+aluno (o gestor ainda não a usa).
+
+O **consentimento** é dado no banner da landing (#217); o aluno lê a mesma escolha
+(partilham a origem) e não mostra banner próprio — quem nunca passou pela landing fica
+sem analítica, que é o lado seguro da regra.

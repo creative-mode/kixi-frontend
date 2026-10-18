@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { requireStudent } from './guard';
 import { joinRoom } from './exam-room';
 import { translateRoomError } from './exam-room-rules';
+import { EVENTS, withEvent } from './analytics';
 
 export type EnterState = { error?: string; waiting?: string } | undefined;
 
@@ -20,5 +21,5 @@ export async function entrarSalaAction(_: EnterState, form: FormData): Promise<E
     return { waiting: 'Estás na sala de espera. A prova começa quando o professor a iniciar.' };
   }
   // Caminho cru: o Next acrescenta o basePath ao redirect de uma server action.
-  redirect(`/sala/${roomId}`);
+  redirect(withEvent(`/sala/${roomId}`, EVENTS.roomEntered));
 }

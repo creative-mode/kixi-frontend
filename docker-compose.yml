@@ -62,7 +62,7 @@ services:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
-      args: { APP_DIR: student, PORT: 3003, NEXT_PUBLIC_MANAGER_URL: "${NEXT_PUBLIC_MANAGER_URL:-}" }
+      args: { APP_DIR: student, PORT: 3003, NEXT_PUBLIC_MANAGER_URL: "${NEXT_PUBLIC_MANAGER_URL:-}", NEXT_PUBLIC_GA_ID: "${NEXT_PUBLIC_GA_ID:-}" }
     expose: ["3003"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3003/aluno/entrar"]

@@ -6,6 +6,7 @@ import { getMe } from './me';
 import { getStatementFull, myAccountId, saveAnswer, startSimulation, submitSimulation } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
+import { EVENTS, withEvent } from './analytics';
 
 /** What the room sends to save one answer. Plain values, not a FormData: the save
  *  queue calls this directly, and it is the queue — not a form — that knows the
@@ -106,7 +107,7 @@ export async function iniciarAction(_: StartState, form: FormData): Promise<Star
   // Caminho cru, de propósito: numa server action o Next escreve este valor no
   // cabeçalho `x-action-redirect` e o cliente acrescenta o basePath. Escrever
   // `/aluno/prova/...` aqui daria `/aluno/aluno/prova/...`. Ver README, "basePath".
-  redirect(`/prova/${statementId}`);
+  redirect(withEvent(`/prova/${statementId}`, EVENTS.examStarted));
 }
 
 export type SubmitState = { error?: string } | undefined;
@@ -122,8 +123,13 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   const result = await submitSimulation(simulationId);
 
   // 409 é "já entregue": a prova está corrigida, o aluno não está a perder nada
-  // por acidentalmente carregar em Entregar duas vezes.
+  // por acidentalmente carregar em Entregar duas vezes. O evento só conta a entrega
+  // de agora — uma prova já entregue não se volta a contar.
   if (!result.ok && result.status !== 409) return { error: translateError(result.message) };
 
-  redirect(`/resultado?prova=${simulationId}`);
+  redirect(
+    result.ok
+      ? withEvent(`/resultado?prova=${simulationId}`, EVENTS.examSubmitted)
+      : `/resultado?prova=${simulationId}`,
+  );
 }

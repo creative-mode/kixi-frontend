@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { BASE_PATH } from '@/lib/base-path';
 import { useMe } from '@/lib/me-context';
+import { EVENTS, track } from '@/lib/analytics';
 import { fullName, photoUrl } from '@/lib/profile';
 import {
   MAX_MESSAGE,
@@ -236,7 +237,11 @@ export function TutorChat({
         pending += decoder.decode(value, { stream: true });
         const parsed = parseSse(pending);
         pending = parsed.rest;
-        for (const event of parsed.events) setMessages((prev) => applyEvent(prev, event));
+        for (const event of parsed.events) {
+          setMessages((prev) => applyEvent(prev, event));
+          // Só a resposta completa conta como uso do tutor (#219); uma interrupção, não.
+          if (event.type === 'final') track(EVENTS.tutorUsed);
+        }
       }
       // The stream ended without a `final`: close the answer rather than leave it
       // blinking forever.
