@@ -1,0 +1,125 @@
+/**
+ * Modo de avaliação (#192): o que conta como evento, quando é que um evento se
+ * regista, e o que o aluno lê. Puro e sem React, para o `node --test` o alcançar —
+ * a mesma razão de `exam-rules.ts`.
+ *
+ * Isto **não** substitui um lockdown browser, proctoring nem supervisão presencial.
+ * Um website não trava outro dispositivo, outro navegador nem uma fotografia do
+ * ecrã; o que faz, e é só isto, é registar com aviso o que o browser consegue ver,
+ * e travar a saída mais fácil (o tutor da própria prova). Nada aqui reprova o
+ * aluno: os eventos ficam para o professor decidir.
+ */
+
+import { acceptsAnswers, attemptFor, type SimulationSummary } from './exam-rules.ts';
+
+/**
+ * Os eventos que o modo de avaliação regista.
+ *
+ * Mudar esta lista obriga a mudar três sítios: aqui, a lista do gestor
+ * (`lib/exam-rooms/model.ts`) e o contrato do backend. Os três falam dos mesmos
+ * nomes, e há um teste de cada lado a fixá-los, como nas denúncias (#323).
+ */
+export type IntegrityKind =
+  | 'TAB_HIDDEN'
+  | 'TAB_VISIBLE'
+  | 'WINDOW_BLUR'
+  | 'WINDOW_FOCUS'
+  | 'PASTE_BLOCKED'
+  | 'TUTOR_BLOCKED';
+
+export const INTEGRITY_KINDS: readonly IntegrityKind[] = [
+  'TAB_HIDDEN',
+  'TAB_VISIBLE',
+  'WINDOW_BLUR',
+  'WINDOW_FOCUS',
+  'PASTE_BLOCKED',
+  'TUTOR_BLOCKED',
+];
+
+export function isIntegrityKind(value: unknown): value is IntegrityKind {
+  return typeof value === 'string' && (INTEGRITY_KINDS as readonly string[]).includes(value);
+}
+
+export interface IntegrityEvent {
+  kind: IntegrityKind;
+  /** Milissegundos do relógio do browser, só para o `shouldRecord` decidir. O que
+   *  fica guardado é a hora do servidor, carimbada por ele. */
+  at: number;
+  questionId?: number | null;
+}
+
+/** O modo de avaliação só corre numa tentativa a decorrer. Fora dela (entregue,
+ *  cancelada, expirada) não há nada para vigiar. */
+export function integridadeAplica(status: string | null | undefined): boolean {
+  return (status ?? '').toUpperCase() === 'IN_PROGRESS';
+}
+
+/** A mesma troca de separador dispara mais do que um sinal: esconder o separador
+ *  levanta `TAB_HIDDEN` e `WINDOW_BLUR`, voltar levanta `TAB_VISIBLE` e
+ *  `WINDOW_FOCUS`. São duas marcas por saída, não quatro, e o gestor lê uma.
+ *  Ficar com a primeira de cada par é o que faz "uma troca, um evento". */
+const AWAY: readonly IntegrityKind[] = ['TAB_HIDDEN', 'WINDOW_BLUR'];
+const BACK: readonly IntegrityKind[] = ['TAB_VISIBLE', 'WINDOW_FOCUS'];
+
+const groupOf = (kind: IntegrityKind): readonly IntegrityKind[] =>
+  AWAY.includes(kind) ? AWAY : BACK.includes(kind) ? BACK : [kind];
+
+/** Espera mínima entre eventos equivalentes. Dentro dela o mesmo sinal é ruído —
+ *  um `blur`/`focus` a piscar, uma rajada de colagens recusadas, um `focus` logo a
+ *  seguir a `visible`. */
+export const COALESCE_MS = 2000;
+
+/**
+ * Se um evento de `kind` a `at` vale a pena registar, dado o que já se registou:
+ * outro evento do mesmo grupo dentro de `windowMs` engole-o.
+ *
+ * O grupo e não o tipo: `TAB_HIDDEN` e `WINDOW_BLUR` são a mesma saída, e registar
+ * as duas contaria o dobro. Tipos de grupos diferentes contam sempre.
+ */
+export function shouldRecord(
+  recorded: readonly IntegrityEvent[],
+  kind: IntegrityKind,
+  at: number,
+  windowMs: number = COALESCE_MS,
+): boolean {
+  const group = groupOf(kind);
+  const last = [...recorded].reverse().find((e) => group.includes(e.kind));
+  return !last || at - last.at >= windowMs;
+}
+
+/**
+ * O que o aluno lê. Sair não se vê — o ecrã está noutro lado — por isso o aviso
+ * aparece **ao voltar**: vê-se o que ficou registado em vez de um silêncio.
+ * Devolve `null` para os eventos que não precisam de aviso próprio.
+ */
+export function noticeFor(kind: IntegrityKind): string | null {
+  if (kind === 'TAB_VISIBLE' || kind === 'WINDOW_FOCUS') {
+    return 'Voltaste à prova. O tempo em que estiveste fora ficou registado. Podes continuar a responder.';
+  }
+  if (kind === 'PASTE_BLOCKED') {
+    return 'Colar está desativado durante a simulação. Escreve a resposta.';
+  }
+  return null;
+}
+
+/** Numa questão de escolha não há onde colar. Só as respostas abertas recusam
+ *  colagem: assim não se bloqueia o que não está em causa, e a acessibilidade do
+ *  resto do ecrã fica intacta. */
+export function pasteBlocked(question: { options: unknown[] }): boolean {
+  return question.options.length === 0;
+}
+
+/**
+ * A tentativa a decorrer desta prova, se houver — é o que fecha o tutor. O
+ * `acceptsAnswers` traz as duas condições: `IN_PROGRESS` e prazo por passar, para
+ * uma tentativa expirada (que o servidor ainda não fechou) não deixar o aluno
+ * preso sem tutor.
+ */
+export function tentativaViva(
+  simulations: SimulationSummary[],
+  statementId: number,
+  now: number,
+): SimulationSummary | null {
+  const attempt = attemptFor(simulations, statementId);
+  return attempt && acceptsAnswers(attempt, now) ? attempt : null;
+}
