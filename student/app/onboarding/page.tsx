@@ -1,4 +1,5 @@
 import { EmptyState } from '@/components/states';
+import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { OnboardingForm } from '@/components/onboarding-form';
 import { RefreshError } from '@/components/refresh-error';
 import { apiGet } from '@/lib/api';
@@ -45,13 +46,20 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       : apiGet<Class[]>('/classes', { institutionId }),
   ]);
 
+  // #219: o registo acabou de acontecer (ver auth-actions.ts) mesmo quando este ecrã
+  // em concreto falha a seguir — por isso dispara-se antes de qualquer saída antecipada.
+  const signupTracker = <FireEventOnce param="novo" event="sign_up" />;
+
   const failed = [institutions, years, allCourses, allClasses].find((r) => !r.ok);
   if (failed && !failed.ok) {
     return (
-      <RefreshError
-        title="Não conseguimos carregar as escolas"
-        message={failed.message}
-      />
+      <>
+        {signupTracker}
+        <RefreshError
+          title="Não conseguimos carregar as escolas"
+          message={failed.message}
+        />
+      </>
     );
   }
 
@@ -61,10 +69,13 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
 
   if (schools.length === 0) {
     return (
-      <EmptyState
-        title="Ainda não há turmas abertas"
-        message={`Nenhuma escola tem turmas${yearText ? ` no ano letivo ${yearText}` : ''} ainda. Volta mais tarde ou pergunta ao teu professor.`}
-      />
+      <>
+        {signupTracker}
+        <EmptyState
+          title="Ainda não há turmas abertas"
+          message={`Nenhuma escola tem turmas${yearText ? ` no ano letivo ${yearText}` : ''} ainda. Volta mais tarde ou pergunta ao teu professor.`}
+        />
+      </>
     );
   }
 
@@ -73,13 +84,16 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const { courses, classes } = onboardingOptions(allCourses.ok ? allCourses.data : [], allClasses.ok ? allClasses.data : [], year?.id ?? null, courseId);
 
   return (
-    <OnboardingForm
-      schools={schools}
-      courses={courses}
-      classes={classes}
-      institutionId={institutionId}
-      courseId={courseId}
-      yearLabel={yearText}
-    />
+    <>
+      {signupTracker}
+      <OnboardingForm
+        schools={schools}
+        courses={courses}
+        classes={classes}
+        institutionId={institutionId}
+        courseId={courseId}
+        yearLabel={yearText}
+      />
+    </>
   );
 }

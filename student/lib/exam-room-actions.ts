@@ -20,5 +20,7 @@ export async function entrarSalaAction(_: EnterState, form: FormData): Promise<E
     return { waiting: 'Estás na sala de espera. A prova começa quando o professor a iniciar.' };
   }
   // Caminho cru: o Next acrescenta o basePath ao redirect de uma server action.
-  redirect(`/sala/${roomId}`);
+  // `entrada=1` é o sinal de uso único do kixi-frontend#219 ("sala entrada"): a sala
+  // é revisitada enquanto a prova controlada continua em curso.
+  redirect(`/sala/${roomId}?entrada=1`);
 }

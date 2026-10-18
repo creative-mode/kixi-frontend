@@ -106,7 +106,9 @@ export async function iniciarAction(_: StartState, form: FormData): Promise<Star
   // Caminho cru, de propósito: numa server action o Next escreve este valor no
   // cabeçalho `x-action-redirect` e o cliente acrescenta o basePath. Escrever
   // `/aluno/prova/...` aqui daria `/aluno/aluno/prova/...`. Ver README, "basePath".
-  redirect(`/prova/${statementId}`);
+  // `iniciada=1` é o sinal de uso único do kixi-frontend#219 ("prova iniciada"): a
+  // mesma sala é revisitada enquanto a tentativa continua em curso.
+  redirect(`/prova/${statementId}?iniciada=1`);
 }
 
 export type SubmitState = { error?: string } | undefined;
@@ -125,5 +127,7 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   // por acidentalmente carregar em Entregar duas vezes.
   if (!result.ok && result.status !== 409) return { error: translateError(result.message) };
 
-  redirect(`/resultado?prova=${simulationId}`);
+  // `submetida=1` é o sinal de uso único do kixi-frontend#219 ("prova submetida"): o
+  // resultado é revisitado depois, para o aluno ver a nota de novo.
+  redirect(`/resultado?prova=${simulationId}&submetida=1`);
 }

@@ -15,6 +15,7 @@ import {
 } from '@/lib/donation-rules';
 import { inspectImage, messageFor, type Assessment } from '@/lib/image-quality';
 import { imagesFrom } from '@/lib/clipboard-images';
+import { track } from '@/lib/analytics';
 
 type Phase = 'editing' | 'sending' | 'done';
 
@@ -141,6 +142,8 @@ export function DonationForm() {
       if (request.status === 201 && body.reference) {
         setReference(body.reference);
         setPhase('done');
+        // #219 "doação submetida": sem o conteúdo, só que uma aconteceu.
+        track('donation_submitted');
         return;
       }
       setPhase('editing');

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { requireStudent } from '@/lib/guard';
 import { getMe } from '@/lib/me';
 import { getControlledRoom } from '@/lib/exam-room';
@@ -31,7 +32,12 @@ export default async function SalaControladaPage({ params }: { params: Params })
   if (room.kind === 'submitted') redirect(`/resultado?prova=${room.simulationId}`);
   if (room.kind === 'open') {
     const me = await getMe();
-    return <SalaProva data={room.data} extraTime={me?.accessibility_extra_time === true} />;
+    return (
+      <>
+        <FireEventOnce param="entrada" event="exam_room_joined" />
+        <SalaProva data={room.data} extraTime={me?.accessibility_extra_time === true} />
+      </>
+    );
   }
 
   const message =
