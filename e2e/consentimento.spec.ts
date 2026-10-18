@@ -84,12 +84,10 @@ test.describe('analítica do aluno (#219)', () => {
     // O mesmo marcador que uma server action põe no redirect (ex.: `?evento=tutor_usado`).
     await page.goto('/aluno/entrar?evento=tutor_usado');
     const disparou = () =>
-      page.evaluate(() =>
-        (window.dataLayer ?? []).some((e) => {
-          const a = e as ArrayLike<unknown>;
-          return a[0] === 'event' && a[1] === 'tutor_usado';
-        }),
-      );
+      page.evaluate(() => {
+        const layer = (window as unknown as { dataLayer?: ArrayLike<unknown>[] }).dataLayer ?? [];
+        return layer.some((entry) => entry[0] === 'event' && entry[1] === 'tutor_usado');
+      });
     await expect.poll(disparou).toBe(true);
     // E fica fora do endereço: um recarregar da página não o conta outra vez.
     await expect(page).not.toHaveURL(/evento=/);

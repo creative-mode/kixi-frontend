@@ -236,7 +236,7 @@ async function main() {
       'a matrícula leva ao início, com o basePath',
       'POST', '/aluno/onboarding',
       { form: camposDoForm(corpo, { turma: turma ?? '' }), seguir: true },
-      (r, final, status) => destinoOk(final, '/aluno/inicio', status),
+      (r, final, status) => destinoOk(final, '/aluno/inicio?evento=onboarding_concluido', status),
     );
 
     // 4 · o perfil, com dados que nenhum administrador escreveu
@@ -261,7 +261,7 @@ async function main() {
       'começar a prova leva à sala',
       'POST', '/aluno/prova/2',
       { form: camposDoForm(comecar, { statementId: '2' }), seguir: true },
-      (r, final, status) => destinoOk(final, '/aluno/prova/2', status),
+      (r, final, status) => destinoOk(final, '/aluno/prova/2?evento=prova_iniciada', status),
     );
 
     await passo('a sala mostra o enunciado, o mapa e o botão de entregar', 'GET', '/aluno/prova/2', {}, async (r) => {
@@ -309,7 +309,7 @@ async function main() {
       'entregar a prova leva ao resultado, com o basePath',
       'POST', '/aluno/prova/2',
       { form: camposDoForm(sala), seguir: true },
-      (r, final, status) => destinoOk(final, `/aluno/resultado?prova=${sessao}`, status),
+      (r, final, status) => destinoOk(final, `/aluno/resultado?prova=${sessao}&evento=prova_submetida`, status),
     );
 
     // Reabrir depois de entregar não recomeça a prova. O Next 16 envia primeiro a
