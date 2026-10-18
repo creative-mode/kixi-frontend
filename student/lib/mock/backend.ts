@@ -23,6 +23,7 @@ import { invitationsOf, join, roomDeadline, studentView, type MockParticipant, t
 import { conversation, type MockPostComment } from './feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../post-blocks';
 import { parseServerTime } from '../exam-rules';
+import { validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes';
 import type {
   Course,
   Enrollment,
@@ -148,6 +149,9 @@ type Store = {
   classes: ClassRow[];
   enrollments: Enrollment[];
   nextEnrollment: number;
+  /** Códigos de matrícula (kixi#255): a auto-matrícula troca um destes, a
+   *  do admin/professor por outra conta continua a dispensar código. */
+  enrollmentCodes: EnrollmentCode[];
   subjects: { id: number; code: string; name: string }[];
   statements: CatalogRow[];
   questions: MockQuestion[];
@@ -399,6 +403,11 @@ function seed(): Store {
       { id: 4, accountId: 6, classId: 2, schoolYearId: 1, status: 'ACTIVE' },
     ],
     nextEnrollment: 5,
+    // Código fixo e com usos de sobra: os testes de fluxo e o Playwright
+    // auto-matriculam-se com ele, como se a escola o tivesse distribuído.
+    enrollmentCodes: [
+      { id: 1, code: 'TESTE1234', maxUses: 9999, uses: 0, expiresAt: null, revokedAt: null },
+    ],
     subjects: [
       { id: 1, code: 'RED', name: 'Redes de Computadores' },
       { id: 2, code: 'SO', name: 'Sistemas Operativos' },
@@ -2031,7 +2040,19 @@ export async function mockHandle(
     const missing: Record<string, string> = {};
     if (!Number.isInteger(Number(body.classId))) missing.classId = 'Class is required';
     if (!Number.isInteger(Number(body.schoolYearId))) missing.schoolYearId = 'School year is required';
+    // Auto-matrícula (kixi#255): sem código, nem o admin nem o professor estão a
+    // decidir por ela, por isso é exigido — ao contrário da matrícula feita por eles.
+    const selfEnroll = target === account.id && !staff;
+    const code = typeof body.code === 'string' ? body.code.trim() : '';
+    if (selfEnroll && !code) missing.code = 'An enrollment code is required';
     if (Object.keys(missing).length) return validationError(missing);
+
+    let codeEntry: EnrollmentCode | undefined;
+    if (selfEnroll) {
+      const validacao = validarCodigoDeMatricula(db.enrollmentCodes, code, new Date());
+      if (!validacao.ok) return problem(validacao.status, validacao.detail);
+      codeEntry = validacao.entry;
+    }
 
     const targetAccount = db.accounts.find((a) => a.id === target);
     if (!targetAccount || !targetAccount.active) return problem(404, 'Account not found');
@@ -2052,6 +2073,8 @@ export async function mockHandle(
     if (active) {
       return problem(409, 'Account already has an active enrollment for this school year');
     }
+
+    if (codeEntry) codeEntry.uses++;
 
     const enrollment: Enrollment = {
       id: db.nextEnrollment++,
