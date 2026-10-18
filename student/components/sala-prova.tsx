@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { displayNumber } from '@/lib/question-number';
 import { FolhaDaProva } from '@/components/folha-da-prova';
+import { assetUrl } from '@/lib/assets';
 
 const CELL = {
   done: 'border-transparent bg-accent text-accent-foreground',
@@ -530,7 +531,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                         next/image exigiria o domínio na lista e um tamanho configurado
                         do lado de quem guarda a imagem. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={image.imageUrl} alt={image.caption ?? ''} className="w-full rounded-lg border" />
+                    <img src={assetUrl(image.imageUrl)} alt={image.caption ?? ''} className="w-full rounded-lg border" />
                     {image.caption && (
                       <figcaption className="text-[13px] text-muted-foreground">{image.caption}</figcaption>
                     )}
