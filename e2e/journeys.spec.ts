@@ -396,4 +396,43 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Compositor de comentarios, na publicacao aberta.
     await expect(page.getByLabel('Escrever um comentário').locator('xpath=ancestor::form[1]').locator(foto)).toBeVisible();
   });
+
+  test('construtor: abre limpo e so retoma o rascunho anterior depois de avisar (#362)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+
+    // Um rascunho anterior com trabalho por guardar era o que entrava sozinho no
+    // construtor, mesmo sendo de outra escola ou de há semanas (#362).
+    const rascunho = {
+      schoolId: '',
+      title: 'Prova de OGI da semana passada',
+      items: [{ text: 'Qual é a capital de Angola?', points: 2, options: [] }],
+    };
+    // Semeia-se a cada navegação, antes de o app arrancar: semear na página anterior
+    // deixava o efeito de guardar do construtor (que corre quando as escolas chegam)
+    // apagar a chave antes de a nova página a ler.
+    await page.addInitScript((d) => {
+      localStorage.setItem('kixi-exam-draft', JSON.stringify(d));
+    }, rascunho);
+
+    let avisos = 0;
+    let aceitar = false;
+    page.on('dialog', async (d) => {
+      avisos += 1;
+      if (aceitar) await d.accept();
+      else await d.dismiss();
+    });
+
+    // Recusar (começar do zero): o formulário abre limpo e a chave desaparece.
+    await page.goto('/manager/exam-builder');
+    await expect(page.getByRole('heading', { name: 'Montar prova' })).toBeVisible();
+    await expect.poll(() => avisos, { message: 'esperava o aviso do rascunho anterior' }).toBe(1);
+    await expect(page.getByLabel('Título')).toHaveValue('');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('kixi-exam-draft'))).toBeNull();
+
+    // Aceitar: o rascunho anterior volta.
+    aceitar = true;
+    await page.goto('/manager/exam-builder');
+    await expect(page.getByLabel('Título')).toHaveValue('Prova de OGI da semana passada');
+    await expect.poll(() => avisos).toBe(2);
+  });
  });

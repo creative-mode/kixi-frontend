@@ -14,7 +14,7 @@ import { extractDonation, getDonation, linkDonationStatement } from '@/app/actio
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
-import { EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
+import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { attachFigures } from '@/app/actions/media';
 import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
@@ -60,7 +60,16 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
-    const task = window.setTimeout(() => setDraft(loadDraft()), 0);
+    // O construtor abre sempre limpo (#362). O rascunho em localStorage já não entra
+    // sozinho: um professor que voltasse para montar outra prova encontrava o
+    // formulário preenchido com a prova anterior, de outra escola ou de há semanas,
+    // sem o ter pedido. Se houver trabalho por guardar, pergunta-se — e só nesse caso.
+    const anterior = loadDraft();
+    const continuar = draftHasContent(anterior) && window.confirm('Tem um rascunho por guardar da última vez. Continuar esse rascunho? (Cancelar começa uma prova nova.)');
+    if (!continuar) clearDraft();
+    // `setDraft` vai dentro do timeout para não disparar em cima do efeito — a mesma
+    // razão pela qual já era adiado antes de a #362 existir.
+    const task = window.setTimeout(() => { if (continuar) setDraft(anterior); }, 0);
     myInstitutions().then((res) => {
       if (!res.ok) toast.error(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
@@ -68,7 +77,13 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     });
     return () => window.clearTimeout(task);
   }, []);
-  useEffect(() => { if (ready) saveDraft(draft); }, [draft, ready]);
+  // Um rascunho vazio não se guarda: assim «começar do zero» deixa a chave mesmo
+  // limpa, em vez de a reescrever vazia no instante a seguir ao aviso.
+  useEffect(() => {
+    if (!ready) return;
+    if (draftHasContent(draft)) saveDraft(draft);
+    else clearDraft();
+  }, [draft, ready]);
   // Uma doação aberta no construtor: os dados dela, para o administrador ver de onde vem a prova.
   useEffect(() => {
     if (donationId === null) return;
@@ -166,8 +181,9 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       setNotes(imported.notes);
       return void toast.error('Não foi possível ler questões nesta imagem.');
     }
-    const hasContent = draft.items.some((i) => i.text.trim()) || draft.title.trim() !== '';
-    if (hasContent && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return;
+    // A mesma noção de «conteúdo» do aviso de arranque: o OCR substitui o cabeçalho
+    // inteiro, por isso mexer só na escola/disciplina/duração também se avisa.
+    if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return;
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
     setSaved(null);
@@ -237,7 +253,10 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                   <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
                 ) : null}
                 <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button>
-                <Button variant="ghost" onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { setDraft({ ...EMPTY_DRAFT, schoolId: draft.schoolId }); setNotes([]); setSaved(null); } }}>
+                <Button variant="ghost" onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
+                  // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
+                  // voltar a ser guardado — um aviso a mais no arranque seguinte.
+                  setDraft(EMPTY_DRAFT); setNotes([]); setSaved(null); } }}>
                   <Plus aria-hidden />Nova prova
                 </Button>
               </CardContent>
