@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { phaseOf, sortInvitations, type Invitation } from '@/lib/exam-room-rules';
 import { parseServerTime } from '@/lib/exam-rules';
 import { levelProgress } from '@/lib/gamification-rules';
-import { contextLine, fullName } from '@/lib/profile';
+import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { formatAverage } from '@/lib/ranking-rules';
 import type { SocialData } from '@/lib/social';
 import type { Me } from '@/lib/types';
@@ -58,7 +58,7 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
     <>
       <Module title="O teu progresso" href="/perfil" linkLabel="Perfil">
         <div className="flex items-center gap-3">
-          <UserAvatar name={name} size={44} />
+          <UserAvatar name={name} src={photoUrl(me)} size={44} />
           <div className="min-w-0 leading-tight">
             <p className="truncate text-[15px] font-bold">{name}</p>
             {context && <p className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">{context}</p>}
@@ -101,7 +101,7 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
             {data.classTop.map((r) => (
               <li key={r.position} className="flex items-center gap-2.5 text-[15px]">
                 <span className="w-5 text-center font-semibold text-muted-foreground tabular-nums">{r.position}</span>
-                <UserAvatar name={r.displayName} size={32} />
+                <UserAvatar name={r.displayName} src={r.me ? photoUrl(me) : null} size={32} />
                 <span className="min-w-0 flex-1 truncate font-semibold">{r.me ? 'Tu' : r.displayName}</span>
                 <span className="text-muted-foreground tabular-nums">{formatAverage(r.average)}%</span>
               </li>
@@ -121,7 +121,7 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
             {data.friends.slice(0, 5).map((f) => (
               <li key={f.friendshipId}>
                 <Link href="/ranking" className="-mx-2 flex min-h-11 items-center gap-2.5 rounded-xl px-2 py-1.5 text-[15px] transition-colors hover:bg-muted">
-                  <UserAvatar name={f.displayName} size={36} />
+                  <UserAvatar name={f.displayName} src={f.photo} size={36} />
                   <span className="min-w-0 flex-1 truncate font-bold">{f.displayName}</span>
                 </Link>
               </li>

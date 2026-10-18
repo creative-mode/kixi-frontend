@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { apiPost } from './api';
+import { parseTurma } from './enrollment-rules';
 import type { Enrollment } from './types';
 
 export type EnrollmentState = { error?: string; alreadyEnrolled?: boolean } | undefined;
@@ -15,12 +16,9 @@ export async function matricularAction(
   _: EnrollmentState,
   form: FormData,
 ): Promise<EnrollmentState> {
-  const classId = Number(form.get('classId'));
-  const schoolYearId = Number(form.get('schoolYearId'));
-
-  if (!Number.isInteger(classId) || classId < 1 || !Number.isInteger(schoolYearId) || schoolYearId < 1) {
-    return { error: 'Escolhe a tua turma para continuares.' };
-  }
+  const turma = parseTurma(form.get('turma'));
+  if (!turma) return { error: 'Escolhe a tua turma para continuares.' };
+  const { classId, schoolYearId } = turma;
 
   const result = await apiPost<Enrollment>('/enrollments', { classId, schoolYearId });
 

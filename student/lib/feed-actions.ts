@@ -1,7 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createPost, createSimulationPost, addComment, getComments, reportPost, toggleReaction, type PostComment, type PostType } from './feed';
+import { loadPhotos } from './photos';
+import { BACKEND } from './session';
+import { authHeaders, problem } from './api';
+import { MOCK } from './mock/backend';
+import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
+import { createBuiltPost, createPost, createSimulationPost, addComment, getComments, reportPost, toggleReaction, type PostComment, type PostType } from './feed';
 import { canPublish, canPublishReflection } from './feed-rules';
 
 export type FeedActionState = { error?: string } | undefined;
@@ -49,7 +54,7 @@ export async function publishSimulationAction(
 export async function toggleReactionAction(postId: number): Promise<{ ok: boolean; reacted?: boolean }> {
   const result = await toggleReaction(postId);
   if (!result.ok) return { ok: false };
-  revalidatePath('/inicio');
+  // Sem `revalidatePath`: o cartão já mostra o resultado, e recarregar o início custava as 15 leituras da página (#393).
   return { ok: true, reacted: result.data.reacted };
 }
 
@@ -63,7 +68,7 @@ export async function addCommentAction(
   if (!result.ok) {
     return { ok: false, message: result.status === 429 ? 'Estás a comentar depressa demais. Espera um minuto e tenta de novo.' : result.message };
   }
-  revalidatePath('/inicio');
+  // Idem: a linha nova entra na lista do cartão e a contagem sobe lá; o início não precisa de se recarregar (#393).
   return { ok: true, comment: result.data };
 }
 
@@ -76,11 +81,50 @@ export async function getCommentsAction(
 ): Promise<{ ok: true; comments: PostComment[] } | { ok: false; message: string }> {
   const result = await getComments(postId, page, limit);
   if (!result.ok) return { ok: false, message: result.message };
-  return { ok: true, comments: result.data };
+  const photos = await loadPhotos(result.data.filter((c) => !c.mine).map((c) => c.authorAccountId)).catch(() => ({}) as Record<number, string>);
+  return { ok: true, comments: result.data.map((c) => ({ ...c, photo: c.mine ? null : (photos[c.authorAccountId] ?? null) })) };
 }
 
 export async function reportPostAction(postId: number, reason: string): Promise<{ ok: boolean }> {
   if (!reason.trim()) return { ok: false };
   const result = await reportPost(postId, reason.trim());
   return { ok: result.ok };
+}
+
+/** Publica uma publicação construída. As regras repetem-se aqui para o servidor não depender do cliente. */
+export async function publishBuiltPostAction(
+  classId: number,
+  kind: BuiltKind,
+  title: string,
+  drafts: BlockDraft[],
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const blocks = payloadOf(drafts);
+  const invalid = problemOf(kind, title, blocks);
+  if (invalid) return { ok: false, message: invalid };
+  const result = await createBuiltPost(classId, kind, blocks, title.trim());
+  if (!result.ok) {
+    return { ok: false, message: result.status === 429 ? 'Estás a publicar depressa demais. Espera um minuto e tenta de novo.' : result.message };
+  }
+  revalidatePath('/inicio');
+  return { ok: true };
+}
+
+/** Envia uma imagem para uma publicação e devolve o endereço a guardar no bloco. */
+export async function enviarImagemPostAction(form: FormData): Promise<{ url?: string; error?: string }> {
+  const file = form.get('file');
+  if (!(file instanceof File) || file.size === 0) return { error: 'Escolhe uma imagem.' };
+  if (!file.type.startsWith('image/')) return { error: 'O ficheiro tem de ser uma imagem (PNG, JPG ou WEBP).' };
+  if (file.size > 2 * 1024 * 1024) return { error: 'A imagem deve ter no máximo 2 MB.' };
+  // Sem backend (modo de demonstração) não há onde guardar o ficheiro: devolve um endereço do mesmo formato.
+  if (MOCK) return { url: `/uploads/images/post/demo-${Date.now()}.png` };
+  const out = new FormData();
+  out.append('file', file, file.name);
+  try {
+    const res = await fetch(`${BACKEND}/images?kind=post`, { method: 'POST', headers: await authHeaders(), body: out, cache: 'no-store' });
+    if (!res.ok) return { error: (await problem(res)).message };
+    const body = (await res.json()) as { url?: string };
+    return body.url ? { url: body.url } : { error: 'O servidor não devolveu a imagem.' };
+  } catch {
+    return { error: 'Não foi possível enviar a imagem agora. Tenta outra vez.' };
+  }
 }

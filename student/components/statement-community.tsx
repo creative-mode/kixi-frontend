@@ -143,7 +143,7 @@ export function StatementCommunity({
             <ul className="grid gap-3">
               {list.map((s) => (
                 <li key={s.shareId} className="flex items-center gap-3 rounded-lg border px-4 py-3">
-                  <UserAvatar name={s.authorName ?? 'Anónimo'} size={36} />
+                  <UserAvatar name={s.authorName ?? 'Anónimo'} src={null} size={36} />
                   <div className="min-w-0 flex-1 leading-tight">
                     <b className="block text-sm">{s.authorName ?? 'Aluno anónimo'}</b>
                     {s.institution && <span className="text-[13px] text-muted-foreground">{s.institution.code}</span>}

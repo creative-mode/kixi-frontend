@@ -110,6 +110,46 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText('Resumo rápido: o /28')).toBeVisible();
   });
 
+  test('construtor de publicações: cartão de estudo com imagem e desafio respondido no feed', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // O desafio que já está no feed: responde, vê se acertou e lê a explicação.
+    const desafio = page.getByRole('article').filter({ hasText: 'Desafio de sub-redes' });
+    await expect(desafio.getByText('Desafio', { exact: true })).toBeVisible();
+    await desafio.getByRole('button', { name: /^14/ }).click();
+    await expect(desafio.getByText('Certo!')).toBeVisible();
+    await expect(desafio.getByText(/primeiro é o da rede/)).toBeVisible();
+
+    // O construtor: modelo, blocos, imagem, pré-visualização e publicação.
+    await page.getByRole('link', { name: 'Criar publicação com imagens e blocos' }).click();
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
+    await page.getByLabel('Título 1', { exact: true }).fill('Endereços de uma rede');
+    await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
+    await page.getByLabel('Lista 3: linha 1').fill('Endereço da rede');
+    await page.getByRole('button', { name: 'Imagem', exact: true }).click();
+    // Um PNG de 1 pixel, em bytes: um texto em base64 teria letras repetidas que o gate de texto estragado recusa.
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
+    await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
+    await expect(page.getByText('Imagem pronta')).toBeVisible();
+    await page.getByLabel('Imagem 5: descrição da imagem').fill('Esquema de uma rede');
+    const previa = page.getByRole('region', { name: 'Pré-visualização' });
+    await expect(previa.getByRole('heading', { name: 'Endereços de uma rede', level: 4 })).toBeVisible();
+    await expect(previa.getByRole('img', { name: 'Esquema de uma rede' })).toBeVisible();
+    await page.getByRole('button', { name: 'Publicar' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    const novo = page.getByRole('article').filter({ hasText: 'Endereços de uma rede' }).first();
+    await expect(novo.getByText('Cartão de estudo')).toBeVisible();
+    const figura = novo.getByRole('img', { name: 'Esquema de uma rede' });
+    await expect(figura).toBeVisible();
+    // Visível não chega: a imagem tem mesmo de ter carregado (antes o pedido ia dar à landing, 404).
+    await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  });
+
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto('/aluno/entrar');
@@ -339,5 +379,48 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // dizer isso seria confirmar que o perfil existe.
     await expect(page.getByRole('heading', { name: 'Página não encontrada' })).toBeVisible();
     await expect(page.getByText('Perfil Oculto')).toHaveCount(0);
+  });
+
+  test('avatares: a foto do aluno aparece em todo o inicio depois de a por (#345)', async ({ page }) => {
+    // #345: o UserAvatar so mostra a foto se lhe passarem `src`; os avatares do proprio
+    // aluno sem src caiam nas iniciais sem dar erro nenhum. Aqui exige-se a foto no ecra,
+    // nas mesmas suturas que a issue apontou, e nao apenas no codigo.
+    const PHOTO = '/uploads/images/avatar/e2e-345.png';
+    // O mock guarda o endereco mas nao serve o ficheiro: serve-se uma imagem real para o
+    // AvatarImage carregar em vez de cair no fallback.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVR4nGP8z8Dwn4EIwDiqkL4KAcb1B0cAAAAASUVORK5CYII=', 'base64');
+    await page.route('**/uploads/images/avatar/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: png }));
+
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // Pelo editor: o upload do ficheiro vai a /images, que o mock nao serve, por isso
+    // escreve-se o endereco no campo escondido e submete-se o formulario.
+    await page.goto('/aluno/perfil?editar=1');
+    await page.locator('input[name="photo"]').first().evaluate((el, value) => {
+      (el as HTMLInputElement).value = value;
+      el.closest('form')!.requestSubmit();
+    }, PHOTO);
+    await expect(page.getByRole('button', { name: 'Editar perfil' })).toBeVisible();
+
+    await page.goto('/aluno/inicio');
+    await expect(page.getByRole('heading', { name: 'Início' })).toBeVisible();
+    // Abrir os comentarios para o compositor aparecer.
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+
+    const foto = '[data-slot="avatar"] img[src*="e2e-345.png"]';
+    // Cabecalho (a barra lateral, visivel a partir de md). O href leva o basePath /aluno.
+    await expect(page.locator(`header:visible a[href$="/perfil"] ${foto}`)).toBeVisible();
+    // "O teu progresso", na coluna da direita.
+    await expect(page.locator('section:visible').filter({ hasText: 'O teu progresso' }).locator(foto).first()).toBeVisible();
+    // "Na tua turma": a propria linha ("Tu") tambem e o proprio aluno.
+    await expect(page.locator('section:visible').filter({ hasText: 'Na tua turma' }).locator(foto).first()).toBeVisible();
+    // Autor da publicacao, que e o proprio aluno.
+    await expect(page.locator('article').filter({ hasText: 'subnetting' }).locator(foto).first()).toBeVisible();
+    // Compositor de comentarios, na publicacao aberta.
+    await expect(page.getByLabel('Escrever um comentário').locator('xpath=ancestor::form[1]').locator(foto)).toBeVisible();
   });
  });

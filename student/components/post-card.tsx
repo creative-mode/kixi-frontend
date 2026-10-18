@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react';
 import { Flag, MessageCircle, Send, ThumbsUp } from 'lucide-react';
 import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
+import { PostBlocksView } from '@/components/post-blocks-view';
 import { UserAvatar } from '@/components/user-avatar';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -147,7 +148,9 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           {post.simulation && post.content && (
             <p className="-mb-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">{REFLECTION_LABEL}</p>
           )}
-          {post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
+          {post.blocks && post.blocks.length > 0
+            ? <PostBlocksView blocks={post.blocks} />
+            : post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
         </div>
 
         <div className="-ml-3 mt-1 flex flex-wrap items-center gap-0.5 py-0.5">
@@ -203,7 +206,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
                   <li key={c.id} className="flex items-start gap-2.5">
                     <UserAvatar
                       name={commentAuthorLabel(c.displayName, c.mine)}
-                      src={c.mine ? myPhoto : null}
+                      src={c.mine ? myPhoto : c.photo}
                       size={32}
                     />
                     <div className="min-w-0 flex-1 rounded-2xl bg-secondary px-3 py-2">
@@ -223,7 +226,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             )}
           </div>
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
-            <UserAvatar name={myName} size={32} />
+            <UserAvatar name={myName} src={myPhoto} size={32} />
             <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Send /></Button>
           </form>

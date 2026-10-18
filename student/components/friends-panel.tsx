@@ -74,7 +74,7 @@ export function FriendsPanel({ onChange }: { onChange: () => void }) {
             <h3 className="text-sm font-semibold">Pedidos para ti</h3>
             {incoming.map((r) => (
               <div key={r.friendshipId} className="flex items-center gap-3 text-sm">
-                <UserAvatar name={r.displayName} size={28} />
+                <UserAvatar name={r.displayName} src={r.photo} size={28} />
                 <span className="min-w-0 flex-1 truncate">{r.displayName}</span>
                 <Button size="sm" disabled={pending} onClick={() => run(() => acceptFriendAction(r.friendshipId))}><Check />Aceitar</Button>
                 <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => removeFriendAction(r.friendshipId))} aria-label={`Recusar ${r.displayName}`}><X /></Button>
@@ -89,7 +89,7 @@ export function FriendsPanel({ onChange }: { onChange: () => void }) {
           ) : (
             connections.friends.map((f) => (
               <div key={f.friendshipId} className="flex items-center gap-3 text-sm">
-                <UserAvatar name={f.displayName} size={28} />
+                <UserAvatar name={f.displayName} src={f.photo} size={28} />
                 <span className="min-w-0 flex-1 truncate">{f.displayName}</span>
                 <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => removeFriendAction(f.friendshipId))}>Remover</Button>
               </div>
@@ -97,7 +97,7 @@ export function FriendsPanel({ onChange }: { onChange: () => void }) {
           )}
           {sent.map((r) => (
             <div key={r.friendshipId} className="flex items-center gap-3 text-sm text-muted-foreground">
-              <UserAvatar name={r.displayName} size={28} />
+              <UserAvatar name={r.displayName} src={r.photo} size={28} />
               <span className="min-w-0 flex-1 truncate">{r.displayName} · pedido enviado</span>
               <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => removeFriendAction(r.friendshipId))}>Cancelar</Button>
             </div>
@@ -112,7 +112,7 @@ export function FriendsPanel({ onChange }: { onChange: () => void }) {
           {results && results.length === 0 && <p className="text-sm text-muted-foreground">Nenhum colega encontrado.</p>}
           {results?.map((c) => (
             <div key={c.accountId} className="flex items-center gap-3 text-sm">
-              <UserAvatar name={c.displayName} size={28} />
+              <UserAvatar name={c.displayName} src={c.photo} size={28} />
               <span className="min-w-0 flex-1 truncate">{c.displayName}</span>
               <Button size="sm" disabled={pending} onClick={() => run(() => requestFriendAction(c.accountId), `Pedido enviado a ${c.displayName}. Aparece nos amigos quando aceitar.`)}><UserPlus />Convidar</Button>
             </div>

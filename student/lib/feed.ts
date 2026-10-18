@@ -3,11 +3,12 @@ import 'server-only';
 import { apiGet, apiPost, type Result } from './api';
 import { getPerson } from './profiles';
 import { maskName, type FeedAuthor } from './feed-rules';
+import type { BuiltKind, PostBlock } from './post-blocks';
 
 /** Os tipos que um aluno ou professor publica à mão; EXAM e MILESTONE são gerados
  *  pelo sistema e não aparecem aqui como opção de publicar. `simulation` é o cartão
  *  de uma prova simulada terminada, publicado a partir do resultado. */
-export type PostType = 'doubt' | 'topic' | 'simulation';
+export type PostType = BuiltKind | 'simulation';
 
 /** O cartão de uma publicação `simulation`, tal como era quando foi publicada: os números
  *  e o nome da escola são lidos no servidor, nunca enviados pelo cliente. */
@@ -43,6 +44,8 @@ export interface FeedPost {
   updatedAt: string;
   /** Só nas publicações do tipo `simulation`. */
   simulation?: SimulationCard | null;
+  /** Só nas publicações construídas (kixi#347); as simples não os trazem. */
+  blocks?: PostBlock[] | null;
 }
 
 export async function getFeed(classId: number, page = 1, limit = 10): Promise<Result<FeedPost[]>> {
@@ -57,6 +60,16 @@ export async function createPost(
 ): Promise<Result<FeedPost>> {
   // O backend lê o enum pelo nome ('DOUBT'); as respostas é que trazem o valor em minúsculas.
   return apiPost<FeedPost>('/feed/posts', { type: type.toUpperCase(), classId, content, title: title || undefined });
+}
+
+/** Publica uma publicação construída por blocos. O backend guarda o resumo em `content`. */
+export async function createBuiltPost(
+  classId: number,
+  type: BuiltKind,
+  blocks: PostBlock[],
+  title?: string,
+): Promise<Result<FeedPost>> {
+  return apiPost<FeedPost>('/feed/posts', { type: type.toUpperCase(), classId, title: title || undefined, blocks });
 }
 
 /** Publica o resultado de uma simulação terminada, com uma reflexão opcional. */
@@ -88,6 +101,8 @@ export interface PostComment {
   /** O backend diz se a linha é do aluno, para o cliente não comparar ids. */
   mine: boolean;
   displayName: string | null;
+  /** Acrescentada pelo servidor a partir do perfil; null deixa as iniciais. */
+  photo?: string | null;
 }
 
 /** A conversa de uma publicação, do mais antigo para o mais novo (GET

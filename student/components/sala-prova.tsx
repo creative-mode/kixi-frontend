@@ -8,6 +8,7 @@ import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue
 import {
   backoffMs,
   cellState,
+  displayRemainingMs,
   formatClock,
   isChoice,
   remainingMs,
@@ -23,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { displayNumber } from '@/lib/question-number';
 import { FolhaDaProva } from '@/components/folha-da-prova';
+import { assetUrl } from '@/lib/assets';
 
 const CELL = {
   done: 'border-transparent bg-accent text-accent-foreground',
@@ -363,7 +365,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               em que o relógio do browser ainda não arrancou. Dizer "Sem tempo" nos
               dois casos mentiria ao aluno sobre uma prova que está a contar. */}
           <span className="tabular-nums">
-            {tempo === 'restante' ? formatClock(left ?? 0) : tempo === 'sem-limite' ? 'Sem tempo' : '—:—'}
+            {tempo === 'restante' ? formatClock(displayRemainingMs(left) ?? 0) : tempo === 'sem-limite' ? 'Sem tempo' : '—:—'}
           </span>
           {extraTime && (
             <small className="hidden text-xs font-semibold text-muted-foreground sm:inline">+25% de tempo</small>
@@ -529,7 +531,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                         next/image exigiria o domínio na lista e um tamanho configurado
                         do lado de quem guarda a imagem. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={image.imageUrl} alt={image.caption ?? ''} className="w-full rounded-lg border" />
+                    <img src={assetUrl(image.imageUrl)} alt={image.caption ?? ''} className="w-full rounded-lg border" />
                     {image.caption && (
                       <figcaption className="text-[13px] text-muted-foreground">{image.caption}</figcaption>
                     )}
