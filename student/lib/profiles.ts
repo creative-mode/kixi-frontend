@@ -44,6 +44,8 @@ export interface PersonProfile {
   level: number | null;
   xp: number | null;
   badges: string[];
+  /** Estou a bloquear esta pessoa? Sai o próprio perfil, para o botão dizer o que fazer. */
+  blocked?: boolean;
 }
 
 export type Visibility = 'public' | 'school' | 'private';

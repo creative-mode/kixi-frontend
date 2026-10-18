@@ -7,6 +7,7 @@ import { ProfileHero } from '@/components/profile-hero';
 import { EmptyState } from '@/components/states';
 import { UserAvatar } from '@/components/user-avatar';
 import { VerifiedBadge } from '@/components/verified-badge';
+import { SchoolActions } from './school-actions';
 import { Badge as Pill } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CatalogItem } from '@/lib/catalog';
@@ -28,6 +29,12 @@ export function SchoolView({ school, teachers, statements }: { school: SchoolPro
           <Pill variant="outline"><BookOpen className="size-3" aria-hidden />{school.statementCount} {school.statementCount === 1 ? 'enunciado' : 'enunciados'}</Pill>
         </div>
       </ProfileHero>
+
+      {/* Denunciar a escola (#323). Não há bloqueio: uma escola bloqueia-se a si
+          própria e não há nada de simétrico para fazer. */}
+      <div className="border-t pt-4">
+        <SchoolActions institutionId={school.id} nome={school.name} />
+      </div>
 
       <Tabs defaultValue="Professores">
         <TabsList aria-label="Escola">
