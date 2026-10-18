@@ -217,6 +217,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('button', { name: 'Continuar' }).click();
     await expect(page.locator('#classId')).toBeVisible();
     await escolherOpcao(page.locator('#classId'));
+    // Desde kixi#255 a auto-matrícula exige um código (TESTE1234 é o que o mock semeia).
+    await page.getByLabel('Código de matrícula').fill('TESTE1234');
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     // Conta nova, sem nenhuma prova: o início diz por onde começar.
