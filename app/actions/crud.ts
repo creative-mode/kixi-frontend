@@ -480,6 +480,32 @@ export async function revokeTeacherAccess(teacherId: number): Promise<Result> {
     return ok(undefined);
   });
 }
+// ── turmas: códigos de matrícula (#255) ─────────────────────────────────────
+export async function classEnrollmentCodes(classId: number): Promise<Result<Row[]>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/enrollment-codes?classId=${safeId(classId)}`);
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row[]);
+  });
+}
+export async function createEnrollmentCode(classId: number, maxUses: number, expiresAt: string | null): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call('/api/v1/enrollment-codes', {
+      method: 'POST',
+      body: JSON.stringify({ classId, maxUses, expiresAt: expiresAt || null }),
+    });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row);
+  });
+}
+export async function revokeEnrollmentCode(id: number): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/enrollment-codes/${safeId(id)}`, { method: 'DELETE' });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row);
+  });
+}
+
 export async function createManualStatement(values: Row): Promise<Result<Row>> {
   return guard(async () => {
     const res = await call('/api/v1/statements/manual', { method: 'POST', body: JSON.stringify(values) });

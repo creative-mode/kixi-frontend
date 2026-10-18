@@ -102,6 +102,7 @@ function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
     options: kind === 'true_false' && options.length !== 2 ? trueFalseOptions() : options,
     kind,
     ...(raw?.review === true ? { review: true } : {}),
+    ...(typeof raw?.modelAnswer === 'string' && raw.modelAnswer.trim() ? { modelAnswer: raw.modelAnswer } : {}),
   };
 }
 
@@ -118,6 +119,7 @@ function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
     ...(kind ? { kind } : {}),
     ...(kind === 'group' ? { items } : {}),
     ...(raw?.review === true ? { review: true } : {}),
+    ...(typeof raw?.modelAnswer === 'string' && raw.modelAnswer.trim() ? { modelAnswer: raw.modelAnswer } : {}),
   };
 }
 
@@ -137,6 +139,66 @@ export function normalizeDraft(saved: Partial<ExamDraft>): ExamDraft {
 
 export const loadDraft = (): ExamDraft => normalizeDraft(read<Partial<ExamDraft>>(DRAFT_KEY, {}));
 export const saveDraft = (d: ExamDraft) => write(DRAFT_KEY, withoutImages(d));
+
+/**
+ * Limpa o rascunho local. É o que se faz ao começar do zero: a chave desaparece em
+ * vez de ficar com um rascunho vazio, para o próximo arranque não voltar a perguntar.
+ */
+export const clearDraft = () => {
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* quota / modo privado */ }
+};
+
+/**
+ * O rascunho tem trabalho por guardar?
+ *
+ * Não chega olhar ao título e ao texto das questões. O rascunho guarda muitos mais
+ * campos que o professor edita — escola, disciplina, tipo, classe, fase, duração,
+ * série, ano letivo, instruções, observação, local, data e professor — e as próprias
+ * questões têm cotação, tipo, opções de resposta e resposta esperada (`modelAnswer`).
+ * Se o professor mexesse só num desses campos, o rascunho continuava a parecer vazio
+ * e `clearDraft` apagava-o em silêncio no efeito de guardar: a perda de trabalho que
+ * a #362 veio eliminar.
+ *
+ * Por isso a regra passa a ser «é diferente do rascunho de base?». Um rascunho
+ * intocado (só com os valores por omissão de `EMPTY_DRAFT`) não vale um aviso nem
+ * uma gravação; qualquer alteração — no cabeçalho, nas questões ou nas alíneas —
+ * vale. Espaços em branco não contam como trabalho.
+ */
+export const draftHasContent = (d: ExamDraft): boolean =>
+  d.title.trim() !== '' || d.items.some(itemHasContent) || headerHasContent(d);
+
+/** O texto tem conteúdo real? Só espaços em branco não é trabalho. */
+const filled = (value: string) => value.trim() !== '';
+
+/**
+ * Uma questão (ou alínea) tem trabalho quando tem texto, cotação, opções de resposta,
+ * resposta esperada (`modelAnswer`) ou alíneas com conteúdo. O `kind` sozinho não
+ * conta: um item normalizado traz sempre um tipo derivado, e mudar o tipo de uma
+ * questão vazia e voltar atrás não deixa trabalho nenhum — o que o tipo traz a mais
+ * são as opções, e essas contam.
+ *
+ * A marca `review` do OCR conta também: é o que diz ao professor «olha para isto».
+ * Um item importado com essa marca e sem mais nada é o próprio trabalho da importação,
+ * e apagá-lo em silêncio era perder exatamente o aviso que o OCR deixou.
+ */
+function itemHasContent(i: ExamDraft['items'][number]): boolean {
+  if (filled(i.text) || filled(i.modelAnswer ?? '') || i.points !== '' || i.options.length > 0 || i.review === true) return true;
+  return (i.items ?? []).some(itemHasContent);
+}
+
+/** Qualquer campo do cabeçalho diferente do rascunho de base é trabalho por guardar. */
+function headerHasContent(d: ExamDraft): boolean {
+  if (filled(d.schoolId) || filled(d.subject) || filled(d.variant) || filled(d.schoolYear)
+    || filled(d.note) || filled(d.date) || filled(d.teacher) || d.duration !== '') return true;
+  if (d.kind !== EMPTY_DRAFT.kind) return true;
+  if (d.grade.trim() !== EMPTY_DRAFT.grade.trim()) return true;
+  if (d.phase.trim() !== EMPTY_DRAFT.phase.trim()) return true;
+  if (d.place.trim() !== EMPTY_DRAFT.place.trim()) return true;
+  // As regras por omissão são duas e não vazias: apagar uma, escrever outra ou
+  // acrescentar uma é trabalho. Comparam-se pelo comprimento e pelo texto limpo.
+  if (d.rules.length !== EMPTY_DRAFT.rules.length) return true;
+  return d.rules.some((rule, i) => rule.trim() !== EMPTY_DRAFT.rules[i].trim());
+}
 
 /** Lê uma imagem e reduz-a (máx. 320px) para caber no armazenamento local. */
 export function imageToDataUri(file: File, max = 320): Promise<string> {

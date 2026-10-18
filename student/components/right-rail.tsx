@@ -101,7 +101,7 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
             {data.classTop.map((r) => (
               <li key={r.position} className="flex items-center gap-2.5 text-[15px]">
                 <span className="w-5 text-center font-semibold text-muted-foreground tabular-nums">{r.position}</span>
-                <UserAvatar name={r.displayName} size={32} />
+                <UserAvatar name={r.displayName} src={r.me ? photoUrl(me) : null} size={32} />
                 <span className="min-w-0 flex-1 truncate font-semibold">{r.me ? 'Tu' : r.displayName}</span>
                 <span className="text-muted-foreground tabular-nums">{formatAverage(r.average)}%</span>
               </li>
