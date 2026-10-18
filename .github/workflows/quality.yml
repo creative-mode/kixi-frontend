@@ -18,6 +18,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Os ícones sao gerados de `public/icon/`; se alguem editar um a mao, este passo
+      # apanha antes de os tres apps ficarem com marcas diferentes (#404).
+      - run: node scripts/icons.mjs --check
       - run: npm run lint
       - run: npm test
       - run: npm run build
