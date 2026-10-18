@@ -193,3 +193,13 @@ export function AuthSkeleton({ fields = 2 }: { fields?: number }) {
     </main>
   );
 }
+
+/** Um esqueleto simples de página: cabeçalho e três blocos. Serve às páginas que ainda não tinham o seu (#393). */
+export function PageSkeleton() {
+  return (
+    <div className="grid gap-4 p-4" aria-busy="true" aria-label="A carregar">
+      <HeaderSkeleton />
+      {[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+    </div>
+  );
+}
