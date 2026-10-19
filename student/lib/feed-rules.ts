@@ -1,3 +1,5 @@
+import { safePhoto } from './profile.ts';
+
 /** Regras de apresentação do feed (#120/#30), sem servidor e sem React.
  *
  *  O backend devolve só `authorAccountId` nas publicações. O nome e a foto vêm do perfil
@@ -23,8 +25,12 @@ export interface AuthorView {
 
 /**
  * Quem pôs o perfil como privado não é identificado por inteiro no feed: fica o primeiro nome e a
- * inicial do último ("Beatriz C."), o mesmo critério que o backend usa nos comentários, e sem foto.
+ * inicial do último ("Beatriz C."), o mesmo critério que o backend usa nos comentários.
  * A escolha de privacidade da pessoa pesa mais do que a vontade de pôr nomes nas publicações.
+ *
+ * A foto, essa, não se esconde: o próprio perfil mostra «só o nome e a foto» a quem o vê restrito, e
+ * o backend devolve-a nesse caso. Escondê-la só no feed deixava a mesma pessoa com foto no perfil e
+ * com iniciais nas publicações, nos amigos e nos comentários.
  */
 export function maskName(full: string): string {
   const parts = full.trim().split(/\s+/).filter(Boolean);
@@ -100,4 +106,13 @@ export function canPublishReflection(content: string): boolean {
 export function scorePercent(score: number | null | undefined, max: number | null | undefined): number | null {
   if (score == null || max == null || max <= 0) return null;
   return Math.round((score / max) * 100);
+}
+
+/** O que o perfil de uma pessoa (`GET /profiles/accounts/{id}`) dá ao feed: nome abreviado se for restrito, foto sempre. */
+export function authorOfPerson(person: { displayName: string; photo: string | null; restricted: boolean; verified: boolean }): FeedAuthor {
+  return {
+    name: person.restricted ? maskName(person.displayName) : person.displayName,
+    photo: safePhoto(person.photo),
+    verified: person.restricted ? false : person.verified,
+  };
 }
