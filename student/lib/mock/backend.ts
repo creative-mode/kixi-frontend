@@ -3,7 +3,7 @@ import { countLeafQuestions } from './leaf-count';
 import { catalogPage } from './catalog-page';
 import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
-import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
+import { isRestricted, isVisibility, matchesSearch, personAttributes, type Visibility } from './profiles';
 import { validateReport, blockPair, bloqueadoEntre, deveDesaparecer, desaparecePara, visibilidadePara } from '@/lib/moderation';
 import * as friends from './friends';
 import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
@@ -1517,21 +1517,24 @@ export async function mockHandle(
       const restricted = isRestricted(visibility, mine);
       const classIds = db.enrollments.filter((e) => e.accountId === target.id).map((e) => e.classId);
       const schoolIds = new Set(db.classes.filter((c) => classIds.includes(c.id)).map((c) => c.institutionId));
+      const isTeacher = target.roles.includes('TEACHER');
+      const attrs = personAttributes(isTeacher, { level: 3, xp: 240, badges: ['Primeira prova'] }, 'Redes');
       return json({
         userId: target.id,
         displayName: `${target.firstName} ${target.lastName}`,
         photo: target.photo,
-        kind: target.roles.includes('TEACHER') ? 'TEACHER' : 'STUDENT',
-        verified: target.roles.includes('TEACHER'),
+        kind: attrs.kind,
+        verified: isTeacher,
         restricted,
         visibility,
         blocked: mine ? false : bloqueadoEntre(db.blocks, target.id, accountId ?? -1),
         schools: restricted
           ? []
-          : db.institutions.filter((i) => schoolIds.has(i.id) || (target.roles.includes('TEACHER') && i.id === 1)).map(card),
-        level: restricted ? null : 3,
-        xp: restricted ? null : 240,
-        badges: restricted ? [] : ['Primeira prova'],
+          : db.institutions.filter((i) => schoolIds.has(i.id) || (isTeacher && i.id === 1)).map(card),
+        level: restricted ? null : attrs.level,
+        xp: restricted ? null : attrs.xp,
+        badges: restricted ? [] : attrs.badges,
+        specialty: restricted ? null : attrs.specialty,
       });
     }
   }

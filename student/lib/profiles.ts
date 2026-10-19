@@ -31,7 +31,13 @@ export interface TeacherCard {
   verified: boolean;
 }
 
-/** GET /profiles/accounts/{id} (PersonProfile). Com `restricted`, só nome e foto vêm preenchidos. */
+/**
+ * GET /profiles/accounts/{id} (PersonProfile). Com `restricted`, só nome e foto vêm preenchidos.
+ *
+ * `kind` vem em minúsculas (`'teacher'`/`'student'`) — é o que o backend devolve desde a #336.
+ * Um professor nunca tem `level`/`xp`/`badges` (gamificação é só do aluno): vêm `null`/vazio, e
+ * `specialty` vem preenchida em vez disso (#371).
+ */
 export interface PersonProfile {
   userId: number;
   displayName: string;
@@ -44,6 +50,7 @@ export interface PersonProfile {
   level: number | null;
   xp: number | null;
   badges: string[];
+  specialty: string | null;
   /** Estou a bloquear esta pessoa? Sai o próprio perfil, para o botão dizer o que fazer. */
   blocked?: boolean;
 }

@@ -18,9 +18,11 @@ import { PersonActions } from './person-actions';
 import { PersonFriendButton } from './person-friend-button';
 
 /**
- * O perfil de outra pessoa, no mesmo modelo do teu: faixa, foto grande sobreposta, nome, factos,
- * etiquetas de nível e separadores. Só mostra o que a visibilidade dessa pessoa deixa ver, e
- * os separadores que existem para ela (as publicações da tua turma e as medalhas).
+ * O perfil de outra pessoa, no mesmo modelo do teu: faixa, foto grande sobreposta, nome, factos
+ * e separadores. Só mostra o que a visibilidade dessa pessoa deixa ver.
+ *
+ * Um professor tem o seu próprio perfil, não uma cópia do do aluno (#427): a especialidade em vez
+ * do nível/XP, sem separador de Medalhas e sem o botão de amizade — amizade é só entre alunos (#121).
  */
 export function PersonView({
   person,
@@ -41,8 +43,24 @@ export function PersonView({
   myClassId: number | null;
   friend: Friend | null;
 }) {
-  const teacher = person.kind === 'TEACHER';
+  // 'teacher'/'student' em minúsculas — o que o backend devolve desde a #336 (#427).
+  const teacher = person.kind === 'teacher';
   const author: FeedAuthor = { name: person.displayName, photo: person.photo, verified: person.verified };
+
+  const publications = (
+    <div className="flex flex-col">
+      {posts.length === 0 ? (
+        <EmptyState
+          title="Sem publicações para ver"
+          message={teacher ? 'Aqui aparecem as publicações deste professor na tua turma.' : 'Aqui aparecem as publicações desta pessoa na tua turma.'}
+        />
+      ) : (
+        posts.map((p) => (
+          <PostCard key={p.id} post={p} author={author} myClassId={myClassId} myAccountId={myAccountId} myName={myName} myPhoto={myPhoto} />
+        ))
+      )}
+    </div>
+  );
 
   return (
     <Page className="gap-0 p-0 pb-24 md:pb-10">
@@ -67,10 +85,18 @@ export function PersonView({
               </ul>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              {teacher && <Pill variant="secondary"><GraduationCap className="size-3" aria-hidden />Professor</Pill>}
-              {classmate && <Pill variant="outline"><GraduationCap className="size-3" aria-hidden />{CLASSMATE_LABEL}</Pill>}
-              {person.level !== null && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {person.level}</Pill>}
-              {person.level !== null && <Pill variant="outline">{person.xp ?? 0} XP</Pill>}
+              {teacher ? (
+                <>
+                  <Pill variant="secondary"><GraduationCap className="size-3" aria-hidden />Professor</Pill>
+                  {person.specialty && <Pill variant="outline">{person.specialty}</Pill>}
+                </>
+              ) : (
+                <>
+                  {classmate && <Pill variant="outline"><GraduationCap className="size-3" aria-hidden />{CLASSMATE_LABEL}</Pill>}
+                  {person.level !== null && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {person.level}</Pill>}
+                  {person.level !== null && <Pill variant="outline">{person.xp ?? 0} XP</Pill>}
+                </>
+              )}
             </div>
           </>
         )}
@@ -95,7 +121,10 @@ export function PersonView({
         />
       </div>
 
-      {!person.restricted && (
+      {/* Um professor não tem medalhas (é gamificação só do aluno, #371): sem separador
+          nenhum a mostrar, as publicações aparecem sozinhas em vez de dentro de um Tabs
+          de uma aba só — é a própria estrutura do perfil a ficar diferente, não só os dados. */}
+      {!person.restricted && (teacher ? publications : (
         <Tabs defaultValue="Publicações">
           <TabsList aria-label="Perfil">
             <TabsTrigger value="Publicações">Publicações</TabsTrigger>
@@ -103,13 +132,7 @@ export function PersonView({
           </TabsList>
 
           <TabsContent value="Publicações" className="flex flex-col">
-            {posts.length === 0 ? (
-              <EmptyState title="Sem publicações para ver" message="Aqui aparecem as publicações desta pessoa na tua turma." />
-            ) : (
-              posts.map((p) => (
-                <PostCard key={p.id} post={p} author={author} myClassId={myClassId} myAccountId={myAccountId} myName={myName} myPhoto={myPhoto} />
-              ))
-            )}
+            {publications}
           </TabsContent>
 
           <TabsContent value="Medalhas" className="p-4">
@@ -130,7 +153,7 @@ export function PersonView({
             )}
           </TabsContent>
         </Tabs>
-      )}
+      ))}
     </Page>
   );
 }
