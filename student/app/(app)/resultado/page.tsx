@@ -1,3 +1,4 @@
+import { CountUp } from '@/components/count-up';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Check, Clock, MessageCircle, X } from 'lucide-react';
@@ -141,7 +142,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         <PageHeader kicker="Resultado" title={view.title} />
 
         <div className="flex flex-wrap items-end gap-x-3.5 gap-y-2">
-          <span className="text-[52px] leading-[.95] font-bold tracking-tighter tabular-nums md:text-[64px]">{score ?? '—'}</span>
+          <span className="text-[52px] leading-[.95] font-bold tracking-tighter tabular-nums md:text-[64px]">{score ? <CountUp value={score} /> : '—'}</span>
           {view.totalMaxScore != null && (
             <span className="pb-1.5 text-lg font-semibold text-muted-foreground">de {formatScore(view.totalMaxScore)} valores</span>
           )}
