@@ -26,8 +26,9 @@ test('um título curto fica como está e um comprido corta nas palavras', () => 
 });
 
 test('o separador do perfil vem do endereço só se existir', () => {
-  assert.equal(profileTabOf('Medalhas'), 'Medalhas');
-  assert.equal(profileTabOf(['Histórico', 'x']), 'Histórico');
+  assert.equal(profileTabOf('Conquistas'), 'Conquistas');
+  assert.equal(profileTabOf('Medalhas'), 'Conquistas');
+  assert.equal(profileTabOf(['Histórico', 'x']), 'Conquistas');
   assert.equal(profileTabOf('hack'), 'Publicações');
   assert.equal(profileTabOf(undefined), 'Publicações');
 });
