@@ -149,7 +149,7 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('button', { name: 'Publicar' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     const novo = page.getByRole('article').filter({ hasText: 'Endereços de uma rede' }).first();
-    await expect(novo.getByText('Cartão de estudo')).toBeVisible();
+    await expect(novo.getByRole('img', { name: 'Cartão de estudo' })).toBeVisible();
     const figura = novo.getByRole('img', { name: 'Esquema de uma rede' });
     await expect(figura).toBeVisible();
     // Visível não chega: a imagem tem mesmo de ter carregado (antes o pedido ia dar à landing, 404).
