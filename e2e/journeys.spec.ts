@@ -103,7 +103,7 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     const post = page.getByRole('article').filter({ hasText: 'Resumo rápido: o /28' });
     await expect(post).toBeVisible();
-    await expect(post.getByText('Colega de turma')).toBeVisible();
+    await expect(post.getByRole('img', { name: 'Colega de turma' })).toBeVisible();
     await expect(post.getByRole('link').first()).not.toHaveText(/^Colega/);
     await expect(page.getByText('Um colega da turma')).toHaveCount(0);
 
@@ -125,7 +125,7 @@ test.describe('jornadas críticas do Kixi', () => {
 
     // O desafio que já está no feed: responde, vê se acertou e lê a explicação.
     const desafio = page.getByRole('article').filter({ hasText: 'Desafio de sub-redes' });
-    await expect(desafio.getByText('Desafio', { exact: true })).toBeVisible();
+    await expect(desafio.getByRole('img', { name: 'Desafio' })).toBeVisible();
     await desafio.getByRole('button', { name: /^14/ }).click();
     await expect(desafio.getByText('Certo!')).toBeVisible();
     await expect(desafio.getByText(/primeiro é o da rede/)).toBeVisible();
@@ -149,7 +149,7 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('button', { name: 'Publicar' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     const novo = page.getByRole('article').filter({ hasText: 'Endereços de uma rede' }).first();
-    await expect(novo.getByText('Cartão de estudo')).toBeVisible();
+    await expect(novo.getByRole('img', { name: 'Cartão de estudo' })).toBeVisible();
     const figura = novo.getByRole('img', { name: 'Esquema de uma rede' });
     await expect(figura).toBeVisible();
     // Visível não chega: a imagem tem mesmo de ter carregado (antes o pedido ia dar à landing, 404).
@@ -333,7 +333,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // o aluno lê a mesma prova como se a tivesse feito duas vezes. Compila, passa o
     // lint e o type checking — nada o apanha, porque não há sintaxe inválida.
     //
-    // O teste conta. E conta nos seis separadores, porque o padrão de duplicação
+    // O teste conta. E conta nos quatro separadores, porque o padrão de duplicação
     // pode ter escapado noutro ecrã.
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -345,8 +345,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     // O invariante nao depende dos dados: um `TabsContent` por separador. Com dois
     // blocos de mesmo `value`, o Radix monta os dois e o `tabpanel` aparece duas
-    // vezes — que e a raiz do bug da #240, e vale para os seis separadores.
-    const separadores = ['Publicações', 'Atividade', 'Desempenho', 'Medalhas', 'Histórico', 'Definições'];
+    // vezes — que e a raiz do bug da #240, e vale para todos os separadores.
+    const separadores = ['Publicações', 'Experiência', 'Conquistas', 'Definições'];
     await expect(page.getByRole('tab'), `esperava ${separadores.length} separadores`).toHaveCount(separadores.length);
 
     for (const separador of separadores) {
@@ -358,7 +358,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     }
 
     // E o sintoma que o aluno via: o cartao de dominio aparece uma vez so.
-    await page.getByRole('tab', { name: 'Desempenho' }).click();
+    await page.getByRole('tab', { name: 'Conquistas' }).click();
     await expect(page.getByRole('tabpanel').getByText('Domínio por prova')).toHaveCount(1);
   });
  
@@ -421,7 +421,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     const foto = '[data-slot="avatar"] img[src*="e2e-345.png"]';
     // Cabecalho (a barra lateral, visivel a partir de md). O href leva o basePath /aluno.
-    await expect(page.locator(`header:visible a[href$="/perfil"] ${foto}`)).toBeVisible();
+    await expect(page.locator(`header:visible button[aria-haspopup="menu"] ${foto}`)).toBeVisible();
     // "O teu progresso", na coluna da direita.
     await expect(page.locator('section:visible').filter({ hasText: 'O teu progresso' }).locator(foto).first()).toBeVisible();
     // "Na tua turma": a propria linha ("Tu") tambem e o proprio aluno.
