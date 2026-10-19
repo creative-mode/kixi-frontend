@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
+import { authorOfPerson, authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
 
 const ME = { name: 'Ana Silva', photo: '/me.jpg' };
 const AUTHOR = { name: 'Beatriz Costa', photo: '/b.jpg', verified: false };
@@ -88,4 +88,19 @@ test('um perfil privado fica com o primeiro nome e a inicial do último', () => 
   assert.equal(maskName('  ana   silva '), 'ana S.');
   assert.equal(maskName('Beatriz'), 'Beatriz');
   assert.equal(maskName(''), '');
+});
+
+test('um perfil restrito aparece abreviado e sem selo, mas com a foto', () => {
+  const author = authorOfPerson({ displayName: 'Beatriz Maria Costa', photo: '/uploads/images/avatar/abc.png', restricted: true, verified: true });
+  assert.deepEqual(author, { name: 'Beatriz C.', photo: '/uploads/images/avatar/abc.png', verified: false });
+});
+
+test('um perfil completo mostra o nome, a foto e o selo', () => {
+  const author = authorOfPerson({ displayName: 'Beatriz Maria Costa', photo: 'https://exemplo.ao/b.jpg', restricted: false, verified: true });
+  assert.deepEqual(author, { name: 'Beatriz Maria Costa', photo: 'https://exemplo.ao/b.jpg', verified: true });
+});
+
+test('uma foto fora dos endereços aceites cai nas iniciais', () => {
+  assert.equal(authorOfPerson({ displayName: 'Ana Silva', photo: 'javascript:alert(1)', restricted: false, verified: false }).photo, null);
+  assert.equal(authorOfPerson({ displayName: 'Ana Silva', photo: null, restricted: true, verified: false }).photo, null);
 });

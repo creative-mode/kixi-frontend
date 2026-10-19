@@ -58,7 +58,7 @@ export function SchoolView({ school, teachers, statements }: { school: SchoolPro
               );
               const cls = 'flex min-h-14 items-center gap-3 border-b px-4 py-2.5';
               return t.accountId ? (
-                <Link key={t.id} href={`/u/${t.accountId}`} className={`${cls} transition-colors hover:bg-secondary/40`}>{row}</Link>
+                <Link key={t.id} prefetch={false} href={`/u/${t.accountId}`} className={`${cls} transition-colors hover:bg-secondary/40`}>{row}</Link>
               ) : (
                 <div key={t.id} className={cls}>{row}</div>
               );
@@ -71,7 +71,7 @@ export function SchoolView({ school, teachers, statements }: { school: SchoolPro
             <EmptyState title="Ainda não há enunciados" message="Os enunciados publicados por esta escola aparecem aqui." />
           ) : (
             statements.map((e) => (
-              <Link key={e.id} href={`/prova/${e.id}`} className="flex min-h-14 items-center justify-between gap-3 border-b px-4 py-2.5 transition-colors hover:bg-secondary/40">
+              <Link key={e.id} prefetch={false} href={`/prova/${e.id}`} className="flex min-h-14 items-center justify-between gap-3 border-b px-4 py-2.5 transition-colors hover:bg-secondary/40">
                 <span className="truncate font-bold">{e.title}</span>
                 <span className="shrink-0 text-[13px] text-muted-foreground">{e.subject}</span>
               </Link>

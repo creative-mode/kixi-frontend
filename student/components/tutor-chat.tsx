@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { track } from '@/lib/analytics';
 import { BASE_PATH } from '@/lib/base-path';
 import { useMe } from '@/lib/me-context';
 import { fullName, photoUrl } from '@/lib/profile';
@@ -157,6 +158,9 @@ export function TutorChat({
     const created = (await res.json()) as { id: number };
     sessionId.current = created.id;
     sessionContext.current = contextKey;
+    // #219 "tutor usado": o momento em que a sessão abre de verdade, não cada
+    // mensagem — a conversa inteira é um só uso, por mais turnos que tenha.
+    track('tutor_used');
     return created.id;
   }, []);
 

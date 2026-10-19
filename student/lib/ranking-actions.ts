@@ -1,5 +1,6 @@
 'use server';
 
+import { forgetVisitedPages } from './refresh';
 import {
   getLeaderboard,
   setCrossInstitutionConsent,
@@ -31,6 +32,7 @@ export async function setConsentAction(
   crossInstitution: boolean,
 ): Promise<{ ok: true; crossInstitution: boolean } | { ok: false; message: string }> {
   const result = await setCrossInstitutionConsent(crossInstitution);
+  if (result.ok) forgetVisitedPages();
   return result.ok
     ? { ok: true, crossInstitution: result.data.crossInstitution }
     : { ok: false, message: result.message };

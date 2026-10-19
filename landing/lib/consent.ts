@@ -1,4 +1,10 @@
-/** O consentimento de cookies: guardado só no navegador, em localStorage. Sem escolha não há analítica. */
+/**
+ * Espelhado em student/lib/consent.ts (kixi#219): a app do aluno tem o seu próprio
+ * banner e a sua própria analítica, com o mesmo contrato. Se alterares a regra de
+ * consentimento aqui, altera lá também.
+ *
+ * O consentimento de cookies: guardado só no navegador, em localStorage. Sem escolha não há analítica.
+ */
 export const CONSENT_KEY = 'kixi-consent';
 export const CONSENT_EVENT = 'kixi-consent-change';
 

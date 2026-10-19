@@ -18,7 +18,7 @@ function noticeFor(reason?: string) {
 export default async function Entrar({ searchParams }: { searchParams: SearchParams }) {
   const { reason } = await searchParams;
   return (
-    <AuthShell title="Entrar" lead="Usa o teu número de processo ou o teu email." notice={noticeFor(reason)}>
+    <AuthShell title="Entrar" lead="Usa o teu número de processo ou o teu email." notice={noticeFor(reason)} backToLanding>
       <EntrarForm />
     </AuthShell>
   );

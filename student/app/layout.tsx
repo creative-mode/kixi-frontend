@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { CookieBanner } from '@/components/consent/Consent';
+import { appOrigin } from '@/lib/origin';
 
 export const metadata: Metadata = {
   title: 'Kixi',
@@ -15,7 +17,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Aplica a preferência de movimento guardados antes de pintar, para não piscar. */}
         <script dangerouslySetInnerHTML={{ __html: "try{var m=localStorage.getItem('kixi-reduce-motion');if(m)document.documentElement.setAttribute('data-reduce-motion',m)}catch(e){}" }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* #219: analítica mínima, só depois deste banner ser aceite. */}
+        <CookieBanner landingOrigin={appOrigin()} />
+      </body>
     </html>
   );
 }

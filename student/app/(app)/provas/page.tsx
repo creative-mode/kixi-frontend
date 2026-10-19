@@ -258,7 +258,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
             // The card opens the detail (#19), not the room: the three modes live
             // there, and going straight to the room would make them unreachable from
             // the list — which is exactly what the acceptance criterion asks for.
-            <Link key={item.id} href={`/prova/${item.id}/detalhe`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
+            <Link key={item.id} prefetch={false} href={`/prova/${item.id}/detalhe`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
               <span className="sr-only">{actionOf(item.state)}: </span>
               <div className="min-w-0"><div className="leading-snug font-bold">{item.kind} · {item.title}</div><div className="mt-0.5 text-[13px] text-muted-foreground">{[item.school, item.year, item.subject].filter(Boolean).join(' · ')}</div></div>
               <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><State item={item} /></div>
@@ -276,11 +276,11 @@ export default async function Provas({ searchParams }: { searchParams: Params })
         {result.totalPages > 1 ? (
           <nav className="flex items-center justify-between text-sm" aria-label="Paginação">
             {current > 1 ? (
-              <Button asChild variant="outline" size="sm"><Link href={href(current - 1)}>Anteriores</Link></Button>
+              <Button asChild variant="outline" size="sm"><Link prefetch={false} href={href(current - 1)}>Anteriores</Link></Button>
             ) : <span />}
             <span className="text-muted-foreground">Página {current} de {result.totalPages} · {result.totalElements} enunciados</span>
             {current < result.totalPages ? (
-              <Button asChild variant="outline" size="sm"><Link href={href(current + 1)}>Seguintes</Link></Button>
+              <Button asChild variant="outline" size="sm"><Link prefetch={false} href={href(current + 1)}>Seguintes</Link></Button>
             ) : <span />}
           </nav>
         ) : null}

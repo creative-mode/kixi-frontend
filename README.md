@@ -121,7 +121,20 @@ npm run build && npm run lint   # raiz (gestor)
 npm run ds:sync                 # sincroniza o design system para student/ e landing/
 docker compose up --build           # tudo em contentores, http://localhost:3000
 node .github/scripts/self-review.js DEV   # a auto-revisão, antes de abrir o PR
+node scripts/icons.mjs                # gera os ícones das três páginas a partir de public/icon/
 ```
+
+### Ícones
+
+As três páginas (`/`, `/aluno`, `/manager`) mostram o mesmo ícone, e todas as cópias
+saem de `public/icon/`: `icon1.svg` (a fonte), `favicon.ico`, `icon-192x192.png` e
+`icon-512x512.png`. O Next gera os `<link>` sozinho a partir de `app/icon.svg`,
+`app/favicon.ico` e `app/apple-icon.png` — por isso não há ícones escritos à mão em
+nenhum dos três apps.
+
+Para mudar a marca, muda-se o ficheiro em `public/icon/` e corre-se
+`node scripts/icons.mjs`. O `--check` falha se algum ficheiro não bater certo com a
+fonte, e corre na CI antes do build.
 
 ### Auto-revisão
 
