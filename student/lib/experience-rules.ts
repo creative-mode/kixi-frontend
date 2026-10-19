@@ -2,7 +2,7 @@
  * A experiência de um perfil (cronologia por escola e ano lectivo) e o histórico académico de um ano.
  * Sem servidor e sem React, para o `node --test` as cobrir. Só organiza o que o backend devolveu.
  *
- * Contrato: `GET /profiles/{accountId}/experience` (público, sem notas) e
+ * Contrato: `GET /profiles/accounts/{accountId}/experience` (público, sem notas) e
  * `GET /me/academic-history?schoolYearId=` (só o próprio aluno).
  */
 
@@ -47,17 +47,18 @@ export function parseExperience(raw: unknown): ExperienceEntry[] {
   const out: ExperienceEntry[] = [];
   for (const item of list) {
     const e = obj(item);
-    const school = str(obj(e.school).name) ?? str(e.school) ?? str(e.schoolName) ?? str(e.institution) ?? str(e.institutionName);
-    const year = str(e.schoolYear) ?? str(obj(e.schoolYear).name) ?? str(e.schoolYearName) ?? str(e.year);
+    const classes = Array.isArray(e.classes) ? e.classes.map(obj) : [];
+    const school = str(obj(e.institution).name) ?? str(obj(e.school).name) ?? str(e.school) ?? str(e.schoolName) ?? str(e.institution) ?? str(e.institutionName);
+    const year = str(obj(e.schoolYear).label) ?? str(e.schoolYear) ?? str(obj(e.schoolYear).name) ?? str(e.schoolYearName) ?? str(e.year);
     if (!school || !year) continue;
     out.push({
       schoolYearId: num(e.schoolYearId) ?? num(obj(e.schoolYear).id),
       schoolYear: year,
-      schoolId: num(e.schoolId) ?? num(e.institutionId) ?? num(obj(e.school).id),
+      schoolId: num(obj(e.institution).id) ?? num(e.schoolId) ?? num(e.institutionId) ?? num(obj(e.school).id),
       school,
       course: str(obj(e.course).name) ?? str(e.course) ?? str(e.courseName),
-      className: str(obj(e.class).code) ?? str(e.className) ?? str(e.classCode) ?? str(e.class),
-      grade: str(e.grade) ?? str(e.gradeLevel) ?? str(e.classGrade),
+      className: (classes.length ? classes.map((c) => str(c.name)).filter(Boolean).join(', ') : null) ?? str(obj(e.class).code) ?? str(e.className) ?? str(e.classCode) ?? str(e.class),
+      grade: (classes.length && num(classes[0].grade) !== null ? `${num(classes[0].grade)}.ª classe` : null) ?? str(e.grade) ?? str(e.gradeLevel) ?? str(e.classGrade),
       subjects: Array.isArray(e.subjects) ? e.subjects.map((s) => str(obj(s).name) ?? str(s)).filter((s): s is string => !!s) : [],
     });
   }
@@ -89,7 +90,7 @@ export function entrySummary(e: ExperienceEntry): string {
 
 export function parseAcademicYear(raw: unknown, schoolYearId: number): AcademicYear {
   const o = obj(raw);
-  const list = o.records ?? o.attempts ?? o.results ?? (Array.isArray(raw) ? raw : []);
+  const list = o.exams ?? o.records ?? o.attempts ?? o.results ?? (Array.isArray(raw) ? raw : []);
   const records: AcademicRecord[] = [];
   if (Array.isArray(list)) {
     for (const item of list) {
@@ -103,8 +104,8 @@ export function parseAcademicYear(raw: unknown, schoolYearId: number): AcademicY
   const scores = records.map((r) => r.score).filter((n): n is number => n !== null);
   return {
     schoolYearId,
-    schoolYear: str(o.schoolYear) ?? str(obj(o.schoolYear).name),
-    average: num(o.average) ?? (scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null),
+    schoolYear: str(obj(o.schoolYear).label) ?? str(o.schoolYear) ?? str(obj(o.schoolYear).name),
+    average: num(obj(o.totals).average) ?? num(o.average) ?? (scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null),
     records,
   };
 }
