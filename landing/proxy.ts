@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { prefersMarkdown } from './lib/markdown-negotiation';
+import { redirectOrigin, SESSION_COOKIE, sessionDestination } from './lib/session-destination';
 
 /**
  * Negociação de conteúdo na landing (#218).
@@ -30,6 +31,29 @@ const NOT_NEGOTIABLE = [/^\/aluno(\/|$)/, /^\/manager(\/|$)/, /^\/api(\/|$)/, /^
  */
 const NOT_SHARED_CACHE = 'no-store, must-revalidate';
 
+/**
+ * O redireccionamento de quem tem sessão para a sua app.
+ *
+ * O destino é um caminho (`/aluno/inicio`, `/manager`) resolvido contra a origem pública,
+ * e não contra `request.nextUrl`: atrás do gateway o host que o Next vê é o interno da
+ * landing. Um destino absoluto (`NEXT_PUBLIC_MANAGER_URL`) é usado como está.
+ *
+ * Nunca vai para cache: a mesma `/` é a landing para uns e um redireccionamento para outros.
+ */
+function sessionRedirect(request: NextRequest, destination: string) {
+  const origin = redirectOrigin(
+    process.env.APP_ORIGIN,
+    request.headers,
+    request.nextUrl.protocol,
+    process.env.NODE_ENV === 'production',
+  );
+  if (!origin && destination.startsWith('/')) return null;
+  const response = NextResponse.redirect(new URL(destination, origin ?? undefined), 307);
+  response.headers.set('Cache-Control', NOT_SHARED_CACHE);
+  response.headers.set('Vary', 'Cookie');
+  return response;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -39,7 +63,21 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (prefersMarkdown(request.headers.get('accept'))) {
+  const wantsMarkdown = prefersMarkdown(request.headers.get('accept'));
+
+  // Quem já tem sessão não precisa da página de apresentação: vai direto para a sua app.
+  // Só na raiz, de propósito: /doar, /privacidade e /cookies continuam abertos a quem
+  // está autenticado. E só para HTML, porque quem pede Markdown é um agente sem sessão.
+  if (pathname === '/' && !wantsMarkdown) {
+    const destination = sessionDestination(
+      request.cookies.get(SESSION_COOKIE)?.value,
+      process.env.NEXT_PUBLIC_MANAGER_URL,
+    );
+    const redirect = destination ? sessionRedirect(request, destination) : null;
+    if (redirect) return redirect;
+  }
+
+  if (wantsMarkdown) {
     const url = request.nextUrl.clone();
     url.pathname = `/api/markdown${pathname === '/' ? '' : pathname}`;
     // A resposta Markdown é a que se serve; o `Vary` põe-se nela, na rota que a escreve.
