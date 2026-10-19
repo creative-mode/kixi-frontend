@@ -34,7 +34,7 @@ export function AccountMenu({ name, photo, active, placement }: { name: string; 
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={cn('grid size-12 place-items-center rounded-full outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40', active && 'ring-2 ring-primary')}
+        className={cn('grid size-12 place-items-center rounded-full outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40')}
       >
         <UserAvatar name={name} src={photo} size={36} />
       </button>
