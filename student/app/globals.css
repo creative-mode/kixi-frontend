@@ -10,7 +10,19 @@
   body { background: var(--background); color: var(--foreground); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   :focus-visible { outline-color: var(--ring); }
   button:not(:disabled), [role='button']:not(:disabled), [role='tab'], [role='switch'], summary { cursor: pointer; }
+  /* Toque: sem o atraso de 300 ms nem o clarão cinzento do browser; a resposta é a nossa. */
+  a, button, [role='button'], [role='tab'], summary, label { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 }
+
+/* Toda a superfície tocável cede ao toque, em passos (como o botão da landing): afunda e volta. */
+@layer components {
+  button:not(:disabled):not(.px-btn), [role='tab'], a[data-press] { transition: transform .12s steps(3, end), background-color .15s, color .15s; }
+  button:not(:disabled):not(.px-btn):active, [role='tab']:active, a[data-press]:active { transform: scale(.9); }
+  .pop { animation: pop .32s steps(5, end); }
+  .rise { animation: rise .28s steps(5, end) both; }
+}
+@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /*
  * `prefers-reduced-motion` (FE-25). O app do gestor já tinha isto; o aluno, que é
