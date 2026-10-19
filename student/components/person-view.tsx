@@ -128,12 +128,12 @@ export function PersonView({
       {/* Um professor não tem medalhas (é gamificação só do aluno, #371): sem separador
           nenhum a mostrar, as publicações aparecem sozinhas em vez de dentro de um Tabs
           de uma aba só — é a própria estrutura do perfil a ficar diferente, não só os dados. */}
-      {!person.restricted && (
+      {!person.restricted && (teacher ? publications : (
         <Tabs defaultValue="Publicações">
           <TabsList aria-label="Perfil">
             <TabsTrigger value="Publicações">Publicações</TabsTrigger>
             <TabsTrigger value="Experiência">Experiência</TabsTrigger>
-            {!teacher && <TabsTrigger value="Medalhas">Medalhas</TabsTrigger>}
+            <TabsTrigger value="Medalhas">Medalhas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="Publicações" className="flex flex-col">
@@ -162,7 +162,7 @@ export function PersonView({
             )}
           </TabsContent>
         </Tabs>
-      )}
+      ))}
     </Page>
   );
 }
