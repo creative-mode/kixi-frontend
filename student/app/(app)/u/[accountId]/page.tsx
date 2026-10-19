@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { PersonView } from '@/components/person-view';
 import { RefreshError } from '@/components/refresh-error';
+import { getExperience } from '@/lib/experience';
 import { getFeed } from '@/lib/feed';
 import { loadConnectionsAction } from '@/lib/friends-actions';
 import { getProfile } from '@/lib/me';
@@ -30,6 +31,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ account
   const posts = feed?.ok ? feed.data.filter((p) => p.authorAccountId === id) : [];
   // Amigos ou pedido já trocado com esta pessoa (#121): o botão de amizade do perfil
   // não pede do zero se já há uma ligação — mostra o estado em que ela está.
+  const experience = await getExperience(id);
   const connections = me ? await loadConnectionsAction() : { friends: [], requests: [] };
   const friend = [...connections.friends, ...connections.requests].find((f) => f.accountId === id) ?? null;
 
@@ -44,6 +46,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ account
       myPhoto={me ? photoUrl(me) : null}
       myClassId={myClassId}
       friend={friend}
+      experience={experience.ok ? experience.data : []}
     />
   );
 }

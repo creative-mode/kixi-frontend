@@ -32,10 +32,12 @@ export function shortTitle(title: string, max = 28): string {
 }
 
 /** Os separadores do perfil; `tab` de um endereço só vale se for um deles. */
-export const PROFILE_TABS = ['Publicações', 'Atividade', 'Desempenho', 'Medalhas', 'Histórico', 'Definições'] as const;
+export const PROFILE_TABS = ['Publicações', 'Experiência', 'Conquistas', 'Definições'] as const;
 export type ProfileTab = (typeof PROFILE_TABS)[number];
 
 export function profileTabOf(value: string | string[] | undefined): ProfileTab {
   const raw = Array.isArray(value) ? value[0] : value;
+  // Endereços antigos: os quatro separadores de resultados passaram a um só.
+  if (['Atividade', 'Desempenho', 'Medalhas', 'Histórico'].includes(raw ?? '')) return 'Conquistas';
   return (PROFILE_TABS as readonly string[]).includes(raw ?? '') ? (raw as ProfileTab) : 'Publicações';
 }

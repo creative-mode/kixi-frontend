@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Award, BookOpen, Building2, CalendarDays, Check, Flame, LogOut, Users } from 'lucide-react';
+import { Ico } from '@/components/ui/ico';
+import { CountUp } from '@/components/count-up';
+import { Experience } from '@/components/experience';
+import type { ExperienceEntry } from '@/lib/experience-rules';
 import { sairAction } from '@/lib/auth-actions';
 import { Mastery } from '@/components/mastery';
 import { Page, PageHeader } from '@/components/page';
@@ -22,7 +25,6 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setReduceMotion, useReduceMotion } from '@/lib/motion';
-import { sinceLabel } from '@/lib/attempt-history';
 import { formatAverage } from '@/lib/ranking-rules';
 import { PROFILE_TABS, shortTitle, type ProfileTab } from '@/lib/social-rules';
 import type { Performance } from '@/lib/performance-rules';
@@ -31,8 +33,8 @@ import type { FeedPost } from '@/lib/feed';
 import type { Badge, Stats } from '@/lib/stats';
 import type { Me } from '@/lib/types';
 
-function Fact({ icon: Icon, children }: { icon: typeof Building2; children: React.ReactNode }) {
-  return <li className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground"><Icon className="size-4 shrink-0" aria-hidden /><span className="min-w-0 truncate">{children}</span></li>;
+function Fact({ icon, children }: { icon: Parameters<typeof Ico>[0]['name']; children: React.ReactNode }) {
+  return <li className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground"><Ico name={icon} size={16} className="shrink-0" /><span className="min-w-0 truncate">{children}</span></li>;
 }
 
 /** O centro do perfil: cabeçalho, últimas simulações, sequência de estudo e separadores. */
@@ -48,7 +50,9 @@ export function PerfilView({
   initialTab = 'Publicações',
   startEditing = false,
   visibility = 'school',
+  experience = [],
 }: {
+  experience?: ExperienceEntry[];
   me: Me;
   visibility?: Visibility;
   stats: Stats | null;
@@ -77,25 +81,20 @@ export function PerfilView({
       <ProfileHero
         name={name}
         photo={photoUrl(me)}
-        actions={!editing ? (
-          <>
-            <form action={sairAction}><Button type="submit" variant="ghost" className="text-muted-foreground"><LogOut aria-hidden />Terminar sessão</Button></form>
-            <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button>
-          </>
-        ) : undefined}
+        actions={!editing ? <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button> : undefined}
         footer={editing ? <div className="border-t"><ProfileEditor me={me} onDone={close} /></div> : undefined}
       >
         {!context && <p className="text-[15px] text-muted-foreground">Sem afiliação académica: matricula-te para veres o teu feed.</p>}
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-          {me.school && <Fact icon={Building2}>{me.school.name}</Fact>}
-          {me.course && <Fact icon={BookOpen}>{me.course.name}</Fact>}
-          {me.currentClass && <Fact icon={Users}>Turma {me.currentClass.code}</Fact>}
-          {me.currentClass?.school_year && <Fact icon={CalendarDays}>Ano letivo {me.currentClass.school_year}</Fact>}
+          {me.school && <Fact icon="building">{me.school.name}</Fact>}
+          {me.course && <Fact icon="file">{me.course.name}</Fact>}
+          {me.currentClass && <Fact icon="users">Turma {me.currentClass.code}</Fact>}
+          {me.currentClass?.school_year && <Fact icon="calendar">Ano letivo {me.currentClass.school_year}</Fact>}
         </ul>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {stats && <Pill variant="secondary"><Award className="size-3" aria-hidden />Nível {stats.level}</Pill>}
-          {stats && stats.streak > 0 && <Pill variant="outline"><Flame className="size-3" aria-hidden />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
-          {stats && <Pill variant="outline">{stats.xp} XP</Pill>}
+          {stats && <Pill variant="secondary"><Ico name="award" size={14} />Nível {stats.level}</Pill>}
+          {stats && stats.streak > 0 && <Pill variant="outline"><Ico name="flame" filled size={14} />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
+          {stats && <Pill variant="outline"><CountUp value={String(stats.xp)} /> XP</Pill>}
         </div>
         {recent.length > 0 && (
           <ul aria-label="Últimas simulações" className="mt-4 grid grid-cols-3 gap-2">
@@ -127,24 +126,27 @@ export function PerfilView({
           )}
         </TabsContent>
 
-        <TabsContent value="Atividade" className="p-4">
-          <Card className="gap-0 divide-y py-0">
-            {performance.activity.length === 0 && (
-              <div className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
-                <b className="text-foreground">Ainda não há atividade</b>
-                <span>As provas que entregares aparecem aqui.</span>
-              </div>
-            )}
-            {performance.activity.slice(0, 10).map((a) => (
-              <div key={a.id} className="flex items-center gap-3.5 px-5 py-3.5">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Check className="size-[18px]" /></span>
-                <div className="leading-snug"><b className="block text-sm">Concluíste {a.title}</b><span className="text-[13px] text-muted-foreground">Nota {formatAverage(a.score)}{sinceLabel(a.finishedAt) ? ` · ${sinceLabel(a.finishedAt)}` : ''}</span></div>
-              </div>
-            ))}
-          </Card>
+        <TabsContent value="Experiência">
+          <Experience entries={experience} teacher={false} own />
         </TabsContent>
 
-        <TabsContent value="Desempenho" className="p-4">
+        <TabsContent value="Conquistas" className="grid gap-4 p-4">
+          <Card><CardHeader><CardTitle>Medalhas</CardTitle></CardHeader>
+            <CardContent>
+              {badges.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Termina a primeira simulação para ganhar a primeira medalha.</p>
+              ) : (
+                <ul className="grid gap-3.5 sm:grid-cols-2">
+                  {badges.map((b) => (
+                    <li key={b.code} className="flex items-center gap-3.5">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Ico name="award" filled size={22} /></span>
+                      <div className="leading-snug"><b className="block text-sm">{b.name}</b><span className="text-[13px] text-muted-foreground">{b.description}</span></div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
           <Card><CardHeader><CardTitle>Domínio por prova</CardTitle></CardHeader>
             <CardContent className="grid gap-3.5">
               {performance.mastery.length === 0
@@ -152,45 +154,23 @@ export function PerfilView({
                 : performance.mastery.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="Medalhas" className="p-4">
-          {badges.length === 0 ? (
-            <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
-              <b className="text-foreground">Ainda não desbloqueaste medalhas</b>
-              <span>Termina a primeira simulação para ganhar a primeira.</span>
-            </Card>
-          ) : (
-            <div className="grid gap-3.5 sm:grid-cols-2">
-              {badges.map((b) => (
-                <Card key={b.code} className="flex-row items-center gap-3.5 px-5 py-3.5">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Award className="size-5" /></span>
-                  <div className="leading-snug"><b className="block text-sm">{b.name}</b><span className="text-[13px] text-muted-foreground">{b.description}</span></div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="Histórico" className="p-4">
-          {history.length === 0 ? (
-            <Card className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
-              <b className="text-foreground">Ainda não terminaste nenhuma prova</b>
-              <span>As provas concluídas aparecem aqui, com a nota.</span>
-            </Card>
-          ) : (
-            <Card className="gap-0 divide-y py-0">
-              {history.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-3.5 px-5 py-3.5">
-                  <div className="leading-snug">
-                    <b className="block text-sm">{item.title}</b>
-                    <span className="text-[13px] text-muted-foreground">{[item.kind, item.subject, item.school].filter(Boolean).join(' · ')}</span>
-                  </div>
-                  <Pill variant="success">{item.score}</Pill>
+          <Card className="gap-0 divide-y py-0">
+            {history.length === 0 && (
+              <div className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
+                <b className="text-foreground">Ainda não terminaste nenhuma prova</b>
+                <span>As provas concluídas aparecem aqui, com a nota.</span>
+              </div>
+            )}
+            {history.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3.5 px-5 py-3.5">
+                <div className="leading-snug">
+                  <b className="block text-sm">{item.title}</b>
+                  <span className="text-[13px] text-muted-foreground">{[item.kind, item.subject, item.school].filter(Boolean).join(' · ')}</span>
                 </div>
-              ))}
-            </Card>
-          )}
+                <Pill variant="success">{item.score}</Pill>
+              </div>
+            ))}
+          </Card>
         </TabsContent>
 
         <TabsContent value="Definições" className="p-4">
@@ -210,6 +190,9 @@ export function PerfilView({
                 <Pill variant={me.accessibility_extra_time ? 'success' : 'secondary'}>{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</Pill>
               </div>
               <VisibilityPicker initial={visibility} />
+              <form action={sairAction} className="pt-3.5 last:pb-0">
+                <Button type="submit" variant="outline" className="w-full text-destructive sm:w-auto"><Ico name="logout" size={20} />Terminar sessão</Button>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>

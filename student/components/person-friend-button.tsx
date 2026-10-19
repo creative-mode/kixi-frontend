@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, UserPlus, X } from 'lucide-react';
+import { Ico } from '@/components/ui/ico';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { acceptFriendAction, removeFriendAction, requestFriendAction } from '@/lib/friends-actions';
@@ -25,35 +25,49 @@ export function PersonFriendButton({ accountId, friend }: { accountId: number; f
       setNotice(result.ok ? (done ?? null) : null);
     });
 
+  // Estado imediato (otimista): o botão muda no toque e volta atrás só se o servidor recusar.
+  const [sent, setSent] = useState(false);
+  const base = 'min-h-12 w-full gap-2 text-[15px] sm:w-auto';
+  const rise = 'rise';
+
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-2 px-4">
       {message && <Alert variant="destructive">{message}</Alert>}
       {notice && <Alert variant="success" role="status">{notice}</Alert>}
       {friend?.accepted ? (
-        <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))}>
-          No teu Buke · Remover
+        <Button variant="outline" className={base} aria-label="Amigos. Tocar para remover do Buke" title="Amigos" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))}>
+          <Ico name="userCheck" filled size={24} />Amigos
         </Button>
       ) : friend?.incoming ? (
         <div className="flex gap-2">
-          <Button size="sm" disabled={pending} onClick={() => run(() => acceptFriendAction(friend.friendshipId), 'Adicionado ao Buke')}>
-            <Check />Aceitar
+          <Button className={base} aria-label="Aceitar pedido de amizade" disabled={pending} onClick={() => run(() => acceptFriendAction(friend.friendshipId), 'Adicionado ao Buke')}>
+            <Ico name="check" size={24} />Aceitar
           </Button>
-          <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))} aria-label="Recusar pedido">
-            <X />
+          <Button variant="outline" size="icon" className="size-12" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))} aria-label="Recusar pedido" title="Recusar">
+            <Ico name="x" size={22} />
           </Button>
         </div>
-      ) : friend ? (
-        // Pedido já enviado, ainda por responder.
-        <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))}>
-          Pedido enviado · Cancelar
+      ) : friend || sent ? (
+        <Button key="sent" variant="secondary" className={`${base} ${rise}`} aria-label="Pedido enviado. Tocar para cancelar" title="Pedido enviado" disabled={pending || !friend} onClick={() => friend && run(() => removeFriendAction(friend.friendshipId))}>
+          <Ico name="clock" size={24} />Pedido enviado
         </Button>
       ) : (
         <Button
-          size="sm"
+          key="add"
+          className={base}
+          aria-label="Adicionar ao Buke"
           disabled={pending}
-          onClick={() => run(() => requestFriendAction(accountId), 'Pedido enviado. Aparece no teu Buke quando aceitar.')}
+          onClick={() => {
+            setSent(true);
+            startTransition(async () => {
+              const result = await requestFriendAction(accountId);
+              setMessage(result.ok ? null : result.message);
+              setNotice(result.ok ? 'Pedido enviado. Aparece no teu Buke quando aceitar.' : null);
+              if (!result.ok) setSent(false);
+            });
+          }}
         >
-          <UserPlus />Add ao Buke
+          <Ico name="userPlus" size={24} />Adicionar
         </Button>
       )}
     </div>
