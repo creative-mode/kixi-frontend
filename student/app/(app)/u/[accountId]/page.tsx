@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { PersonView } from '@/components/person-view';
 import { RefreshError } from '@/components/refresh-error';
 import { getFeed } from '@/lib/feed';
+import { loadConnectionsAction } from '@/lib/friends-actions';
 import { getProfile } from '@/lib/me';
 import { fullName, photoUrl } from '@/lib/profile';
 import { getPerson } from '@/lib/profiles';
@@ -27,6 +28,10 @@ export default async function PessoaPage({ params }: { params: Promise<{ account
   // As publicações desta pessoa que a tua turma vê: o feed é por turma, por isso só há as da mesma turma.
   const feed = myClassId ? await getFeed(myClassId, 1, 30) : null;
   const posts = feed?.ok ? feed.data.filter((p) => p.authorAccountId === id) : [];
+  // Amigos ou pedido já trocado com esta pessoa (#121): o botão de amizade do perfil
+  // não pede do zero se já há uma ligação — mostra o estado em que ela está.
+  const connections = me ? await loadConnectionsAction() : { friends: [], requests: [] };
+  const friend = [...connections.friends, ...connections.requests].find((f) => f.accountId === id) ?? null;
 
   return (
     <PersonView
@@ -38,6 +43,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ account
       myName={me ? fullName(me) : ''}
       myPhoto={me ? photoUrl(me) : null}
       myClassId={myClassId}
+      friend={friend}
     />
   );
 }
