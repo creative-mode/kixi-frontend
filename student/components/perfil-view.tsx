@@ -101,7 +101,7 @@ export function PerfilView({
           <ul aria-label="Últimas simulações" className="mt-4 grid grid-cols-3 gap-2">
             {recent.map((a) => (
               <li key={a.id}>
-                <Link href={`/resultado?prova=${a.id}`} className="px-box grid h-full content-between gap-2 p-3 [--px-face:var(--secondary)] hover:[--px-face:var(--accent)]">
+                <Link prefetch={false} href={`/resultado?prova=${a.id}`} className="px-box grid h-full content-between gap-2 p-3 [--px-face:var(--secondary)] hover:[--px-face:var(--accent)]">
                   <b className="text-lg leading-none tabular-nums">{formatAverage(a.score)}</b>
                   <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{shortTitle(a.title, 32)}</span>
                 </Link>
