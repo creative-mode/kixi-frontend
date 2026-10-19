@@ -14,6 +14,9 @@ export type Result<T> = { ok: true; data: T } | { ok: false; status: number; mes
 
 const TIMEOUT = 10000;
 
+/** `KIXI_TRACE=1` escreve no log do servidor cada leitura ao backend e quanto demorou: é assim que se vê onde uma página gasta o tempo. */
+const TRACE = process.env.KIXI_TRACE === '1';
+
 /** As leituras deste pedido (#393): a mesma leitura pedida duas vezes na mesma página vai uma só vez ao backend.
  *  O `cache` do React dá uma memória nova a cada pedido, por isso nada passa de um aluno para outro. */
 const requestReads = cache(() => new ReadMemo());
@@ -81,6 +84,7 @@ async function send<T>(
   }
   const suffix = search.size > 0 ? `?${search.toString()}` : '';
 
+  const started = TRACE ? performance.now() : 0;
   try {
     const res = MOCK
       ? await mockHandle(method, `${path}${suffix}`, token, payload)
@@ -96,6 +100,7 @@ async function send<T>(
           signal: AbortSignal.timeout(TIMEOUT),
         });
 
+    if (TRACE) console.log(`[api] ${method} ${path}${suffix.slice(0, 60)} ${res.status} ${Math.round(performance.now() - started)}ms`);
     if (!res.ok) return { ok: false, ...(await problem(res)) };
     if (res.status === 204) return { ok: true, data: undefined as T };
     return { ok: true, data: (await res.json()) as T };

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { requireStudent } from '@/lib/guard';
 import { getMe } from '@/lib/me';
 import { getRoom } from '@/lib/exam';
@@ -47,5 +48,10 @@ export default async function ProvaPage({ params }: { params: Params }) {
   // O +25% é do servidor, não uma escolha do ecrã: o `deadline` já o inclui
   // (SimulationDeadlineService.java:94). O rótulo só aparece a quem o tem.
   const me = await getMe();
-  return <SalaProva data={room.data} extraTime={me?.accessibility_extra_time === true} />;
+  return (
+    <>
+      <FireEventOnce param="iniciada" event="exam_started" />
+      <SalaProva data={room.data} extraTime={me?.accessibility_extra_time === true} />
+    </>
+  );
 }

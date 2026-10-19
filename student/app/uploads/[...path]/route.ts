@@ -21,7 +21,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ path: string[]
     headers: {
       'content-type': res.headers.get('content-type') ?? 'application/octet-stream',
       'x-content-type-options': 'nosniff',
-      'cache-control': 'public, max-age=3600',
+      // O nome do ficheiro é aleatório e um ficheiro novo ganha outro nome: nunca muda de conteúdo, por isso o browser não precisa de voltar a perguntar.
+      'cache-control': 'public, max-age=31536000, immutable',
     },
   });
 }

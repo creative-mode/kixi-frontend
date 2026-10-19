@@ -82,6 +82,12 @@ const erros: Error[] = [];
 test.beforeEach(async ({ page }) => {
   erros.length = 0;
   page.on('pageerror', (erro) => erros.push(erro));
+  // O banner de cookies do aluno (kixi-frontend#219) fica fixo ao fundo do ecrã até
+  // haver escolha, e nalguns ecrãs mais curtos cobria ações reais (ex.: "Estudar os
+  // erros com o tutor" no resultado). Pré-semear a escolha é o que um visitante que já
+  // respondeu antes tem — não há banner nenhum para testar aqui, só as jornadas por
+  // baixo dele.
+  await page.addInitScript(() => localStorage.setItem('kixi-consent', 'necessary'));
 });
 
 test.afterEach(() => {

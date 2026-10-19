@@ -1,5 +1,6 @@
 'use server';
 
+import { forgetVisitedPages } from './refresh';
 import {
   acceptFriend,
   listFriends,
@@ -26,15 +27,18 @@ export async function searchColleaguesAction(q: string): Promise<Colleague[]> {
 
 export async function requestFriendAction(accountId: number): Promise<Done> {
   const result = await requestFriend(accountId);
+  if (result.ok) forgetVisitedPages();
   return result.ok ? { ok: true } : { ok: false, message: result.message };
 }
 
 export async function acceptFriendAction(friendshipId: number): Promise<Done> {
   const result = await acceptFriend(friendshipId);
+  if (result.ok) forgetVisitedPages();
   return result.ok ? { ok: true } : { ok: false, message: result.message };
 }
 
 export async function removeFriendAction(friendshipId: number): Promise<Done> {
   const result = await removeFriend(friendshipId);
+  if (result.ok) forgetVisitedPages();
   return result.ok ? { ok: true } : { ok: false, message: result.message };
 }

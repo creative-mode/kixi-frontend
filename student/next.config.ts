@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.resolve(__dirname),
   experimental: {
+    // Voltar a uma página já vista não vai ao servidor outra vez: o Next guarda o resultado de cada página no
+    // browser. O valor por omissão para páginas dinâmicas é 0, e por isso cada clique voltava a esperar pelo
+    // servidor, mesmo numa página vista segundos antes. Trinta segundos chegam para o vai-e-vem entre
+    // separadores (início, provas, liga, perfil) e as escritas esvaziam-no (`forgetVisitedPages`), por isso
+    // o que o aluno acabou de fazer nunca aparece desatualizado.
+    staleTimes: { dynamic: 30, static: 300 },
     // A foto de perfil vai por server action e o Next limita o corpo a 1 MB por
     // omissao — menos do que os 2 MB que `enviarFotoAction` aceita e que a interface
     // anuncia. Uma fotografia entre 1 e 2 MB era recusada pelo Next antes de a action

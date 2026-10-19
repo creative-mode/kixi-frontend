@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { House, FileText, MessageCircle, Search, Trophy, User } from 'lucide-react';
 import { Logo } from './brand';
+import { NavProgress } from './nav-progress';
 import { UserAvatar } from './user-avatar';
 import { Button } from '@/components/ui/button';
 import { fullName, photoUrl } from '@/lib/profile';
@@ -34,6 +35,7 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[1500px]">
+      <NavProgress />
       <a
         href="#conteudo"
         className="sr-only left-3 top-3 z-50 rounded-md bg-card px-4 py-3 text-[15px] font-semibold shadow-md focus:not-sr-only focus:absolute"
@@ -48,7 +50,8 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
             {ITEMS.map((it) => (
               <Link
                 key={it.href}
-                href={it.href}
+                prefetch
+href={it.href}
                 aria-current={on(it) ? 'page' : undefined}
                 aria-label={it.label}
                 title={it.label}
@@ -86,7 +89,8 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
 
       <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background/95 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         {ITEMS.map((it) => (
-          <Link key={it.href} href={it.href} aria-current={on(it) ? 'page' : undefined} aria-label={it.label} className="flex min-h-12 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-muted-foreground aria-[current=page]:text-foreground">
+          <Link key={it.href} prefetch
+href={it.href} aria-current={on(it) ? 'page' : undefined} aria-label={it.label} className="flex min-h-12 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-muted-foreground aria-[current=page]:text-foreground">
             <it.icon className="size-[24px]" strokeWidth={on(it) ? 2.4 : 1.8} /><span>{it.label}</span>
           </Link>
         ))}
