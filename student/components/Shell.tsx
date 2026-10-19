@@ -2,21 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { House, FileText, MessageCircle, Search, Trophy, User } from 'lucide-react';
+import { Ico, type IcoName } from '@/components/ui/ico';
+import { AccountMenu } from './account-menu';
 import { Logo } from './brand';
 import { NavProgress } from './nav-progress';
-import { UserAvatar } from './user-avatar';
-import { Button } from '@/components/ui/button';
 import { fullName, photoUrl } from '@/lib/profile';
 import { useMe } from '@/lib/me-context';
 import { cn } from '@/lib/utils';
 
-const ITEMS = [
-  { href: '/inicio', label: 'Início', icon: House, also: [] as string[] },
-  { href: '/provas', label: 'Provas', icon: FileText, also: ['/prova', '/resultado', '/sala'] },
-  { href: '/ranking', label: 'Liga', icon: Trophy, also: [] as string[] },
-  { href: '/tutor', label: 'Tutor', icon: MessageCircle, also: [] as string[] },
-  { href: '/perfil', label: 'Perfil', icon: User, also: [] as string[] },
+/** O perfil não tem entrada aqui: abre-se pelo avatar (menu da conta), que também termina a sessão. */
+const ITEMS: { href: string; label: string; icon: IcoName; also: string[] }[] = [
+  { href: '/inicio', label: 'Início', icon: 'home', also: [] },
+  { href: '/provas', label: 'Provas', icon: 'file', also: ['/prova', '/resultado', '/sala'] },
+  { href: '/ranking', label: 'Liga', icon: 'trophy', also: [] },
+  { href: '/tutor', label: 'Tutor', icon: 'chat', also: [] },
 ];
 
 /** Páginas onde a coluna da direita atrapalha: conversa com o tutor, que precisa de largura. */
@@ -51,28 +50,26 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
               <Link
                 key={it.href}
                 prefetch
-href={it.href}
+                data-press
+                href={it.href}
                 aria-current={on(it) ? 'page' : undefined}
                 aria-label={it.label}
                 title={it.label}
-                className="grid size-12 place-items-center rounded-full text-foreground transition-colors outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-accent aria-[current=page]:text-primary"
+                className="grid size-12 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:text-primary"
               >
-                <it.icon className="size-[26px]" strokeWidth={on(it) ? 2.4 : 1.8} aria-hidden />
+                <Ico name={it.icon} filled={on(it)} size={28} />
               </Link>
             ))}
           </nav>
         </div>
-        <Link href="/perfil" title={name} className="grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary">
-          <span className="sr-only">Perfil de {name}</span>
-          <UserAvatar name={name} src={photoUrl(me)} size={40} />
-        </Link>
+        <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil' || path.startsWith('/perfil/')} placement="side" />
       </header>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur md:hidden">
-          <Link href="/perfil" className="grid size-11 place-items-center"><span className="sr-only">Perfil de {name}</span><UserAvatar name={name} src={photoUrl(me)} size={32} /></Link>
+          <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil'} placement="top" />
           <Link href="/inicio" aria-label="Kixi, início" className="grid min-h-11 place-items-center px-2"><Logo size={22} wordmark /></Link>
-          <Button asChild variant="ghost" size="icon" className="size-11" aria-label="Pesquisar escolas, professores e alunos"><Link href="/pesquisa"><Search /></Link></Button>
+          <Link href="/pesquisa" data-press aria-label="Pesquisar escolas, professores e alunos" title="Pesquisar" className="grid size-12 place-items-center rounded-full hover:bg-secondary"><Ico name="search" size={26} /></Link>
         </header>
 
         <div className="flex min-w-0 flex-1">
@@ -87,11 +84,10 @@ href={it.href}
         </div>
       </div>
 
-      <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background/95 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+      <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background/95 px-1 pt-1 pb-[calc(4px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         {ITEMS.map((it) => (
-          <Link key={it.href} prefetch
-href={it.href} aria-current={on(it) ? 'page' : undefined} aria-label={it.label} className="flex min-h-12 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-muted-foreground aria-[current=page]:text-foreground">
-            <it.icon className="size-[24px]" strokeWidth={on(it) ? 2.4 : 1.8} /><span>{it.label}</span>
+          <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} aria-label={it.label} title={it.label} className="grid min-h-14 place-items-center text-muted-foreground aria-[current=page]:text-primary">
+            <Ico name={it.icon} filled={on(it)} size={28} />
           </Link>
         ))}
       </nav>

@@ -1,13 +1,12 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import { Flag, MessageCircle, Send, ThumbsUp } from 'lucide-react';
+import { Ico } from '@/components/ui/ico';
 import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
 import { PostBlocksView } from '@/components/post-blocks-view';
 import { UserAvatar } from '@/components/user-avatar';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
@@ -124,11 +123,11 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
     if (next) readComments();
   };
 
-  const act = 'h-11 gap-2 px-3 text-muted-foreground aria-pressed:text-primary aria-expanded:text-foreground';
+  const act = 'h-11 min-w-11 gap-1.5 px-3 text-muted-foreground aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
 
   return (
-    <article className="flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
+    <article className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
       <UserAvatar name={author.name} src={author.photo} size={44} />
       <div className="min-w-0 flex-1">
         <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">
@@ -138,9 +137,9 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             <Link prefetch={false} href={`/u/${post.authorAccountId}`} className="inline-flex min-h-6 items-center font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
           )}
           {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
-          {author.classmate && <Badge variant="outline" className="self-center">{CLASSMATE_LABEL}</Badge>}
+          {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={16} /></span>}
           <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>
-          <Badge variant="secondary" className="ml-auto">{postTypeLabel(post.type)}</Badge>
+          <span title={postTypeLabel(post.type)} role="img" aria-label={postTypeLabel(post.type)} className="ml-auto grid size-7 place-items-center rounded-full bg-secondary text-muted-foreground"><Ico name={post.type === 'doubt' ? 'chat' : post.type === 'simulation' || post.type === 'milestone' ? 'award' : post.type === 'challenge' ? 'flame' : 'file'} size={16} /></span>
         </header>
         <div className="mt-1 grid gap-2.5">
           {post.title && <h3 className="font-semibold">{post.title}</h3>}
@@ -153,19 +152,19 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             : post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
         </div>
 
-        <div className="-ml-3 mt-1 flex flex-wrap items-center gap-0.5 py-0.5">
-          <Button variant="ghost" className={act} aria-pressed={reacted} disabled={pending} onClick={toggleReaction}>
-            <ThumbsUp className={cn(reacted && 'fill-primary/15')} />Aplaudir
+        <div className="-ml-3 mt-1 flex items-center gap-1 py-0.5">
+          <Button variant="ghost" className={cn(act, reacted && 'text-destructive')} aria-pressed={reacted} aria-label={reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={pending} onClick={toggleReaction}>
+            <Ico key={String(reacted)} name="heart" filled={reacted} size={24} className={cn(reacted && 'pop')} />
           </Button>
-          <Button variant="ghost" className={act} aria-expanded={open} onClick={togglePanel}>
-            <MessageCircle />Comentar<span className="tabular-nums">{count}</span>
+          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" onClick={togglePanel}>
+            <Ico name="chat" filled={open} size={24} /><span className="min-w-3 text-[14px] tabular-nums">{count}</span>
           </Button>
           <Button
             variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
-            aria-pressed={reporting || reported} aria-label="Denunciar publicação" disabled={reported}
+            aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={reported}
             onClick={() => setReporting((v) => !v)}
           >
-            <Flag className={cn((reporting || reported) && 'fill-destructive/15')} />
+            <Ico name="flag" filled={reporting || reported} size={22} />
           </Button>
         </div>
 
@@ -228,7 +227,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
             <UserAvatar name={myName} src={myPhoto} size={32} />
             <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
-            <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Send /></Button>
+            <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Ico name="send" size={22} /></Button>
           </form>
           {commentError && <Alert variant="destructive">{commentError}</Alert>}
         </div>
