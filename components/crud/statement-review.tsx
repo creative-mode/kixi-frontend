@@ -41,7 +41,7 @@ const typeLabel = (t: string | null) => (t ? QUESTION_TYPES[t.toUpperCase()] ?? 
 type OptionDraft = { id: number; optionLabel: string; optionText: string; isCorrect: boolean };
 // A cotação fica como o professor a escreve: como número, apagar o campo dava 0 e
 // escrever a seguir dava "01.5".
-type QuestionDraft = { id: number; number: number; parentId: number | null; label: string | null; questionType: string | null; text: string; maxScore: string; needsReview: boolean; modelAnswer: string; options: OptionDraft[] };
+type QuestionDraft = { id: number; number: number; parentId: number | null; label: string | null; questionType: string | null; text: string; maxScore: string; needsReview: boolean; ocrConfidence: number | null; modelAnswer: string; options: OptionDraft[] };
 type HeaderDraft = { institutionId: string; title: string; examType: string; variant: string; durationMinutes: string; instructions: string; totalMaxScore: string; subjectId: string; classId: string; schoolYearId: string; termId: string };
 type Draft = { header: HeaderDraft; questions: QuestionDraft[] };
 
@@ -73,6 +73,7 @@ function toDraft(s: Row): Draft {
       text: q.text ?? '',
       maxScore: str(q.maxScore ?? 0),
       needsReview: !!q.needsReview,
+      ocrConfidence: q.ocrConfidence ?? null,
       modelAnswer: q.modelAnswer ?? '',
       options: (q.options ?? []).map((o: Row) => ({ id: Number(o.id), optionLabel: o.optionLabel, optionText: o.optionText ?? '', isCorrect: !!o.isCorrect })),
     })),
@@ -487,6 +488,9 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                 <strong>{q.parentId != null ? 'Alínea' : 'Questão'} {displayNumber(q, questions)}</strong>
                 <Badge variant="outline">{typeLabel(q.questionType)}</Badge>
                 {q.needsReview ? <Badge variant="secondary">OCR a rever</Badge> : null}
+                {q.ocrConfidence != null && q.ocrConfidence < 0.9 ? (
+                  <Badge variant="secondary">Confiança OCR baixa ({Math.round(q.ocrConfidence * 100)}%)</Badge>
+                ) : null}
                 {isGroup(q) ? (
                   <span className="ml-auto text-xs text-muted-foreground">Vale a soma das alíneas</span>
                 ) : (

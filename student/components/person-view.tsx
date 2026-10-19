@@ -12,8 +12,10 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CLASSMATE_LABEL, type FeedAuthor } from '@/lib/feed-rules';
 import type { FeedPost } from '@/lib/feed';
+import type { Friend } from '@/lib/friends';
 import type { PersonProfile } from '@/lib/profiles';
 import { PersonActions } from './person-actions';
+import { PersonFriendButton } from './person-friend-button';
 
 /**
  * O perfil de outra pessoa, no mesmo modelo do teu: faixa, foto grande sobreposta, nome, factos,
@@ -28,6 +30,7 @@ export function PersonView({
   myName,
   myPhoto,
   myClassId,
+  friend,
 }: {
   person: PersonProfile & { accountId: number };
   posts: FeedPost[];
@@ -36,6 +39,7 @@ export function PersonView({
   myName: string;
   myPhoto: string | null;
   myClassId: number | null;
+  friend: Friend | null;
 }) {
   const teacher = person.kind === 'TEACHER';
   const author: FeedAuthor = { name: person.displayName, photo: person.photo, verified: person.verified };
@@ -71,6 +75,15 @@ export function PersonView({
           </>
         )}
       </ProfileHero>
+
+      {/* Amizade (#121): só entre alunos — o professor e quem já viu a regra "mesma
+          escola e ano letivo" falhar fica sem o botão em vez de um pedido que o
+          servidor recusa sempre. Não aparece no próprio perfil (a página redirige antes). */}
+      {!teacher && myAccountId !== null && (
+        <div className="border-t pt-4">
+          <PersonFriendButton accountId={person.accountId} friend={friend} />
+        </div>
+      )}
 
       {/* Denunciar e bloquear (#323). Não aparece no próprio perfil: denunciar-se a si
           não tem moderação que resolva, e bloquear-se a si dá sempre erro. */}
