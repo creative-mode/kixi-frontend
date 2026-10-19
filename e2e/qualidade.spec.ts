@@ -165,8 +165,8 @@ test.describe('alvos de toque no telemóvel', () => {
       expect(pequenos, rota).toEqual([]);
     }
     await page.goto('/aluno/inicio');
-    for (const nome of [/Perfil de/, /Kixi, início/, /Pesquisar escolas/]) {
-      const caixa = await page.locator('header.sticky').getByRole('link', { name: nome }).first().boundingBox();
+    for (const [papel, nome] of [['button', /Conta de/], ['link', /Kixi, início/], ['link', /Pesquisar escolas/]] as const) {
+      const caixa = await page.locator('header.sticky').getByRole(papel, { name: nome }).first().boundingBox();
       expect(caixa?.height ?? 0, String(nome)).toBeGreaterThanOrEqual(44);
     }
   });
@@ -288,6 +288,7 @@ test.describe('auditoria de UX do aluno', () => {
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     await page.goto('/aluno/perfil');
+    await page.getByRole('tab', { name: 'Definições' }).click();
     await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible();
     const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(transborda, 'scroll horizontal no perfil').toBe(false);
