@@ -5,7 +5,7 @@ export const metadata = { title: 'Criar conta · Kixi' };
 
 export default function Cadastro() {
   return (
-    <AuthShell title="Cria a tua conta" lead="Leva menos de um minuto.">
+    <AuthShell title="Cria a tua conta" lead="Leva menos de um minuto." backToLanding>
       <CadastroForm />
     </AuthShell>
   );
