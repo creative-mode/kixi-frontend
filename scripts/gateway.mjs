@@ -54,11 +54,38 @@ const securityHeaders = (req) => {
   return h;
 };
 
+
+// Quem já tem sessão não precisa de ver a landing: `/` leva direto para a app certa.
+// Só lê o cookie para decidir o destino (não verifica a assinatura: as apps verificam-na a sério);
+// um cookie falso apenas troca a landing por um ecrã de entrada.
+const sessionHome = (req) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return null;
+  const path = (req.url ?? '/').split('?')[0];
+  if (path !== '/') return null;
+  const raw = /(?:^|;\s*)auth_token=([^;]+)/.exec(req.headers.cookie ?? '')?.[1];
+  if (!raw) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(decodeURIComponent(raw).split('.')[1], 'base64url').toString('utf8'));
+    if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) return null;
+    const roles = Array.isArray(payload.roles) ? payload.roles : [];
+    if (roles.includes('ADMIN') || roles.includes('TEACHER')) return '/manager';
+    if (roles.includes('STUDENT')) return '/aluno/inicio';
+  } catch {
+    // cookie ilegível: segue para a landing
+  }
+  return null;
+};
+
 const server = http.createServer((req, res) => {
   for (const [k, v] of Object.entries(securityHeaders(req))) res.setHeader(k, v);
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'text/plain' });
     return res.end('ok');
+  }
+  const home = sessionHome(req);
+  if (home) {
+    res.writeHead(302, { location: home, 'cache-control': 'private, no-store', vary: 'Cookie' });
+    return res.end();
   }
   const t = pick(req.url);
   const up = http.request({ host: t.host, port: t.port, method: req.method, path: req.url, headers: forwarded(req) }, (r) => {
