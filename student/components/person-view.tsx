@@ -125,9 +125,7 @@ export function PersonView({
         />
       </div>
 
-      {/* Um professor não tem medalhas (é gamificação só do aluno, #371): sem separador
-          nenhum a mostrar, as publicações aparecem sozinhas em vez de dentro de um Tabs
-          de uma aba só — é a própria estrutura do perfil a ficar diferente, não só os dados. */}
+      {/* Um professor não tem medalhas (é gamificação só do aluno, #371), mas tem Experiência. */}
       {!person.restricted && (
         <Tabs defaultValue="Publicações">
           <TabsList aria-label="Perfil">
