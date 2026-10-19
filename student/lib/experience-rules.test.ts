@@ -37,3 +37,19 @@ test('o histórico académico lê provas, calcula a média e ignora lixo', () =>
   assert.equal(y.average, 12.5);
   assert.equal(parseAcademicYear(null, 1).records.length, 0);
 });
+
+test('lê o formato real do backend (instituição, ano com rótulo, turmas e disciplinas)', () => {
+  const real = { role: 'STUDENT', restricted: false, entries: [{ schoolYear: { id: 7001, label: '2025/2026' }, institution: { id: 7002, name: 'Escola Teste B', code: 'ESCB' }, course: { id: 7002, name: 'Informática' }, classes: [{ id: 7002, name: '11B', grade: 11 }], subjects: [], current: false }] };
+  const [e] = parseExperience(real);
+  assert.equal(e.school, 'Escola Teste B');
+  assert.equal(e.schoolYear, '2025/2026');
+  assert.equal(e.schoolYearId, 7001);
+  assert.equal(entrySummary(e), 'Informática · Turma 11B · 11.ª classe');
+});
+
+test('lê o histórico académico real (exams e totals)', () => {
+  const y = parseAcademicYear({ schoolYear: { id: 7001, label: '2025/2026' }, subjects: [], exams: [{ id: 5, title: 'Exame de Física', subject: 'Física', score: 14, max: 20, date: '2026-03-01', status: 'DONE' }], totals: { simulations: 2, exams: 1, average: 82.5 } }, 7001);
+  assert.equal(y.schoolYear, '2025/2026');
+  assert.equal(y.average, 82.5);
+  assert.equal(y.records.length, 1);
+});
