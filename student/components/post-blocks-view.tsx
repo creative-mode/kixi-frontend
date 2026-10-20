@@ -67,7 +67,7 @@ function Gallery({ images }: { images: PostBlock[] }) {
       {images.map((b, i) => (
         <figure key={i} className="grid gap-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={assetUrl(b.url)} alt={b.alt ?? ''} loading="lazy" className="max-h-[420px] w-full rounded-lg border bg-secondary object-contain" />
+          <img src={assetUrl(b.url, 768)} alt={b.alt ?? ''} loading="lazy" className="max-h-[420px] w-full rounded-lg border bg-secondary object-contain" />
           {b.caption && <figcaption className="text-[13px] text-muted-foreground">{b.caption}</figcaption>}
         </figure>
       ))}

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { loadPhotos } from './photos';
+import { readConversation } from './comments';
 import { BACKEND } from './session';
 import { authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
@@ -86,10 +86,7 @@ export async function getCommentsAction(
   page = 1,
   limit = 20,
 ): Promise<{ ok: true; comments: PostComment[] } | { ok: false; message: string }> {
-  const result = await getComments(postId, page, limit);
-  if (!result.ok) return { ok: false, message: result.message };
-  const photos = await loadPhotos(result.data.filter((c) => !c.mine).map((c) => c.authorAccountId)).catch(() => ({}) as Record<number, string>);
-  return { ok: true, comments: result.data.map((c) => ({ ...c, photo: c.mine ? null : (photos[c.authorAccountId] ?? null) })) };
+  return readConversation(postId, page, limit);
 }
 
 export async function reportPostAction(postId: number, reason: string): Promise<{ ok: boolean }> {

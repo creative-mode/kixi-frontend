@@ -3,6 +3,7 @@ import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
 import { getFeed, loadAuthors } from '@/lib/feed';
+import { loadFirstConversations } from '@/lib/comments';
 import { InicioFeed } from './inicio-feed';
 import { SalasDeProvaSection } from './salas-de-prova-section';
 
@@ -12,7 +13,7 @@ export const metadata = { title: 'Início · Kixi' };
  * O início: as salas de prova que pedem ação, o compositor e o feed da turma, na coluna central.
  * Os widgets estão na coluna da direita, global (ver `(app)/layout.tsx`).
  *
- * As salas e a coluna lateral chegam por Suspense: nenhuma delas bloqueia o feed principal.
+ * As salas e a coluna lateral chegam em streaming: nenhuma delas bloqueia o feed principal.
  */
 export default async function InicioPage() {
   const profile = await getProfile();
@@ -34,7 +35,7 @@ export default async function InicioPage() {
 
   const feed = classId ? await getFeed(classId) : null;
   const posts = feed?.ok ? feed.data : [];
-  const authors = await loadAuthors(posts, me.accountId);
+  const [authors, conversations] = await Promise.all([loadAuthors(posts, me.accountId), loadFirstConversations(posts)]);
 
   return (
     <>
@@ -45,6 +46,7 @@ export default async function InicioPage() {
         classId={classId}
         posts={posts}
         authors={authors}
+        conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
       />
     </>
