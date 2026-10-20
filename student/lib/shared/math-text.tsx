@@ -1,5 +1,5 @@
 import type { MathContentBlock, MathFormula } from './math-types.ts';
-import { renderMathHtml } from './math-content.ts';
+import { renderMathMarkup } from './math-content.ts';
 
 export function MathText({ text, formulas, blocks, className }: {
   text: string;
@@ -7,5 +7,5 @@ export function MathText({ text, formulas, blocks, className }: {
   blocks?: readonly MathContentBlock[];
   className?: string;
 }) {
-  return <span className={className} dangerouslySetInnerHTML={{ __html: renderMathHtml(text, formulas, blocks) }} />;
+  return <span className={className} dangerouslySetInnerHTML={renderMathMarkup(text, formulas, blocks)} />;
 }

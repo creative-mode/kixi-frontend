@@ -298,14 +298,14 @@ test('uma alínea muda de tipo sem perder o texto', () => {
 });
 
 test('mudar o tipo de uma alínea preserva evidência OCR e revisão matemática', () => {
-  const formulas = [{ raw: 'v = v₀ + at', latex: 'v = v_0 + at', confidence: 0.72, kind: 'formula' }];
+  const formulas = [{ raw: 'v = v\u2080 + at', latex: 'v = v_0 + at', confidence: 0.72, kind: 'formula' }];
   const blocks = [{ type: 'formula' as const, ...formulas[0] }];
   const item = convertItemKind({
-    ...emptyItem(), text: '$v = v_0 + at$', rawText: 'v = v₀ + at', confidence: 0.72,
+    ...emptyItem(), text: '$v = v_0 + at$', rawText: 'v = v\u2080 + at', confidence: 0.72,
     formulas, blocks, review: true, reviewed: false, modelAnswer: 'resposta modelo',
   }, 'true_false');
 
-  assert.equal(item.rawText, 'v = v₀ + at');
+  assert.equal(item.rawText, 'v = v\u2080 + at');
   assert.equal(item.confidence, 0.72);
   assert.deepEqual(item.formulas, formulas);
   assert.deepEqual(item.blocks, blocks);

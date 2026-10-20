@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hasMathContent, renderMathHtml, serializeMathText } from './math-content.ts';
+import { hasMathContent, renderMathHtml, renderMathMarkup, serializeMathText } from './math-content.ts';
 
 test('renderiza delimitadores inline, display e parênteses LaTeX', () => {
   const html = renderMathHtml('Força $F=ma$, energia $$E=mc^2$$ e vetor \\(\\vec{x}\\).');
@@ -17,6 +17,13 @@ test('fórmula inválida e comando não confiável ficam como texto literal esca
   const untrusted = renderMathHtml('<img src=x onerror=alert(1)> $\\href{javascript:alert(1)}{x}$');
   assert.doesNotMatch(untrusted, /<img|href="javascript:/);
   assert.match(untrusted, /&lt;img/);
+});
+
+test('a fronteira HTML do React só recebe conteúdo escapado pelo renderizador matemático', () => {
+  const markup = renderMathMarkup('<script>alert(1)</script> $x^2$');
+  assert.doesNotMatch(markup.__html, /<script>/);
+  assert.match(markup.__html, /&lt;script&gt;/);
+  assert.match(markup.__html, /class="kixi-math/);
 });
 
 test('segmentos reconhecidos usam LaTeX e conservam o trecho OCR para auditoria', () => {

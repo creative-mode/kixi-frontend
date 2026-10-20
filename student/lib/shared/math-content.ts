@@ -53,7 +53,14 @@ function renderFormula(latex: string | null | undefined, literal: string, displa
     return `<span class="kixi-math-literal${needsReview ? ' kixi-math-review' : ''}"${formula ? ` title="${confidenceTitle}"` : ''}>${escapeHtml(literal)}${reviewLabel}</span>`;
   }
   try {
-    const html = katex.renderToString(latex, { displayMode: display, output: 'htmlAndMathml', throwOnError: true, trust: false });
+    const html = katex.renderToString(latex, {
+      displayMode: display,
+      output: 'htmlAndMathml',
+      throwOnError: true,
+      trust: false,
+      maxExpand: 1000,
+      maxSize: 20,
+    });
     const source = formula ? ` title="${confidenceTitle}"` : '';
     return `<span class="kixi-math${display ? ' kixi-math-display' : ''}${needsReview ? ' kixi-math-review' : ''}"${source}>${html}${reviewLabel}</span>`;
   } catch {
@@ -85,6 +92,15 @@ export function renderMathHtml(text: string, formulas: readonly MathFormula[] = 
       : renderFormula(block.latex, block.raw, false, block)).join('');
   }
   return renderDelimitedText(text, formulas);
+}
+
+/** The single audited boundary between escaped/KaTeX output and React's HTML sink. */
+export function renderMathMarkup(
+  text: string,
+  formulas: readonly MathFormula[] = [],
+  blocks?: readonly MathContentBlock[],
+): { __html: string } {
+  return { __html: renderMathHtml(text, formulas, blocks) };
 }
 
 export function hasMathContent(text: string, formulas?: readonly MathFormula[], blocks?: readonly MathContentBlock[]): boolean {
