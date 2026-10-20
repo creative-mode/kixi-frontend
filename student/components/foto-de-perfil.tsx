@@ -32,7 +32,7 @@ export function FotoDePerfil({ name, initial, defaultValue }: { name: string; in
         <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full border bg-secondary text-lg font-bold text-muted-foreground">
           {url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={assetUrl(url)} alt="A tua foto" className="size-full object-cover" />
+            <img src={assetUrl(url, 192)} alt="A tua foto" className="size-full object-cover" />
           ) : (
             initial
           )}

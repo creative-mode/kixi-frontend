@@ -101,7 +101,9 @@ export interface PostComment {
   /** O backend diz se a linha é do aluno, para o cliente não comparar ids. */
   mine: boolean;
   displayName: string | null;
-  /** Acrescentada pelo servidor a partir do perfil; null deixa as iniciais. */
+  /** A foto do autor, que o backend já devolve com o comentário (uma leitura para todos os autores). Ausente num backend antigo. */
+  authorPhoto?: string | null;
+  /** A foto para mostrar: `authorPhoto`, ou, num backend antigo, a que o servidor foi buscar ao perfil; null deixa as iniciais. */
   photo?: string | null;
 }
 
