@@ -41,3 +41,13 @@ test('a raiz do avatar continua a recortar em circulo', () => {
     assert.ok(raiz.split(/\s+/).includes(esperada), `o AvatarRoot devia ter ${esperada}, tem: ${raiz}`);
   }
 });
+const USER_AVATAR = join(import.meta.dirname, '..', 'components', 'user-avatar.tsx');
+const avatar = readFileSync(USER_AVATAR, 'utf8');
+
+test('o avatar da pessoa pede a imagem no HTML, na largura certa, sem esticar a foto', () => {
+  assert.match(avatar, /<img[^>]*src=\{assetUrl\(src, size\)\}/);
+  assert.match(avatar, /object-cover/);
+  assert.match(avatar, /width=\{size\} height=\{size\}/);
+  assert.match(avatar, /decoding="async"/);
+  assert.doesNotMatch(avatar, /AvatarImage/);
+});

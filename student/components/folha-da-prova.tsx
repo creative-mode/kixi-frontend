@@ -296,7 +296,7 @@ function Figures({ images }: { images?: QuestionImage[] }) {
       {images.map((image) => (
         <figure key={image.id} className="m-0 max-w-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={assetUrl(image.imageUrl)} alt={image.caption ?? 'Figura da questão'} className="max-h-72 max-w-full object-contain" />
+          <img src={assetUrl(image.imageUrl, 768)} loading="lazy" decoding="async" alt={image.caption ?? 'Figura da questão'} className="max-h-72 max-w-full object-contain" />
         </figure>
       ))}
     </span>
