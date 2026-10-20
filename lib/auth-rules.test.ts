@@ -13,9 +13,16 @@ test('outros estados não viram a mensagem do limite', () => {
   assert.equal(loginLimitMessage(503, null), null);
 });
 
-test('só se repassa um X-Forwarded-For que seja uma lista de IPs', () => {
-  assert.equal(forwardedFor('41.223.1.9, 172.18.0.9'), '41.223.1.9, 172.18.0.9');
+test('repassa apenas o último salto de um X-Forwarded-For válido', () => {
+  assert.equal(forwardedFor('41.223.1.9, 172.18.0.9'), '172.18.0.9');
+  assert.equal(forwardedFor('2a02:c207::1'), '2a02:c207::1');
+  assert.equal(forwardedFor('41.223.1.9, 2001:db8::1'), '2001:db8::1');
+});
+
+test('descarta uma cadeia que contenha elementos que não são endereços IP', () => {
   assert.equal(forwardedFor('1.2.3.4\r\nX-Evil: 1'), null);
+  assert.equal(forwardedFor('spoofed, 172.18.0.9'), null);
+  assert.equal(forwardedFor('1.2.3.4, '), null);
   assert.equal(forwardedFor('1'.repeat(300)), null);
   assert.equal(forwardedFor(null), null);
 });
