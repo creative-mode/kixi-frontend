@@ -436,7 +436,7 @@ function seed(): Store {
         ],
       },
       {
-        id: 2, number: 2, text: 'Quantos hosts utilizáveis tem uma sub-rede /29?',
+        id: 2, number: 2, text: 'Quantos hosts utilizáveis tem uma sub-rede /29? Usa $2^h - 2$ para calcular o número de hosts.',
         questionType: 'multiple_choice', maxScore: 2, orderIndex: 1,
         options: [
           { id: 21, optionLabel: 'A', optionText: '4', isCorrect: false, orderIndex: 0 },
@@ -1319,7 +1319,7 @@ export async function mockHandle(
   }
 
   const reactionMatch = pathname.match(/^\/feed\/posts\/(\d+)\/reactions$/);
-  if (reactionMatch && method === 'POST') {
+  if (reactionMatch && (method === 'POST' || method === 'PUT')) {
     const postId = Number(reactionMatch[1]);
     const type = text('reaction').toLowerCase();
     if (!['applause', 'strength'].includes(type)) return problem(400, 'Reaction type is required');
@@ -1327,6 +1327,12 @@ export async function mockHandle(
     const existing = db.postReactions.findIndex(
       (r) => r.postId === postId && r.accountId === account.id && r.type === type,
     );
+    if (method === 'PUT') {
+      const reacted = body.reacted === true;
+      if (reacted && existing < 0) db.postReactions.push({ postId, accountId: account.id, type });
+      if (!reacted && existing >= 0) db.postReactions.splice(existing, 1);
+      return json({ reacted });
+    }
     if (existing >= 0) {
       db.postReactions.splice(existing, 1);
       return json({ reacted: false });

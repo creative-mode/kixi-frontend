@@ -6,6 +6,7 @@ import { topNumber } from './question-number.ts';
 import type { ExamQuestion } from './exam-rules.ts';
 import { formatScore, verdict, type ResultQuestion } from './result-rules.ts';
 import type { PaperAnswer, PaperMark, PaperStamp } from './folha-da-prova.ts';
+import { mathContentFields } from './shared/math-types.ts';
 
 /** Abaixo de metade da cotação a nota é negativa (10 em 20). */
 export const PASS_RATIO = 0.5;
@@ -16,6 +17,7 @@ export function paperQuestions(questions: readonly ResultQuestion[]): ExamQuesti
     id: q.questionId,
     number: q.number,
     text: q.text,
+    ...mathContentFields(q),
     maxScore: q.maxScore ?? null,
     questionType: q.questionType ?? null,
     parentId: q.parentId ?? null,

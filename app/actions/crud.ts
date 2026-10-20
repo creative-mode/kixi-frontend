@@ -336,7 +336,7 @@ export type QuestionEdit = {
   id: number;
   number: number;
   /** `PUT .../questions/{id}` (QuestionRequest), quando o texto, a cotação ou a resposta modelo mudaram. */
-  question?: { text: string; questionType: string | null; maxScore: number; modelAnswer: string | null };
+  question?: { text: string; questionType: string | null; maxScore: number; modelAnswer: string | null; ocrReviewed?: boolean };
   /** `PUT .../options/{id}`, uma por opção cujo texto mudou. A etiqueta é a identidade e não muda. */
   options?: { id: number; optionLabel: string; optionText: string }[];
   /** `PUT /questions/{id}/correct-option` (a mesma rota de `setCorrectOption`), quando a resposta correta mudou. */

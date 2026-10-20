@@ -959,7 +959,48 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     }
 
     // ── OCR: extração estruturada, sem persistir (alimenta o construtor de provas) ──
-    // O mock não corre o motor: responde sempre com a prova de OGI lida como o contrato manda.
+    // O mock não corre o motor: responde com uma prova sintética para jornadas locais.
+    if (path === '/api/v1/ocr/extract/stream' && method === 'POST') {
+      const b = readBody();
+      const files = [b.files ?? b.file].flat().filter(Boolean);
+      if (!files.length) return problem(400, 'At least one file is required');
+      const extraction = {
+        ...OGI_EXTRACTION,
+        request_id: `req-${Date.now()}`,
+        processing_time_ms: 1200,
+        questions: OGI_EXTRACTION.questions?.map((question, index) => index === 0 ? {
+          ...question,
+          text: 'Questão sintética para validação matemática: determine $v = v_0 + at$.',
+          formulas: [{ raw: 'v = v_0 + at', latex: 'v = v_0 + at', confidence: 0.98, kind: 'formula' }],
+        } : question),
+        images_to_upload: [{
+          region: 'questao_1', description: 'Diagrama OCR', kind: 'figure',
+          data_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJ7sAAAAASUVORK5CYII=',
+        }],
+      };
+      const events = [
+        `event: prepared\ndata: ${JSON.stringify({ requestId: extraction.request_id, pageCount: 1, timings: { uploadMs: 1, preparationMs: 1, rasterizationMs: 0 } })}\n\n`,
+        `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: { preprocessingMs: 1, ocrMs: 1, parsingMs: 1, totalMs: 3 } })}\n\n`,
+        `event: result\ndata: ${JSON.stringify({ ...extraction, timings: { ocrMs: 1, parsingMs: 1, responseAssemblyMs: 1, totalMs: 3 } })}\n\n`,
+      ];
+      const encoder = new TextEncoder();
+      let index = 0;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const send = () => {
+            controller.enqueue(encoder.encode(events[index++]));
+            if (index === events.length) controller.close();
+            else setTimeout(send, 200);
+          };
+          setTimeout(send, 50);
+        },
+      });
+      return new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform' },
+      });
+    }
+    // Legacy response kept for older local tests and clients.
     if (path === '/api/v1/ocr/extract/exam' && method === 'POST') {
       const b = readBody();
       const files = [b.files ?? b.file].flat().filter(Boolean);

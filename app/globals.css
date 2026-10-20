@@ -1,10 +1,15 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 @import "tw-animate-css";
 /* @techify/ui ships an unlayered Tailwind v3 preflight that beats Tailwind v4 utilities; load it inside the base layer so utilities win. */
 @import "@techify/ui/styles.css" layer(base);
 /* Kixi design system: tokens + Tailwind mapping (cópias geradas por `npm run ds:sync`) */
 @import "./ds-tokens.css";
 @import "./ds-theme.css";
+
+.kixi-math-review { text-decoration: underline wavy #b45309; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.kixi-math-review-label { margin-inline-start: 0.35rem; color: #92400e; font-size: 0.72em; font-weight: 600; }
+.kixi-math-literal { white-space: pre-wrap; }
 
 /* Fontes carregadas por next/font neste app */
 @theme inline {

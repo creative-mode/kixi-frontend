@@ -1,5 +1,6 @@
 import { itemLabel, kindOf, totalScore, trueFalseAnswer, type DraftOption } from '@/lib/exam/draft';
 import type { ExamDraft, ExamItem, School } from '@/lib/exam/schools';
+import { MathText } from '@/student/lib/shared/math-text';
 
 
 /**
@@ -33,7 +34,7 @@ function Options({ options, mode }: { options: DraftOption[]; mode: KeyMode }) {
       {options.map((o) => (
         <li key={o.label} className={`flex gap-2 ${showKey && o.correct ? `font-semibold text-green-700 ${keyClass(mode)}`.trim() : ''}`}>
           <span className="font-semibold">{o.label})</span>
-          <span>{o.text}</span>
+          <MathText text={o.text} />
           {showKey && o.correct && <b className={`whitespace-nowrap ${keyClass(mode)}`}>correcta</b>}
         </li>
       ))}
@@ -50,7 +51,7 @@ function TrueFalseMark({ options, mode }: { options: DraftOption[]; mode: KeyMod
 /** A resposta esperada de uma questão aberta: só na chave. */
 function ModelAnswer({ text, mode }: { text?: string; mode: KeyMode }) {
   if (mode === 'never' || !text?.trim()) return null;
-  return <span className={`mt-1 block text-[12.5px] text-green-800 ${keyClass(mode)}`}><b>Resposta esperada:</b> {text.trim()}</span>;
+  return <span className={`mt-1 block text-[12.5px] text-green-800 ${keyClass(mode)}`}><b>Resposta esperada:</b> <MathText text={text.trim()} /></span>;
 }
 
 const score = (points: number | '') => (points !== '' ? <span className="whitespace-nowrap"> ({points} val.)</span> : null);
@@ -75,7 +76,7 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
     const subs = (item.items ?? []).filter((x) => x.text.trim());
     return (
       <>
-        {item.text}
+        <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
         <Figures item={item} />
         {subs.length > 0 && (
           <ol className="mt-1 list-none space-y-1.5 pl-2">
@@ -85,7 +86,7 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
                 <li key={j} className="flex gap-2">
                   <span className="font-semibold">{itemLabel(j)})</span>
                   <span className="flex-1">
-                    {sub.text}
+                    <MathText text={sub.text} formulas={sub.formulas} blocks={sub.blocks} />
                     {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}
                     {score(sub.points)}
                     {k === 'multiple_choice' && <Options options={sub.options} mode={mode} />}
@@ -101,7 +102,7 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
   }
   return (
     <>
-      {item.text}
+      <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
       <Figures item={item} />
       {kind === 'true_false' && <TrueFalseMark options={item.options} mode={mode} />}
       {score(item.points)}

@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
-import { convertItemKind, kindOf, type DraftItem, type LeafKind } from '@/lib/exam/draft';
+import { convertItemKind, invalidateReviewOnContentChange, kindOf, type DraftItem, type LeafKind } from '@/lib/exam/draft';
 import { OptionEditor } from './option-editor';
 import { TruthChoice } from './truth-choice';
+import { MathText } from '@/student/lib/shared/math-text';
+import { hasMathContent } from '@/student/lib/shared/math-content';
+import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
 
 export const LEAF_LABELS: Record<LeafKind, string> = {
   open: 'Dissertativa',
@@ -53,8 +56,13 @@ export function ItemEditor({
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-secondary text-[12px] font-bold" aria-hidden>{label}</span>
         <Textarea
           rows={2}
-          value={item.text}
-          onChange={(e) => onChange({ ...item, text: e.target.value })}
+          value={serializeMathText(item.text, item.formulas, item.blocks)}
+          // The ordered blocks describe the old text layout; formula evidence is
+          // independent provenance and must survive text corrections.
+          onChange={(e) => {
+            const next = { ...item, text: e.target.value, blocks: undefined };
+            onChange(invalidateReviewOnContentChange(item, next));
+          }}
           placeholder={`Alínea ${label})`}
           aria-label={`Texto da alínea ${where}`}
           className="min-h-12 min-w-0 flex-1"
@@ -70,6 +78,12 @@ export function ItemEditor({
           className="w-20 shrink-0"
         />
       </div>
+      {hasMathContent(item.text, item.formulas, item.blocks) ? (
+        <div className="ml-8 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-sm" aria-label={`Pré-visualização matemática da alínea ${where}`}>
+          <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
+          {item.rawText && item.rawText !== item.text ? <details className="mt-2 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{item.rawText}</p></details> : null}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2 pl-8">
         <NativeSelect
           value={kind}
@@ -82,9 +96,10 @@ export function ItemEditor({
         {item.review && (
           <>
             <Badge variant="warning">rever</Badge>
-            <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ ...item, review: false })}>Já revi</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ ...item, review: false, reviewed: true })}>Já revi</Button>
           </>
         )}
+        {mathNeedsReview(item.formulas, item.blocks) && !item.reviewed ? <Badge variant="warning">fórmula a rever</Badge> : null}
         <span className="ml-auto flex gap-1">
           <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Mover a alínea ${where} para cima`} disabled={index === 0} onClick={() => onMove(-1)}><ArrowUp /></Button>
           <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Mover a alínea ${where} para baixo`} disabled={index === total - 1} onClick={() => onMove(1)}><ArrowDown /></Button>

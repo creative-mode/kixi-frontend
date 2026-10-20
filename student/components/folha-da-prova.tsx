@@ -8,6 +8,7 @@ import type { QuestionImage } from '@/lib/exam';
 import { BASE_PATH } from '@/lib/base-path';
 import { cn } from '@/lib/utils';
 import { assetUrl } from '@/lib/assets';
+import { MathText } from '../lib/shared/math-text';
 
 export type { PaperAnswer, PaperMark, PaperStamp };
 
@@ -239,7 +240,8 @@ function Question({
     // Questão com alíneas: o enunciado comum e, por baixo, cada alínea com a sua resposta.
     return (
       <div className={cn('rounded-md', containsLeaf(paper, current) && 'bg-amber-50/60')}>
-        <p><span className="mr-2 font-bold">{paper.number}.</span>{paper.text}{score}</p>
+        <p><span className="mr-2 font-bold">{paper.number}.</span><MathText text={paper.text} formulas={paper.formulas} blocks={paper.blocks} />{score}</p>
+        <Figures images={paper.groupId != null ? images[paper.groupId] : undefined} />
         <ol className="mt-1.5 list-none space-y-1.5 pl-5">
           {paper.items.map((item) => (
             <li key={item.id}>
@@ -255,7 +257,7 @@ function Question({
 
   return (
     <Leaf id={paper.id} label={leafNumber(paper)} current={current} onSelect={onSelect} mark={marks?.[paper.id]}>
-      <p><span className="mr-2 font-bold">{paper.number}.</span>{paper.text}{score}</p>
+      <p><span className="mr-2 font-bold">{paper.number}.</span><MathText text={paper.text} formulas={paper.formulas} blocks={paper.blocks} />{score}</p>
       <Figures images={images[paper.id]} />
       <Answer options={paper.options} answer={answers?.[paper.id]} mark={marks?.[paper.id]} lines={3} />
     </Leaf>
@@ -267,7 +269,7 @@ function ItemBody({ item, images, answer, mark }: { item: PaperItem; images?: Qu
     <div className="flex gap-2">
       <span className="font-semibold">{item.label})</span>
       <span className="min-w-0 flex-1">
-        {item.text}
+        <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
         {item.maxScore != null && <span className="whitespace-nowrap"> ({item.maxScore} val.)</span>}
         <Figures images={images} />
         <Answer options={item.options} answer={answer} mark={mark} lines={2} />
@@ -315,7 +317,7 @@ function Options({ options, chosen, correct, reviewed }: { options: ExamOption[]
           <li key={o.id} className={cn('flex items-baseline gap-2', right && 'font-semibold text-green-700', wrong && 'text-red-700 line-through decoration-red-700/60')}>
             <span aria-hidden className={cn('inline-block size-3 shrink-0 translate-y-[1px] rounded-full border border-black', chosen === o.id && 'bg-black', right && 'border-green-700', right && chosen === o.id && 'bg-green-700', wrong && 'border-red-700 bg-red-700')} />
             <span className="font-semibold">{o.optionLabel?.trim() || String.fromCharCode(65 + i)})</span>
-            <span>{o.optionText}</span>
+            <MathText text={o.optionText} />
             {right && <span className="no-underline"><Check aria-hidden className="inline size-4 align-[-2px]" /><span className="sr-only"> resposta certa</span></span>}
             {wrong && <span className="no-underline"><span className="sr-only">a tua resposta, errada</span></span>}
             {!reviewed && chosen === o.id && <span className="sr-only">(a tua resposta)</span>}

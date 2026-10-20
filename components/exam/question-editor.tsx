@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
-import { convertKind, emptyItem, groupScore, itemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
+import { convertKind, emptyItem, groupScore, invalidateReviewOnContentChange, itemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
 import type { ExamItem } from '@/lib/exam/schools';
 import { ItemEditor, LEAF_LABELS, LeafBody } from './item-editor';
+import { MathText } from '@/student/lib/shared/math-text';
+import { hasMathContent } from '@/student/lib/shared/math-content';
+import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
 
 const KIND_LABELS: Record<QuestionKind, string> = { ...LEAF_LABELS, group: 'Com alíneas' };
 
@@ -56,8 +59,13 @@ export function QuestionEditor({
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-[12px] font-bold text-accent-foreground">{n}</span>
         <Textarea
           rows={2}
-          value={item.text}
-          onChange={(e) => onChange({ text: e.target.value })}
+          value={serializeMathText(item.text, item.formulas, item.blocks)}
+          // The ordered blocks describe the old text layout; formula evidence is
+          // independent provenance and must survive text corrections.
+          onChange={(e) => {
+            const next = { ...item, text: e.target.value, blocks: undefined };
+            onChange(invalidateReviewOnContentChange(item, next));
+          }}
           placeholder={kind === 'group' ? `Enunciado comum da questão ${n}` : `Questão ${n}`}
           aria-label={kind === 'group' ? `Enunciado comum da questão ${n}` : `Questão ${n}`}
           className="min-h-14 min-w-0 flex-1"
@@ -79,6 +87,12 @@ export function QuestionEditor({
           />
         )}
       </div>
+      {hasMathContent(item.text, item.formulas, item.blocks) ? (
+        <div className="ml-8 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-sm" aria-label={`Pré-visualização matemática da questão ${n}`}>
+          <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
+          {item.rawText && item.rawText !== item.text ? <details className="mt-2 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{item.rawText}</p></details> : null}
+        </div>
+      ) : null}
       {(item.images ?? []).length > 0 && (
         <ul aria-label={`Figuras da questão ${n}`} className="flex flex-wrap gap-2 sm:pl-8">
           {(item.images ?? []).map((image, k) => (
@@ -102,9 +116,10 @@ export function QuestionEditor({
         {item.review && (
           <>
             <Badge variant="warning">rever</Badge>
-            <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ review: false })}>Já revi</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ review: false, reviewed: true })}>Já revi</Button>
           </>
         )}
+        {mathNeedsReview(item.formulas, item.blocks) && !item.reviewed ? <Badge variant="warning">fórmula a rever</Badge> : null}
       </div>
 
       {kind === 'group' ? (

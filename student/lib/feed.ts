@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { apiGet, apiPost, type Result } from './api';
+import { apiGet, apiPost, apiPut, type Result } from './api';
 import { getPerson } from './profiles';
 import { authorOfPerson, type FeedAuthor } from './feed-rules';
 import type { BuiltKind, PostBlock } from './post-blocks';
@@ -85,6 +85,11 @@ export async function createSimulationPost(
  *  na interface, mesmo que o backend aceite 'strength' também). */
 export async function toggleReaction(postId: number, reaction: ReactionType = 'applause') {
   return apiPost<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction: reaction.toUpperCase() });
+}
+
+/** Sets an explicit state so retrying after a lost response cannot undo a committed reaction. */
+export async function setReaction(postId: number, reacted: boolean, reaction: ReactionType = 'applause') {
+  return apiPut<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction: reaction.toUpperCase(), reacted });
 }
 
 /** Um comentário tal como o backend o devolve (#179). `displayName` vem já mascarado

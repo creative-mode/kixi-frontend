@@ -8,6 +8,7 @@
  */
 import type { DraftImage, DraftItem, DraftOption, DraftQuestion, LeafKind } from './draft.ts';
 import type { ExamDraft, School } from './schools.ts';
+import { mathContentFields } from '../../student/lib/shared/math-types.ts';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -60,12 +61,12 @@ export function draftFromStatement(statement: Row, ctx: StatementContext = {}): 
       if (String(q.questionType ?? '').toLowerCase() === 'group' || (found && found.length > 0)) {
         const subs: DraftItem[] = (found ?? []).map((c) => {
           const options = optionsOf(c);
-          return { text: String(c.text ?? ''), points: points(c), options, kind: leafKind(c, options), ...answerOf(c) };
+          return { text: String(c.text ?? ''), points: points(c), options, kind: leafKind(c, options), ...mathContentFields(c), ...answerOf(c), ...(c.needsReview ? { review: true } : {}) };
         });
-        return { text: String(q.text ?? ''), points: '', options: [], kind: 'group', items: subs, ...withImages };
+        return { text: String(q.text ?? ''), points: '', options: [], kind: 'group', items: subs, ...mathContentFields(q), ...(q.needsReview ? { review: true } : {}), ...withImages };
       }
       const options = optionsOf(q);
-      return { text: String(q.text ?? ''), points: points(q), options, kind: leafKind(q, options), ...answerOf(q), ...withImages };
+      return { text: String(q.text ?? ''), points: points(q), options, kind: leafKind(q, options), ...mathContentFields(q), ...answerOf(q), ...(q.needsReview ? { review: true } : {}), ...withImages };
     });
 
   const grade = ctx.grade != null && ctx.grade !== '' ? (/^\d+$/.test(String(ctx.grade)) ? `${ctx.grade}ª Classe` : String(ctx.grade)) : '';

@@ -11,15 +11,28 @@
  */
 import { labelAt, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
 import { KINDS, type ExamDraft } from './schools.ts';
+import { mathContentFields, mathNeedsReview, type MathContentBlock, type MathFormula } from '../../student/lib/shared/math-types.ts';
 
 export interface ExtractionOption { option_label?: string | null; option_text?: string | null }
-export interface ExtractionSubitem { label?: string | null; text?: string | null; cotacao?: number | null; type?: string | null }
+export interface ExtractionSubitem {
+  label?: string | null;
+  text?: string | null;
+  rawText?: string | null;
+  cotacao?: number | null;
+  type?: string | null;
+  confidence?: number | null;
+  formulas?: MathFormula[] | null;
+  blocks?: MathContentBlock[] | null;
+}
 export interface ExtractionQuestion {
   number?: string | null;
   text?: string | null;
+  rawText?: string | null;
   type?: string | null;
   cotacao?: number | null;
   confidence?: number | null;
+  formulas?: MathFormula[] | null;
+  blocks?: MathContentBlock[] | null;
   options?: ExtractionOption[] | null;
   subitems?: string[] | null;
   subitems_content?: ExtractionSubitem[] | null;
@@ -35,6 +48,9 @@ export interface ExtractionImage {
 }
 export interface ExtractionWarning { code?: string | null; field?: string | null; confidence?: number | null; message?: string | null }
 export interface ExamExtraction {
+  status?: 'success' | 'partial' | 'error' | null;
+  errorMessage?: string | null;
+  timings?: Record<string, number> | null;
   exam_type?: string | null;
   duration_minutes?: number | null;
   variant?: string | null;
@@ -122,36 +138,41 @@ function optionsFrom(raw: ExtractionOption[] | null | undefined): DraftOption[] 
 
 const points = (cotacao: number | null | undefined): number | '' => (typeof cotacao === 'number' && cotacao > 0 ? cotacao : '');
 
-function itemFrom(sub: ExtractionSubitem, fallback: LeafKind, review: boolean): DraftItem {
+function itemFrom(sub: ExtractionSubitem, fallback: LeafKind, parentReview: boolean): DraftItem {
   const kind = leafKind(sub.type, fallback);
+  const math = mathContentFields({ ...sub, rawText: sub.rawText ?? sub.text ?? '' });
+  const confidenceReview = typeof sub.confidence === 'number' && sub.confidence < REVIEW_BELOW;
+  const review = parentReview || confidenceReview || mathNeedsReview(math.formulas, math.blocks);
   return {
     text: clean(sub.text),
     points: points(sub.cotacao),
     kind,
     options: kind === 'true_false' ? trueFalseOptions() : kind === 'multiple_choice' ? [{ label: 'A', text: '', correct: false }, { label: 'B', text: '', correct: false }] : [],
+    ...math,
     ...(review ? { review: true } : {}),
   };
 }
 
-function questionFrom(q: ExtractionQuestion): { question: DraftQuestion; review: number } {
+function questionFrom(q: ExtractionQuestion, warningReview = false, globalReview = false): { question: DraftQuestion; review: number } {
   const type = (q.type ?? '').toLowerCase();
-  const review = typeof q.confidence === 'number' && q.confidence < REVIEW_BELOW;
+  const math = mathContentFields({ ...q, rawText: q.rawText ?? q.text ?? '' });
+  const review = globalReview || warningReview || (typeof q.confidence === 'number' && q.confidence < REVIEW_BELOW) || mathNeedsReview(math.formulas, math.blocks);
   const subs = (q.subitems_content ?? []).filter((s) => clean(s.text));
   const text = (q.text ?? '').replace(/\s+/g, ' ').trim();
 
   if (subs.length > 0 && (type === 'verdadeiro_falso' || type === 'composta' || type === 'dissertativa' || type === '')) {
     const fallback: LeafKind = type === 'verdadeiro_falso' ? 'true_false' : 'open';
     const items = subs.map((s) => itemFrom(s, fallback, review));
-    return { question: { text, points: '', options: [], kind: 'group', items, ...(review ? { review: true } : {}) }, review: review ? items.length : 0 };
+    return { question: { text, points: '', options: [], kind: 'group', items, ...math, ...(review ? { review: true } : {}) }, review: items.filter((item) => item.review).length };
   }
   if (type === 'verdadeiro_falso') {
-    return { question: { text: clean(q.text) || text, points: points(q.cotacao), options: trueFalseOptions(), kind: 'true_false', ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+    return { question: { text: clean(q.text) || text, points: points(q.cotacao), options: trueFalseOptions(), kind: 'true_false', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
   }
   const options = type === 'multipla_escolha' ? optionsFrom(q.options) : [];
   if (options.length > 0) {
-    return { question: { text, points: points(q.cotacao), options, kind: 'multiple_choice', ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+    return { question: { text, points: points(q.cotacao), options, kind: 'multiple_choice', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
   }
-  return { question: { text, points: points(q.cotacao), options: [], kind: 'open', ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+  return { question: { text, points: points(q.cotacao), options: [], kind: 'open', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
 }
 
 const FIGURE_NAMES: Record<string, string> = { figure: 'Figura', table: 'Tabela', formula: 'Fórmula' };
@@ -213,7 +234,25 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   } else notes.push('A prova não indica a disciplina. Escolha-a na lista.');
 
   const kept = (extraction.questions ?? []).filter((q) => (q.text ?? '').trim() || (q.subitems_content ?? []).length > 0);
-  const built = kept.map(questionFrom);
+  const warnings = extraction.warnings ?? [];
+  const reviewWarningCodes = new Set(['LOW_CONFIDENCE', 'LOW_CONFIDENCE_FORMULA', 'UNRECOGNIZED_FORMULA', 'UNKNOWN_QUESTION_TYPE']);
+  const onlyScoringWarning = warnings.length > 0 && warnings.every((warning) => (warning.code ?? '').toUpperCase() === 'NO_COTACAO');
+  const globalReview = (extraction.needs_review === true && !onlyScoringWarning) || warnings.some((warning) => {
+    const code = (warning.code ?? '').toUpperCase();
+    if (code === 'NATIVE_TEXT_GAP') return true;
+    if (code !== 'LOW_CONFIDENCE_FORMULA' && code !== 'UNRECOGNIZED_FORMULA') return false;
+    return !/^question_[^_]+(?:_|$)/i.test(warning.field ?? '');
+  });
+  const hasQuestionReviewWarning = (number: string | null | undefined) => {
+    if (!number) return false;
+    const expected = number.trim();
+    return warnings.some((warning) => {
+      if (!reviewWarningCodes.has((warning.code ?? '').toUpperCase())) return false;
+      const match = (warning.field ?? '').match(/^question_([^_]+)(?:_|$)/i);
+      return match?.[1] === expected;
+    });
+  };
+  const built = kept.map((question) => questionFrom(question, hasQuestionReviewWarning(question.number), globalReview));
   const items = built.map((b, i) => {
     const images = imagesOf(kept[i].number, extraction.images_to_upload);
     return images.length > 0 ? { ...b.question, images } : b.question;
@@ -222,12 +261,12 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   const reviewCount = built.reduce((n, b) => n + b.review, 0);
 
   if (items.length === 0) notes.push('Não foi possível ler questões nesta imagem. Tente uma foto mais nítida e de frente, ou escreva as questões à mão.');
-  const codes = new Set((extraction.warnings ?? []).map((w) => (w.code ?? '').toUpperCase()));
+  const codes = new Set(warnings.map((w) => (w.code ?? '').toUpperCase()));
   const allUnscored = items.length > 0 && items.every((q) => (q.kind === 'group' ? (q.items ?? []).every((i) => i.points === '') : q.points === ''));
   if (codes.has('NO_COTACAO') || allUnscored) {
     notes.push('A prova não traz cotação. Use «Distribuir 20 valores» ou preencha a cotação de cada questão.');
   }
-  for (const w of extraction.warnings ?? []) {
+  for (const w of warnings) {
     if ((w.code ?? '').toUpperCase() !== 'LOW_CONFIDENCE' || !w.field) continue;
     if (w.field === 'subjectName' || w.field === 'subject') continue; // já tratada acima
     notes.push(`O motor ficou inseguro com ${FIELD_NAMES[w.field] ?? `«${w.field}»`}. Confirme-o.`);

@@ -9,13 +9,13 @@ import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
-import { createManualStatement, myInstitutions, publishManualStatement, reviewChoices, type ReviewChoices } from '@/app/actions/crud';
+import { approveStatement, createManualStatement, getStatementFull, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, type ReviewChoices } from '@/app/actions/crud';
 import { extractDonation, getDonation, linkDonationStatement } from '@/app/actions/donations';
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
-import { attachFigures } from '@/app/actions/media';
+import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
 import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
 import { ExamImporter } from './exam-importer';
@@ -42,6 +42,47 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 /** A prova que acabou de ser guardada: serve para dizer onde está e para a poder dar a uma turma. */
 interface SavedExam { id: number; title: string; published: boolean; snapshot: string }
+interface PendingFigurePublication extends SavedExam { figures: ReturnType<typeof figuresOf>; publish: boolean }
+
+/** Anexa apenas os recortes ainda ausentes; a ordem e a legenda identificam cada recorte
+ *  porque a prova acabou de ser criada e, portanto, não tem imagens pré-existentes. */
+async function attachMissingFigures(statementId: number, figures: ReturnType<typeof figuresOf>) {
+  if (figures.length === 0) return { failed: 0 };
+  const statement = await getStatementFull(statementId);
+  if (!statement.ok) return { failed: figures.length };
+  const questions = Array.isArray(statement.data.questions) ? statement.data.questions as Record<string, unknown>[] : [];
+  const questionIds = new Map(questions
+    .filter((question) => question.parentId == null && typeof question.number === 'number' && typeof question.id === 'number')
+    .map((question) => [Number(question.number), Number(question.id)]));
+  const nextOrder = new Map<number, number>();
+  let failed = 0;
+
+  for (const figure of figures) {
+    const questionId = questionIds.get(figure.number);
+    if (!questionId) { failed += 1; continue; }
+    const orderIndex = nextOrder.get(questionId) ?? 0;
+    nextOrder.set(questionId, orderIndex + 1);
+    const existing = await listQuestionImages(questionId);
+    if (!existing.ok) { failed += 1; continue; }
+    if (existing.data.some((image) => Number(image.orderIndex) === orderIndex && String(image.caption ?? '') === (figure.caption.trim() || ''))) continue;
+
+    try {
+      const blob = await (await fetch(figure.dataUrl)).blob();
+      const extension = blob.type === 'image/jpeg' ? 'jpg' : blob.type.split('/')[1] || 'png';
+      const file = new File([blob], `questao-${figure.number}-${orderIndex + 1}.${extension}`, { type: blob.type });
+      const form = new FormData();
+      form.set('file', file);
+      form.set('questionId', String(questionId));
+      form.set('orderIndex', String(orderIndex));
+      form.set('caption', figure.caption);
+      const uploaded = await uploadQuestionImage(form);
+      if (!uploaded.ok) failed += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { failed };
+}
 
 export function ExamBuilder({ openImport = false, donationId = null }: { openImport?: boolean; donationId?: number | null }) {
   const [schools, setSchools] = useState<School[]>([]);
@@ -55,6 +96,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [importOpen, setImportOpen] = useState(openImport);
   const [notes, setNotes] = useState<string[]>([]);
   const [saved, setSaved] = useState<SavedExam | null>(null);
+  const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
   const [reading, setReading] = useState(false);
 
@@ -133,7 +175,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
    * mensagem do servidor — que nomeia as questões em falta — aparece no ecrã.
    */
   async function save(publish: boolean) {
-    if (!school || !subject) return;
+    if (!school || !subject || pendingPublication) return;
     setSaving(true);
     const payload = {
       institutionId: Number(school.id),
@@ -153,14 +195,18 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       // honrado na criação, por isso marcar a resposta certa não custa um segundo pedido.
       questions: toRequest(draft.items),
     };
-    const res = publish ? await publishManualStatement(payload) : await createManualStatement({ ...payload, visible: false });
+    const figures = figuresOf(draft.items);
+    // Com imagens OCR, primeiro cria-se sempre um registo oculto. O caminho de publicação
+    // só é autorizado depois de confirmar todos os recortes no servidor.
+    const res = publish && figures.length === 0
+      ? await publishManualStatement(payload)
+      : await createManualStatement({ ...payload, visible: false });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
-    // As figuras que o OCR recortou seguem para as questões a que pertencem, agora que elas têm id.
-    const figures = figuresOf(draft.items);
-    const sent = figures.length > 0 ? await attachFigures(Number(res.data.id), figures) : null;
-    if (sent && sent.failed > 0) toast.error(`${sent.failed} figura(s) não seguiram com a prova. Junte-as à questão na prova guardada.`);
-    setSaved({ id: Number(res.data.id), title: String(res.data.title ?? payload.title), published: publish, snapshot: JSON.stringify(draft) });
+    const savedExam = { id: Number(res.data.id), title: String(res.data.title ?? payload.title), published: publish && figures.length === 0, snapshot: JSON.stringify(draft) };
+    setSaved(savedExam);
+    const pending = figures.length > 0 ? { ...savedExam, published: false, figures, publish } : null;
+    if (pending) setPendingPublication(pending);
     // A prova nasceu de uma doação: liga-as, e a doação passa a «convertida». Falhar aqui não
     // desfaz a prova (já existe); avisa-se para a ligação se refazer na doação.
     if (donationId !== null) {
@@ -168,27 +214,68 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       if (linked.ok) setDonation(linked.data);
       else toast.error(`A prova ficou criada, mas não ficou ligada à doação: ${linked.error}`);
     }
+    if (pending) {
+      await resumeFigurePublication(pending);
+      return;
+    }
     toast.success(publish ? 'Prova publicada. Os alunos já a podem simular.' : 'Prova guardada. Fica oculta até a publicar.');
+  }
+
+  async function resumeFigurePublication(pending: PendingFigurePublication) {
+    setSaving(true);
+    const result = await attachMissingFigures(pending.id, pending.figures);
+    if (result.failed > 0) {
+      setSaving(false);
+      setPendingPublication(pending);
+      setSaved({ ...pending, published: false });
+      toast.error(`${result.failed} recorte(s) não foram anexados. A prova continua oculta; tente novamente para retomar.`);
+      return;
+    }
+    if (pending.publish) {
+      const approved = await approveStatement(pending.id);
+      if (!approved.ok) {
+        setSaving(false);
+        setPendingPublication(pending);
+        toast.error(`Os recortes foram anexados, mas a aprovação falhou: ${approved.error}`);
+        return;
+      }
+      const visible = await setStatementVisible(pending.id, true);
+      if (!visible.ok) {
+        setSaving(false);
+        setPendingPublication(pending);
+        toast.error(`A prova foi aprovada, mas continua oculta: ${visible.error}`);
+        return;
+      }
+      setSaved({ ...pending, published: true });
+      toast.success('Prova publicada. Os alunos já a podem simular.');
+    } else {
+      setSaved({ ...pending, published: false });
+      toast.success('Prova guardada com todos os recortes. Continua oculta até a publicar.');
+    }
+    setPendingPublication(null);
+    setSaving(false);
   }
 
   /**
    * O que o OCR leu vira rascunho. Não se guarda nada: o professor corrige aqui e só depois grava.
    * Substituir um rascunho com conteúdo pede confirmação, porque o OCR trocava tudo de uma vez.
    */
-  function applyImport(extraction: ExamExtraction, names: string) {
+  function applyImport(extraction: ExamExtraction, names: string): boolean {
     const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] });
     if (imported.items.length === 0) {
       setNotes(imported.notes);
-      return void toast.error('Não foi possível ler questões nesta imagem.');
+      toast.error('Não foi possível ler questões nesta imagem.');
+      return false;
     }
     // A mesma noção de «conteúdo» do aviso de arranque: o OCR substitui o cabeçalho
     // inteiro, por isso mexer só na escola/disciplina/duração também se avisa.
-    if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return;
+    if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return false;
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
     setSaved(null);
     setImportOpen(false);
     toast.success(`Prova lida (${names}): ${imported.items.length} questões. Reveja o que o OCR percebeu.`);
+    return true;
   }
 
   /** O OCR sobre os ficheiros da doação: o mesmo caminho do importador, sem ficheiros novos. */
@@ -211,7 +298,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const canSave = ready2print && classChosen;
   /** Depois de guardar, gravar outra vez sem mexer em nada criava um duplicado: só volta a ser possível ao editar. */
   const unchangedSinceSave = saved !== null && saved.snapshot === JSON.stringify(draft);
-  const toSave = canSave && !saving && !unchangedSinceSave;
+  const toSave = canSave && !saving && !unchangedSinceSave && pendingPublication === null;
 
   return (
     <div className="mx-auto max-w-7xl p-6 md:p-8 lg:p-10">
@@ -222,7 +309,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           <p className="mt-1 text-muted-foreground">A prova segue o modelo oficial. Só o logótipo, o nome da escola e a disciplina mudam.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setImportOpen((v) => !v)} aria-expanded={importOpen}>
+          <Button variant="outline" onClick={() => setImportOpen((v) => !v)} aria-expanded={importOpen} disabled={pendingPublication !== null}>
             <ScanText aria-hidden /> Importar de imagem
           </Button>
           <Button variant="outline" onClick={() => save(false)} disabled={!toSave} title={canSave ? undefined : 'Escolha a disciplina e a turma e escreva pelo menos uma questão'}>
@@ -245,15 +332,16 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Check className="size-4 text-primary" aria-hidden />{saved.published ? 'Prova publicada' : 'Prova guardada'}</CardTitle>
                 <CardDescription>
-                  «{saved.title}» {saved.published ? 'já está disponível para os alunos simularem sozinhos.' : 'ficou oculta: publique-a para a poder dar a uma turma.'} A prova é dada a partir de um enunciado, numa sala: os alunos entram na sala e fazem a simulação.
+                  «{saved.title}» {pendingPublication ? 'continua oculta enquanto os recortes OCR não forem anexados e confirmados.' : saved.published ? 'já está disponível para os alunos simularem sozinhos.' : 'ficou oculta: publique-a para a poder dar a uma turma.'} A prova é dada a partir de um enunciado, numa sala: os alunos entram na sala e fazem a simulação.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
+                {pendingPublication ? <Button onClick={() => resumeFigurePublication(pendingPublication)} disabled={saving}>{saving ? <Spinner className="size-4" /> : <Check aria-hidden />}{saving ? 'A retomar…' : 'Retomar anexação e publicação'}</Button> : null}
                 {saved.published ? (
                   <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
                 ) : null}
-                <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button>
-                <Button variant="ghost" onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
+                {!pendingPublication ? <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button> : null}
+                <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
                   // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
                   // voltar a ser guardado — um aviso a mais no arranque seguinte.
                   setDraft(EMPTY_DRAFT); setNotes([]); setSaved(null); } }}>

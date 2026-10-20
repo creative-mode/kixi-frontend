@@ -122,6 +122,47 @@ test('avisos de baixa confiança em campos do cabeçalho viram notas legíveis',
   assert.match(out.notes.join(' '), /inseguro com a duração/);
 });
 
+test('NATIVE_TEXT_GAP global marca para revisão mesmo com confiança alta e sem fórmula estruturada', () => {
+  const out = draftFromExtraction({
+    questions: [{ number: '1', type: 'dissertativa', text: 'Determine a velocidade.', confidence: 0.99 }],
+    warnings: [{ code: 'NATIVE_TEXT_GAP', field: 'formulas', confidence: 0, message: 'Podem faltar símbolos matemáticos.' }],
+  }, { subjects: [] });
+
+  assert.equal(out.items[0].review, true);
+  assert.equal(out.reviewCount, 1);
+  assert.match(problems(out.items).join(' '), /confiança OCR/);
+});
+
+test('avisos de fórmula por questão marcam apenas a questão identificada', () => {
+  const out = draftFromExtraction({
+    questions: [
+      { number: '1', type: 'dissertativa', text: 'Determine x.', confidence: 0.99 },
+      { number: '2', type: 'dissertativa', text: 'Determine y.', confidence: 0.99 },
+    ],
+    warnings: [{ code: 'LOW_CONFIDENCE_FORMULA', field: 'question_2_formula_1', confidence: 0.4 }],
+  }, { subjects: [] });
+
+  assert.equal(out.items[0].review, undefined);
+  assert.equal(out.items[1].review, true);
+  assert.equal(out.reviewCount, 1);
+});
+
+test('needs_review global força revisão, mas NO_COTACAO continua apenas como cotação', () => {
+  const questions = [
+    { number: '1', type: 'dissertativa', text: 'Questão 1', confidence: 0.99 },
+    { number: '2', type: 'dissertativa', text: 'Questão 2', confidence: 0.99 },
+  ];
+  const flagged = draftFromExtraction({ needs_review: true, questions }, { subjects: [] });
+  assert.ok(flagged.items.every((question) => question.review === true));
+  assert.equal(flagged.reviewCount, 2);
+  assert.match(problems(flagged.items).join(' '), /confiança OCR/);
+
+  const unscored = draftFromExtraction({ needs_review: true, questions, warnings: [{ code: 'NO_COTACAO', field: 'questions', confidence: 1 }] }, { subjects: [] });
+  assert.ok(unscored.items.every((question) => question.review !== true));
+  assert.equal(unscored.reviewCount, 0);
+  assert.match(unscored.notes.join(' '), /não traz cotação/);
+});
+
 test('matchSubject: igual sem acentos, sigla nos dois sentidos, e nada quando não há', () => {
   assert.equal(matchSubject('matematica', SUBJECTS), 'Matemática');
   assert.equal(matchSubject('OGI', SUBJECTS), 'Organização e Gestão Industrial');
@@ -160,6 +201,43 @@ test('cada figura fica na questão a que o OCR a ligou, e o cabeçalho e a assin
 test('só os recortes que existem entram, e só se forem imagens', () => {
   const { items } = draftFromExtraction({ ...withFigures, images_to_upload: [{ region: 'questao_1', data_url: 'javascript:alert(1)' }, { region: 'questao_1', data_url: '' }] }, { subjects: SUBJECTS });
   assert.equal(items[0].images, undefined);
+});
+
+test('fórmulas, blocos, confiança e texto OCR original sobrevivem à conversão e ao contrato de texto da API', () => {
+  const { items, reviewCount } = draftFromExtraction({ questions: [
+    {
+      number: '1', type: 'dissertativa', text: 'Determine $B_{max}e^{-2t}$', rawText: 'Determine Bmaxe-2t', confidence: 0.96,
+      formulas: [{ raw: 'Bmaxe-2t', latex: 'B_{\\max}e^{-2t}', confidence: 0.94, kind: 'formula' }],
+      blocks: [{ type: 'text', text: 'Determine ' }, { type: 'formula', raw: 'Bmaxe-2t', latex: 'B_{\\max}e^{-2t}', confidence: 0.94, kind: 'formula' }],
+    },
+    {
+      number: '2', type: 'composta', text: 'Resolva', rawText: 'Resolva', confidence: 0.97,
+      subitems_content: [{ label: 'a', text: 'Calcule $5\\times 10^{-3}T$', rawText: 'a) Calcule 5x10-3T', confidence: 0.7,
+        formulas: [{ raw: '5x10-3T', latex: '5\\times 10^{-3}T', confidence: 0.7, kind: 'formula' }] }],
+    },
+  ] }, { subjects: [] });
+
+  assert.equal(items[0].rawText, 'Determine Bmaxe-2t');
+  assert.equal(items[0].confidence, 0.96);
+  assert.equal(items[0].formulas?.[0].raw, 'Bmaxe-2t');
+  assert.equal(items[0].blocks?.[1].type, 'formula');
+  assert.equal(items[0].review, undefined);
+  assert.equal(items[1].items?.[0].rawText, 'a) Calcule 5x10-3T');
+  assert.equal(items[1].items?.[0].confidence, 0.7);
+  assert.equal(items[1].items?.[0].review, true);
+  assert.equal(reviewCount, 1);
+
+  const request = toRequest(items);
+  assert.match(request[0].text, /\$B_\{\\max\}e\^{-2t}\$/);
+  assert.match(request[1].items?.[0].text ?? '', /\$5\\times 10\^{-3\}T\$/);
+});
+
+test('fórmula não reconhecida e confiança matemática baixa obrigam a revisão', () => {
+  const out = draftFromExtraction({ questions: [{ number: '1', type: 'dissertativa', text: 'Vetor 7=1-tex', confidence: 0.99,
+    formulas: [{ raw: '7=1-tex', latex: null, confidence: 0.99, kind: 'unrecognized' }] }] }, { subjects: [] });
+  assert.equal(out.items[0].review, true);
+  assert.equal(out.reviewCount, 1);
+  assert.equal(toRequest(out.items)[0].text, 'Vetor 7=1-tex');
 });
 
 test('figuresOf dá a cada figura o número da questão na ordem em que vai ao servidor', async () => {

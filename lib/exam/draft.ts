@@ -1,3 +1,5 @@
+import { mathNeedsReview, serializeMathText, type MathContentFields, type MathFormula, type MathContentBlock } from '../../student/lib/shared/math-types.ts';
+
 /**
  * The rules of an exam draft, with no React and no localStorage.
  *
@@ -24,7 +26,7 @@ export type QuestionKind = 'open' | 'multiple_choice' | 'true_false' | 'group';
 export type LeafKind = Exclude<QuestionKind, 'group'>;
 
 /** An alínea: a question of its own inside a `group`. The label (a, b, c…) is generated. */
-export interface DraftItem {
+export interface DraftItem extends MathContentFields {
   text: string;
   points: number | '';
   options: DraftOption[];
@@ -32,6 +34,8 @@ export interface DraftItem {
   kind?: LeafKind;
   /** Marked by the OCR import when the engine was not sure, so the teacher looks at it. */
   review?: boolean;
+  /** Explicit acknowledgement of low-confidence OCR evidence. */
+  reviewed?: boolean;
   /** A resposta esperada de uma questão aberta, para a chave. Só o pessoal a recebe. */
   modelAnswer?: string;
 }
@@ -45,7 +49,7 @@ export interface DraftImage {
   kind?: string;
 }
 
-export interface DraftQuestion {
+export interface DraftQuestion extends MathContentFields {
   text: string;
   /** `''` means "not scored yet". It is not the same as zero, and the difference matters below. */
   points: number | '';
@@ -54,10 +58,23 @@ export interface DraftQuestion {
   /** Only for `group`. */
   items?: DraftItem[];
   review?: boolean;
+  /** Explicit acknowledgement of low-confidence OCR evidence. */
+  reviewed?: boolean;
   /** A resposta esperada de uma questão aberta, para a chave. Só o pessoal a recebe. */
   modelAnswer?: string;
   /** Figures of the question, in page order. */
   images?: DraftImage[];
+}
+
+type ReviewableContent = Pick<DraftQuestion, 'text' | 'formulas' | 'blocks' | 'reviewed'>;
+
+/** Invalidates a teacher acknowledgement when the OCR/math content changes. */
+export function invalidateReviewOnContentChange<T extends ReviewableContent>(previous: T, next: T): T {
+  const contentChanged = previous.text !== next.text
+    || JSON.stringify(previous.formulas ?? []) !== JSON.stringify(next.formulas ?? [])
+    || JSON.stringify(previous.blocks ?? []) !== JSON.stringify(next.blocks ?? []);
+
+  return contentChanged ? { ...next, reviewed: false } : next;
 }
 
 /** What goes to the server after the exam is created: each figure with the number its question gets
@@ -146,7 +163,7 @@ export function convertKind(q: DraftQuestion, kind: QuestionKind): DraftQuestion
 /** Same conversion for an alínea (never a group). */
 export function convertItemKind(item: DraftItem, kind: LeafKind): DraftItem {
   const converted = convertKind({ text: item.text, points: item.points, options: item.options, kind: kindOf(item) }, kind);
-  return { text: item.text, points: item.points, review: item.review, kind, options: converted.options };
+  return { ...item, kind, options: converted.options };
 }
 
 /** The questions that are answered: the question itself, or each alínea of a group. */
@@ -329,6 +346,17 @@ export function problems(questions: DraftQuestion[]): string[] {
   if (emptyItems.length > 0) {
     out.push(`Há alíneas por escrever: ${labels(emptyItems)}.`);
   }
+  const pendingReview = filled.flatMap((question, index) => {
+    const pending: string[] = [];
+    if ((question.review || mathNeedsReview(question.formulas, question.blocks)) && !question.reviewed) pending.push(String(index + 1));
+    (question.items ?? []).forEach((item, itemIndex) => {
+      if ((item.review || mathNeedsReview(item.formulas, item.blocks)) && !item.reviewed) pending.push(`${index + 1}${itemLabel(itemIndex)}`);
+    });
+    return pending;
+  });
+  if (pendingReview.length > 0) {
+    out.push(`Reveja a confiança OCR antes de publicar: ${pendingReview.join(', ')}.`);
+  }
   const missing = unscored(questions);
   if (missing > 0) {
     out.push(`${missing} questão(ões) sem cotação, e uma questão sem cotação não conta para o total.`);
@@ -403,7 +431,11 @@ export function round2(value: number): number {
 }
 
 export interface RequestOption { label: string; text: string; correct: boolean }
-export interface RequestItem { label: string; text: string; type: LeafKind; maxScore: number | null; options: RequestOption[] }
+export interface RequestItem {
+  label: string; text: string; type: LeafKind; maxScore: number | null; options: RequestOption[];
+  /** Matches ManualStatementRequest.Item; blocks are encoded in text and formulas. */
+  rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
+}
 export interface RequestQuestion {
   text: string;
   type: QuestionKind;
@@ -413,6 +445,40 @@ export interface RequestQuestion {
   options: RequestOption[];
   /** Only for a group. */
   items?: RequestItem[];
+  /** Matches ManualStatementRequest.Question; `needsReview` is derived by the backend. */
+  rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
+}
+
+function formulaEvidence(formulas?: MathFormula[], blocks?: MathContentBlock[]): MathFormula[] | undefined {
+  const blockFormulas = (blocks ?? [])
+    .filter((block): block is Extract<MathContentBlock, { type: 'formula' }> => block.type === 'formula')
+    .map(({ raw, latex, confidence, kind }) => ({
+      raw,
+      ...(latex !== undefined ? { latex } : {}),
+      ...(confidence !== undefined ? { confidence } : {}),
+      ...(kind !== undefined ? { kind } : {}),
+    }));
+  const all = [...(formulas ?? []), ...blockFormulas];
+  const seen = new Set<string>();
+  const unique = all.filter((formula) => {
+    const key = `${formula.raw}\u0000${formula.latex ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return unique.length ? unique : undefined;
+}
+
+function ocrEvidence(item: MathContentFields & { reviewed?: boolean }) {
+  const formulas = formulaEvidence(item.formulas, item.blocks);
+  return {
+    ...(item.rawText !== undefined ? { rawText: item.rawText } : {}),
+    ...(item.confidence != null ? { confidence: item.confidence } : {}),
+    // `review` means review is required; `reviewed` is the teacher's acknowledgement.
+    // ManualStatementService derives needsReview from confidence/formula evidence.
+    ...(item.reviewed === true ? { reviewed: true } : {}),
+    ...(formulas ? { formulas } : {}),
+  };
 }
 
 /**
@@ -434,7 +500,7 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
       const kind = kindOf(q);
       if (kind === 'group') {
         return {
-          text: q.text.trim(),
+          text: serializeMathText(q.text, q.formulas, q.blocks).trim(),
           type: 'group',
           maxScore: null,
           options: [],
@@ -442,15 +508,17 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
             .filter((i) => i.text.trim())
             .map((i, j) => {
               const k = kindOf(i) as LeafKind;
-              return { label: itemLabel(j), text: i.text.trim(), type: k, maxScore: i.points === '' ? null : Number(i.points), options: leafOptions(k, i.options) };
+              return { label: itemLabel(j), text: serializeMathText(i.text, i.formulas, i.blocks).trim(), type: k, maxScore: i.points === '' ? null : Number(i.points), options: leafOptions(k, i.options), ...ocrEvidence(i) };
             }),
+          ...ocrEvidence(q),
         };
       }
       return {
-        text: q.text.trim(),
+        text: serializeMathText(q.text, q.formulas, q.blocks).trim(),
         type: kind,
         maxScore: q.points === '' ? null : Number(q.points),
         options: leafOptions(kind as LeafKind, q.options),
+        ...ocrEvidence(q),
       };
     });
 }

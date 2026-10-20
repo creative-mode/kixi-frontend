@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { Ico } from '@/components/ui/ico';
 import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
@@ -14,13 +14,15 @@ import { cn } from '@/lib/utils';
 import { sinceLabel } from '@/lib/attempt-history';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { CLASSMATE_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
-import { addCommentAction, getCommentsAction, reportPostAction, toggleReactionAction } from '@/lib/feed-actions';
+import { addCommentAction, getCommentsAction, reportPostAction, setReactionAction } from '@/lib/feed-actions';
 import type { FeedPost } from '@/lib/feed';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';
+import { FeedReaction, type ReactionSnapshot } from '@/lib/feed-reaction';
 
 /** Uma publicação da turma: autor, hora, texto, cartão de simulação e as ações (aplaudir, comentar, denunciar). */
 export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null }: { post: FeedPost; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null }) {
-  const [reacted, setReacted] = useState(post.hasReacted);
+  const [reactionController] = useState(() => new FeedReaction(post.hasReacted, (target) => setReactionAction(post.id, target)));
+  const [reaction, setReaction] = useState<ReactionSnapshot>(reactionController.snapshot);
   const [count, setCount] = useState(post.commentCount);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
@@ -36,6 +38,9 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [reportReason, setReportReason] = useState('');
   const [reported, setReported] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => reactionController.subscribe(setReaction), [reactionController]);
+  useEffect(() => reactionController.syncConfirmed(post.hasReacted), [post.hasReacted, reactionController]);
 
   /** Escreve o estado nos dois sítios: o `ref` é lido no mesmo instante, antes de o
    *  React voltar a pintar, que é de onde vem a coordenação com a leitura em curso. */
@@ -70,11 +75,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   };
 
   const toggleReaction = () => {
-    setReacted((v) => !v); // optimista: um "aplaudir" não devia esperar pelo servidor
-    startTransition(async () => {
-      const result = await toggleReactionAction(post.id);
-      if (result.ok && result.reacted !== undefined) setReacted(result.reacted);
-    });
+    startTransition(() => reactionController.toggle());
   };
 
   const sendComment = (e: React.FormEvent) => {
@@ -153,8 +154,8 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </div>
 
         <div className="-ml-3 mt-1 flex items-center gap-1 py-0.5">
-          <Button variant="ghost" className={cn(act, reacted && 'text-destructive')} aria-pressed={reacted} aria-label={reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={pending} onClick={toggleReaction}>
-            <Ico key={String(reacted)} name="heart" filled={reacted} size={24} className={cn(reacted && 'pop')} />
+          <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
+            <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={24} className={cn(reaction.reacted && 'pop')} />
           </Button>
           <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" onClick={togglePanel}>
             <Ico name="chat" filled={open} size={24} /><span className="min-w-3 text-[14px] tabular-nums">{count}</span>
@@ -167,6 +168,16 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             <Ico name="flag" filled={reporting || reported} size={22} />
           </Button>
         </div>
+
+        {reaction.pending && <p className="sr-only" role="status" aria-live="polite">A guardar o aplauso…</p>}
+        {reaction.error && (
+          <Alert variant="destructive" className="mb-3 flex items-center justify-between gap-3">
+            <span>{reaction.error}</span>
+            <Button type="button" variant="outline" size="sm" disabled={reaction.pending || pending} onClick={() => startTransition(() => reactionController.retry())}>
+              Tentar de novo
+            </Button>
+          </Alert>
+        )}
 
       {reported && (
         <div className="pb-3">

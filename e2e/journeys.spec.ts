@@ -68,6 +68,12 @@ async function escolherOpcao(select: Locator) {
   await select.selectOption({ label: texto });
 }
 
+async function assertPrintablePdf(page: Page) {
+  const pdf = await page.pdf({ printBackground: true, preferCSSPageSize: true });
+  expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  expect(pdf.byteLength).toBeGreaterThan(1_000);
+}
+
 const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
 const TEACHER_LANDING = { landing: /\/manager\/professor\/?$/, heading: 'Início' } as const;
 
@@ -229,11 +235,23 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     // Conta nova: o início abre sem o bloco «Começa por aqui» (saiu do início).
     await expect(page.getByRole('region', { name: 'Primeiros passos' })).toHaveCount(0);
+    const applause = page.getByRole('button', { name: 'Aplaudir' }).first();
+    await expect(applause).toBeVisible();
+    await applause.click();
+    const applauded = page.getByRole('button', { name: 'Aplaudido, tocar para retirar' }).first();
+    await expect(applauded).toHaveAttribute('aria-pressed', 'true');
+    await applauded.click();
+    await expect(page.getByRole('button', { name: 'Aplaudir' }).first()).toHaveAttribute('aria-pressed', 'false');
 
     // Follow the catalogue for the class selected during onboarding so the test does
     // not assume a fixed class-to-statement mapping.
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
+    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    await assertPrintablePdf(page);
+    await page.emulateMedia({ media: 'screen' });
     await page.getByRole('link', { name: 'Começar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
@@ -270,10 +288,20 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       buffer: samplePdf(),
     });
     await page.getByTestId('gestor-statements-import-submeter').click();
+    await expect(page.getByText('A ler página 1 de 1…')).toBeVisible();
 
     // O extrato entra no rascunho. Publicar exige disciplina e turma — o proprio
     // botao diz isso no `title` — e so depois de a prova existir.
     await expect(page.getByText('ocr-sample.pdf')).toBeVisible();
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+    const mathQuestion = page.getByRole('textbox', { name: 'Questão 1' });
+    await mathQuestion.fill('Questão sintética editada: determine $v = v_0 + at$.');
+    await expect(page.locator('#exam-sheet')).toContainText('Questão sintética editada: determine');
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+    await assertPrintablePdf(page);
+    await page.emulateMedia({ media: 'screen' });
     // Por label, nao por posicao: o `Field` do construtor passou a envolver o
     // controlo no `<label>`, que e o que da ao campo um nome acessivel. Antes o
     // teste ia por `select` a dedo (Escola, Disciplina, Turma), e isso partia se o
@@ -296,6 +324,17 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     }
     await page.getByRole('button', { name: 'Publicar' }).click();
     await expect(page.getByText('Prova publicada. Os alunos já a podem simular.')).toBeVisible();
+
+    const detailHref = await page.getByRole('link', { name: 'Ver o enunciado' }).getAttribute('href');
+    expect(detailHref).toBeTruthy();
+    const detail = await page.context().newPage();
+    await detail.goto(detailHref!);
+    await expect(detail.getByRole('img', { name: 'Diagrama OCR' })).toBeVisible();
+    await expect(detail.locator('.katex')).toBeVisible();
+    await detail.emulateMedia({ media: 'print' });
+    await expect(detail.locator('.katex')).toBeVisible();
+    await assertPrintablePdf(detail);
+    await detail.close();
 
     await page.getByRole('link', { name: 'Criar sala com esta prova' }).click();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/new\?statementId=/);

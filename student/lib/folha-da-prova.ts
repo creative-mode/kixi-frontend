@@ -8,8 +8,9 @@
  */
 import { itemLabel, isItem, topNumber } from './question-number.ts';
 import type { ExamOption, ExamQuestion } from './exam-rules.ts';
+import type { MathContentFields } from './shared/math-types.ts';
 
-export interface PaperItem {
+export interface PaperItem extends MathContentFields {
   id: number;
   /** `a`, `b`… */
   label: string;
@@ -18,7 +19,7 @@ export interface PaperItem {
   options: ExamOption[];
 }
 
-export interface PaperQuestion {
+export interface PaperQuestion extends MathContentFields {
   /** O número da questão inteira (o 3 de 3a). */
   number: number;
   /** O enunciado: o comum, se tem alíneas; o próprio, se não. */
@@ -27,6 +28,8 @@ export interface PaperQuestion {
   maxScore: number | null;
   /** O id da questão quando é uma folha (sem alíneas); `null` num grupo. */
   id: number | null;
+  /** Persistent question id that owns the shared statement and its figures. */
+  groupId?: number | null;
   options: ExamOption[];
   items: PaperItem[];
 }
@@ -56,13 +59,13 @@ export function buildPaper(questions: readonly ExamQuestion[]): PaperQuestion[] 
 
   for (const q of questions) {
     if (!isItem(q)) {
-      papers.push({ number: q.number, text: q.text, maxScore: q.maxScore ?? null, id: q.id, options: q.options ?? [], items: [] });
+      papers.push({ number: q.number, text: q.text, maxScore: q.maxScore ?? null, id: q.id, options: q.options ?? [], items: [], rawText: q.rawText, confidence: q.confidence ?? q.ocrConfidence, formulas: q.formulas, blocks: q.blocks });
       continue;
     }
     const number = q.parentNumber ?? topNumber(q.number);
     let group = groups.get(number);
     if (!group) {
-      group = { number, text: q.parentText ?? '', maxScore: null, id: null, options: [], items: [] };
+      group = { number, text: q.parentText ?? '', maxScore: null, id: null, groupId: q.parentId ?? null, options: [], items: [] };
       groups.set(number, group);
       papers.push(group);
     }
@@ -72,6 +75,10 @@ export function buildPaper(questions: readonly ExamQuestion[]): PaperQuestion[] 
       text: q.text,
       maxScore: q.maxScore ?? null,
       options: q.options ?? [],
+      rawText: q.rawText,
+      confidence: q.confidence ?? q.ocrConfidence,
+      formulas: q.formulas,
+      blocks: q.blocks,
     });
   }
 

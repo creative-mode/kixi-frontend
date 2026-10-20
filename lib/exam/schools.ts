@@ -1,4 +1,5 @@
 import { kindOf, labelsFor, trueFalseOptions, withoutImages, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
+import { mathContentFields } from '../../student/lib/shared/math-types.ts';
 
 export interface School {
   id: string;
@@ -101,7 +102,9 @@ function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
     points: typeof raw?.points === 'number' ? raw.points : '',
     options: kind === 'true_false' && options.length !== 2 ? trueFalseOptions() : options,
     kind,
+    ...mathContentFields((raw ?? {}) as Record<string, unknown>),
     ...(raw?.review === true ? { review: true } : {}),
+    ...(raw?.reviewed === true ? { reviewed: true } : {}),
     ...(typeof raw?.modelAnswer === 'string' && raw.modelAnswer.trim() ? { modelAnswer: raw.modelAnswer } : {}),
   };
 }
@@ -118,7 +121,9 @@ function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
     options: kind === 'group' ? [] : options,
     ...(kind ? { kind } : {}),
     ...(kind === 'group' ? { items } : {}),
+    ...mathContentFields((raw ?? {}) as Record<string, unknown>),
     ...(raw?.review === true ? { review: true } : {}),
+    ...(raw?.reviewed === true ? { reviewed: true } : {}),
     ...(typeof raw?.modelAnswer === 'string' && raw.modelAnswer.trim() ? { modelAnswer: raw.modelAnswer } : {}),
   };
 }
@@ -182,7 +187,7 @@ const filled = (value: string) => value.trim() !== '';
  * e apagá-lo em silêncio era perder exatamente o aviso que o OCR deixou.
  */
 function itemHasContent(i: ExamDraft['items'][number]): boolean {
-  if (filled(i.text) || filled(i.modelAnswer ?? '') || i.points !== '' || i.options.length > 0 || i.review === true) return true;
+  if (filled(i.text) || filled(i.modelAnswer ?? '') || i.points !== '' || i.options.length > 0 || i.review === true || !!i.formulas?.length || !!i.blocks?.length) return true;
   return (i.items ?? []).some(itemHasContent);
 }
 
