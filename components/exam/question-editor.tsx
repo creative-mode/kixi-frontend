@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
-import { convertKind, emptyItem, groupScore, invalidateReviewOnContentChange, itemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
+import { convertKind, emptyItem, groupScore, invalidateReviewOnContentChange, sourceItemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
 import type { ExamItem } from '@/lib/exam/schools';
 import { ItemEditor, LEAF_LABELS, LeafBody } from './item-editor';
 import { MathText } from '@/student/lib/shared/math-text';
@@ -128,10 +128,10 @@ export function QuestionEditor({
             <ItemEditor
               key={j}
               item={it}
-              label={itemLabel(j)}
+              label={sourceItemLabel(it, j)}
               index={j}
               total={items.length}
-              where={`${n}${itemLabel(j)}`}
+              where={`${n}${sourceItemLabel(it, j)}`}
               onChange={(next) => setItems(items.map((x, k) => (k === j ? next : x)))}
               onRemove={() => setItems(items.filter((_, k) => k !== j))}
               onMove={(direction) => setItems(move(items, j, direction))}

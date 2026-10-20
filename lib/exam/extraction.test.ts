@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { OGI_EXTRACTION } from '../mock/ogi-extraction.ts';
-import { distributeScore, kindOf, leavesOf, problems, toRequest, totalScore, trueFalseAnswer } from './draft.ts';
+import { distributeScore, kindOf, leavesOf, problems, sourceItemLabel, toRequest, totalScore, trueFalseAnswer } from './draft.ts';
 import { draftFromExtraction, matchSubject, type ExamExtraction } from './extraction.ts';
 
 const SUBJECTS = ['Matemática', 'Organização e Gestão Industrial', 'Física'];
@@ -12,6 +12,22 @@ test('a prova de OGI vira seis questões com os tipos certos', () => {
   assert.equal(items.length, 6);
   assert.deepEqual(items.map((q) => kindOf(q)), ['open', 'open', 'group', 'open', 'group', 'open']);
   assert.deepEqual(items.map((q) => q.items?.length ?? 0), [0, 0, 4, 0, 2, 0]);
+});
+
+test('a importação preserva os rótulos impressos das alíneas no editor, na folha e no pedido', () => {
+  const { items } = draftFromExtraction({
+    questions: [{
+      number: '2', type: 'composta', text: 'Calcule:', confidence: 0.95,
+      subitems_content: [
+        { label: 'c)', text: 'Primeira alínea', type: 'dissertativa' },
+        { label: 'd', text: 'Segunda alínea', type: 'dissertativa' },
+      ],
+    }],
+  }, { subjects: [] });
+  const group = items[0];
+  assert.equal(sourceItemLabel(group.items![0], 0), 'c');
+  assert.equal(sourceItemLabel(group.items![1], 1), 'd');
+  assert.deepEqual(toRequest(items)[0].items?.map((item) => item.label), ['c', 'd']);
 });
 
 test('o verdadeiro/falso da Q3 fica com quatro alíneas, duas opções cada e nenhuma resposta marcada', () => {
@@ -191,11 +207,30 @@ const withFigures: ExamExtraction = {
 };
 
 test('cada figura fica na questão a que o OCR a ligou, e o cabeçalho e a assinatura ficam de fora', () => {
-  const { items, notes } = draftFromExtraction(withFigures, { subjects: SUBJECTS });
+  const { items, notes, footerPreview } = draftFromExtraction(withFigures, { subjects: SUBJECTS });
   assert.deepEqual(items.map((q) => q.images?.length ?? 0), [0, 1, 2]);
   assert.deepEqual(items[2].images?.map((i) => i.kind), ['figure', 'table']);
   assert.equal(items[1].images?.[0].caption, 'Figura da questão 2');
   assert.ok(notes.some((n) => /3 figura/.test(n)));
+  assert.equal(footerPreview?.dataUrl, PNG);
+  assert.deepEqual(footerPreview?.text, []);
+});
+
+test('conteúdo do rodapé mantém zona e texto fora das questões', () => {
+  const imported = draftFromExtraction({
+    questions: [{ number: '1', text: 'Calcule o fluxo.', type: 'dissertativa' }],
+    images_to_upload: [{ region: 'rodape', data_url: PNG }],
+    unmapped_content: [
+      { pageIndex: 0, text: 'A coordenação', zone: 'rodape', bbox: [0, 100, 500, 140] },
+      { pageIndex: 0, text: 'secretaria@example.ao', zone: 'rodape', bbox: [0, 150, 500, 180] },
+    ],
+  }, { subjects: SUBJECTS });
+
+  assert.equal(imported.items.length, 1);
+  assert.equal(imported.items[0].text, 'Calcule o fluxo.');
+  assert.equal(imported.footerPreview?.pageIndex, 0);
+  assert.deepEqual(imported.footerPreview?.text, ['A coordenação', 'secretaria@example.ao']);
+  assert.match(imported.notes.join(' '), /Rodapé separado das questões/);
 });
 
 test('só os recortes que existem entram, e só se forem imagens', () => {

@@ -9,6 +9,10 @@
 
 .kixi-math-review { text-decoration: underline wavy #b45309; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .kixi-math-review-label { margin-inline-start: 0.35rem; color: #92400e; font-size: 0.72em; font-weight: 600; }
+@media print {
+  .kixi-math-review { text-decoration: none; }
+  .kixi-math-review-label { display: none; }
+}
 .kixi-math-literal { white-space: pre-wrap; }
 
 /* Fontes carregadas por next/font neste app */

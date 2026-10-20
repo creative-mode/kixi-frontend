@@ -95,6 +95,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [classId, setClassId] = useState('');
   const [importOpen, setImportOpen] = useState(openImport);
   const [notes, setNotes] = useState<string[]>([]);
+  const [footerPreview, setFooterPreview] = useState<{ dataUrl: string; pageIndex: number | null; text: string[] } | null>(null);
   const [saved, setSaved] = useState<SavedExam | null>(null);
   const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
@@ -264,6 +265,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] });
     if (imported.items.length === 0) {
       setNotes(imported.notes);
+      setFooterPreview(imported.footerPreview ?? null);
       toast.error('Não foi possível ler questões nesta imagem.');
       return false;
     }
@@ -272,6 +274,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return false;
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
+    setFooterPreview(imported.footerPreview ?? null);
     setSaved(null);
     setImportOpen(false);
     toast.success(`Prova lida (${names}): ${imported.items.length} questões. Reveja o que o OCR percebeu.`);
@@ -344,7 +347,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                 <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
                   // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
                   // voltar a ser guardado — um aviso a mais no arranque seguinte.
-                  setDraft(EMPTY_DRAFT); setNotes([]); setSaved(null); } }}>
+                  setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); setSaved(null); } }}>
                   <Plus aria-hidden />Nova prova
                 </Button>
               </CardContent>
@@ -387,6 +390,21 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
               </CardHeader>
               <CardContent>
                 <ul className="grid list-disc gap-1.5 pl-5 text-sm">{notes.map((n) => <li key={n}>{n}</li>)}</ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {footerPreview && (
+            <Card data-testid="ocr-footer-preview">
+              <CardHeader>
+                <CardTitle>Rodapé original — fora das questões</CardTitle>
+                <CardDescription>
+                  Recorte da página {(footerPreview.pageIndex ?? 0) + 1}, mantido para conferência. Não será impresso como parte das perguntas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                <img src={footerPreview.dataUrl} alt="Rodapé original da prova, incluindo contacto e coordenação" className="max-h-72 w-full rounded-lg border object-contain object-left-top" />
+                {footerPreview.text.length > 0 && <p className="text-sm text-muted-foreground">Texto reconhecido: {footerPreview.text.join(' · ')}</p>}
               </CardContent>
             </Card>
           )}

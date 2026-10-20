@@ -98,6 +98,7 @@ function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
   const options = normalizeOptions(raw?.options);
   const kind = LEAF_KINDS.includes(raw?.kind as LeafKind) ? (raw?.kind as LeafKind) : (kindOf({ options }) as LeafKind);
   return {
+    ...(typeof raw?.label === 'string' && /^[a-z]+$/i.test(raw.label.trim()) ? { label: raw.label.trim().toLowerCase() } : {}),
     text: typeof raw?.text === 'string' ? raw.text : '',
     points: typeof raw?.points === 'number' ? raw.points : '',
     options: kind === 'true_false' && options.length !== 2 ? trueFalseOptions() : options,

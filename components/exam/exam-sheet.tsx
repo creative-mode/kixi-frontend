@@ -1,4 +1,4 @@
-import { itemLabel, kindOf, totalScore, trueFalseAnswer, type DraftOption } from '@/lib/exam/draft';
+import { sourceItemLabel, kindOf, totalScore, trueFalseAnswer, type DraftOption } from '@/lib/exam/draft';
 import type { ExamDraft, ExamItem, School } from '@/lib/exam/schools';
 import { MathText } from '@/student/lib/shared/math-text';
 
@@ -84,7 +84,7 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
               const k = kindOf(sub);
               return (
                 <li key={j} className="flex gap-2">
-                  <span className="font-semibold">{itemLabel(j)})</span>
+                  <span className="font-semibold">{sourceItemLabel(sub, j)})</span>
                   <span className="flex-1">
                     <MathText text={sub.text} formulas={sub.formulas} blocks={sub.blocks} />
                     {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}

@@ -46,6 +46,13 @@ export interface ExtractionImage {
   /** The crop as a `data:image/png;base64,...` URL; absent when it could not be cut. */
   data_url?: string | null;
 }
+export interface ExtractionUnmappedContent {
+  pageIndex?: number | null;
+  text?: string | null;
+  reason?: string | null;
+  bbox?: number[] | null;
+  zone?: string | null;
+}
 export interface ExtractionWarning { code?: string | null; field?: string | null; confidence?: number | null; message?: string | null }
 export interface ExamExtraction {
   status?: 'success' | 'partial' | 'error' | null;
@@ -67,6 +74,7 @@ export interface ExamExtraction {
   warnings?: ExtractionWarning[] | null;
   questions?: ExtractionQuestion[] | null;
   images_to_upload?: ExtractionImage[] | null;
+  unmapped_content?: ExtractionUnmappedContent[] | null;
 }
 
 export interface ExtractionContext {
@@ -82,6 +90,8 @@ export interface ImportedDraft {
   notes: string[];
   /** Quantas folhas (questões ou alíneas) ficaram marcadas para rever. */
   reviewCount: number;
+  /** Source-page footer crop for review only; it is not part of the printable exam. */
+  footerPreview?: { dataUrl: string; pageIndex: number | null; text: string[] };
 }
 
 /** Abaixo disto o motor não estava seguro e a questão fica marcada para rever. */
@@ -143,7 +153,9 @@ function itemFrom(sub: ExtractionSubitem, fallback: LeafKind, parentReview: bool
   const math = mathContentFields({ ...sub, rawText: sub.rawText ?? sub.text ?? '' });
   const confidenceReview = typeof sub.confidence === 'number' && sub.confidence < REVIEW_BELOW;
   const review = parentReview || confidenceReview || mathNeedsReview(math.formulas, math.blocks);
+  const sourceLabel = (sub.label ?? '').trim().replace(/[).]+$/, '').toLowerCase();
   return {
+    ...( /^[a-z]+$/.test(sourceLabel) ? { label: sourceLabel } : {}),
     text: clean(sub.text),
     points: points(sub.cotacao),
     kind,
@@ -257,6 +269,13 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
     const images = imagesOf(kept[i].number, extraction.images_to_upload);
     return images.length > 0 ? { ...b.question, images } : b.question;
   });
+  const footerImage = (extraction.images_to_upload ?? []).find(
+    (image) => image.region === 'rodape' && typeof image.data_url === 'string' && image.data_url.startsWith('data:image/'),
+  );
+  const footerContent = (extraction.unmapped_content ?? []).filter((item) => item.zone === 'rodape' && item.text?.trim());
+  if (footerContent.length > 0) {
+    notes.push(`Rodapé separado das questões (página ${(footerContent[0].pageIndex ?? 0) + 1}): ${footerContent.map((item) => item.text!.trim()).join(' · ')}`);
+  }
   const figureCount = items.reduce((n, q) => n + (q.images?.length ?? 0), 0);
   const reviewCount = built.reduce((n, b) => n + b.review, 0);
 
@@ -285,5 +304,17 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   if (items.some((q) => q.kind === 'true_false' || (q.items ?? []).some((i) => i.kind === 'true_false'))) {
     notes.push('Marque Verdadeiro ou Falso em cada afirmação: o OCR não adivinha o gabarito.');
   }
-  return { patch, items, notes, reviewCount };
+  return {
+    patch,
+    items,
+    notes,
+    reviewCount,
+    ...(footerImage ? {
+      footerPreview: {
+        dataUrl: footerImage.data_url as string,
+        pageIndex: footerContent[0]?.pageIndex ?? null,
+        text: footerContent.map((item) => item.text!.trim()),
+      },
+    } : {}),
+  };
 }

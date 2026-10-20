@@ -27,6 +27,8 @@ export type LeafKind = Exclude<QuestionKind, 'group'>;
 
 /** An alínea: a question of its own inside a `group`. The label (a, b, c…) is generated. */
 export interface DraftItem extends MathContentFields {
+  /** Source label when OCR imports a paper whose alíneas do not start at a. */
+  label?: string;
   text: string;
   points: number | '';
   options: DraftOption[];
@@ -137,6 +139,12 @@ export function itemLabel(index: number): string {
   return out;
 }
 
+/** Preserve a printed OCR label; generated labels remain the fallback for new items. */
+export function sourceItemLabel(item: Pick<DraftItem, 'label'>, index: number): string {
+  const label = item.label?.trim().replace(/[).]+$/, '').toLowerCase();
+  return label && /^[a-z]+$/.test(label) ? label : itemLabel(index);
+}
+
 /**
  * Changes the kind of a question keeping what can be kept: the text and the score survive, the
  * options belong to the kind they were written for.
@@ -178,7 +186,7 @@ export function leavesOf(questions: DraftQuestion[]): Leaf[] {
     const n = i + 1;
     if (kindOf(q) === 'group') {
       (q.items ?? []).forEach((item, j) => {
-        out.push({ label: `${n}${itemLabel(j)}`, question: n, text: item.text, points: item.points, options: item.options, kind: kindOf(item) as LeafKind });
+        out.push({ label: `${n}${sourceItemLabel(item, j)}`, question: n, text: item.text, points: item.points, options: item.options, kind: kindOf(item) as LeafKind });
       });
     } else {
       out.push({ label: String(n), question: n, text: q.text, points: q.points, options: q.options, kind: kindOf(q) as LeafKind });
@@ -350,7 +358,7 @@ export function problems(questions: DraftQuestion[]): string[] {
     const pending: string[] = [];
     if ((question.review || mathNeedsReview(question.formulas, question.blocks)) && !question.reviewed) pending.push(String(index + 1));
     (question.items ?? []).forEach((item, itemIndex) => {
-      if ((item.review || mathNeedsReview(item.formulas, item.blocks)) && !item.reviewed) pending.push(`${index + 1}${itemLabel(itemIndex)}`);
+      if ((item.review || mathNeedsReview(item.formulas, item.blocks)) && !item.reviewed) pending.push(`${index + 1}${sourceItemLabel(item, itemIndex)}`);
     });
     return pending;
   });
@@ -508,7 +516,7 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
             .filter((i) => i.text.trim())
             .map((i, j) => {
               const k = kindOf(i) as LeafKind;
-              return { label: itemLabel(j), text: serializeMathText(i.text, i.formulas, i.blocks).trim(), type: k, maxScore: i.points === '' ? null : Number(i.points), options: leafOptions(k, i.options), ...ocrEvidence(i) };
+              return { label: sourceItemLabel(i, j), text: serializeMathText(i.text, i.formulas, i.blocks).trim(), type: k, maxScore: i.points === '' ? null : Number(i.points), options: leafOptions(k, i.options), ...ocrEvidence(i) };
             }),
           ...ocrEvidence(q),
         };
