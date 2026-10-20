@@ -4,6 +4,7 @@ import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
 import { getFeed, loadAuthors } from '@/lib/feed';
 import { loadSocial } from '@/lib/social';
+import { loadFirstConversations } from '@/lib/comments';
 import { InicioFeed } from './inicio-feed';
 
 export const metadata = { title: 'Início · Kixi' };
@@ -37,7 +38,7 @@ export default async function InicioPage() {
   const [feed, social] = await Promise.all([classId ? getFeed(classId) : Promise.resolve(null), loadSocial(me)]);
   const invResult = social.invitations;
   const posts = feed?.ok ? feed.data : [];
-  const authors = await loadAuthors(posts, me.accountId);
+  const [authors, conversations] = await Promise.all([loadAuthors(posts, me.accountId), loadFirstConversations(posts)]);
 
   return (
     <>
@@ -49,6 +50,7 @@ export default async function InicioPage() {
         classId={classId}
         posts={posts}
         authors={authors}
+        conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
       />
     </>

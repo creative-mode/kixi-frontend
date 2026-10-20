@@ -531,7 +531,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                         next/image exigiria o domínio na lista e um tamanho configurado
                         do lado de quem guarda a imagem. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={assetUrl(image.imageUrl)} alt={image.caption ?? ''} className="w-full rounded-lg border" />
+                    <img src={assetUrl(image.imageUrl, 768)} decoding="async" alt={image.caption ?? ''} className="w-full rounded-lg border" />
                     {image.caption && (
                       <figcaption className="text-[13px] text-muted-foreground">{image.caption}</figcaption>
                     )}
