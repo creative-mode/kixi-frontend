@@ -19,7 +19,7 @@ import {
 } from './simulation';
 
 import crypto from 'node:crypto';
-import { getJwtSecretValue } from '../dev-secret';
+import { getJwtSecretValue, isMockEnabled } from '../dev-secret';
 import { invitationsOf, join, roomDeadline, studentView, type MockParticipant, type MockRoom } from './exam-rooms';
 import { conversation, type MockPostComment } from './feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../post-blocks';
@@ -38,7 +38,7 @@ import type {
  *  security rules, so the screens can be built against it without a database.
  *  The secret matches the manager's, so the same cookie works on both apps.
  *  Set KIXI_MOCK=false to talk to the real API instead. */
-export const MOCK = process.env.KIXI_MOCK === 'true';
+export const MOCK = isMockEnabled();
 
 /** Inject a backend failure, so the client's resilience can be exercised for real:
  *  `KIXI_MOCK_FAULT=500` makes every route answer 500 and `=timeout` makes them fail the

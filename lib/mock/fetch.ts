@@ -1,7 +1,8 @@
 import 'server-only';
+import { isMockEnabled } from '../dev-secret';
 
 /** The mock is opt-in; startup rejects an unset or invalid KIXI_MOCK value. */
-export const MOCK = process.env.KIXI_MOCK === 'true';
+export const MOCK = isMockEnabled();
 
 /** Multipart bodies reach the mock as JSON: JSON parts are parsed, files become `{ name, type, size, dataUrl }`. */
 async function formToJson(form: FormData): Promise<string> {

@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getJwtSecretValue, validateRuntimeConfiguration } from './dev-secret.ts';
+import { getJwtSecretValue, isMockEnabled, validateRuntimeConfiguration } from './dev-secret.ts';
+
+test('enables the mock only for the explicit true value', () => {
+  assert.equal(isMockEnabled({ KIXI_MOCK: 'true' }), true);
+  assert.equal(isMockEnabled({ KIXI_MOCK: 'false' }), false);
+  assert.equal(isMockEnabled({}), false);
+});
 
 test('requires an explicit mock/backend selection', () => {
   assert.throws(() => validateRuntimeConfiguration({}), /KIXI_MOCK.*explicitamente/);
