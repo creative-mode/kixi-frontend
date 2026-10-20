@@ -19,6 +19,7 @@ import {
 } from './simulation';
 
 import crypto from 'node:crypto';
+import { getJwtSecretValue } from '../dev-secret';
 import { invitationsOf, join, roomDeadline, studentView, type MockParticipant, type MockRoom } from './exam-rooms';
 import { conversation, type MockPostComment } from './feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../post-blocks';
@@ -37,7 +38,7 @@ import type {
  *  security rules, so the screens can be built against it without a database.
  *  The secret matches the manager's, so the same cookie works on both apps.
  *  Set KIXI_MOCK=false to talk to the real API instead. */
-export const MOCK = process.env.KIXI_MOCK !== 'false';
+export const MOCK = process.env.KIXI_MOCK === 'true';
 
 /** Inject a backend failure, so the client's resilience can be exercised for real:
  *  `KIXI_MOCK_FAULT=500` makes every route answer 500 and `=timeout` makes them fail the
@@ -54,7 +55,6 @@ export function setFault(mode: string): void {
   G.__kixiFault = normalizeFault(mode);
 }
 
-const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
 const TOKEN_TTL = 86400;
 
@@ -269,7 +269,7 @@ const b64 = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
 function sign(payload: object): string {
   const head = b64({ alg: 'HS256', typ: 'JWT' });
   const body = b64(payload);
-  const sig = crypto.createHmac('sha256', SECRET).update(`${head}.${body}`).digest('base64url');
+  const sig = crypto.createHmac('sha256', getJwtSecretValue()).update(`${head}.${body}`).digest('base64url');
   return `${head}.${body}.${sig}`;
 }
 
@@ -279,7 +279,7 @@ function accountIdOf(token: string | null): number | null {
   if (!token) return null;
   const [head, body, sig] = token.split('.');
   if (!head || !body || !sig) return null;
-  const expected = crypto.createHmac('sha256', SECRET).update(`${head}.${body}`).digest('base64url');
+  const expected = crypto.createHmac('sha256', getJwtSecretValue()).update(`${head}.${body}`).digest('base64url');
   if (sig !== expected) return null;
   try {
     const claims = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));

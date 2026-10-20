@@ -52,14 +52,14 @@ tutor e o mock do backend.
 npm install
 npm --prefix student install
 npm --prefix landing install
-npm run dev:all   # landing + aluno + gestor + gateway em http://localhost:3000
+KIXI_MOCK=true npm run dev:all   # demonstração local: landing + aluno + gestor + gateway
 ```
 
 Ou cada app na sua porta:
 
 ```bash
-npm run dev            # gestor :3002
-npm --prefix student run dev   # aluno :3003
+KIXI_MOCK=true npm run dev            # gestor :3002
+KIXI_MOCK=true npm --prefix student run dev   # aluno :3003
 npm --prefix landing run dev   # landing :3004
 ```
 
@@ -67,9 +67,9 @@ npm --prefix landing run dev   # landing :3004
 
 | Var | Onde | Obrigatória? |
 | --- | --- | --- |
-| `BACKEND_API_URL` | raiz, student | sim em prod (ex.: `http://localhost:8080/api/v1`) |
+| `BACKEND_API_URL` | raiz, student | sim quando `KIXI_MOCK=false` (ex.: `http://localhost:8080/api/v1`) |
 | `JWT_SECRET` | raiz, student | sim quando `KIXI_MOCK=false` (igual à do backend) |
-| `KIXI_MOCK` | raiz, student | não (`true` = backend simulado local; em produção só arranca com `KIXI_ALLOW_MOCK_IN_PROD=true` também) |
+| `KIXI_MOCK` | raiz, student | sim; definir explicitamente `false` (backend real) ou `true` (dados de demonstração) |
 | `APP_ORIGIN` | raiz, student | sim em prod (ex.: `https://kixi.ao`) — endereço público do gateway |
 | `NEXT_PUBLIC_MANAGER_URL` | student | não (fallback: `${APP_ORIGIN}/manager`) |
 | `NEXT_PUBLIC_APP_URL` | landing | não |
@@ -88,6 +88,10 @@ funciona. Fora de produção o pedido é acreditado, para o `npm run dev` funcio
 A origem tem de trazer a porta quando a traz. Atrás do gateway o Next vê o host interno, com
 a porta interna da app; se a origem não a trouxer, o redirect saía em
 `https://kixi.ao:3002/...` e nenhuma visita sem sessão chegava ao gestor.
+
+O mock é opt-in. Em qualquer ambiente, cada app recusa arrancar se `KIXI_MOCK` estiver
+ausente ou tiver outro valor; quando ativado, o arranque regista claramente o modo de
+demonstração. Em produção também é necessário autorizar explicitamente esse modo.
 
 ## Contra o backend real (sem mocks)
 
@@ -156,13 +160,16 @@ dispara, e é aí que um gate ganha ou perde a credibilidade.
 ## Docker
 
 ```bash
-cp .env.example .env        # ajuste JWT_SECRET / KIXI_MOCK / BACKEND_API_URL
+cp .env.example .env        # preencher JWT_SECRET e configurar o backend real
 docker compose up --build   # http://localhost:3000
 ```
 
+Para uma demonstração isolada com dados fictícios, use `KIXI_MOCK=true` e
+`KIXI_ALLOW_MOCK_IN_PROD=true` em conjunto no `.env`; nunca use esse modo com dados reais.
+
 Cada app (landing, aluno, manager) corre no seu contentor e na sua porta interna (3004, 3003, 3002); só o **gateway** (`scripts/gateway.mjs`, porta 3000) é publicado. O browser vê uma origem única: `/` landing, `/aluno` app do aluno, `/manager` gestor. Para abrir cada app na sua porta (depuração): `docker compose -f docker-compose.yml -f docker-compose.debug.yml up`.
 
-- `KIXI_MOCK=true` (por omissão fora de produção) usa o backend simulado; em produção as apps recusam arrancar com ele ligado, salvo `KIXI_ALLOW_MOCK_IN_PROD=true` (demonstração); com `false` é obrigatório `JWT_SECRET` (o mesmo do backend) e `BACKEND_API_URL`.
+- `KIXI_MOCK` tem de ser definido explicitamente. `true` usa o backend simulado e em produção exige `KIXI_ALLOW_MOCK_IN_PROD=true`; `false` exige `JWT_SECRET` (o mesmo do backend) e `BACKEND_API_URL`.
 - Atrás de um proxy TLS (nginx, Caddy, Traefik) aponte-o para a porta 3000 e envie `X-Forwarded-Proto`/`X-Forwarded-Host`.
 
 ## Contrato com o backend
