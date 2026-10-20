@@ -30,6 +30,29 @@ test('a importação preserva os rótulos impressos das alíneas no editor, na f
   assert.deepEqual(toRequest(items)[0].items?.map((item) => item.label), ['c', 'd']);
 });
 
+test('a importação conserva a hierarquia romana da prova física sem criar respostas para cabeçalhos', () => {
+  const { items } = draftFromExtraction({ questions: [{
+    number: '4', type: 'composta', text: 'Seja vetor. Determine:\nV) Intervalo\nVI) Trajectória\nVII) Instante\nVIII) Gráfico', confidence: 0.95,
+    subitems_content: [
+      { label: 'V.a', text: 'o deslocamento', type: 'dissertativa' },
+      { label: 'V.b', text: 'a velocidade média', type: 'dissertativa' },
+      { label: 'V.c', text: 'a aceleração média', type: 'dissertativa' },
+      { label: 'VII.a', text: 'o ângulo', type: 'dissertativa' },
+      { label: 'VII.b', text: 'o raio de curvatura', type: 'dissertativa' },
+    ],
+  }] }, { subjects: [] });
+
+  const [question] = items;
+  assert.deepEqual(question.items?.map((item, index) => sourceItemLabel(item, index)), [
+    'V.a', 'V.b', 'V.c', 'VII.a', 'VII.b',
+  ]);
+  assert.deepEqual(toRequest(items)[0].items?.map((item) => item.label), [
+    'V.a', 'V.b', 'V.c', 'VII.a', 'VII.b',
+  ]);
+  assert.match(question.text, /Determine:\nV\) Intervalo\nVI\) Trajectória\nVII\) Instante\nVIII\) Gráfico/);
+  assert.match(toRequest(items)[0].text, /\nVI\) Trajectória/);
+});
+
 test('o verdadeiro/falso da Q3 fica com quatro alíneas, duas opções cada e nenhuma resposta marcada', () => {
   const q3 = draftFromExtraction(OGI_EXTRACTION, { subjects: SUBJECTS }).items[2];
   assert.match(q3.text, /verdadeiras/);

@@ -125,17 +125,18 @@ export function QuestionEditor({
       {kind === 'group' ? (
         <div className="grid gap-2 pl-8">
           {items.map((it, j) => (
-            <ItemEditor
-              key={j}
-              item={it}
-              label={sourceItemLabel(it, j)}
-              index={j}
-              total={items.length}
-              where={`${n}${sourceItemLabel(it, j)}`}
-              onChange={(next) => setItems(items.map((x, k) => (k === j ? next : x)))}
-              onRemove={() => setItems(items.filter((_, k) => k !== j))}
-              onMove={(direction) => setItems(move(items, j, direction))}
-            />
+            <div key={j} className={it.label?.includes('.') ? 'ml-5' : undefined}>
+              <ItemEditor
+                item={it}
+                label={sourceItemLabel(it, j)}
+                index={j}
+                total={items.length}
+                where={`${n}${sourceItemLabel(it, j)}`}
+                onChange={(next) => setItems(items.map((x, k) => (k === j ? next : x)))}
+                onRemove={() => setItems(items.filter((_, k) => k !== j))}
+                onMove={(direction) => setItems(move(items, j, direction))}
+              />
+            </div>
           ))}
           <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => setItems([...items, emptyItem(items.at(-1)?.kind ?? 'open')])}>
             <Plus aria-hidden />Alínea

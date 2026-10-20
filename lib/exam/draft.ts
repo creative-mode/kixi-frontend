@@ -139,10 +139,19 @@ export function itemLabel(index: number): string {
   return out;
 }
 
+/** Keep Roman section labels and their lettered children alongside ordinary a/b/c labels. */
+export function normalizeSourceItemLabel(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const label = value.trim().replace(/[).]+$/, '');
+  const roman = label.match(/^(VIII|VII|VI|V)(?:\.([a-z]+))?$/i);
+  if (roman) return roman[2] ? `${roman[1].toUpperCase()}.${roman[2].toLowerCase()}` : roman[1].toUpperCase();
+  if (/^[a-z]+$/i.test(label)) return label.toLowerCase();
+  return undefined;
+}
+
 /** Preserve a printed OCR label; generated labels remain the fallback for new items. */
 export function sourceItemLabel(item: Pick<DraftItem, 'label'>, index: number): string {
-  const label = item.label?.trim().replace(/[).]+$/, '').toLowerCase();
-  return label && /^[a-z]+$/.test(label) ? label : itemLabel(index);
+  return normalizeSourceItemLabel(item.label) ?? itemLabel(index);
 }
 
 /**

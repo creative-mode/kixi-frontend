@@ -1,4 +1,4 @@
-import { kindOf, labelsFor, trueFalseOptions, withoutImages, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
+import { kindOf, labelsFor, normalizeSourceItemLabel, trueFalseOptions, withoutImages, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
 import { mathContentFields } from '../../student/lib/shared/math-types.ts';
 
 export interface School {
@@ -97,8 +97,9 @@ const KIND_VALUES: readonly QuestionKind[] = ['open', 'multiple_choice', 'true_f
 function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
   const options = normalizeOptions(raw?.options);
   const kind = LEAF_KINDS.includes(raw?.kind as LeafKind) ? (raw?.kind as LeafKind) : (kindOf({ options }) as LeafKind);
+  const label = normalizeSourceItemLabel(raw?.label);
   return {
-    ...(typeof raw?.label === 'string' && /^[a-z]+$/i.test(raw.label.trim()) ? { label: raw.label.trim().toLowerCase() } : {}),
+    ...(label ? { label } : {}),
     text: typeof raw?.text === 'string' ? raw.text : '',
     points: typeof raw?.points === 'number' ? raw.points : '',
     options: kind === 'true_false' && options.length !== 2 ? trueFalseOptions() : options,

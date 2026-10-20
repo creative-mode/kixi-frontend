@@ -9,7 +9,7 @@
  * para o do construtor; as alíneas vêm em `subitems_content`. O gabarito nunca vem do OCR: um
  * verdadeiro/falso fica com as duas opções e nenhuma marcada, para o professor decidir.
  */
-import { labelAt, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
+import { labelAt, normalizeSourceItemLabel, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
 import { KINDS, type ExamDraft } from './schools.ts';
 import { mathContentFields, mathNeedsReview, type MathContentBlock, type MathFormula } from '../../student/lib/shared/math-types.ts';
 
@@ -132,6 +132,22 @@ const leafKind = (type: string | null | undefined, fallback: LeafKind): LeafKind
 /** O «( )» que fica no fim de uma afirmação de verdadeiro/falso não faz parte do texto. */
 const clean = (text: string | null | undefined) => (text ?? '').replace(/\s*\(\s*\)\s*\.?\s*$/, '').replace(/\s+/g, ' ').trim();
 
+/** Keep the four printed Roman section breaks; flatten other OCR line wraps as before. */
+function cleanQuestionText(text: string | null | undefined): string {
+  const source = text ?? '';
+  const pattern = /(?<![A-Za-z0-9])(VIII|VII|VI|V)\)\s*/gi;
+  const markers = [...source.matchAll(pattern)];
+  if (markers.map((marker) => marker[1].toUpperCase()).join(',') !== 'V,VI,VII,VIII') return clean(source);
+
+  const prefix = clean(source.slice(0, markers[0].index));
+  const sections = markers.map((marker, index) => {
+    const start = marker.index! + marker[0].length;
+    const end = markers[index + 1]?.index ?? source.length;
+    return `${marker[1].toUpperCase()}) ${clean(source.slice(start, end))}`;
+  });
+  return [prefix, ...sections].filter(Boolean).join('\n');
+}
+
 function optionsFrom(raw: ExtractionOption[] | null | undefined): DraftOption[] {
   const used = new Set<string>();
   return (raw ?? [])
@@ -153,9 +169,9 @@ function itemFrom(sub: ExtractionSubitem, fallback: LeafKind, parentReview: bool
   const math = mathContentFields({ ...sub, rawText: sub.rawText ?? sub.text ?? '' });
   const confidenceReview = typeof sub.confidence === 'number' && sub.confidence < REVIEW_BELOW;
   const review = parentReview || confidenceReview || mathNeedsReview(math.formulas, math.blocks);
-  const sourceLabel = (sub.label ?? '').trim().replace(/[).]+$/, '').toLowerCase();
+  const sourceLabel = normalizeSourceItemLabel(sub.label);
   return {
-    ...( /^[a-z]+$/.test(sourceLabel) ? { label: sourceLabel } : {}),
+    ...(sourceLabel ? { label: sourceLabel } : {}),
     text: clean(sub.text),
     points: points(sub.cotacao),
     kind,
@@ -170,7 +186,7 @@ function questionFrom(q: ExtractionQuestion, warningReview = false, globalReview
   const math = mathContentFields({ ...q, rawText: q.rawText ?? q.text ?? '' });
   const review = globalReview || warningReview || (typeof q.confidence === 'number' && q.confidence < REVIEW_BELOW) || mathNeedsReview(math.formulas, math.blocks);
   const subs = (q.subitems_content ?? []).filter((s) => clean(s.text));
-  const text = (q.text ?? '').replace(/\s+/g, ' ').trim();
+  const text = cleanQuestionText(q.text);
 
   if (subs.length > 0 && (type === 'verdadeiro_falso' || type === 'composta' || type === 'dissertativa' || type === '')) {
     const fallback: LeafKind = type === 'verdadeiro_falso' ? 'true_false' : 'open';

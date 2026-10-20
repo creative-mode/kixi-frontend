@@ -76,15 +76,18 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
     const subs = (item.items ?? []).filter((x) => x.text.trim());
     return (
       <>
-        <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
+        <div className="whitespace-pre-line">
+          <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
+        </div>
         <Figures item={item} />
         {subs.length > 0 && (
           <ol className="mt-1 list-none space-y-1.5 pl-2">
             {subs.map((sub, j) => {
               const k = kindOf(sub);
+              const label = sourceItemLabel(sub, j);
               return (
-                <li key={j} className="flex gap-2">
-                  <span className="font-semibold">{sourceItemLabel(sub, j)})</span>
+                <li key={j} className={`flex gap-2 ${label.includes('.') ? 'ml-5' : ''}`}>
+                  <span className="font-semibold">{label})</span>
                   <span className="flex-1">
                     <MathText text={sub.text} formulas={sub.formulas} blocks={sub.blocks} />
                     {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}
