@@ -5,7 +5,7 @@ import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
 import { validateReport, blockPair, bloqueadoEntre, deveDesaparecer, desaparecePara, visibilidadePara } from '@/lib/moderation';
-import { isIntegrityKind } from '@/lib/integrity';
+import { integrityRefusal, isIntegrityKind } from '@/lib/integrity';
 import * as friends from './friends';
 import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
@@ -1718,24 +1718,48 @@ export async function mockHandle(
 
   // O modo de avaliação (#192) a registar um evento. O corpo leva o tipo e, na
   // colagem, a questão — nunca texto de resposta. A hora é do servidor: um cliente
-  // não carimba os seus próprios eventos. Não exige `IN_PROGRESS` porque o
-  // `PASTE_BLOCKED` pode chegar a seguir a uma entrega; o que exige é que a
-  // tentativa seja de quem o manda.
+  // não carimba os seus próprios eventos.
+  //
+  // As regras são as do `SimulationIntegrityEventService` do backend e vivem em
+  // `integrityRefusal`, para não divergirem: `PASTE_BLOCKED` exige uma questão (e só
+  // esse tipo a leva), a questão tem de ser desta prova, e a tentativa tem de estar a
+  // decorrer. O backend fecha por `IN_PROGRESS`; aqui fecha-se também pelo prazo,
+  // porque o mock não tem um scheduler que mude o estado quando o tempo acaba.
   const integrityMatch = pathname.match(/^\/simulations\/(\d+)\/integrity-events$/);
   if (integrityMatch && method === 'POST') {
     const simulationId = Number(integrityMatch[1]);
-    const simulation = db.simulations.find((s) => s.id === simulationId && s.accountId === account.id);
-    if (!simulation) return problem(404, 'Simulation not found');
     if (!isIntegrityKind(body.kind)) return validationError({ kind: 'Evento de integridade desconhecido' });
+    const kind = body.kind;
     const rawQuestionId = body.questionId;
     const questionId =
       rawQuestionId == null || !Number.isInteger(Number(rawQuestionId)) || Number(rawQuestionId) <= 0
         ? null
         : Number(rawQuestionId);
+    const simulation = db.simulations.find((s) => s.id === simulationId && s.accountId === account.id);
+    const refusal = integrityRefusal({
+      kind,
+      questionId,
+      attempt: simulation
+        ? {
+            active: simulation.status === 'IN_PROGRESS',
+            expired: expired(simulationResponse(db, simulation).deadline),
+            questionBelongs:
+              questionId === null
+                ? null
+                : (QUESTIONS_BY_STATEMENT[simulation.statementId] ?? []).includes(questionId),
+          }
+        : null,
+    });
+    if (refusal) {
+      return refusal.status === 400
+        ? validationError({ questionId: refusal.message })
+        : problem(refusal.status, refusal.message);
+    }
+
     const event = {
       id: db.nextIntegrityEvent++,
       simulationId,
-      kind: body.kind,
+      kind,
       questionId,
       at: toLocalDateTime(new Date()),
     };

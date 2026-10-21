@@ -10,6 +10,7 @@ import {
   INTEGRITY_KINDS,
   PASTE_NOTICE,
   integridadeAplica,
+  integrityRefusal,
   isIntegrityKind,
   noticeFor,
   pasteBlocked,
@@ -30,6 +31,12 @@ test('a lista de eventos é a mesma do gestor', () => {
   assert.equal(isIntegrityKind('tab_hidden'), false);
   assert.equal(isIntegrityKind('QUALQUER_COISA'), false);
   assert.equal(isIntegrityKind(undefined), false);
+});
+
+test('a janela da mesma saída é a mesma do gestor', () => {
+  // Duplicada em `lib/exam-rooms/model.ts` (`INTEGRITY_COALESCE_MS`), como a lista de
+  // tipos: se uma mudar sem a outra, os dois lados contam saídas diferentes.
+  assert.equal(COALESCE_MS, 2_000);
 });
 
 test('só vigia uma tentativa a decorrer', () => {
@@ -104,4 +111,44 @@ test('o tutor fecha numa tentativa viva e reabre quando o prazo passa', () => {
   // Sem tentativa desta prova, o tutor é livre.
   assert.equal(tentativaViva(viva, 99, now), null);
   assert.equal(tentativaViva([{ id: 1, status: 'FINISHED', statement: { id: 7 } }], 7, now), null);
+});
+
+test('o endpoint de eventos recusa o que o backend recusa', () => {
+  const viva = { active: true, expired: false, questionBelongs: null };
+
+  // A colagem exige a questão, e só ela a leva.
+  assert.equal(
+    integrityRefusal({ kind: 'PASTE_BLOCKED', questionId: null, attempt: viva })?.message,
+    'questionId é obrigatório no PASTE_BLOCKED',
+  );
+  assert.equal(
+    integrityRefusal({ kind: 'TAB_HIDDEN', questionId: 1, attempt: viva })?.message,
+    'questionId só é aceite no PASTE_BLOCKED',
+  );
+
+  // A tentativa que não é desta conta é 404, mesmo com um corpo válido.
+  assert.equal(integrityRefusal({ kind: 'TAB_HIDDEN', questionId: null, attempt: null })?.status, 404);
+
+  // Entregue ou fora do prazo: 409.
+  assert.equal(
+    integrityRefusal({ kind: 'TAB_HIDDEN', questionId: null, attempt: { ...viva, active: false } })?.status,
+    409,
+  );
+  assert.equal(
+    integrityRefusal({ kind: 'TAB_HIDDEN', questionId: null, attempt: { ...viva, expired: true } })?.status,
+    409,
+  );
+
+  // A questão tem de ser da prova.
+  assert.equal(
+    integrityRefusal({ kind: 'PASTE_BLOCKED', questionId: 101, attempt: { ...viva, questionBelongs: false } })?.message,
+    'A questão não pertence a esta prova',
+  );
+
+  // O caminho aceitável não devolve recusa nenhuma.
+  assert.equal(integrityRefusal({ kind: 'TAB_HIDDEN', questionId: null, attempt: viva }), null);
+  assert.equal(
+    integrityRefusal({ kind: 'PASTE_BLOCKED', questionId: 1, attempt: { ...viva, questionBelongs: true } }),
+    null,
+  );
 });

@@ -40,6 +40,43 @@ export function isIntegrityKind(value: unknown): value is IntegrityKind {
   return typeof value === 'string' && (INTEGRITY_KINDS as readonly string[]).includes(value);
 }
 
+/** A recusa do `POST /simulations/{id}/integrity-events`, com o estado que o
+ *  backend usa. Os 400 são sempre sobre a questão. */
+export interface IntegrityRefusal {
+  status: 400 | 404 | 409;
+  message: string;
+}
+
+/**
+ * As regras do `SimulationIntegrityEventService` que dependem da tentativa, depois de
+ * o tipo já ser conhecido: a questão (só no `PASTE_BLOCKED`, e desta prova) e a
+ * tentativa (a decorrer, dentro do prazo). A tentativa entra já resolvida — `null`
+ * quando não existe ou não é desta conta — para a regra ser testável sem o mock.
+ */
+export function integrityRefusal(input: {
+  kind: IntegrityKind;
+  questionId: number | null;
+  attempt: { active: boolean; expired: boolean; questionBelongs: boolean | null } | null;
+}): IntegrityRefusal | null {
+  if (input.kind === 'PASTE_BLOCKED' && input.questionId === null) {
+    return { status: 400, message: 'questionId é obrigatório no PASTE_BLOCKED' };
+  }
+  if (input.kind !== 'PASTE_BLOCKED' && input.questionId !== null) {
+    return { status: 400, message: 'questionId só é aceite no PASTE_BLOCKED' };
+  }
+  if (input.attempt === null) return { status: 404, message: 'Simulation not found' };
+  if (!input.attempt.active) {
+    return { status: 409, message: 'Integrity events are only accepted for an active simulation' };
+  }
+  if (input.attempt.expired) {
+    return { status: 409, message: 'The time allowed for this simulation has expired' };
+  }
+  if (input.attempt.questionBelongs === false) {
+    return { status: 400, message: 'A questão não pertence a esta prova' };
+  }
+  return null;
+}
+
 export interface IntegrityEvent {
   kind: IntegrityKind;
   /** Milissegundos do relógio do browser, só para o `shouldRecord` decidir. O que

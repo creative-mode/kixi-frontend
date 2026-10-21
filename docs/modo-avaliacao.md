@@ -75,8 +75,16 @@ POST /simulations/{id}/integrity-events
 Corpo:  { "kind": "TAB_HIDDEN", "questionId": 12 }   // questionId só no PASTE_BLOCKED
 201:    { "id": 7, "simulationId": 3, "kind": "TAB_HIDDEN", "at": "2026-10-18T09:12:00", "questionId": null }
 400:    kind desconhecido
-404:    a tentativa não é do aluno autenticado
+400:    PASTE_BLOCKED sem questionId, ou questionId num tipo que não o leva
+400:    a questão não é desta prova
+404:    a tentativa não é deste aluno (nem existe para ele)
+409:    a tentativa já não está em curso (entregue ou fora do prazo)
+429:    demasiados eventos por minuto (o backend limita o volume)
 ```
+
+O mock reproduz os 400/404/409: um evento fora de uma tentativa a decorrer, ou um
+`PASTE_BLOCKED` com a questão de outra prova, é recusado — senão o mock aceitava o
+que o backend recusa e os testes passavam sem o contrato. O 429 não é simulado.
 
 O professor lê-os pela sala:
 
@@ -87,10 +95,16 @@ GET /exam-rooms/{id}/integrity
         ] }
 ```
 
-**O backend ainda não expõe este `POST`.** O `scripts/check-endpoints.mjs` — que
-corre nas promoções a QUA/PRD — vai falhar enquanto não existir, e é de propósito: é
-o sinal para o adicionar antes de promover. O `GET /exam-rooms/{id}/integrity` é
-lido pelo gestor, que não passa pelo mesmo check.
+**O resumo do professor não conta a mesma saída duas vezes.** `TAB_HIDDEN` e
+`WINDOW_BLUR` são sinais da mesma saída, tal como no cliente; a leitura deduplica-os
+dentro da mesma janela de 2 s. O número de "saídas" que o professor lê é o número de
+ausências, não o número de eventos.
+
+**O backend ainda não expõe este `POST` na `DEV`.** O contrato foi implementado em
+`creative-mode/kixi#400` (a rever). O `scripts/check-endpoints.mjs` — que corre nas
+promoções a QUA/PRD — vai falhar enquanto o endpoint não estiver publicado, e é de
+propósito: é o sinal para o promover antes da interface. O
+`GET /exam-rooms/{id}/integrity` é lido pelo gestor, que não passa pelo mesmo check.
 
 ## No mock
 

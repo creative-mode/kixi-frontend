@@ -15,6 +15,7 @@ import {
   statementFitsRoom,
   summarizeGrades,
   summarizeIntegrity,
+  INTEGRITY_COALESCE_MS,
   INTEGRITY_LABEL,
   toLocalDateTime,
   wallMinutes,
@@ -205,8 +206,10 @@ test('o resumo conta as saídas e não os regressos', () => {
   ];
   const s = summarizeIntegrity(events);
   assert.equal(s.total, 4);
-  // Duas saídas (esconder e perder o foco); o regresso não é uma saída.
-  assert.equal(s.exits, 2);
+  // Esconder o separador e perder o foco são a MESMA saída: um segundo de
+  // diferença cai dentro da janela de coalescência, e o regresso não soma.
+  assert.equal(s.exits, 1);
+  // A contagem por tipo continua crua: dois sinais, dois eventos.
   assert.deepEqual(s.byKind, [
     { kind: 'TAB_HIDDEN', label: 'Saiu do separador', count: 1 },
     { kind: 'WINDOW_BLUR', label: 'Perdeu o foco da janela', count: 1 },
@@ -214,6 +217,42 @@ test('o resumo conta as saídas e não os regressos', () => {
     { kind: 'PASTE_BLOCKED', label: 'Tentou colar uma resposta', count: 1 },
   ]);
   assert.deepEqual(summarizeIntegrity([]), { total: 0, exits: 0, byKind: [] });
+});
+
+test('a janela da mesma saída é a mesma do aluno', () => {
+  // Duplicada de `student/lib/integrity.ts` (`COALESCE_MS`), como a lista de tipos:
+  // se uma mudar sem a outra, o professor conta saídas que o aluno não teve.
+  assert.equal(INTEGRITY_COALESCE_MS, 2_000);
+});
+
+test('duas saídas separadas contam duas, mesmo com os dois sinais em cada', () => {
+  const events: IntegrityEvent[] = [
+    { id: 1, kind: 'TAB_HIDDEN', at: '2026-10-18T09:00:00', questionId: null },
+    { id: 2, kind: 'WINDOW_BLUR', at: '2026-10-18T09:00:01', questionId: null },
+    { id: 3, kind: 'TAB_VISIBLE', at: '2026-10-18T09:00:30', questionId: null },
+    { id: 4, kind: 'WINDOW_FOCUS', at: '2026-10-18T09:00:31', questionId: null },
+    { id: 5, kind: 'WINDOW_BLUR', at: '2026-10-18T09:05:00', questionId: null },
+    { id: 6, kind: 'TAB_HIDDEN', at: '2026-10-18T09:05:01', questionId: null },
+  ];
+  assert.equal(summarizeIntegrity(events).exits, 2);
+});
+
+test('a deduplicação é pela hora, não pela ordem de chegada', () => {
+  const events: IntegrityEvent[] = [
+    { id: 1, kind: 'WINDOW_BLUR', at: '2026-10-18T09:00:01', questionId: null },
+    { id: 2, kind: 'TAB_HIDDEN', at: '2026-10-18T09:00:00', questionId: null },
+  ];
+  assert.equal(summarizeIntegrity(events).exits, 1);
+});
+
+test('um evento sem hora legível não engole a saída seguinte', () => {
+  const events: IntegrityEvent[] = [
+    { id: 1, kind: 'TAB_HIDDEN', at: 'lixo', questionId: null },
+    { id: 2, kind: 'WINDOW_BLUR', at: '2026-10-18T09:00:00', questionId: null },
+  ];
+  // Sem hora não se pode provar que é a mesma saída: conta como uma, e a que tem
+  // hora conta como outra. Vale mais contar a mais do que esconder a saída.
+  assert.equal(summarizeIntegrity(events).exits, 2);
 });
 
 test('um evento que o gestor não conhece mostra o código, não um rótulo inventado', () => {
