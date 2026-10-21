@@ -9,6 +9,20 @@ test('renderiza delimitadores inline, display e parênteses LaTeX', () => {
   assert.match(html, /Força /);
 });
 
+test('imprime o par de vectores no ângulo e marca a leitura de baixa confiança para revisão', () => {
+  const latex = String.raw`\vec{v}\;e\;\vec{a}`;
+  const html = renderMathHtml(`O ângulo formado entre os vectores $${latex}$`, [{
+    raw: '', latex, confidence: 0.55, kind: 'formula',
+  }]);
+
+  assert.match(html, /O ângulo formado entre os vectores/);
+  assert.match(html, /class="kixi-math[^"]*kixi-math-review/);
+  assert.match(html, /Fórmula a rever/);
+  assert.match(html, /katex/);
+  assert.equal(serializeMathText(`O ângulo formado entre os vectores $${latex}$`),
+    `O ângulo formado entre os vectores $${latex}$`);
+});
+
 test('fórmula inválida e comando não confiável ficam como texto literal escapado', () => {
   const invalid = renderMathHtml('Antes $\\notacommand{x}$ depois');
   assert.match(invalid, /Antes <span class="kixi-math-literal kixi-math-review"/);

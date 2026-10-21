@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import { test, expect, type Page, type Locator } from '@playwright/test';
 
 const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
@@ -340,6 +341,70 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/new\?statementId=/);
     await page.getByRole('button', { name: 'Criar sala' }).click();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/\d+/);
+  });
+
+  test('OCR matemático: vectores da questão VII.a aparecem na folha e na impressão', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const latex = String.raw`\vec{v}\;e\;\vec{a}`;
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      title: 'Regressão visual sintética — Física',
+      class_grade: '12',
+      subject_name: 'Física',
+      questions: [{
+        number: '4',
+        type: 'dissertativa',
+        confidence: 0.95,
+        text: 'Para t = 3 s:',
+        subitems_content: [{
+          label: 'VII.a',
+          type: 'dissertativa',
+          text: `O ângulo formado entre os vectores $${latex}$`,
+          rawText: 'O ângulo formado entre os vectores e',
+          confidence: 0.55,
+          formulas: [{ raw: latex, latex, confidence: 0.55, layoutConfidence: 0.55, kind: 'formula' }],
+        }],
+      }],
+      warnings: [{ code: 'LOW_CONFIDENCE_FORMULA', field: 'question_4_formula_1', confidence: 0.55 }],
+    };
+    const events = [
+      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-physics', pageCount: 1, timings: {} })}`,
+      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
+      `event: result\ndata: ${JSON.stringify(extraction)}`,
+    ].join('\n\n') + '\n\n';
+    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+      body: events,
+    }));
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'ocr-physics-vectors.pdf',
+      mimeType: 'application/pdf',
+      buffer: samplePdf(),
+    });
+    await page.getByTestId('gestor-statements-import-submeter').click();
+
+    const sheet = page.locator('#exam-sheet');
+    await expect(sheet).toContainText('O ângulo formado entre os vectores');
+    await expect(sheet.locator('.katex')).toBeVisible();
+    await expect(sheet.locator('.kixi-math-review')).toContainText('Fórmula a rever');
+    await page.getByText(/Prova lida/).waitFor({ state: 'hidden' });
+    await sheet.screenshot({ path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/vector-pair-builder.png') });
+
+    await page.emulateMedia({ media: 'print' });
+    await expect(sheet.locator('.katex')).toBeVisible();
+    const pdf = await page.pdf({
+      path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/vector-pair-print.pdf'),
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    await page.emulateMedia({ media: 'screen' });
   });
 
   test('admin: cria escola e turma e regressa ao dashboard', async ({ page }) => {

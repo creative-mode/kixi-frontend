@@ -2,6 +2,8 @@
 
 As páginas PNG mostram a saída de impressão A4 gerada após importar e corrigir a prova de Física de referência. Demonstram a fórmula renderizada e a hierarquia V–VIII com as respetivas alíneas.
 
+`vector-pair-builder.png`, `vector-pair-print.png` e `vector-pair-print.pdf` são uma regressão visual complementar com resposta OCR sintética. Confirmam que `\\vec{v}` e `\\vec{a}` chegam à folha e à saída de impressão e que a baixa confiança continua marcada para revisão. O PNG de impressão é rasterizado do PDF produzido pelo Chromium; não é uma captura do ecrã do construtor. Estas imagens não provam o reconhecimento da fotografia: esse critério é verificado separadamente pela regressão PaddleOCR local, sem incluir a fotografia no repositório.
+
 A fotografia original e o painel do construtor não estão incluídos: a fotografia contém contactos no rodapé. A validação da fotografia foi feita localmente; estes PNGs mostram apenas o resultado impresso, sem essa zona de contactos.
 
 Os ficheiros são evidência visual, não fixtures de teste. A regressão automatizada correspondente usa dados sintéticos e a fixture local opcional.
