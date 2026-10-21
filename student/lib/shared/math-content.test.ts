@@ -9,6 +9,12 @@ test('renderiza delimitadores inline, display e parênteses LaTeX', () => {
   assert.match(html, /Força /);
 });
 
+test('mantém fórmulas inline adjacentes separadas', () => {
+  const html = renderMathHtml('Vectores $\\vec{v}$$\\vec{a}$');
+  assert.equal((html.match(/class="kixi-math/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /Fórmula inválida/);
+});
+
 test('imprime o par de vectores no ângulo e marca a leitura de baixa confiança para revisão', () => {
   const latex = String.raw`\vec{v}\;e\;\vec{a}`;
   const html = renderMathHtml(`O ângulo formado entre os vectores $${latex}$`, [{

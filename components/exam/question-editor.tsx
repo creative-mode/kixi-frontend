@@ -8,7 +8,6 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { convertKind, emptyItem, groupScore, invalidateReviewOnContentChange, sourceItemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
 import type { ExamItem } from '@/lib/exam/schools';
 import { ItemEditor, LEAF_LABELS, LeafBody } from './item-editor';
-import { MathText } from '@/student/lib/shared/math-text';
 import { hasMathContent } from '@/student/lib/shared/math-content';
 import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
 import { FormulaInput } from './formula-input';
@@ -87,11 +86,8 @@ export function QuestionEditor({
           />
         )}
       </div>
-      {hasMathContent(item.text, item.formulas, item.blocks) ? (
-        <div className="ml-8 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-sm" aria-label={`Pré-visualização matemática da questão ${n}`}>
-          <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
-          {item.rawText && item.rawText !== item.text ? <details className="mt-2 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{item.rawText}</p></details> : null}
-        </div>
+      {hasMathContent(item.text, item.formulas, item.blocks) && item.rawText && item.rawText !== item.text ? (
+        <details className="ml-8 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{item.rawText}</p></details>
       ) : null}
       {(item.images ?? []).length > 0 && (
         <ul aria-label={`Figuras da questão ${n}`} className="flex flex-wrap gap-2 sm:pl-8">

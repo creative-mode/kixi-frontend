@@ -421,7 +421,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
         type: 'composta',
         groupLayout: 'brace',
         confidence: 0.95,
-        text: 'Para o intervalo [2; 4] s, calcule:',
+        text: 'Para o intervalo [2; 4] s, calcule: $\\vec{v}$',
+        formulas: [{ raw: '\\vec{v}', latex: '\\vec{v}', confidence: 0.95, kind: 'formula' }],
         subitems_content: [
           { label: 'a', type: 'dissertativa', text: 'o deslocamento' },
           { label: 'b', type: 'dissertativa', text: 'a velocidade média' },
@@ -455,28 +456,76 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     for (const text of ['o deslocamento', 'a velocidade média', 'a aceleração média']) {
       await expect(sheet.getByText(text, { exact: true })).toBeVisible();
     }
-    const brace = sheet.getByText('{', { exact: true });
+    const brace = sheet.getByTestId('group-brace');
     await expect(brace).toBeVisible();
     await expect(sheet).not.toContainText('a) o deslocamento');
     await page.getByText(/Prova lida/).waitFor({ state: 'hidden' });
+
+    const originalViewport = page.viewportSize() ?? { width: 1280, height: 900 };
+    for (const width of [375, 390, 430, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const geometry = await brace.evaluate((element) => {
+        const braceRect = element.getBoundingClientRect();
+        const list = element.parentElement?.querySelector('ol');
+        if (!list) throw new Error('Lista de alíneas não encontrada junto à chaveta.');
+        const listRect = list.getBoundingClientRect();
+        return {
+          braceTop: braceRect.top,
+          braceBottom: braceRect.bottom,
+          listTop: listRect.top,
+          listBottom: listRect.bottom,
+          viewportWidth: window.innerWidth,
+          documentWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(Math.abs(geometry.braceTop - geometry.listTop), `topo da chaveta a ${width}px`).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(geometry.braceBottom - geometry.listBottom), `base da chaveta a ${width}px`).toBeLessThanOrEqual(1.5);
+      expect(geometry.documentWidth, `overflow horizontal a ${width}px`).toBeLessThanOrEqual(geometry.viewportWidth);
+      if (width === 375) {
+        const mobileEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-mobile-375.png');
+        await sheet.screenshot({ path: mobileEvidencePath });
+        await testInfo.attach('group-brace-mobile-375.png', {
+          path: mobileEvidencePath,
+          contentType: 'image/png',
+        });
+      }
+    }
+    await page.setViewportSize(originalViewport);
+    const builderEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-builder.png');
+    await sheet.screenshot({ path: builderEvidencePath });
     await testInfo.attach('group-brace-builder.png', {
-      body: await sheet.screenshot(),
+      path: builderEvidencePath,
       contentType: 'image/png',
     });
 
     await page.emulateMedia({ media: 'print' });
     await expect(brace).toBeVisible();
-    await testInfo.attach('group-brace-print.png', {
-      body: await sheet.screenshot(),
-      contentType: 'image/png',
-    });
     const pdf = await page.pdf({
+      path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-print.pdf'),
       printBackground: true,
       preferCSSPageSize: true,
     });
     await testInfo.attach('group-brace-print.pdf', { body: pdf, contentType: 'application/pdf' });
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     await page.emulateMedia({ media: 'screen' });
+
+    const renderedQuestion = page.getByLabel('Enunciado comum da questão 1');
+    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion.locator('.katex')).toBeVisible();
+    const formulaToggle = page.getByRole('button', { name: 'Inserir fórmula' }).first();
+    await formulaToggle.click();
+    const vectorButton = page.getByRole('button', { name: 'Inserir Vetor' }).first();
+    await expect(vectorButton.locator('.katex')).toBeVisible();
+    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    const formulaEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/formula-picker-rendered-symbols.png');
+    await page.locator('body').screenshot({ path: formulaEvidencePath });
+    await testInfo.attach('formula-picker-rendered-symbols.png', {
+      path: formulaEvidencePath,
+      contentType: 'image/png',
+    });
+    await vectorButton.click();
+    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion.locator('.katex')).toHaveCount(2);
   });
 
   test('admin: cria escola e turma e regressa ao dashboard', async ({ page }) => {

@@ -110,7 +110,7 @@ function mathSpanAt(value: string, index: number): { start: number; end: number;
     if (!opening || escapedAt(value, i)) continue;
     const closing = opening === '$$' ? '$$' : opening === '\\[' ? '\\]' : opening === '\\(' ? '\\)' : '$';
     let end = value.indexOf(closing, i + opening.length);
-    while (end !== -1 && (escapedAt(value, end) || (closing === '$' && value[end + 1] === '$'))) end = value.indexOf(closing, end + closing.length);
+    while (end !== -1 && escapedAt(value, end)) end = value.indexOf(closing, end + closing.length);
     if (end < 0) continue;
     if (index >= i && index <= end + closing.length - 1) return { start: i, end: end + closing.length, bodyStart: i + opening.length, bodyEnd: end };
     i = end + closing.length - 1;

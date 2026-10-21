@@ -25,7 +25,7 @@ function tokenAt(value: string, start: number): MathToken | null {
   if (!opening || escapedAt(value, start)) return null;
   const closing = opening === '$$' ? '$$' : opening === '\\[' ? '\\]' : opening === '\\(' ? '\\)' : '$';
   let end = value.indexOf(closing, start + opening.length);
-  while (end !== -1 && (escapedAt(value, end) || (closing === '$' && value[end + 1] === '$'))) {
+  while (end !== -1 && escapedAt(value, end)) {
     end = value.indexOf(closing, end + closing.length);
   }
   if (end === -1 || end === start + opening.length) return null;

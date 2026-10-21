@@ -82,7 +82,18 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
         <Figures item={item} />
         {subs.length > 0 && (
           <div className={`mt-1 flex gap-1 ${item.groupLayout === 'brace' ? '' : 'pl-2'}`}>
-            {item.groupLayout === 'brace' && <span aria-hidden="true" className="self-stretch text-5xl font-light leading-[0.72]">{'{'}</span>}
+            {item.groupLayout === 'brace' && (
+              <svg
+                aria-hidden="true"
+                data-testid="group-brace"
+                className="h-auto min-h-full w-3 shrink-0 self-stretch overflow-visible text-black"
+                viewBox="0 0 12 100"
+                preserveAspectRatio="none"
+                focusable="false"
+              >
+                <path d="M10 1 C4 1 4 13 4 25 C4 39 1 45 1 50 C1 55 4 61 4 75 C4 87 4 99 10 99" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+              </svg>
+            )}
             <ol className="min-w-0 flex-1 list-none space-y-1.5">
               {subs.map((sub, j) => {
                 const k = kindOf(sub);

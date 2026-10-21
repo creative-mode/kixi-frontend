@@ -8,7 +8,6 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { convertItemKind, invalidateReviewOnContentChange, kindOf, type DraftItem, type LeafKind } from '@/lib/exam/draft';
 import { OptionEditor } from './option-editor';
 import { TruthChoice } from './truth-choice';
-import { MathText } from '@/student/lib/shared/math-text';
 import { hasMathContent } from '@/student/lib/shared/math-content';
 import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
 import { FormulaInput } from './formula-input';
@@ -78,11 +77,8 @@ export function ItemEditor({
           className="w-20 shrink-0"
         />
       </div>
-      {hasMathContent(item.text, item.formulas, item.blocks) ? (
-        <div className="ml-8 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-sm" aria-label={`Pré-visualização matemática da alínea ${where}`}>
-          <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
-          {item.rawText && item.rawText !== item.text ? <details className="mt-2 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{item.rawText}</p></details> : null}
-        </div>
+      {hasMathContent(item.text, item.formulas, item.blocks) && item.rawText && item.rawText !== item.text ? (
+        <details className="ml-8 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{item.rawText}</p></details>
       ) : null}
       <div className="flex flex-wrap items-center gap-2 pl-8">
         <NativeSelect
