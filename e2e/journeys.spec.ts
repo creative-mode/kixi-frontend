@@ -407,7 +407,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.emulateMedia({ media: 'screen' });
   });
 
-  test('OCR: grupo impresso com chaveta mantém as três alíneas no construtor e na impressão', async ({ page }) => {
+  test('OCR: grupo impresso com chaveta mantém as três alíneas no construtor e na impressão', async ({ page }, testInfo) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     const extraction = {
       status: 'success',
@@ -459,16 +459,22 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(brace).toBeVisible();
     await expect(sheet).not.toContainText('a) o deslocamento');
     await page.getByText(/Prova lida/).waitFor({ state: 'hidden' });
-    await sheet.screenshot({ path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-builder.png') });
+    await testInfo.attach('group-brace-builder.png', {
+      body: await sheet.screenshot(),
+      contentType: 'image/png',
+    });
 
     await page.emulateMedia({ media: 'print' });
     await expect(brace).toBeVisible();
-    await sheet.screenshot({ path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-print.png') });
+    await testInfo.attach('group-brace-print.png', {
+      body: await sheet.screenshot(),
+      contentType: 'image/png',
+    });
     const pdf = await page.pdf({
-      path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-print.pdf'),
       printBackground: true,
       preferCSSPageSize: true,
     });
+    await testInfo.attach('group-brace-print.pdf', { body: pdf, contentType: 'application/pdf' });
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     await page.emulateMedia({ media: 'screen' });
   });
