@@ -24,6 +24,7 @@ export interface DraftOption {
  *  it carries the common statement and no answer of its own, the answers live in its items. */
 export type QuestionKind = 'open' | 'multiple_choice' | 'true_false' | 'group';
 export type LeafKind = Exclude<QuestionKind, 'group'>;
+export type GroupLayout = 'lettered' | 'brace';
 
 /** An alínea: a question of its own inside a `group`. The label (a, b, c…) is generated. */
 export interface DraftItem extends MathContentFields {
@@ -59,6 +60,8 @@ export interface DraftQuestion extends MathContentFields {
   kind?: QuestionKind;
   /** Only for `group`. */
   items?: DraftItem[];
+  /** Source-paper layout detected by OCR; absent groups retain lettered printing. */
+  groupLayout?: GroupLayout;
   review?: boolean;
   /** Explicit acknowledgement of low-confidence OCR evidence. */
   reviewed?: boolean;
@@ -462,6 +465,7 @@ export interface RequestQuestion {
   options: RequestOption[];
   /** Only for a group. */
   items?: RequestItem[];
+  groupLayout?: GroupLayout;
   /** Matches ManualStatementRequest.Question; `needsReview` is derived by the backend. */
   rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
 }
@@ -527,6 +531,7 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
               const k = kindOf(i) as LeafKind;
               return { label: sourceItemLabel(i, j), text: serializeMathText(i.text, i.formulas, i.blocks).trim(), type: k, maxScore: i.points === '' ? null : Number(i.points), options: leafOptions(k, i.options), ...ocrEvidence(i) };
             }),
+          ...(q.groupLayout ? { groupLayout: q.groupLayout } : {}),
           ...ocrEvidence(q),
         };
       }

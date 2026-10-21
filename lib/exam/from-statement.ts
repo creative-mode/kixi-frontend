@@ -63,7 +63,7 @@ export function draftFromStatement(statement: Row, ctx: StatementContext = {}): 
           const options = optionsOf(c);
           return { text: String(c.text ?? ''), points: points(c), options, kind: leafKind(c, options), ...mathContentFields(c), ...answerOf(c), ...(c.needsReview ? { review: true } : {}) };
         });
-        return { text: String(q.text ?? ''), points: '', options: [], kind: 'group', items: subs, ...mathContentFields(q), ...(q.needsReview ? { review: true } : {}), ...withImages };
+        return { text: String(q.text ?? ''), points: '', options: [], kind: 'group', items: subs, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...mathContentFields(q), ...(q.needsReview ? { review: true } : {}), ...withImages };
       }
       const options = optionsOf(q);
       return { text: String(q.text ?? ''), points: points(q), options, kind: leafKind(q, options), ...mathContentFields(q), ...answerOf(q), ...(q.needsReview ? { review: true } : {}), ...withImages };

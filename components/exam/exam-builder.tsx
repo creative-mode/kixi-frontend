@@ -471,7 +471,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                 Escolha o tipo de cada questão: dissertativa, escolha múltipla, verdadeiro/falso ou com alíneas (a, b, c…). Escolha múltipla e verdadeiro/falso precisam de resposta marcada para a prova poder ser publicada.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3">
+            <CardContent className="grid min-w-0 gap-3">
               {draft.items.map((it, i) => (
                 <QuestionEditor
                   key={i}

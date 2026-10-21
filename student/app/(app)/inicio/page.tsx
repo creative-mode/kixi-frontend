@@ -2,8 +2,7 @@ import { Suspense } from 'react';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
-import { getFeed, loadAuthors } from '@/lib/feed';
-import { loadFirstConversations } from '@/lib/comments';
+import { getFeed } from '@/lib/feed';
 import { InicioFeed } from './inicio-feed';
 import { SalasDeProvaSection } from './salas-de-prova-section';
 
@@ -35,8 +34,6 @@ export default async function InicioPage() {
 
   const feed = classId ? await getFeed(classId) : null;
   const posts = feed?.ok ? feed.data : [];
-  const [authors, conversations] = await Promise.all([loadAuthors(posts, me.accountId), loadFirstConversations(posts)]);
-
   return (
     <>
       <FireEventOnce param="matriculado" event="onboarding_completed" />
@@ -45,8 +42,6 @@ export default async function InicioPage() {
         myAccountId={me.accountId}
         classId={classId}
         posts={posts}
-        authors={authors}
-        conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
       />
     </>

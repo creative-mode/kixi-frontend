@@ -19,13 +19,8 @@ import type { FeedPost, PostComment } from '@/lib/feed';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';
 import { FeedReaction, type ReactionSnapshot } from '@/lib/feed-reaction';
 
-/** Quantas conversas se leem em segundo plano numa página: as ações do servidor correm uma de cada vez, e uma fila de leituras
- *  em segundo plano faria esperar o «aplaudir» de quem tocou entretanto. As restantes leem-se ao tocar, ou ao aproximar o dedo. */
-const BACKGROUND_READS = 6;
-let backgroundReads = 0;
-
 /** Uma publicação da turma: autor, hora, texto, cartão de simulação e as ações (aplaudir, comentar, denunciar). */
-export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null, initialComments }: { post: FeedPost; initialComments?: PostComment[]; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null }) {
+export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null }: { post: FeedPost; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null }) {
   const [reactionController] = useState(() => new FeedReaction(post.hasReacted, (target) => setReactionAction(post.id, target)));
   const [reaction, setReaction] = useState<ReactionSnapshot>(reactionController.snapshot);
   const [count, setCount] = useState(post.commentCount);
@@ -36,8 +31,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   // só, sem perder um pedido a meio de outro - estão em lib/feed-conversation.ts, onde
   // são testáveis sem DOM. Aqui fica o espelho em `ref` para o `apply` poder ler o
   // estado novo antes de o React o voltar a pintar.
-  // Se o servidor já trouxe a conversa (as primeiras publicações do início), o painel abre com ela: nada a ler.
-  const start = initialComments ? { ...IDLE, comments: initialComments } : IDLE;
+  const start = IDLE;
   const [conversation, setConversation] = useState(start);
   const conversationRef = useRef(start);
   const [reading, startReading] = useTransition();
@@ -45,7 +39,6 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [reportReason, setReportReason] = useState('');
   const [reported, setReported] = useState(false);
   const [pending, startTransition] = useTransition();
-  const card = useRef<HTMLElement>(null);
 
   useEffect(() => reactionController.subscribe(setReaction), [reactionController]);
   useEffect(() => reactionController.syncConfirmed(post.hasReacted), [post.hasReacted, reactionController]);
@@ -132,31 +125,14 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
     if (next) readComments();
   };
 
-  // A conversa lê-se antes de ser pedida: ao aproximar o dedo ou o rato do botão (a intenção), e, para as primeiras
-  // publicações com comentários, quando entram no ecrã. Abrir o painel depois é instantâneo: a lista já lá está.
+  // A conversa só é lida por intenção explícita: foco, toque ou aproximação do botão.
   const prefetch = () => readComments();
-  useEffect(() => {
-    const el = card.current;
-    if (!el || post.commentCount === 0 || initialComments || typeof IntersectionObserver === 'undefined') return;
-    const watcher = new IntersectionObserver((entries) => {
-      if (!entries.some((e) => e.isIntersecting) || backgroundReads >= BACKGROUND_READS) return;
-      watcher.disconnect();
-      backgroundReads += 1;
-      // Quando o browser estiver livre, mas no máximo daqui a 1,5 s: com imagens a descarregar, «livre» pode demorar.
-      const run = () => readComments();
-      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 1500 });
-      else window.setTimeout(run, 400);
-    }, { rootMargin: '300px 0px' });
-    watcher.observe(el);
-    return () => watcher.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [post.id]);
 
   const act = 'h-11 min-w-11 gap-1.5 px-3 text-muted-foreground aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
 
   return (
-    <article ref={card} className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
+    <article className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
       <UserAvatar name={author.name} src={author.photo} size={44} />
       <div className="min-w-0 flex-1">
         <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">

@@ -133,7 +133,7 @@ export async function reportPost(postId: number, reason: string) {
  * publicações custa um só pedido). Um perfil que não responde fica de fora e a publicação
  * mostra "Colega": nunca um nome inventado. Perfis privados aparecem abreviados, com a foto. A própria conta não se pede, já se conhece.
  */
-export async function loadAuthors(posts: FeedPost[], myAccountId: number | null): Promise<Record<number, FeedAuthor>> {
+export async function loadAuthors(posts: Array<Pick<FeedPost, 'authorAccountId'>>, myAccountId: number | null): Promise<Record<number, FeedAuthor>> {
   const ids = [...new Set(posts.map((p) => p.authorAccountId))].filter((id) => id !== myAccountId);
   const found = await Promise.all(
     ids.map(async (id) => {

@@ -36,6 +36,7 @@ export interface ExtractionQuestion {
   options?: ExtractionOption[] | null;
   subitems?: string[] | null;
   subitems_content?: ExtractionSubitem[] | null;
+  groupLayout?: 'lettered' | 'brace' | null;
 }
 /** A region the OCR found on the page. `region` is `questao_<n>` for a figure, table or formula of question n,
  *  and `cabecalho`/`rodape` for the header and the signature (which are not shown in the builder). */
@@ -191,7 +192,7 @@ function questionFrom(q: ExtractionQuestion, warningReview = false, globalReview
   if (subs.length > 0 && (type === 'verdadeiro_falso' || type === 'composta' || type === 'dissertativa' || type === '')) {
     const fallback: LeafKind = type === 'verdadeiro_falso' ? 'true_false' : 'open';
     const items = subs.map((s) => itemFrom(s, fallback, review));
-    return { question: { text, points: '', options: [], kind: 'group', items, ...math, ...(review ? { review: true } : {}) }, review: items.filter((item) => item.review).length };
+    return { question: { text, points: '', options: [], kind: 'group', items, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...math, ...(review ? { review: true } : {}) }, review: items.filter((item) => item.review).length };
   }
   if (type === 'verdadeiro_falso') {
     return { question: { text: clean(q.text) || text, points: points(q.cotacao), options: trueFalseOptions(), kind: 'true_false', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };

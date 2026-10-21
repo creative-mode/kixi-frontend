@@ -30,6 +30,19 @@ test('a importação preserva os rótulos impressos das alíneas no editor, na f
   assert.deepEqual(toRequest(items)[0].items?.map((item) => item.label), ['c', 'd']);
 });
 
+test('a importação e o pedido preservam uma chaveta detectada pelo OCR', () => {
+  const { items } = draftFromExtraction({ questions: [{
+    number: '4', type: 'composta', text: 'Para o intervalo, calcule:', groupLayout: 'brace',
+    subitems_content: [
+      { label: 'a', text: 'o deslocamento' },
+      { label: 'b', text: 'a velocidade média' },
+      { label: 'c', text: 'a aceleração média' },
+    ],
+  }] }, { subjects: [] });
+  assert.equal(items[0].groupLayout, 'brace');
+  assert.equal(toRequest(items)[0].groupLayout, 'brace');
+});
+
 test('a importação conserva a hierarquia romana da prova física sem criar respostas para cabeçalhos', () => {
   const { items } = draftFromExtraction({ questions: [{
     number: '4', type: 'composta', text: 'Seja vetor. Determine:\nV) Intervalo\nVI) Trajectória\nVII) Instante\nVIII) Gráfico', confidence: 0.95,

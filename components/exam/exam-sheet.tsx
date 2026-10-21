@@ -81,24 +81,27 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
         </div>
         <Figures item={item} />
         {subs.length > 0 && (
-          <ol className="mt-1 list-none space-y-1.5 pl-2">
-            {subs.map((sub, j) => {
-              const k = kindOf(sub);
-              const label = sourceItemLabel(sub, j);
-              return (
-                <li key={j} className={`flex gap-2 ${label.includes('.') ? 'ml-5' : ''}`}>
-                  <span className="font-semibold">{label})</span>
-                  <span className="flex-1">
-                    <MathText text={sub.text} formulas={sub.formulas} blocks={sub.blocks} />
-                    {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}
-                    {score(sub.points)}
-                    {k === 'multiple_choice' && <Options options={sub.options} mode={mode} />}
-                    {k === 'open' && <><AnswerLines count={2} /><ModelAnswer text={sub.modelAnswer} mode={mode} /></>}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+          <div className={`mt-1 flex gap-1 ${item.groupLayout === 'brace' ? '' : 'pl-2'}`}>
+            {item.groupLayout === 'brace' && <span aria-hidden="true" className="self-stretch text-5xl font-light leading-[0.72]">{'{'}</span>}
+            <ol className="min-w-0 flex-1 list-none space-y-1.5">
+              {subs.map((sub, j) => {
+                const k = kindOf(sub);
+                const label = sourceItemLabel(sub, j);
+                return (
+                  <li key={j} className={`flex gap-2 ${item.groupLayout !== 'brace' && label.includes('.') ? 'ml-5' : ''}`}>
+                    {item.groupLayout !== 'brace' && <span className="font-semibold">{label})</span>}
+                    <span className="flex-1">
+                      <MathText text={sub.text} formulas={sub.formulas} blocks={sub.blocks} />
+                      {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}
+                      {score(sub.points)}
+                      {k === 'multiple_choice' && <Options options={sub.options} mode={mode} />}
+                      {k === 'open' && <><AnswerLines count={2} /><ModelAnswer text={sub.modelAnswer} mode={mode} /></>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         )}
       </>
     );

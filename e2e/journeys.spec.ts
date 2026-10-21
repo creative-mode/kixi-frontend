@@ -407,6 +407,72 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.emulateMedia({ media: 'screen' });
   });
 
+  test('OCR: grupo impresso com chaveta mantém as três alíneas no construtor e na impressão', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      title: 'Regressão visual sintética — Física',
+      class_grade: '12',
+      subject_name: 'Física',
+      questions: [{
+        number: '5',
+        type: 'composta',
+        groupLayout: 'brace',
+        confidence: 0.95,
+        text: 'Para o intervalo [2; 4] s, calcule:',
+        subitems_content: [
+          { label: 'a', type: 'dissertativa', text: 'o deslocamento' },
+          { label: 'b', type: 'dissertativa', text: 'a velocidade média' },
+          { label: 'c', type: 'dissertativa', text: 'a aceleração média' },
+        ],
+      }],
+      warnings: [],
+    };
+    const events = [
+      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-brace', pageCount: 1, timings: {} })}`,
+      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
+      `event: result\ndata: ${JSON.stringify(extraction)}`,
+    ].join('\n\n') + '\n\n';
+    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+      body: events,
+    }));
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'ocr-physics-brace.pdf',
+      mimeType: 'application/pdf',
+      buffer: samplePdf(),
+    });
+    await page.getByTestId('gestor-statements-import-submeter').click();
+
+    const sheet = page.locator('#exam-sheet');
+    await expect(sheet).toContainText('Para o intervalo [2; 4] s, calcule:');
+    for (const text of ['o deslocamento', 'a velocidade média', 'a aceleração média']) {
+      await expect(sheet.getByText(text, { exact: true })).toBeVisible();
+    }
+    const brace = sheet.getByText('{', { exact: true });
+    await expect(brace).toBeVisible();
+    await expect(sheet).not.toContainText('a) o deslocamento');
+    await page.getByText(/Prova lida/).waitFor({ state: 'hidden' });
+    await sheet.screenshot({ path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-builder.png') });
+
+    await page.emulateMedia({ media: 'print' });
+    await expect(brace).toBeVisible();
+    await sheet.screenshot({ path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-print.png') });
+    const pdf = await page.pdf({
+      path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-print.pdf'),
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    await page.emulateMedia({ media: 'screen' });
+  });
+
   test('admin: cria escola e turma e regressa ao dashboard', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);

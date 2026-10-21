@@ -5,13 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
-import { Textarea } from '@/components/ui/textarea';
 import { convertItemKind, invalidateReviewOnContentChange, kindOf, type DraftItem, type LeafKind } from '@/lib/exam/draft';
 import { OptionEditor } from './option-editor';
 import { TruthChoice } from './truth-choice';
 import { MathText } from '@/student/lib/shared/math-text';
 import { hasMathContent } from '@/student/lib/shared/math-content';
 import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
+import { FormulaInput } from './formula-input';
 
 export const LEAF_LABELS: Record<LeafKind, string> = {
   open: 'Dissertativa',
@@ -50,22 +50,22 @@ export function ItemEditor({
 }) {
   const kind = kindOf(item) as LeafKind;
   return (
-    <fieldset className="grid gap-2.5 rounded-md border border-dashed p-2.5">
+    <fieldset className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2.5 rounded-md border border-dashed p-2.5">
       <legend className="sr-only">Alínea {where}</legend>
-      <div className="flex flex-wrap items-start gap-2 sm:flex-nowrap">
+      <div className="flex min-w-0 flex-wrap items-start gap-2 sm:flex-nowrap">
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-secondary text-[12px] font-bold" aria-hidden>{label}</span>
-        <Textarea
-          rows={2}
+        <FormulaInput
           value={serializeMathText(item.text, item.formulas, item.blocks)}
+          label={`Texto da alínea ${where}`}
+          rows={2}
+          className="min-h-12"
           // The ordered blocks describe the old text layout; formula evidence is
           // independent provenance and must survive text corrections.
-          onChange={(e) => {
-            const next = { ...item, text: e.target.value, blocks: undefined };
+          onChange={(value) => {
+            const next = { ...item, text: value, blocks: undefined };
             onChange(invalidateReviewOnContentChange(item, next));
           }}
           placeholder={`Alínea ${label})`}
-          aria-label={`Texto da alínea ${where}`}
-          className="min-h-12 min-w-0 flex-1"
         />
         <Input
           type="number"
