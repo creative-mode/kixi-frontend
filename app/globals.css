@@ -7,6 +7,60 @@
 @import "./ds-tokens.css";
 @import "./ds-theme.css";
 
+.formula-mathfield {
+  display: block;
+  min-height: 9rem;
+  width: 100%;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  font-size: 1.55rem;
+  line-height: 1.6;
+  --selection-background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  --contains-highlight-background-color: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.formula-mathfield:focus {
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+/* Keep MathLive's shared keyboard aligned with the application's visual language. */
+body {
+  --keyboard-zindex: 60;
+  --keyboard-toolbar-background: var(--card);
+  --keyboard-toolbar-text: var(--muted-foreground);
+  --keyboard-toolbar-text-active: var(--foreground);
+  --keyboard-toolbar-background-hover: var(--accent);
+  --keyboard-toolbar-background-selected: var(--accent);
+  --keyboard-accent-color: var(--primary);
+  --keycap-background: var(--background);
+  --keycap-background-hover: var(--accent);
+  --keycap-background-active: var(--accent);
+  --keycap-background-pressed: var(--accent);
+  --keycap-border: var(--border);
+  --keycap-border-bottom: var(--border);
+  --keycap-text: var(--foreground);
+  --keycap-text-hover: var(--foreground);
+  --keycap-text-active: var(--foreground);
+  --keycap-primary-background: var(--primary);
+  --keycap-primary-text: var(--primary-foreground);
+  --keycap-primary-background-hover: var(--primary);
+  --keycap-secondary-background: var(--muted);
+  --keycap-secondary-background-hover: var(--accent);
+  --keycap-secondary-text: var(--foreground);
+  --keycap-secondary-border: var(--border);
+  --keycap-secondary-border-bottom: var(--border);
+  --keycap-height: 42px;
+  --keycap-gap: 4px;
+  --keycap-font-size: 16px;
+}
+
+math-virtual-keyboard {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
 .kixi-math-review { text-decoration: underline wavy #b45309; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .kixi-math-review-label { margin-inline-start: 0.35rem; color: #92400e; font-size: 0.72em; font-weight: 600; }
 @media print {
