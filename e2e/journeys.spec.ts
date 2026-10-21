@@ -295,7 +295,9 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // botao diz isso no `title` — e so depois de a prova existir.
     await expect(page.getByText('ocr-sample.pdf')).toBeVisible();
     await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+    await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
     const mathQuestion = page.getByRole('textbox', { name: 'Questão 1' });
+    await expect(mathQuestion).toBeEditable();
     await mathQuestion.fill('Questão sintética editada: determine $v = v_0 + at$.');
     await expect(page.locator('#exam-sheet')).toContainText('Questão sintética editada: determine');
     await expect(page.locator('#exam-sheet .katex')).toBeVisible();
