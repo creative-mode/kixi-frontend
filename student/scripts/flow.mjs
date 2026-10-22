@@ -487,6 +487,28 @@ async function main() {
       return html.includes('O tutor está fechado durante a prova') ? 'travou o tutor sem prova' : null;
     });
 
+    // O travão não pode falhar aberto (#192): com a leitura das tentativas em baixo
+    // não se sabe se a prova está a correr, por isso o tutor fecha e oferece nova
+    // tentativa, em vez de abrir a conversa.
+    const definirFalha = (mode) => fetch(`${BASE}/aluno/api/mock-fault`, {
+      method: 'POST',
+      headers: { ...cabecalhos(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+    try {
+      const falhaLigada = await definirFalha('500');
+      registar('ligar a falha do mock para o travão', falhaLigada.ok ? null : `veio ${falhaLigada.status}`);
+      await passo('com o backend a falhar, o tutor não abre sem confirmar a prova', 'GET', '/aluno/tutor?statementId=1', {}, async (r) => {
+        const html = await r.text();
+        if (html.includes('Não foi possível confirmar o estado da prova')) return null;
+        return html.includes('O tutor está fechado durante a prova')
+          ? 'mostrou o travão em vez do estado desconhecido'
+          : 'abriu a conversa sem saber se a prova está a correr';
+      });
+    } finally {
+      await definirFalha('');
+    }
+
     // A resposta do aluno é contexto: se o tipo não for texto, o turno segue sem a
     // resposta que o chamador julgava ter enviado — e isso é pior do que recusar.
     const respostaNaoTexto = await fetch(`${BASE}/aluno/api/tutor/sessions`, {

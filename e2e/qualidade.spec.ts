@@ -194,6 +194,29 @@ test.describe('backend a falhar', () => {
       await expect(page).toHaveURL(/\/aluno\/inicio/);
     });
   }
+
+  // O travão do tutor (#192) não pode falhar aberto: se a leitura das tentativas cair,
+  // não se sabe se a prova está a correr. A conta 12345 tem uma tentativa viva na prova 2.
+  test('com o servidor em baixo o tutor não abre durante a prova', async ({ page }) => {
+    await alunoLogin(page);
+    const definir = (mode: string) => page.request.post('/aluno/api/mock-fault', { data: { mode } });
+
+    await page.goto('/aluno/tutor?statementId=2');
+    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible();
+
+    try {
+      expect((await definir('500')).ok()).toBeTruthy();
+      await page.goto('/aluno/tutor?statementId=2');
+      await expect(page.getByText('Não foi possível confirmar o estado da prova')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Voltar à prova' })).toBeVisible();
+    } finally {
+      await definir('');
+    }
+
+    await page.goto('/aluno/tutor?statementId=2');
+    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible();
+  });
 });
 
 /** Amigos (#139): convidar, aceitar e o ranking de amigos com dados reais em vez de "chega em breve". */

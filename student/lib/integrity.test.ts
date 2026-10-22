@@ -13,6 +13,7 @@ import {
   integrityRefusal,
   isIntegrityKind,
   noticeFor,
+  parseQuestionId,
   pasteBlocked,
   shouldRecord,
   tentativaViva,
@@ -151,4 +152,19 @@ test('o endpoint de eventos recusa o que o backend recusa', () => {
     integrityRefusal({ kind: 'PASTE_BLOCKED', questionId: 1, attempt: { ...viva, questionBelongs: true } }),
     null,
   );
+});
+
+test('o questionId do corpo só aceita um inteiro positivo', () => {
+  // Ausente é o caso legítimo de "não trouxe questão".
+  assert.equal(parseQuestionId(null), null);
+  assert.equal(parseQuestionId(undefined), null);
+
+  // Inteiros positivos, como número ou como texto (o backend desserializa para Long).
+  assert.equal(parseQuestionId(12), 12);
+  assert.equal(parseQuestionId('12'), 12);
+
+  // Tudo o resto é inválido — e não pode virar `null`, que um TAB_HIDDEN aceitaria.
+  for (const raw of [0, -1, 1.5, '1.5', 'abc', '', ' 1 ', true, false, {}, [], Number.NaN, Infinity, -Infinity]) {
+    assert.equal(parseQuestionId(raw), undefined, `aceitou ${JSON.stringify(raw)}`);
+  }
 });

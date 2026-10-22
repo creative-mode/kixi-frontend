@@ -58,7 +58,10 @@ corre**. O travão vive no servidor (`student/app/(app)/tutor/page.tsx`):
 
 - `/tutor` sem prova continua aberto;
 - o tutor de **outra** prova continua aberto;
-- ao **entregar**, ou quando o prazo passa, o tutor daquela prova reabre.
+- ao **entregar**, ou quando o prazo passa, o tutor daquela prova reabre;
+- se a leitura das tentativas falhar, o tutor **não abre**: sem saber se a prova
+  corre, mostra «Não foi possível confirmar o estado da prova» com nova tentativa e
+  o caminho de volta. Uma falha de rede nunca é lida como «não há tentativa».
 
 A colagem só é recusada no campo de resposta aberta durante uma tentativa a
 decorrer. O resto do ecrã — copiar o enunciado para reler, os atalhos, o leitor de
@@ -76,15 +79,17 @@ Corpo:  { "kind": "TAB_HIDDEN", "questionId": 12 }   // questionId só no PASTE_
 201:    { "id": 7, "simulationId": 3, "kind": "TAB_HIDDEN", "at": "2026-10-18T09:12:00", "questionId": null }
 400:    kind desconhecido
 400:    PASTE_BLOCKED sem questionId, ou questionId num tipo que não o leva
+400:    questionId que não é um inteiro positivo (0, negativo, decimal ou texto)
 400:    a questão não é desta prova
 404:    a tentativa não é deste aluno (nem existe para ele)
 409:    a tentativa já não está em curso (entregue ou fora do prazo)
 429:    demasiados eventos por minuto (o backend limita o volume)
 ```
 
-O mock reproduz os 400/404/409: um evento fora de uma tentativa a decorrer, ou um
-`PASTE_BLOCKED` com a questão de outra prova, é recusado — senão o mock aceitava o
-que o backend recusa e os testes passavam sem o contrato. O 429 não é simulado.
+O mock reproduz os 400/404/409: um evento fora de uma tentativa a decorrer, um
+`PASTE_BLOCKED` com a questão de outra prova, ou um `questionId` que não é um
+inteiro positivo, é recusado — senão o mock aceitava o que o backend recusa e os
+testes passavam sem o contrato. O 429 não é simulado.
 
 O professor lê-os pela sala:
 

@@ -77,6 +77,25 @@ export function integrityRefusal(input: {
   return null;
 }
 
+/**
+ * O `questionId` que veio no corpo: `null` quando não veio, o inteiro quando é válido,
+ * e `undefined` quando é inválido.
+ *
+ * O backend desserializa-o para `Long` e recusa com 400 um `0`, um negativo, um
+ * decimal ou texto não numérico. Transformá-los em `null` seria pior do que parece:
+ * `null` é "não trouxe questão", que um `TAB_HIDDEN` aceita — e o mock deixaria passar
+ * um corpo que o backend recusa.
+ */
+export function parseQuestionId(raw: unknown): number | null | undefined {
+  if (raw === null || raw === undefined) return null;
+  const parsed = typeof raw === 'number'
+    ? raw
+    : typeof raw === 'string' && /^\d+$/.test(raw)
+      ? Number(raw)
+      : Number.NaN;
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export interface IntegrityEvent {
   kind: IntegrityKind;
   /** Milissegundos do relógio do browser, só para o `shouldRecord` decidir. O que

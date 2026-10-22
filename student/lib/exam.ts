@@ -87,9 +87,21 @@ export interface SimulationResult {
  *  not fatal on its own: the student can still start a first attempt, so this
  *  returns the list or an empty one. */
 export async function listSimulations(): Promise<SimulationSummary[]> {
+  const result = await listSimulationsResult();
+  return result.ok ? result.data : [];
+}
+
+/** Like `listSimulations`, but keeps the failure. The tutor's block (#192) must not
+ *  read a failed request as "no attempt": that would fail open during a backend
+ *  outage and let the student leave the paper. Callers that can degrade to an empty
+ *  list keep using `listSimulations`. */
+export async function listSimulationsResult(): Promise<Result<SimulationSummary[]>> {
   const result = await apiGet<Simulation[]>('/simulations');
-  if (!result.ok || !Array.isArray(result.data)) return [];
-  return result.data;
+  if (!result.ok) return result;
+  if (!Array.isArray(result.data)) {
+    return { ok: false, status: 0, message: 'O servidor devolveu uma resposta inesperada.' };
+  }
+  return { ok: true, data: result.data };
 }
 
 /** Starts an attempt. The server starts the clock itself (SimulationService.java:95),

@@ -5,7 +5,7 @@ import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import { isRestricted, isVisibility, matchesSearch, type Visibility } from './profiles';
 import { validateReport, blockPair, bloqueadoEntre, deveDesaparecer, desaparecePara, visibilidadePara } from '@/lib/moderation';
-import { integrityRefusal, isIntegrityKind } from '@/lib/integrity';
+import { integrityRefusal, isIntegrityKind, parseQuestionId } from '@/lib/integrity';
 import * as friends from './friends';
 import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
@@ -1730,11 +1730,12 @@ export async function mockHandle(
     const simulationId = Number(integrityMatch[1]);
     if (!isIntegrityKind(body.kind)) return validationError({ kind: 'Evento de integridade desconhecido' });
     const kind = body.kind;
-    const rawQuestionId = body.questionId;
-    const questionId =
-      rawQuestionId == null || !Number.isInteger(Number(rawQuestionId)) || Number(rawQuestionId) <= 0
-        ? null
-        : Number(rawQuestionId);
+    // `0`, `-1`, `1.5` ou `"abc"` não são "sem questão": o backend recusa-os com 400
+    // na desserialização. Passá-los a `null` deixaria um `TAB_HIDDEN` inválido entrar.
+    const questionId = parseQuestionId(body.questionId);
+    if (questionId === undefined) {
+      return validationError({ questionId: 'questionId tem de ser um inteiro positivo' });
+    }
     const simulation = db.simulations.find((s) => s.id === simulationId && s.accountId === account.id);
     const refusal = integrityRefusal({
       kind,
