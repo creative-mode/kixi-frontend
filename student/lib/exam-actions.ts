@@ -4,9 +4,10 @@ import { redirect } from 'next/navigation';
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
-import { getStatementFull, myAccountId, saveAnswer, startSimulation, submitSimulation } from './exam';
+import { getStatementFull, myAccountId, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
+import { isIntegrityKind, type IntegrityKind } from './integrity';
 
 /** What the room sends to save one answer. Plain values, not a FormData: the save
  *  queue calls this directly, and it is the queue — not a form — that knows the
@@ -133,4 +134,25 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   // resultado é revisitado depois, para o aluno ver a nota de novo.
   forgetVisitedPages();
   redirect(`/resultado?prova=${simulationId}&submetida=1`);
+}
+
+/** O que o modo de avaliação regista. Vem do cliente, por isso o tipo é validado
+ *  aqui: uma string livre chegaria ao backend como um evento que ninguém sabe ler. */
+export interface EventoInput {
+  simulationId: number;
+  kind: IntegrityKind;
+  questionId?: number | null;
+}
+
+/** Regista um evento do modo de avaliação (#192). Best-effort de propósito: o
+ *  registo é uma nota para o professor, não uma condição para responder. Se falhar,
+ *  o aluno não pode ficar a saber — e nunca fica bloqueado por causa disso. */
+export async function registarEventoAction(input: EventoInput): Promise<{ ok: boolean }> {
+  await requireStudent();
+
+  const simulationId = id(input.simulationId);
+  if (simulationId === null || !isIntegrityKind(input.kind)) return { ok: false };
+
+  const result = await saveIntegrityEvent(simulationId, input.kind, id(input.questionId));
+  return { ok: result.ok };
 }

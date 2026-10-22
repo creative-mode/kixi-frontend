@@ -87,9 +87,21 @@ export interface SimulationResult {
  *  not fatal on its own: the student can still start a first attempt, so this
  *  returns the list or an empty one. */
 export async function listSimulations(): Promise<SimulationSummary[]> {
+  const result = await listSimulationsResult();
+  return result.ok ? result.data : [];
+}
+
+/** Like `listSimulations`, but keeps the failure. The tutor's block (#192) must not
+ *  read a failed request as "no attempt": that would fail open during a backend
+ *  outage and let the student leave the paper. Callers that can degrade to an empty
+ *  list keep using `listSimulations`. */
+export async function listSimulationsResult(): Promise<Result<SimulationSummary[]>> {
   const result = await apiGet<Simulation[]>('/simulations');
-  if (!result.ok || !Array.isArray(result.data)) return [];
-  return result.data;
+  if (!result.ok) return result;
+  if (!Array.isArray(result.data)) {
+    return { ok: false, status: 0, message: 'O servidor devolveu uma resposta inesperada.' };
+  }
+  return { ok: true, data: result.data };
 }
 
 /** Starts an attempt. The server starts the clock itself (SimulationService.java:95),
@@ -176,6 +188,31 @@ export async function submitSimulation(simulationId: number): Promise<Result<Sim
   // O corpo vai vazio de propósito: a nota calcula-se no servidor, a partir do que
   // está guardado, e um score enviado pelo cliente seria ignorado (BE-09).
   return apiPost<SimulationResult>(`/simulations/${simulationId}/submit`, {});
+}
+
+/** `IntegrityEventResponse`. A hora é do servidor: o cliente manda o tipo e, quando
+ *  faz sentido, a questão, e o servidor carimba `at` e guarda. */
+export interface IntegrityEventResponse {
+  id: number;
+  simulationId: number;
+  kind: string;
+  at: string;
+  questionId?: number | null;
+}
+
+/** POST /simulations/{id}/integrity-events — o modo de avaliação (#192) a registar
+ *  um evento. Não há GET do lado do aluno: quem lê os eventos é o professor, pela
+ *  sala de prova. O corpo leva o tipo e, na colagem, a questão; nada de texto de
+ *  resposta. */
+export async function saveIntegrityEvent(
+  simulationId: number,
+  kind: string,
+  questionId: number | null,
+): Promise<Result<IntegrityEventResponse>> {
+  return apiPost<IntegrityEventResponse>(`/simulations/${simulationId}/integrity-events`, {
+    kind,
+    ...(questionId == null ? {} : { questionId }),
+  });
 }
 
 /** GET /question-images/question/{questionId} — the images of one question. A

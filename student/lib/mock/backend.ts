@@ -5,6 +5,7 @@ import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import { isRestricted, isVisibility, matchesSearch, personAttributes, type Visibility } from './profiles';
 import { validateReport, blockPair, bloqueadoEntre, deveDesaparecer, desaparecePara, visibilidadePara } from '@/lib/moderation';
+import { integrityRefusal, isIntegrityKind, parseQuestionId } from '@/lib/integrity';
 import * as friends from './friends';
 import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
@@ -199,6 +200,18 @@ type Store = {
   /** Bloqueios de pessoa (#323). Guardados como par normalizado: `blockPair` garante
    *  que o mesmo bloqueio nunca existe nos dois sentidos. */
   blocks: { accountId: number; blockedAccountId: number; createdAt: string }[];
+  /** Eventos do modo de avaliação (#192): o que o aluno fez e o servidor viu. A hora
+   *  é carimbada no servidor, nunca a que o cliente mande. */
+  integrityEvents: MockIntegrityEvent[];
+  nextIntegrityEvent: number;
+};
+
+type MockIntegrityEvent = {
+  id: number;
+  simulationId: number;
+  kind: string;
+  questionId: number | null;
+  at: string;
 };
 
 type MockReport = {
@@ -655,6 +668,10 @@ function seed(): Store {
     reports: [],
     nextReport: 1,
     blocks: [],
+    // Vazio: quem os cria é a sala de prova, ao correr (#192). Semeá-los não teria
+    // quem os lesse — o professor lê os do mock do gestor, que é outro processo.
+    integrityEvents: [],
+    nextIntegrityEvent: 1,
   };
 }
 
@@ -1700,6 +1717,58 @@ export async function mockHandle(
     };
     db.simulations.push(row);
     return json(simulationResponse(db, row), 201);
+  }
+
+  // O modo de avaliação (#192) a registar um evento. O corpo leva o tipo e, na
+  // colagem, a questão — nunca texto de resposta. A hora é do servidor: um cliente
+  // não carimba os seus próprios eventos.
+  //
+  // As regras são as do `SimulationIntegrityEventService` do backend e vivem em
+  // `integrityRefusal`, para não divergirem: `PASTE_BLOCKED` exige uma questão (e só
+  // esse tipo a leva), a questão tem de ser desta prova, e a tentativa tem de estar a
+  // decorrer. O backend fecha por `IN_PROGRESS`; aqui fecha-se também pelo prazo,
+  // porque o mock não tem um scheduler que mude o estado quando o tempo acaba.
+  const integrityMatch = pathname.match(/^\/simulations\/(\d+)\/integrity-events$/);
+  if (integrityMatch && method === 'POST') {
+    const simulationId = Number(integrityMatch[1]);
+    if (!isIntegrityKind(body.kind)) return validationError({ kind: 'Evento de integridade desconhecido' });
+    const kind = body.kind;
+    // `0`, `-1`, `1.5` ou `"abc"` não são "sem questão": o backend recusa-os com 400
+    // na desserialização. Passá-los a `null` deixaria um `TAB_HIDDEN` inválido entrar.
+    const questionId = parseQuestionId(body.questionId);
+    if (questionId === undefined) {
+      return validationError({ questionId: 'questionId tem de ser um inteiro positivo' });
+    }
+    const simulation = db.simulations.find((s) => s.id === simulationId && s.accountId === account.id);
+    const refusal = integrityRefusal({
+      kind,
+      questionId,
+      attempt: simulation
+        ? {
+            active: simulation.status === 'IN_PROGRESS',
+            expired: expired(simulationResponse(db, simulation).deadline),
+            questionBelongs:
+              questionId === null
+                ? null
+                : (QUESTIONS_BY_STATEMENT[simulation.statementId] ?? []).includes(questionId),
+          }
+        : null,
+    });
+    if (refusal) {
+      return refusal.status === 400
+        ? validationError({ questionId: refusal.message })
+        : problem(refusal.status, refusal.message);
+    }
+
+    const event = {
+      id: db.nextIntegrityEvent++,
+      simulationId,
+      kind,
+      questionId,
+      at: toLocalDateTime(new Date()),
+    };
+    db.integrityEvents.push(event);
+    return json(event, 201);
   }
 
   // ── salas de prova (FE-14) ─────────────────────────────────────────────────

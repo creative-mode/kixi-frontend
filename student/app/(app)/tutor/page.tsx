@@ -1,4 +1,8 @@
 import { TutorChat } from '@/components/tutor-chat';
+import { TutorBloqueado } from '@/components/tutor-bloqueado';
+import { RefreshError } from '@/components/refresh-error';
+import { listSimulationsResult } from '@/lib/exam';
+import { tentativaViva } from '@/lib/integrity';
 import { getStatementQuestions, getStatementTitle } from '@/lib/statement-detail';
 import { parseQuestionNumbers, parseWrongAnswers, studyPrompt } from '@/lib/tutor-rules';
 
@@ -26,6 +30,36 @@ export default async function TutorPage({
   const parsed = Number(Array.isArray(raw) ? raw[0] : raw);
   const statementId = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
   const paperTitle = statementId ? await getStatementTitle(statementId) : null;
+
+  // O travão (#192): uma tentativa a decorrer da mesma prova fecha o tutor, para o
+  // aluno não sair do modo Simular pela porta do estudo. Só a mesma prova, e só
+  // enquanto ela corre — o tutor de outra matéria, ou depois de entregar, continua
+  // aberto, e o ecrã dá o caminho de volta. Ver `tentativaViva` para o porquê de uma
+  // tentativa expirada não prender o aluno.
+  //
+  // Uma falha a ler as tentativas NÃO é "não há nenhuma": era abrir a porta do tutor
+  // exatamente quando não se sabe se a prova está a correr. Nesse caso o ecrã fecha
+  // e oferece nova tentativa, e a lista vazia só conta depois de o servidor responder.
+  if (statementId) {
+    const attempts = await listSimulationsResult();
+    if (!attempts.ok) {
+      return (
+        <div className="mx-auto grid min-h-[60vh] max-w-[560px] place-items-center p-6">
+          <RefreshError
+            title="Não foi possível confirmar o estado da prova"
+            message="Para não abrir o tutor durante uma prova a decorrer, temos de confirmar se tens uma tentativa a correr. Tenta de novo dentro de instantes."
+            status={attempts.status}
+            back={{ href: `/prova/${statementId}`, label: 'Voltar à prova' }}
+          />
+        </div>
+      );
+    }
+    const live = tentativaViva(attempts.data, statementId, Date.now());
+    if (live) {
+      return <TutorBloqueado simulationId={live.id} statementId={statementId} paperTitle={paperTitle} />;
+    }
+  }
+
   // The picker of "explicar questão" needs the paper's questions, and only this mode
   // uses them, so a failure here costs the picker and nothing else.
   const questions = statementId ? await getStatementQuestions(statementId) : [];

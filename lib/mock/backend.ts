@@ -44,6 +44,7 @@ const nextId = (t) => (seq[t] = (seq[t] ?? 0) + 1);
 G.__kixiMock.db ??= {
   roles: [], accounts: [], users: [], accountRoles: [], 'school-years': [], terms: [], subjects: [], courses: [],
   classes: [], statements: [], simulations: [], 'simulation-answers': [], sessions: [], 'question-images': [],
+  'integrity-events': [],
   institutions: [], teachers: [], institutionSubjects: [], institutionTeachers: [], institutionStudents: [],
   enrollments: [], 'teaching-assignments': [], courseSubjects: [],
 };
@@ -983,7 +984,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     }
 
     // ── exam rooms (BE-16/BE-17) ──
-    if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades))?$/))) {
+    if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades|integrity))?$/))) {
       const me = Number(auth.sub);
       const roles = auth.roles ?? [];
       const admin = roles.includes('ADMIN');
@@ -1005,6 +1006,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       }
       if (Number.isFinite(id) && method === 'GET' && staff) {
         if (action === 'grades') return out(rooms.grades(id, me, admin));
+        if (action === 'integrity') return out(rooms.integrity(id, me, admin));
         if (action === 'live') {
           const first = rooms.live(id, me, admin);
           return first.ok ? liveStream(() => rooms.live(id, me, admin)) : out(first);
@@ -1224,6 +1226,49 @@ function seedExtras() {
   for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) {
     const acc = seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
     add('enrollments', { accountId: acc.id, classId: db.classes[0].id, schoolYearId: sy.id, status: 'ACTIVE' });
+  }
+
+  // Uma sala a decorrer, com um aluno e eventos de integridade (#192), para o
+  // professor ter o que ver na consola sem correr a stack toda. No backend, quem
+  // escreve estes eventos é o aluno, pelo `POST /simulations/{id}/integrity-events`;
+  // o mock do gestor é outro processo e outra base, por isso semeia-os aqui (a
+  // limitação do kixi#323, registada na nota do endpoint).
+  const helena = db.accounts.find((a: any) => a.username === 'professor');
+  const wall = (mins: number) => new Date(Date.now() + 3_600_000 + mins * 60_000).toISOString().slice(0, 19);
+  const room = add('exam-rooms', {
+    statementId: 1,
+    classId: db.classes[0].id,
+    teacherAccountId: helena.id,
+    startsAt: wall(-30),
+    endsAt: wall(60),
+    durationMinutes: 90,
+    status: 'RUNNING',
+  });
+  const roomSim = add('simulations', {
+    accountId: student.id,
+    statementId: 1,
+    examRoomId: room.id,
+    schoolYearId: sy.id,
+    startedAt: wall(-29),
+    finishedAt: null,
+    timeSpentSeconds: 0,
+    finalScore: null,
+    status: 'IN_PROGRESS',
+  });
+  add('exam-room-participants', { examRoomId: room.id, accountId: student.id, simulationId: roomSim.id, joinedAt: wall(-29) });
+  // Os restantes convidados ainda não entraram: mostram a coluna vazia de eventos.
+  for (const acc of db.accounts.filter((a: any) => ['helder', 'mariana', 'paulo', 'sara'].includes(a.username))) {
+    add('exam-room-participants', { examRoomId: room.id, accountId: acc.id, simulationId: null, joinedAt: null });
+  }
+  for (const [kind, mins, questionId] of [
+    ['TAB_HIDDEN', -25, null],
+    ['TAB_VISIBLE', -24, null],
+    ['WINDOW_BLUR', -18, null],
+    ['WINDOW_FOCUS', -17, null],
+    ['PASTE_BLOCKED', -12, db.statements[0].questions[2]?.id ?? null],
+    ['TUTOR_BLOCKED', -6, null],
+  ] as [string, number, number | null][]) {
+    add('integrity-events', { simulationId: roomSim.id, kind, questionId, at: wall(mins) });
   }
 }
 
