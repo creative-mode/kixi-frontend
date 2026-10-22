@@ -45,7 +45,7 @@ const TEMPLATES: FormulaTemplate[] = [
 ];
 
 const QUICK_TEMPLATES = TEMPLATES.filter((template) =>
-  ['fraction', 'power', 'root', 'matrix', 'integral'].includes(template.id),
+  ['fraction', 'power', 'root', 'system', 'vector', 'matrix', 'integral'].includes(template.id),
 );
 
 type MathfieldElementLike = HTMLElement & {
@@ -60,9 +60,11 @@ type MathfieldElementLike = HTMLElement & {
 function MathLiveField({
   value,
   onChange,
+  keyboardContainer,
 }: {
   value: string;
   onChange: (value: string) => void;
+  keyboardContainer: { current: HTMLDivElement | null };
 }) {
   const field = useRef<MathfieldElementLike | null>(null);
   const initialValue = useRef(value);
@@ -78,6 +80,7 @@ function MathLiveField({
       field.current.smartMode = true;
       field.current.smartFence = true;
       mathVirtualKeyboard.layouts = ['numeric', 'symbols', 'alphabetic', 'greek'];
+      mathVirtualKeyboard.container = keyboardContainer.current;
       setReady(true);
       field.current.focus();
     });
@@ -87,7 +90,7 @@ function MathLiveField({
         window.mathVirtualKeyboard.visible = false;
       }
     };
-  }, []);
+  }, [keyboardContainer]);
 
   useEffect(() => {
     if (ready && field.current && field.current.value !== value) {
@@ -123,6 +126,7 @@ export function FormulaBuilderModal({
 }) {
   const [formula, setFormula] = useState(initialFormula ?? '');
   const [display, setDisplay] = useState(initialDisplay ?? false);
+  const keyboardContainer = useRef<HTMLDivElement>(null);
 
   function chooseTemplate(template: FormulaTemplate) {
     setFormula(template.latex);
@@ -130,10 +134,6 @@ export function FormulaBuilderModal({
   }
 
   function handleOpenChange(next: boolean) {
-    if (next && !open) {
-      setFormula(initialFormula ?? '');
-      setDisplay(initialDisplay ?? false);
-    }
     onOpenChange(next);
   }
 
@@ -147,14 +147,19 @@ export function FormulaBuilderModal({
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader className="border-b bg-muted/30 px-6 py-4 pr-12">
-          <div className="flex items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
-              <Sigma size={21} aria-hidden />
-            </span>
-            <div>
-              <DialogTitle>Inserir fórmula</DialogTitle>
-              <DialogDescription>Edite a fórmula directamente e encaixe estruturas umas dentro das outras.</DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
+                <Sigma size={21} aria-hidden />
+              </span>
+              <div>
+                <DialogTitle>Inserir fórmula</DialogTitle>
+                <DialogDescription>Edite a fórmula directamente e encaixe estruturas umas dentro das outras.</DialogDescription>
+              </div>
             </div>
+            <Button type="button" size="sm" aria-label="Inserir fórmula" disabled={!formula.trim()} onClick={() => onInsert(formula, display)}>
+              Inserir
+            </Button>
           </div>
         </DialogHeader>
 
@@ -169,6 +174,7 @@ export function FormulaBuilderModal({
                 <button
                   key={template.id}
                   type="button"
+                  aria-label={`Inserir modelo ${template.label}`}
                   className="grid min-h-16 place-items-center gap-1 rounded-lg border bg-background px-2 py-2 text-center transition-colors hover:border-primary/60 hover:bg-accent"
                   onClick={() => chooseTemplate(template)}
                 >
@@ -190,7 +196,8 @@ export function FormulaBuilderModal({
                 </label>
               </div>
               <div className="mt-4 rounded-lg border bg-background p-3">
-                <MathLiveField value={formula} onChange={setFormula} />
+                <MathLiveField value={formula} onChange={setFormula} keyboardContainer={keyboardContainer} />
+                <div ref={keyboardContainer} className="formula-keyboard-host mt-3 min-h-56 overflow-x-auto rounded-lg" aria-label="Teclado virtual da fórmula" />
               </div>
             </section>
         </div>

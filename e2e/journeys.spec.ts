@@ -516,8 +516,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(renderedQuestion.locator('.katex')).toBeVisible();
     const formulaToggle = page.getByRole('button', { name: 'Inserir fórmula' }).first();
     await formulaToggle.click();
-    const vectorButton = page.getByRole('button', { name: 'Inserir Vetor' }).first();
+    const formulaDialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    const vectorButton = formulaDialog.getByRole('button', { name: 'Inserir modelo Vetor' });
+    const systemButton = formulaDialog.getByRole('button', { name: 'Inserir modelo Sistema' });
     await expect(vectorButton.locator('.katex')).toBeVisible();
+    await expect(systemButton.locator('.katex')).toBeVisible();
     await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
     const formulaEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/formula-picker-rendered-symbols.png');
     await page.locator('body').screenshot({ path: formulaEvidencePath });
@@ -526,8 +529,17 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       contentType: 'image/png',
     });
     await vectorButton.click();
+    await expect.poll(async () => formulaDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\vec{v}');
+    await formulaDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
     await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
     await expect(renderedQuestion.locator('.katex')).toHaveCount(2);
+
+    await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+    const systemDialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    await systemDialog.getByRole('button', { name: 'Inserir modelo Sistema' }).click();
+    await expect.poll(async () => systemDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\begin{cases}');
+    await systemDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+    await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
   });
 
   test('admin: cria escola e turma e regressa ao dashboard', async ({ page }) => {

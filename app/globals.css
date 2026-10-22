@@ -61,6 +61,18 @@ math-virtual-keyboard {
   overflow: hidden;
 }
 
+.formula-keyboard-host:empty {
+  display: none;
+}
+
+.formula-keyboard-host > .ML__keyboard {
+  height: auto;
+  min-height: 14rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
 .kixi-math-review { text-decoration: underline wavy #b45309; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .kixi-math-review-label { margin-inline-start: 0.35rem; color: #92400e; font-size: 0.72em; font-weight: 600; }
 @media print {

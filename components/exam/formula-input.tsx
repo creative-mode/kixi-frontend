@@ -7,6 +7,19 @@ import { hasMathContent } from '@/student/lib/shared/math-content';
 import { MathText } from '@/student/lib/shared/math-text';
 import { FormulaBuilderModal } from './formula-builder-modal';
 
+function selectedFormula(value: string, start: number, end: number): { latex: string; display: boolean } {
+  const selection = value.slice(start, end);
+  const matches = [
+    { pattern: /^\$\$([\s\S]+)\$\$$/, display: true },
+    { pattern: /^\\\[([\s\S]+)\\\]$/, display: true },
+    { pattern: /^\$([\s\S]+)\$$/, display: false },
+    { pattern: /^\\\(([\s\S]+)\\\)$/, display: false },
+  ];
+  const match = matches.find(({ pattern }) => pattern.test(selection));
+  if (!match) return { latex: '', display: false };
+  return { latex: selection.replace(match.pattern, '$1'), display: match.display };
+}
+
 /** Editor deliberadamente pequeno: texto continua editável e a fórmula é KaTeX, sem novo runtime. */
 export function FormulaInput({
   value,
@@ -25,6 +38,7 @@ export function FormulaInput({
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const selection = useRef({ start: 0, end: 0 });
+  const [builderInitial, setBuilderInitial] = useState({ latex: '', display: false });
   const [builderOpen, setBuilderOpen] = useState(false);
   const [sourceMode, setSourceMode] = useState(false);
   const showRenderedMath = hasMathContent(value) && !sourceMode;
@@ -45,6 +59,7 @@ export function FormulaInput({
       start: element?.selectionStart ?? value.length,
       end: element?.selectionEnd ?? value.length,
     };
+    setBuilderInitial(selectedFormula(value, selection.current.start, selection.current.end));
     setBuilderOpen(true);
   }
 
@@ -91,7 +106,14 @@ export function FormulaInput({
         </Button>
         <span className="ml-auto text-xs text-muted-foreground">Construa visualmente; confira no enunciado</span>
       </div>
-      <FormulaBuilderModal open={builderOpen} onOpenChange={setBuilderOpen} onInsert={insert} />
+      <FormulaBuilderModal
+        key={`${builderOpen}-${builderInitial.latex}-${builderInitial.display}`}
+        open={builderOpen}
+        onOpenChange={setBuilderOpen}
+        onInsert={insert}
+        initialFormula={builderInitial.latex}
+        initialDisplay={builderInitial.display}
+      />
     </div>
   );
 }
