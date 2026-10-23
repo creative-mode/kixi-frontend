@@ -1,10 +1,11 @@
-import { Suspense } from 'react';
+import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
-import { getFeed } from '@/lib/feed';
+import { getFeed, loadAuthors } from '@/lib/feed';
+import { loadSocial } from '@/lib/social';
+import { loadFirstConversations } from '@/lib/comments';
 import { InicioFeed } from './inicio-feed';
-import { SalasDeProvaSection } from './salas-de-prova-section';
 
 export const metadata = { title: 'Início · Kixi' };
 
@@ -12,7 +13,9 @@ export const metadata = { title: 'Início · Kixi' };
  * O início: as salas de prova que pedem ação, o compositor e o feed da turma, na coluna central.
  * Os widgets estão na coluna da direita, global (ver `(app)/layout.tsx`).
  *
- * As salas e a coluna lateral chegam em streaming: nenhuma delas bloqueia o feed principal.
+ * Os convites leem-se aqui, no servidor, porque `GET /exam-rooms/mine` precisa do cookie da sessão.
+ * Uma falha a ler as salas não leva o feed com ela. O feed social só se pede quando há turma: sem
+ * matrícula não há `classId` para o `GET /feed/posts` exigir, e pedir sem ele dava 400.
  */
 export default async function InicioPage() {
   const profile = await getProfile();
@@ -32,16 +35,22 @@ export default async function InicioPage() {
   const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
-  const feed = classId ? await getFeed(classId) : null;
+  const [feed, social] = await Promise.all([classId ? getFeed(classId) : Promise.resolve(null), loadSocial(me)]);
+  const invResult = social.invitations;
   const posts = feed?.ok ? feed.data : [];
+  const [authors, conversations] = await Promise.all([loadAuthors(posts, me.accountId), loadFirstConversations(posts)]);
+
   return (
     <>
       <FireEventOnce param="matriculado" event="onboarding_completed" />
-      <Suspense fallback={null}><SalasDeProvaSection /></Suspense>
       <InicioFeed
+        invitations={invResult.ok ? invResult.data : []}
+        invitationsError={invitationsErrorOf(invResult)}
         myAccountId={me.accountId}
         classId={classId}
         posts={posts}
+        authors={authors}
+        conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
       />
     </>

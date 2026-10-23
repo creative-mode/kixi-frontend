@@ -6,25 +6,10 @@ import { BACKEND } from './session';
 import { authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
 import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
-import { createBuiltPost, createPost, createSimulationPost, addComment, loadAuthors, reportPost, setReaction, type PostComment, type PostType } from './feed';
-import { canPublish, canPublishReflection, type FeedAuthor } from './feed-rules';
+import { createBuiltPost, createPost, createSimulationPost, addComment, reportPost, setReaction, type PostComment, type PostType } from './feed';
+import { canPublish, canPublishReflection } from './feed-rules';
 
 export type FeedActionState = { error?: string } | undefined;
-
-/** Carrega perfis fora do caminho bloqueante da renderização do feed. */
-export async function loadFeedAuthorsAction(
-  authorIds: number[],
-  myAccountId: number | null,
-): Promise<{ ok: true; authors: Record<number, FeedAuthor> } | { ok: false }> {
-  if (!Array.isArray(authorIds) || authorIds.length > 10
-    || authorIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) return { ok: false };
-  try {
-    const posts = [...new Set(authorIds)].map((authorAccountId) => ({ authorAccountId }));
-    return { ok: true, authors: await loadAuthors(posts, myAccountId) };
-  } catch {
-    return { ok: false };
-  }
-}
 
 /** Publica uma dúvida ou tema na turma do aluno. Chamado directamente do formulário
  *  do compositor (components/inicio/*), sem useActionState: o próprio componente
