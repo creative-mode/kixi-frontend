@@ -39,9 +39,13 @@ test('requires real backend URL and signing secret when mock is disabled', () =>
     validateRuntimeConfiguration({
       KIXI_MOCK: 'false',
       BACKEND_API_URL: 'http://backend',
-      JWT_SECRET: 'a-configured-secret',
+      JWT_SECRET: 'a-configured-secret-that-is-at-least-32-characters-long',
     }),
     'real',
+  );
+  assert.throws(
+    () => validateRuntimeConfiguration({ KIXI_MOCK: 'false', BACKEND_API_URL: 'http://backend', JWT_SECRET: 'too-short' }),
+    /JWT_SECRET.*32/,
   );
 });
 
@@ -49,5 +53,6 @@ test('uses the public demo secret only in explicit mock mode', () => {
   assert.throws(() => getJwtSecretValue({}), /JWT_SECRET.*demonstração/);
   assert.throws(() => getJwtSecretValue({ KIXI_MOCK: 'false' }), /JWT_SECRET.*demonstração/);
   assert.equal(getJwtSecretValue({ KIXI_MOCK: 'true' }), 'default-secret-change-in-production-min-256-bits');
-  assert.equal(getJwtSecretValue({ KIXI_MOCK: 'true', JWT_SECRET: ' configured ' }), 'configured');
+  assert.equal(getJwtSecretValue({ KIXI_MOCK: 'true', JWT_SECRET: ' configured-secret-that-is-at-least-32-characters-long ' }), 'configured-secret-that-is-at-least-32-characters-long');
+  assert.throws(() => getJwtSecretValue({ KIXI_MOCK: 'true', JWT_SECRET: 'short' }), /JWT_SECRET.*32/);
 });

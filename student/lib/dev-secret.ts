@@ -3,6 +3,16 @@ export type BackendMode = 'mock' | 'real';
 type RuntimeEnvironment = Record<string, string | undefined>;
 
 const DEMO_JWT_SECRET = 'default-secret-change-in-production-min-256-bits';
+export const MIN_JWT_SECRET_LENGTH = 32;
+
+function configuredJwtSecret(env: RuntimeEnvironment): string | undefined {
+  const configured = env.JWT_SECRET?.trim();
+  if (!configured) return undefined;
+  if (configured.length < MIN_JWT_SECRET_LENGTH) {
+    throw new Error(`JWT_SECRET deve ter pelo menos ${MIN_JWT_SECRET_LENGTH} caracteres`);
+  }
+  return configured;
+}
 
 export function isMockEnabled(env: RuntimeEnvironment = process.env): boolean {
   return env.KIXI_MOCK === 'true';
@@ -25,7 +35,7 @@ export function validateRuntimeConfiguration(
   if (!env.BACKEND_API_URL?.trim()) {
     throw new Error('BACKEND_API_URL é obrigatório quando KIXI_MOCK=false');
   }
-  if (!env.JWT_SECRET?.trim()) {
+  if (!configuredJwtSecret(env)) {
     throw new Error('JWT_SECRET é obrigatório quando KIXI_MOCK=false');
   }
 
@@ -33,7 +43,7 @@ export function validateRuntimeConfiguration(
 }
 
 export function getJwtSecretValue(env: RuntimeEnvironment = process.env): string {
-  const configured = env.JWT_SECRET?.trim();
+  const configured = configuredJwtSecret(env);
   if (configured) return configured;
   if (isMockEnabled(env)) return DEMO_JWT_SECRET;
   throw new Error('JWT_SECRET é obrigatório fora do modo de demonstração');
