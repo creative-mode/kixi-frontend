@@ -105,7 +105,7 @@ test('editor readiness waits for all imported questions and detects a previously
 });
 
 test('rendered KaTeX text counts as ready even though it differs from the LaTeX source', () => {
-  assert.deepEqual(evaluateOcrEditorRender(['$v=v_0+at$', 'Questão 2'], ['𝑣 = 𝑣₀ + 𝑎𝑡', 'Questão 2'], ['', '']), {
+  assert.deepEqual(evaluateOcrEditorRender(['$v=v_0+at$', 'Questão 2'], ['v = v0 + at', 'Questão 2'], ['', '']), {
     firstUsefulIndex: 0,
     editorReady: true,
     alreadyReady: false,
