@@ -25,6 +25,14 @@ test('o enunciado guardado vira o rascunho: questões, grupo com alíneas e resp
   assert.equal(totalScore(draft.items), 14);
 });
 
+test('o layout original da chaveta regressa do enunciado guardado', () => {
+  const { draft } = draftFromStatement({ questions: [
+    { id: 4, number: 4, questionType: 'group', groupLayout: 'brace', text: 'Calcule:', options: [] },
+    { id: 41, number: 401, parentId: 4, label: 'a', questionType: 'open', text: 'uma grandeza', options: [] },
+  ] });
+  assert.equal(draft.items[0].groupLayout, 'brace');
+});
+
 test('o cabeçalho leva a disciplina, a classe, o ano, a série e as regras sem linhas vazias', () => {
   const { draft, school } = draftFromStatement(STATEMENT, { subject: 'SEAC', grade: 12, schoolYear: '2025/2026', institution: 'ITEL' });
   assert.deepEqual([draft.subject, draft.grade, draft.schoolYear, draft.variant, draft.duration, draft.kind], ['SEAC', '12ª Classe', '2025/2026', 'A', 90, 'Exame']);

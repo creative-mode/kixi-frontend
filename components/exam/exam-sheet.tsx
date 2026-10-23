@@ -1,5 +1,6 @@
-import { itemLabel, kindOf, totalScore, trueFalseAnswer, type DraftOption } from '@/lib/exam/draft';
+import { sourceItemLabel, kindOf, totalScore, trueFalseAnswer, type DraftOption } from '@/lib/exam/draft';
 import type { ExamDraft, ExamItem, School } from '@/lib/exam/schools';
+import { MathText } from '@/student/lib/shared/math-text';
 
 
 /**
@@ -33,7 +34,7 @@ function Options({ options, mode }: { options: DraftOption[]; mode: KeyMode }) {
       {options.map((o) => (
         <li key={o.label} className={`flex gap-2 ${showKey && o.correct ? `font-semibold text-green-700 ${keyClass(mode)}`.trim() : ''}`}>
           <span className="font-semibold">{o.label})</span>
-          <span>{o.text}</span>
+          <MathText text={o.text} />
           {showKey && o.correct && <b className={`whitespace-nowrap ${keyClass(mode)}`}>correcta</b>}
         </li>
       ))}
@@ -50,7 +51,7 @@ function TrueFalseMark({ options, mode }: { options: DraftOption[]; mode: KeyMod
 /** A resposta esperada de uma questão aberta: só na chave. */
 function ModelAnswer({ text, mode }: { text?: string; mode: KeyMode }) {
   if (mode === 'never' || !text?.trim()) return null;
-  return <span className={`mt-1 block text-[12.5px] text-green-800 ${keyClass(mode)}`}><b>Resposta esperada:</b> {text.trim()}</span>;
+  return <span className={`mt-1 block text-[12.5px] text-green-800 ${keyClass(mode)}`}><b>Resposta esperada:</b> <MathText text={text.trim()} /></span>;
 }
 
 const score = (points: number | '') => (points !== '' ? <span className="whitespace-nowrap"> ({points} val.)</span> : null);
@@ -75,33 +76,50 @@ function Question({ item, mode }: { item: ExamItem; mode: KeyMode }) {
     const subs = (item.items ?? []).filter((x) => x.text.trim());
     return (
       <>
-        {item.text}
+        <div className="whitespace-pre-line">
+          <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
+        </div>
         <Figures item={item} />
         {subs.length > 0 && (
-          <ol className="mt-1 list-none space-y-1.5 pl-2">
-            {subs.map((sub, j) => {
-              const k = kindOf(sub);
-              return (
-                <li key={j} className="flex gap-2">
-                  <span className="font-semibold">{itemLabel(j)})</span>
-                  <span className="flex-1">
-                    {sub.text}
-                    {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}
-                    {score(sub.points)}
-                    {k === 'multiple_choice' && <Options options={sub.options} mode={mode} />}
-                    {k === 'open' && <><AnswerLines count={2} /><ModelAnswer text={sub.modelAnswer} mode={mode} /></>}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+          <div className={`mt-1 flex gap-1 ${item.groupLayout === 'brace' ? '' : 'pl-2'}`}>
+            {item.groupLayout === 'brace' && (
+              <svg
+                aria-hidden="true"
+                data-testid="group-brace"
+                className="h-auto min-h-full w-3 shrink-0 self-stretch overflow-visible text-black"
+                viewBox="0 0 12 100"
+                preserveAspectRatio="none"
+                focusable="false"
+              >
+                <path d="M10 1 C4 1 4 13 4 25 C4 39 1 45 1 50 C1 55 4 61 4 75 C4 87 4 99 10 99" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+              </svg>
+            )}
+            <ol className="min-w-0 flex-1 list-none space-y-1.5">
+              {subs.map((sub, j) => {
+                const k = kindOf(sub);
+                const label = sourceItemLabel(sub, j);
+                return (
+                  <li key={j} className={`flex gap-2 ${item.groupLayout !== 'brace' && label.includes('.') ? 'ml-5' : ''}`}>
+                    {item.groupLayout !== 'brace' && <span className="font-semibold">{label})</span>}
+                    <span className="flex-1">
+                      <MathText text={sub.text} formulas={sub.formulas} blocks={sub.blocks} />
+                      {k === 'true_false' && <TrueFalseMark options={sub.options} mode={mode} />}
+                      {score(sub.points)}
+                      {k === 'multiple_choice' && <Options options={sub.options} mode={mode} />}
+                      {k === 'open' && <><AnswerLines count={2} /><ModelAnswer text={sub.modelAnswer} mode={mode} /></>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         )}
       </>
     );
   }
   return (
     <>
-      {item.text}
+      <MathText text={item.text} formulas={item.formulas} blocks={item.blocks} />
       <Figures item={item} />
       {kind === 'true_false' && <TrueFalseMark options={item.options} mode={mode} />}
       {score(item.points)}

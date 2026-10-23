@@ -5,10 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
-import { Textarea } from '@/components/ui/textarea';
-import { convertKind, emptyItem, groupScore, itemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
+import { convertKind, emptyItem, groupScore, invalidateReviewOnContentChange, sourceItemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
 import type { ExamItem } from '@/lib/exam/schools';
 import { ItemEditor, LEAF_LABELS, LeafBody } from './item-editor';
+import { hasMathContent } from '@/student/lib/shared/math-content';
+import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
+import { FormulaInput } from './formula-input';
 
 const KIND_LABELS: Record<QuestionKind, string> = { ...LEAF_LABELS, group: 'Com alíneas' };
 
@@ -50,17 +52,22 @@ export function QuestionEditor({
   }
 
   return (
-    <fieldset className="grid gap-3 rounded-lg border p-3">
+    <fieldset className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border p-3">
       <legend className="sr-only">Questão {n}</legend>
-      <div className="flex flex-wrap items-start gap-2 sm:flex-nowrap">
+      <div className="flex min-w-0 flex-wrap items-start gap-2 sm:flex-nowrap">
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-[12px] font-bold text-accent-foreground">{n}</span>
-        <Textarea
+        <FormulaInput
+          value={serializeMathText(item.text, item.formulas, item.blocks)}
+          label={kind === 'group' ? `Enunciado comum da questão ${n}` : `Questão ${n}`}
           rows={2}
-          value={item.text}
-          onChange={(e) => onChange({ text: e.target.value })}
+          className="min-h-14"
+          // The ordered blocks describe the old text layout; formula evidence is
+          // independent provenance and must survive text corrections.
+          onChange={(value) => {
+            const next = { ...item, text: value, blocks: undefined };
+            onChange(invalidateReviewOnContentChange(item, next));
+          }}
           placeholder={kind === 'group' ? `Enunciado comum da questão ${n}` : `Questão ${n}`}
-          aria-label={kind === 'group' ? `Enunciado comum da questão ${n}` : `Questão ${n}`}
-          className="min-h-14 min-w-0 flex-1"
         />
         {kind === 'group' ? (
           <output aria-label={`Cotação da questão ${n}`} className="grid h-9 w-20 shrink-0 place-items-center rounded-md bg-secondary text-sm font-semibold tabular-nums" title="A cotação de uma questão com alíneas é a soma das alíneas">
@@ -79,6 +86,9 @@ export function QuestionEditor({
           />
         )}
       </div>
+      {hasMathContent(item.text, item.formulas, item.blocks) && item.rawText && item.rawText !== item.text ? (
+        <details className="ml-8 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{item.rawText}</p></details>
+      ) : null}
       {(item.images ?? []).length > 0 && (
         <ul aria-label={`Figuras da questão ${n}`} className="flex flex-wrap gap-2 sm:pl-8">
           {(item.images ?? []).map((image, k) => (
@@ -102,25 +112,27 @@ export function QuestionEditor({
         {item.review && (
           <>
             <Badge variant="warning">rever</Badge>
-            <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ review: false })}>Já revi</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ review: false, reviewed: true })}>Já revi</Button>
           </>
         )}
+        {mathNeedsReview(item.formulas, item.blocks) && !item.reviewed ? <Badge variant="warning">fórmula a rever</Badge> : null}
       </div>
 
       {kind === 'group' ? (
         <div className="grid gap-2 pl-8">
           {items.map((it, j) => (
-            <ItemEditor
-              key={j}
-              item={it}
-              label={itemLabel(j)}
-              index={j}
-              total={items.length}
-              where={`${n}${itemLabel(j)}`}
-              onChange={(next) => setItems(items.map((x, k) => (k === j ? next : x)))}
-              onRemove={() => setItems(items.filter((_, k) => k !== j))}
-              onMove={(direction) => setItems(move(items, j, direction))}
-            />
+            <div key={j} className={it.label?.includes('.') ? 'ml-5' : undefined}>
+              <ItemEditor
+                item={it}
+                label={sourceItemLabel(it, j)}
+                index={j}
+                total={items.length}
+                where={`${n}${sourceItemLabel(it, j)}`}
+                onChange={(next) => setItems(items.map((x, k) => (k === j ? next : x)))}
+                onRemove={() => setItems(items.filter((_, k) => k !== j))}
+                onMove={(direction) => setItems(move(items, j, direction))}
+              />
+            </div>
           ))}
           <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => setItems([...items, emptyItem(items.at(-1)?.kind ?? 'open')])}>
             <Plus aria-hidden />Alínea

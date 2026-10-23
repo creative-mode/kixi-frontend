@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { apiGet, apiPost, type Result } from './api';
+import { apiGet, apiPost, apiPut, type Result } from './api';
 import { getPerson } from './profiles';
 import { authorOfPerson, type FeedAuthor } from './feed-rules';
 import type { BuiltKind, PostBlock } from './post-blocks';
@@ -87,6 +87,11 @@ export async function toggleReaction(postId: number, reaction: ReactionType = 'a
   return apiPost<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction: reaction.toUpperCase() });
 }
 
+/** Sets an explicit state so retrying after a lost response cannot undo a committed reaction. */
+export async function setReaction(postId: number, reacted: boolean, reaction: ReactionType = 'applause') {
+  return apiPut<{ reacted: boolean }>(`/feed/posts/${postId}/reactions`, { reaction: reaction.toUpperCase(), reacted });
+}
+
 /** Um comentário tal como o backend o devolve (#179). `displayName` vem já mascarado
  *  (primeiro nome e inicial do apelido) e é null quando a conta não tem perfil - um
  *  comentário não se perde por não haver nome para o mostrar. */
@@ -128,7 +133,7 @@ export async function reportPost(postId: number, reason: string) {
  * publicações custa um só pedido). Um perfil que não responde fica de fora e a publicação
  * mostra "Colega": nunca um nome inventado. Perfis privados aparecem abreviados, com a foto. A própria conta não se pede, já se conhece.
  */
-export async function loadAuthors(posts: FeedPost[], myAccountId: number | null): Promise<Record<number, FeedAuthor>> {
+export async function loadAuthors(posts: Array<Pick<FeedPost, 'authorAccountId'>>, myAccountId: number | null): Promise<Record<number, FeedAuthor>> {
   const ids = [...new Set(posts.map((p) => p.authorAccountId))].filter((id) => id !== myAccountId);
   const found = await Promise.all(
     ids.map(async (id) => {

@@ -1,8 +1,13 @@
 @import 'tailwindcss';
+@import 'katex/dist/katex.min.css';
 @import 'tw-animate-css';
 @import '../styles/ds-tokens.css';
 @import '../styles/ds-theme.css';
 @import '../styles/theme.css';
+
+.kixi-math-review { text-decoration: underline wavy #b45309; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.kixi-math-review-label { margin-inline-start: 0.35rem; color: #92400e; font-size: 0.72em; font-weight: 600; }
+.kixi-math-literal { white-space: pre-wrap; }
 
 @layer base {
   * { border-color: var(--border); }

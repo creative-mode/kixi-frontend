@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { cache } from 'react';
 import { apiGet, apiPost, type Result } from './api';
 import {
   getQuestionImages,
@@ -22,13 +23,13 @@ import { phaseOf, translateRoomError, type Invitation, type Phase } from './exam
 /** `GET /exam-rooms/mine`. A falha volta para a página em vez de virar `[]`:
  *  uma secção escondida por um erro é indistinguível de "não há salas", e o
  *  aluno fica à espera de uma sala que não tem como ver (#220). */
-export async function listInvitations(): Promise<Result<Invitation[]>> {
+export const listInvitations = cache(async function listInvitations(): Promise<Result<Invitation[]>> {
   const result = await apiGet<Invitation[]>('/exam-rooms/mine');
   if (!result.ok) return result;
   return Array.isArray(result.data)
     ? result
     : { ok: false, status: 200, message: 'Resposta inesperada do servidor.' };
-}
+});
 
 export async function joinRoom(roomId: number): Promise<Result<{ simulationId: number | null }>> {
   return apiPost<{ simulationId: number | null }>(`/exam-rooms/${roomId}/join`, {});

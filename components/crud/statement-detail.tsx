@@ -17,6 +17,8 @@ import { QuestionImages } from './question-images';
 import { DetailSkeleton } from './loading';
 import { StatementReview } from './statement-review';
 import { StatementSheet } from './statement-sheet';
+import { MathText } from '@/student/lib/shared/math-text';
+import { mathNeedsReview } from '@/student/lib/shared/math-types';
 
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', multiple_choice: 'Escolha múltipla', TRUE_FALSE: 'Verdadeiro/falso', true_false: 'Verdadeiro/falso', OPEN: 'Resposta aberta', open: 'Resposta aberta', group: 'Com alíneas', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', development: 'Desenvolvimento' };
 const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
@@ -183,8 +185,9 @@ export function StatementDetail({ id }: { id: number }) {
                     <Badge variant="outline">{QUESTION_TYPES[q.questionType ?? ''] ?? q.questionType}</Badge>
                     {q.maxScore != null ? <span className="text-xs text-muted-foreground">{score(q.maxScore)} val.</span> : null}
                     {q.needsReview ? <Badge variant="secondary">A rever</Badge> : null}
+                    {mathNeedsReview(q.formulas, q.blocks) ? <Badge variant="warning">Fórmula a rever</Badge> : null}
                   </div>
-                  <p className="text-sm">{q.text}</p>
+                  <p className="text-sm"><MathText text={q.text ?? ''} formulas={q.formulas} blocks={q.blocks} /></p>
                   {isGroup(q) ? <p className="mt-2 text-xs text-muted-foreground">As respostas estão nas alíneas abaixo.</p> : null}
                   {q.options?.length ? (
                     <ul className="mt-3 grid gap-1.5 text-sm">
