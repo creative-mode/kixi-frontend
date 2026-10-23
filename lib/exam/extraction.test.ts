@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { OGI_EXTRACTION } from '../mock/ogi-extraction.ts';
-import { distributeScore, kindOf, leavesOf, problems, toRequest, totalScore, trueFalseAnswer } from './draft.ts';
+import { distributeScore, kindOf, leavesOf, problems, sourceItemLabel, toRequest, totalScore, trueFalseAnswer } from './draft.ts';
 import { draftFromExtraction, matchSubject, type ExamExtraction } from './extraction.ts';
 
 const SUBJECTS = ['Matemática', 'Organização e Gestão Industrial', 'Física'];
@@ -12,6 +12,58 @@ test('a prova de OGI vira seis questões com os tipos certos', () => {
   assert.equal(items.length, 6);
   assert.deepEqual(items.map((q) => kindOf(q)), ['open', 'open', 'group', 'open', 'group', 'open']);
   assert.deepEqual(items.map((q) => q.items?.length ?? 0), [0, 0, 4, 0, 2, 0]);
+});
+
+test('a importação preserva os rótulos impressos das alíneas no editor, na folha e no pedido', () => {
+  const { items } = draftFromExtraction({
+    questions: [{
+      number: '2', type: 'composta', text: 'Calcule:', confidence: 0.95,
+      subitems_content: [
+        { label: 'c)', text: 'Primeira alínea', type: 'dissertativa' },
+        { label: 'd', text: 'Segunda alínea', type: 'dissertativa' },
+      ],
+    }],
+  }, { subjects: [] });
+  const group = items[0];
+  assert.equal(sourceItemLabel(group.items![0], 0), 'c');
+  assert.equal(sourceItemLabel(group.items![1], 1), 'd');
+  assert.deepEqual(toRequest(items)[0].items?.map((item) => item.label), ['c', 'd']);
+});
+
+test('a importação e o pedido preservam uma chaveta detectada pelo OCR', () => {
+  const { items } = draftFromExtraction({ questions: [{
+    number: '4', type: 'composta', text: 'Para o intervalo, calcule:', groupLayout: 'brace',
+    subitems_content: [
+      { label: 'a', text: 'o deslocamento' },
+      { label: 'b', text: 'a velocidade média' },
+      { label: 'c', text: 'a aceleração média' },
+    ],
+  }] }, { subjects: [] });
+  assert.equal(items[0].groupLayout, 'brace');
+  assert.equal(toRequest(items)[0].groupLayout, 'brace');
+});
+
+test('a importação conserva a hierarquia romana da prova física sem criar respostas para cabeçalhos', () => {
+  const { items } = draftFromExtraction({ questions: [{
+    number: '4', type: 'composta', text: 'Seja vetor. Determine:\nV) Intervalo\nVI) Trajectória\nVII) Instante\nVIII) Gráfico', confidence: 0.95,
+    subitems_content: [
+      { label: 'V.a', text: 'o deslocamento', type: 'dissertativa' },
+      { label: 'V.b', text: 'a velocidade média', type: 'dissertativa' },
+      { label: 'V.c', text: 'a aceleração média', type: 'dissertativa' },
+      { label: 'VII.a', text: 'o ângulo', type: 'dissertativa' },
+      { label: 'VII.b', text: 'o raio de curvatura', type: 'dissertativa' },
+    ],
+  }] }, { subjects: [] });
+
+  const [question] = items;
+  assert.deepEqual(question.items?.map((item, index) => sourceItemLabel(item, index)), [
+    'V.a', 'V.b', 'V.c', 'VII.a', 'VII.b',
+  ]);
+  assert.deepEqual(toRequest(items)[0].items?.map((item) => item.label), [
+    'V.a', 'V.b', 'V.c', 'VII.a', 'VII.b',
+  ]);
+  assert.match(question.text, /Determine:\nV\) Intervalo\nVI\) Trajectória\nVII\) Instante\nVIII\) Gráfico/);
+  assert.match(toRequest(items)[0].text, /\nVI\) Trajectória/);
 });
 
 test('o verdadeiro/falso da Q3 fica com quatro alíneas, duas opções cada e nenhuma resposta marcada', () => {
@@ -122,6 +174,47 @@ test('avisos de baixa confiança em campos do cabeçalho viram notas legíveis',
   assert.match(out.notes.join(' '), /inseguro com a duração/);
 });
 
+test('NATIVE_TEXT_GAP global marca para revisão mesmo com confiança alta e sem fórmula estruturada', () => {
+  const out = draftFromExtraction({
+    questions: [{ number: '1', type: 'dissertativa', text: 'Determine a velocidade.', confidence: 0.99 }],
+    warnings: [{ code: 'NATIVE_TEXT_GAP', field: 'formulas', confidence: 0, message: 'Podem faltar símbolos matemáticos.' }],
+  }, { subjects: [] });
+
+  assert.equal(out.items[0].review, true);
+  assert.equal(out.reviewCount, 1);
+  assert.match(problems(out.items).join(' '), /confiança OCR/);
+});
+
+test('avisos de fórmula por questão marcam apenas a questão identificada', () => {
+  const out = draftFromExtraction({
+    questions: [
+      { number: '1', type: 'dissertativa', text: 'Determine x.', confidence: 0.99 },
+      { number: '2', type: 'dissertativa', text: 'Determine y.', confidence: 0.99 },
+    ],
+    warnings: [{ code: 'LOW_CONFIDENCE_FORMULA', field: 'question_2_formula_1', confidence: 0.4 }],
+  }, { subjects: [] });
+
+  assert.equal(out.items[0].review, undefined);
+  assert.equal(out.items[1].review, true);
+  assert.equal(out.reviewCount, 1);
+});
+
+test('needs_review global força revisão, mas NO_COTACAO continua apenas como cotação', () => {
+  const questions = [
+    { number: '1', type: 'dissertativa', text: 'Questão 1', confidence: 0.99 },
+    { number: '2', type: 'dissertativa', text: 'Questão 2', confidence: 0.99 },
+  ];
+  const flagged = draftFromExtraction({ needs_review: true, questions }, { subjects: [] });
+  assert.ok(flagged.items.every((question) => question.review === true));
+  assert.equal(flagged.reviewCount, 2);
+  assert.match(problems(flagged.items).join(' '), /confiança OCR/);
+
+  const unscored = draftFromExtraction({ needs_review: true, questions, warnings: [{ code: 'NO_COTACAO', field: 'questions', confidence: 1 }] }, { subjects: [] });
+  assert.ok(unscored.items.every((question) => question.review !== true));
+  assert.equal(unscored.reviewCount, 0);
+  assert.match(unscored.notes.join(' '), /não traz cotação/);
+});
+
 test('matchSubject: igual sem acentos, sigla nos dois sentidos, e nada quando não há', () => {
   assert.equal(matchSubject('matematica', SUBJECTS), 'Matemática');
   assert.equal(matchSubject('OGI', SUBJECTS), 'Organização e Gestão Industrial');
@@ -150,16 +243,72 @@ const withFigures: ExamExtraction = {
 };
 
 test('cada figura fica na questão a que o OCR a ligou, e o cabeçalho e a assinatura ficam de fora', () => {
-  const { items, notes } = draftFromExtraction(withFigures, { subjects: SUBJECTS });
+  const { items, notes, footerPreview } = draftFromExtraction(withFigures, { subjects: SUBJECTS });
   assert.deepEqual(items.map((q) => q.images?.length ?? 0), [0, 1, 2]);
   assert.deepEqual(items[2].images?.map((i) => i.kind), ['figure', 'table']);
   assert.equal(items[1].images?.[0].caption, 'Figura da questão 2');
   assert.ok(notes.some((n) => /3 figura/.test(n)));
+  assert.equal(footerPreview?.dataUrl, PNG);
+  assert.deepEqual(footerPreview?.text, []);
+});
+
+test('conteúdo do rodapé mantém zona e texto fora das questões', () => {
+  const imported = draftFromExtraction({
+    questions: [{ number: '1', text: 'Calcule o fluxo.', type: 'dissertativa' }],
+    images_to_upload: [{ region: 'rodape', data_url: PNG }],
+    unmapped_content: [
+      { pageIndex: 0, text: 'A coordenação', zone: 'rodape', bbox: [0, 100, 500, 140] },
+      { pageIndex: 0, text: 'secretaria@example.ao', zone: 'rodape', bbox: [0, 150, 500, 180] },
+    ],
+  }, { subjects: SUBJECTS });
+
+  assert.equal(imported.items.length, 1);
+  assert.equal(imported.items[0].text, 'Calcule o fluxo.');
+  assert.equal(imported.footerPreview?.pageIndex, 0);
+  assert.deepEqual(imported.footerPreview?.text, ['A coordenação', 'secretaria@example.ao']);
+  assert.match(imported.notes.join(' '), /Rodapé separado das questões/);
 });
 
 test('só os recortes que existem entram, e só se forem imagens', () => {
   const { items } = draftFromExtraction({ ...withFigures, images_to_upload: [{ region: 'questao_1', data_url: 'javascript:alert(1)' }, { region: 'questao_1', data_url: '' }] }, { subjects: SUBJECTS });
   assert.equal(items[0].images, undefined);
+});
+
+test('fórmulas, blocos, confiança e texto OCR original sobrevivem à conversão e ao contrato de texto da API', () => {
+  const { items, reviewCount } = draftFromExtraction({ questions: [
+    {
+      number: '1', type: 'dissertativa', text: 'Determine $B_{max}e^{-2t}$', rawText: 'Determine Bmaxe-2t', confidence: 0.96,
+      formulas: [{ raw: 'Bmaxe-2t', latex: 'B_{\\max}e^{-2t}', confidence: 0.94, kind: 'formula' }],
+      blocks: [{ type: 'text', text: 'Determine ' }, { type: 'formula', raw: 'Bmaxe-2t', latex: 'B_{\\max}e^{-2t}', confidence: 0.94, kind: 'formula' }],
+    },
+    {
+      number: '2', type: 'composta', text: 'Resolva', rawText: 'Resolva', confidence: 0.97,
+      subitems_content: [{ label: 'a', text: 'Calcule $5\\times 10^{-3}T$', rawText: 'a) Calcule 5x10-3T', confidence: 0.7,
+        formulas: [{ raw: '5x10-3T', latex: '5\\times 10^{-3}T', confidence: 0.7, kind: 'formula' }] }],
+    },
+  ] }, { subjects: [] });
+
+  assert.equal(items[0].rawText, 'Determine Bmaxe-2t');
+  assert.equal(items[0].confidence, 0.96);
+  assert.equal(items[0].formulas?.[0].raw, 'Bmaxe-2t');
+  assert.equal(items[0].blocks?.[1].type, 'formula');
+  assert.equal(items[0].review, undefined);
+  assert.equal(items[1].items?.[0].rawText, 'a) Calcule 5x10-3T');
+  assert.equal(items[1].items?.[0].confidence, 0.7);
+  assert.equal(items[1].items?.[0].review, true);
+  assert.equal(reviewCount, 1);
+
+  const request = toRequest(items);
+  assert.match(request[0].text, /\$B_\{\\max\}e\^{-2t}\$/);
+  assert.match(request[1].items?.[0].text ?? '', /\$5\\times 10\^{-3\}T\$/);
+});
+
+test('fórmula não reconhecida e confiança matemática baixa obrigam a revisão', () => {
+  const out = draftFromExtraction({ questions: [{ number: '1', type: 'dissertativa', text: 'Vetor 7=1-tex', confidence: 0.99,
+    formulas: [{ raw: '7=1-tex', latex: null, confidence: 0.99, kind: 'unrecognized' }] }] }, { subjects: [] });
+  assert.equal(out.items[0].review, true);
+  assert.equal(out.reviewCount, 1);
+  assert.equal(toRequest(out.items)[0].text, 'Vetor 7=1-tex');
 });
 
 test('figuresOf dá a cada figura o número da questão na ordem em que vai ao servidor', async () => {

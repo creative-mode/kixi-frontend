@@ -18,10 +18,11 @@
  */
 
 import { isItem, topNumber } from './question-number.ts';
+import type { MathContentFields } from './shared/math-types.ts';
 
 export type SimulationStatus = 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
 
-export interface ExamQuestion {
+export interface ExamQuestion extends MathContentFields {
   id: number;
   number: number;
   text: string;
@@ -37,6 +38,7 @@ export interface ExamQuestion {
   parentText?: string | null;
   /** O número da questão inteira (o 3 de 3a), para o cabeçalho do enunciado comum. */
   parentNumber?: number | null;
+  ocrConfidence?: number | null;
 }
 
 export interface ExamOption {

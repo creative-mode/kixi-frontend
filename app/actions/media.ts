@@ -2,9 +2,7 @@
 
 import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
 import type { Row } from '@/lib/crud/entities';
-import { ocrFilesProblem } from '@/lib/crud/ocr-files';
 import type { Figure } from '@/lib/exam/draft';
-import type { ExamExtraction } from '@/lib/exam/extraction';
 
 const MAX_IMAGE = 5 * 1024 * 1024;
 
@@ -108,25 +106,4 @@ export async function attachFigures(statementId: number, figures: Figure[]): Pro
   } catch {
     return { attached: 0, failed: figures.length };
   }
-}
-
-/**
- * Sends one or more photos/scans of an exam to the OCR and returns what it read, **without saving anything**.
- *
- * The exam builder turns the extraction into a draft the teacher reviews; the statement only exists once
- * the teacher saves it there. That is the point of this route over the one that creates a statement
- * waiting for review: the structure the OCR infers (types, alíneas) is corrected where it is edited.
- */
-export async function extractExamOcr(form: FormData): Promise<Result<ExamExtraction>> {
-  return guard(async () => {
-    const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
-    const problem = ocrFilesProblem(files);
-    if (problem) return fail(problem);
-    const out = new FormData();
-    for (const f of files) out.append('files', f, f.name);
-    // FE-11: o OCR pode demorar com PDFs grandes; aborta aos 3 min com erro legível.
-    const res = await call('/api/v1/ocr/extract/exam', { method: 'POST', body: out, signal: AbortSignal.timeout(180_000) });
-    if (!res.ok) return fail(await message(res));
-    return ok((await res.json()) as ExamExtraction);
-  });
 }

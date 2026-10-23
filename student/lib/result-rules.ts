@@ -10,6 +10,7 @@
  *    also what keeps the answer key out of the room. */
 
 import { isItem, topNumber } from './question-number.ts';
+import type { MathContentFields } from './shared/math-types.ts';
 
 export interface ResultOption {
   id: number;
@@ -18,7 +19,7 @@ export interface ResultOption {
   isCorrect?: boolean | null;
 }
 
-export interface ResultQuestion {
+export interface ResultQuestion extends MathContentFields {
   questionId: number;
   number: number;
   text: string;
@@ -36,6 +37,7 @@ export interface ResultQuestion {
   isCorrect?: boolean | null;
   reviewStatus?: string | null;
   options?: ResultOption[];
+  ocrConfidence?: number | null;
 }
 
 export interface SimulationResult {

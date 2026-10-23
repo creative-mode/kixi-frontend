@@ -3,36 +3,45 @@
 import { forgetVisitedPages } from './refresh';
 import { redirect } from 'next/navigation';
 import { apiPost } from './api';
-import { parseTurma } from './enrollment-rules';
 import type { Enrollment } from './types';
 
 export type EnrollmentState = { error?: string; alreadyEnrolled?: boolean } | undefined;
 
-/** Enrolls the signed-in student in the class they picked.
+/** Enrolls the signed-in student with the code the school gave them.
  *
- *  A auto-matrícula passou a exigir um código emitido pela escola: é ele, e não o
- *  classId/schoolYearId que o aluno escolheu no ecrã, que decide a turma no backend
- *  (ver EnrollmentService#resolveBySelfEnrollCode). Continuamos a enviar o par
- *  classId/schoolYearId porque o backend valida a consistência entre eles quando
- *  presentes, mas quem manda é o código. */
+ *  Since kixi#255 the code is the whole request: the backend redeems it and takes the
+ *  class and school year from the code, never from the client. Sending the old
+ *  `classId`/`schoolYearId` pair would only echo a choice the server ignores — and would
+ *  keep the illusion that the class picked in the wizard decides anything.
+ */
 export async function matricularAction(
   _: EnrollmentState,
   form: FormData,
 ): Promise<EnrollmentState> {
-  const turma = parseTurma(form.get('turma'));
-  if (!turma) return { error: 'Escolhe a tua turma para continuares.' };
-  const { classId, schoolYearId } = turma;
-
   const code = String(form.get('codigo') ?? '').trim();
   if (!code) return { error: 'Introduz o código de matrícula que a tua escola te deu.' };
 
-  const result = await apiPost<Enrollment>('/enrollments', { classId, schoolYearId, code });
+  const result = await apiPost<Enrollment>('/enrollments', { code });
 
   if (!result.ok) {
     // 409: an active enrollment already exists for this school year. Sending them to
     // the profile is more useful than an error, so the screen offers that way out.
     if (result.status === 409) {
-      return { error: result.message, alreadyEnrolled: true };
+      return {
+        error: 'Já tens uma matrícula ativa neste ano letivo. Vê o teu perfil.',
+        alreadyEnrolled: true,
+      };
+    }
+    // O backend não distingue código inexistente, expirado, revogado ou esgotado — de
+    // propósito, para não ajudar quem anda a adivinhar. A mensagem também não tenta.
+    if (result.status === 400) {
+      return { error: 'Código inválido, expirado, revogado ou já usado. Confirma o código com a escola.' };
+    }
+    if (result.status === 429) {
+      return { error: 'Demasiadas tentativas de matrícula. Espera um pouco e tenta de novo.' };
+    }
+    if (result.status === 404) {
+      return { error: 'A turma deste código já não existe. Pede um código novo à escola.' };
     }
     return { error: result.message };
   }

@@ -6,7 +6,7 @@ import { BACKEND } from './session';
 import { authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
 import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
-import { createBuiltPost, createPost, createSimulationPost, addComment, getComments, reportPost, toggleReaction, type PostComment, type PostType } from './feed';
+import { createBuiltPost, createPost, createSimulationPost, addComment, reportPost, setReaction, type PostComment, type PostType } from './feed';
 import { canPublish, canPublishReflection } from './feed-rules';
 
 export type FeedActionState = { error?: string } | undefined;
@@ -51,11 +51,18 @@ export async function publishSimulationAction(
   return { ok: true };
 }
 
-export async function toggleReactionAction(postId: number): Promise<{ ok: boolean; reacted?: boolean }> {
-  const result = await toggleReaction(postId);
-  if (!result.ok) return { ok: false };
-  // Sem `revalidatePath`: o cartão já mostra o resultado, e recarregar o início custava as 15 leituras da página (#393).
-  return { ok: true, reacted: result.data.reacted };
+export async function setReactionAction(postId: number, reacted: boolean): Promise<
+  | { ok: true; reacted: boolean }
+  | { ok: false; message: string }
+> {
+  try {
+    const result = await setReaction(postId, reacted);
+    if (!result.ok) return { ok: false, message: result.message };
+    // Sem `revalidatePath`: o cartão já mostra o resultado, e recarregar o início custava as 15 leituras da página (#393).
+    return { ok: true, reacted: result.data.reacted };
+  } catch {
+    return { ok: false, message: 'Não foi possível guardar o aplauso. Verifica a ligação e tenta de novo.' };
+  }
 }
 
 export async function addCommentAction(

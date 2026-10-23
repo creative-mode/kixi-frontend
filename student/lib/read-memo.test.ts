@@ -71,6 +71,46 @@ test('pedidos iguais em curso juntam-se numa só leitura', async () => {
   assert.equal(calls, 1);
 });
 
+test('clear invalida uma leitura pendente para que ela não repovoe a cache', async () => {
+  const cache = new TtlCache<string>(1000, 10);
+  let resolveOld!: (result: { value: string; keep: boolean }) => void;
+  const oldLoad = cache.remember('k', () => new Promise<{ value: string; keep: boolean }>((resolve) => { resolveOld = resolve; }));
+
+  cache.clear();
+  resolveOld({ value: 'obsoleto', keep: true });
+  assert.equal(await oldLoad, 'obsoleto');
+
+  let freshCalls = 0;
+  assert.equal(await cache.remember('k', async () => {
+    freshCalls++;
+    return { value: 'actualizado', keep: true };
+  }), 'actualizado');
+  assert.equal(freshCalls, 1);
+});
+
+test('a conclusão de uma leitura invalidada não remove a nova leitura em curso', async () => {
+  const cache = new TtlCache<string>(1000, 10);
+  let resolveOld!: (result: { value: string; keep: boolean }) => void;
+  const oldLoad = cache.remember('k', () => new Promise<{ value: string; keep: boolean }>((resolve) => { resolveOld = resolve; }));
+
+  cache.clear();
+  let resolveFresh!: (result: { value: string; keep: boolean }) => void;
+  const freshLoad = cache.remember('k', () => new Promise<{ value: string; keep: boolean }>((resolve) => { resolveFresh = resolve; }));
+  resolveOld({ value: 'obsoleto', keep: true });
+  assert.equal(await oldLoad, 'obsoleto');
+
+  let duplicateLoads = 0;
+  const duplicate = cache.remember('k', async () => {
+    duplicateLoads++;
+    return { value: 'duplicado', keep: true };
+  });
+  assert.equal(duplicateLoads, 0);
+
+  resolveFresh({ value: 'actualizado', keep: true });
+  assert.deepEqual(await Promise.all([freshLoad, duplicate]), ['actualizado', 'actualizado']);
+  assert.equal(duplicateLoads, 0);
+});
+
 test('a cache tem limite: ao encher, sai a entrada mais antiga', async () => {
   const cache = new TtlCache<number>(1000, 2);
   for (const k of ['a', 'b', 'c']) await cache.remember(k, async () => ({ value: 1, keep: true }));

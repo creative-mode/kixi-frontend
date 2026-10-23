@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 /** Regras de apresentação do cadastro e do login, sem servidor e sem React.
  *
  *  O backend responde em inglês e, num registo repetido, não diz qual dos dois campos
@@ -32,12 +34,11 @@ export function retryAfterSeconds(header: string | null): number | null {
   return Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : null;
 }
 
-/** O `X-Forwarded-For` a repassar ao backend, ou `null`. Só se aceita o que parece uma lista
- *  de endereços IP: o valor vai para um cabeçalho de um pedido novo, por isso nada de
- *  quebras de linha nem texto livre. O backend só acredita nele se quem o envia for um
- *  proxy nomeado em `APP_TRUSTED_PROXY_IPS`. */
+/** Repassa ao backend apenas o último salto da cadeia validada pelo gateway. */
 export function forwardedFor(header: string | null | undefined): string | null {
   const value = header?.trim();
   if (!value || value.length > 200) return null;
-  return /^[0-9a-fA-F:.]+(\s*,\s*[0-9a-fA-F:.]+)*$/.test(value) ? value : null;
+  const addresses = value.split(',').map((address) => address.trim());
+  if (addresses.some((address) => isIP(address) === 0)) return null;
+  return addresses.at(-1) ?? null;
 }

@@ -1,21 +1,14 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
-import { turmaValue } from '@/lib/enrollment-rules';
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
-import { Check, CircleAlert, Loader2 } from 'lucide-react';
+import { CircleAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { NativeSelect } from '@/components/ui/native-select';
-import { EmptyState } from '@/components/states';
 import { matricularAction } from '@/lib/enrollment-actions';
-import { cn } from '@/lib/utils';
-import type { Class, Course, Institution } from '@/lib/types';
-
-const STEPS = ['Escola', 'Curso', 'Turma'] as const;
 
 function Submit({ children }: { children: React.ReactNode }) {
   const { pending } = useFormStatus();
@@ -27,74 +20,16 @@ function Submit({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Progress: filled for the step already chosen, ring for the current one. */
-function Steps({ current }: { current: number }) {
-  return (
-    <ol className="flex items-center gap-2" aria-label="Progresso">
-      {STEPS.map((label, index) => {
-        const done = index < current;
-        const active = index === current;
-        return (
-          <li key={label} className="flex items-center gap-2" aria-current={active ? 'step' : undefined}>
-            <span
-              className={cn(
-                'grid size-6 place-items-center rounded-full border text-[11px] font-bold',
-                done && 'border-transparent bg-primary text-primary-foreground',
-                active && !done && 'border-primary text-primary',
-                !done && !active && 'border-border text-muted-foreground',
-              )}
-            >
-              {done ? <Check aria-hidden /> : index + 1}
-            </span>
-            <span className={cn('text-[13px] font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>
-              {label}
-            </span>
-            {index < STEPS.length - 1 && <span className="h-px w-4 bg-border md:w-6" aria-hidden />}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-/** The school and the course are chosen with plain GET forms, so each step is a real
- * navigation: the server reloads with the choice in the URL and asks the backend only for
- * the schools, courses or classes that step shows. That is why there is no filtering in
- * the browser, and why the wizard also works with JavaScript turned off. */
-export function OnboardingForm({
-  schools,
-  courses,
-  classes,
-  institutionId,
-  courseId,
-  yearLabel,
-}: {
-  schools: Institution[];
-  courses: Course[];
-  classes: Class[];
-  institutionId: number | null;
-  courseId: number | null;
-  yearLabel?: string;
-}) {
+/** O código é a única coisa que o aluno envia: é ele que resolve a turma e o ano letivo
+ *  no backend (`EnrollmentService#resolveBySelfEnrollCode`, kixi#255). O ecrã deixou de
+ *  pedir escola/curso/turma — escolhas que o servidor ignorava na auto-matrícula — e
+ *  ficou com um campo. A server action devolve o erro na própria resposta, por isso o
+ *  formulário também funciona sem JavaScript. */
+export function OnboardingForm() {
   const [state, action] = useActionState(matricularAction, undefined);
-  const [classId, setClassId] = useState('');
-  // Se a turma foi escolhida antes de a página ficar interativa, apanha-se aqui o que já está no campo.
-  useEffect(() => {
-    const el = document.getElementById('classId') as HTMLSelectElement | null;
-    if (el?.value) setClassId(el.value);
-  }, []);
-
-  const step = institutionId === null ? 0 : courseId === null ? 1 : 2;
-  const schoolName = schools.find((s) => s.id === institutionId)?.name;
-  const courseName = courses.find((c) => c.id === courseId)?.name;
-  const chosen = classes.find((c) => c.id === Number(classId.split(':')[0]));
 
   return (
     <div className="grid gap-6">
-      <Steps current={step} />
-
-      {/* Kept outside the steps: without JavaScript the form posts and re-renders on the
-          same URL, and the answer still has to be readable. */}
       {state?.error && (
         <Alert variant="info">
           <CircleAlert />
@@ -109,140 +44,29 @@ export function OnboardingForm({
         </Alert>
       )}
 
-      {step === 0 && (
-        /* Sem `action`: um <form> submete para o URL actual, que já traz o basePath
-           `/aluno`. Escrever `action="/onboarding"` à mão dá 404, porque um atributo
-           action escrito à mão não recebe o prefixo. E para um GET os campos do
-           formulário substituem a query, que é o que queremos. */
-        <form method="get" className="grid gap-6">
-          <Field>
-            <FieldLabel htmlFor="escola">Em que escola estudas?</FieldLabel>
-            <NativeSelect id="escola" name="escola" defaultValue="">
-              <option value="">Escolhe a tua escola</option>
-              {schools.map((school) => (
-                <option key={school.id} value={school.id}>
-                  {school.name}
-                </option>
-              ))}
-            </NativeSelect>
-            <FieldDescription>É a escola onde frequentas, não o curso.</FieldDescription>
-          </Field>
-          <Button type="submit" size="lg" className="w-full">
-            Continuar
-          </Button>
-        </form>
-      )}
+      <form action={action} className="grid gap-6">
+        <Field>
+          <FieldLabel htmlFor="codigo">Código de matrícula</FieldLabel>
+          <Input
+            id="codigo"
+            name="codigo"
+            type="text"
+            required
+            autoCapitalize="characters"
+            autoComplete="off"
+            placeholder="Ex.: AB3DK9F2"
+            className="font-mono uppercase tracking-wider"
+          />
+          <FieldDescription>
+            O código que a tua escola te deu. É ele que decide a tua turma e o ano letivo.
+          </FieldDescription>
+        </Field>
+        <Submit>Entrar na turma</Submit>
+      </form>
 
-      {step === 1 && (
-        /* Mesmo truque, e o `escola` viaja escondido para não se perder. */
-        <form method="get" className="grid gap-6">
-          <input type="hidden" name="escola" value={institutionId ?? ''} />
-          <Field>
-            <FieldLabel htmlFor="curso">E em que curso?</FieldLabel>
-            {courses.length === 0 ? (
-              <EmptyState
-                title="Sem cursos nesta escola"
-                message={`${schoolName ?? 'Esta escola'} não tem cursos publicados${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outra escola ou pergunta ao teu professor.`}
-                action={
-                  <Button asChild variant="outline">
-                    <Link href="/onboarding">Voltar à escola</Link>
-                  </Button>
-                }
-              />
-            ) : (
-              <NativeSelect id="curso" name="curso" defaultValue="">
-                <option value="">Escolhe o teu curso</option>
-                {courses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            )}
-            {courses.length > 0 && (
-              <FieldDescription>É o curso que frequentas na escola, não a disciplina.</FieldDescription>
-            )}
-          </Field>
-          <div className="grid gap-2">
-            <Button type="submit" size="lg" className="w-full">
-              Continuar
-            </Button>
-            <Button asChild variant="ghost">
-              <Link href="/onboarding">Voltar à escola</Link>
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {step === 2 && (
-        <form action={action} className="grid gap-6">
-          {/* A turma é só para confirmares que estás no sítio certo: quem decide onde
-              ficas matriculado é o código abaixo, que a tua escola te deu. */}
-
-          <Field>
-            <FieldLabel htmlFor="classId">E em que turma?</FieldLabel>
-            {classes.length === 0 ? (
-              <EmptyState
-                title="Sem turmas neste curso"
-                message={`Não há turmas de ${courseName ?? 'este curso'}${yearLabel ? ` em ${yearLabel}` : ''}. Escolhe outro curso ou pergunta ao teu professor.`}
-                action={
-                  <Button asChild variant="outline">
-                    <Link href={`/onboarding?escola=${institutionId}`}>Voltar ao curso</Link>
-                  </Button>
-                }
-              />
-            ) : (
-              <>
-                <NativeSelect
-                  id="classId"
-                  // O campo é que leva a turma e o ano letivo (um só valor): com ligações lentas a pessoa
-                  // pode escolher antes de a página ficar interativa, e o estado do cliente perdia a escolha.
-                  name="turma"
-                  defaultValue=""
-                  onChange={(event) => setClassId(event.target.value)}
-                >
-                  <option value="">Escolhe a tua turma</option>
-                  {classes.map((item) => (
-                    <option key={item.id} value={turmaValue(item.id, item.schoolYear?.id)}>
-                      {item.grade ? `${item.grade}ª · ` : ''}
-                      {item.code}
-                    </option>
-                  ))}
-                </NativeSelect>
-                <FieldDescription>
-                  {yearLabel ? `Ano letivo ${yearLabel}.` : 'A turma onde estás matriculado.'}
-                </FieldDescription>
-              </>
-            )}
-          </Field>
-
-          {classes.length > 0 && (
-            <Field>
-              <FieldLabel htmlFor="codigo">Código de matrícula</FieldLabel>
-              <Input
-                id="codigo"
-                name="codigo"
-                type="text"
-                required
-                autoCapitalize="characters"
-                autoComplete="off"
-                placeholder="Ex.: AB3DK9F2"
-                className="font-mono uppercase tracking-wider"
-              />
-              <FieldDescription>
-                O código que a tua escola ou professor te deu. É ele que determina a turma onde ficas matriculado.
-              </FieldDescription>
-            </Field>
-          )}
-
-          <div className="grid gap-2">
-            {classes.length > 0 && <Submit>Entrar na turma</Submit>}
-            <Button asChild variant="ghost">
-              <Link href={`/onboarding?escola=${institutionId}`}>Voltar ao curso</Link>
-            </Button>
-          </div>
-        </form>
-      )}
+      <p className="text-sm text-muted-foreground">
+        Ainda não tens código? Pede-o à tua escola ou ao teu professor. É a escola que o emite.
+      </p>
     </div>
   );
 }

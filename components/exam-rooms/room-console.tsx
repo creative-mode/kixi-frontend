@@ -22,6 +22,7 @@ import {
 } from '@/lib/exam-rooms/model';
 import { RoomHead, RoomStatusBadge } from './room-head';
 import { RoomResults } from './room-results';
+import { RoomIntegrity } from './room-integrity';
 import { useRoomLive } from './use-room-live';
 
 const CONFIRM: Record<RoomAction, Omit<ConfirmState, 'run'>> = {
@@ -170,6 +171,14 @@ export function RoomConsole({ id }: { id: number }) {
       ) : (
         <LivePanel live={live} running={room.status === 'RUNNING'} />
       )}
+
+      {/* Os eventos só existem depois de a prova correr; a sala em espera ainda não
+          os tem, e mostrá-los ali seria uma coluna sempre vazia. */}
+      {room.status === 'RUNNING' || room.status === 'CLOSED' ? (
+        <div className="mt-8">
+          <RoomIntegrity roomId={id} />
+        </div>
+      ) : null}
 
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>

@@ -29,7 +29,8 @@ jobs:
         if: ${{ env.BACKEND_READ_TOKEN == '' }}
         env:
           BACKEND_READ_TOKEN: ${{ secrets.BACKEND_READ_TOKEN }}
-        run: echo "::warning::BACKEND_READ_TOKEN não está definido: a verificação de contrato foi ignorada."
+        run: |
+          echo "::warning::BACKEND_READ_TOKEN não está definido: a verificação de contrato foi ignorada."
       - uses: actions/checkout@v4
         if: ${{ env.BACKEND_READ_TOKEN != '' }}
         env:

@@ -14,6 +14,7 @@ import { getMe } from '@/lib/me';
 import { getResultView } from '@/lib/result';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
+import { MathText } from '@/lib/shared/math-text';
 import { answersOf, marksOf, paperQuestions, stampOf } from '@/lib/folha-do-resultado';
 import {
   formatDelta,
@@ -50,14 +51,14 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
         // O enunciado comum da questão com alíneas, uma vez, acima da primeira alínea.
         <div className="grid gap-1 rounded-lg border border-dashed bg-secondary/60 px-4 py-3">
           <p className="text-xs font-semibold text-muted-foreground">Questão {topNumber(question.number)}</p>
-          <p className="text-sm leading-relaxed">{question.parentText}</p>
+          <p className="text-sm leading-relaxed"><MathText text={question.parentText} /></p>
         </div>
       ) : null}
       <div className="flex items-start gap-3">
         <span className="grid min-w-[34px] shrink-0 place-items-center rounded-md bg-secondary px-1.5 py-1.5 text-[13px] font-bold">
           {shown}
         </span>
-        <p className="min-w-0 flex-1 text-sm leading-snug font-semibold">{question.text}</p>
+        <p className="min-w-0 flex-1 text-sm leading-snug font-semibold"><MathText text={question.text} formulas={question.formulas} blocks={question.blocks} /></p>
         <Badge variant={VERDICT[v].variant}>{VERDICT[v].label}</Badge>
       </div>
 

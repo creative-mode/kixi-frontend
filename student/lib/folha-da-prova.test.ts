@@ -18,6 +18,7 @@ test('as questões de topo ficam como estão e as alíneas juntam-se na questão
   const paper = buildPaper(QUESTIONS);
   assert.deepEqual(paper.map((p) => [p.number, p.items.length]), [[1, 0], [2, 2], [3, 0]]);
   assert.equal(paper[1].text, 'Dados os valores abaixo:');
+  assert.equal(paper[1].groupId, 2);
   assert.deepEqual(paper[1].items.map((i) => i.label), ['a', 'b']);
 });
 
