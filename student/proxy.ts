@@ -75,6 +75,8 @@ export function proxy(req: NextRequest) {
   // A página 403 é uma tela estática do manual: segura de mostrar a qualquer
   // visitante (paridade com o manager, que também deixa abrir /403 sem sessão).
   if (pathname === '/403' || pathname.startsWith('/403/')) return NextResponse.next();
+  // O aviso do gestor (#389) não traz sessão: a rota valida a assinatura e o gateway não a expõe.
+  if (pathname === '/api/internal/reference-changed') return NextResponse.next();
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   if (isPublic) {
