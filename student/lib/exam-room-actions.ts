@@ -1,10 +1,10 @@
 'use server';
 
 import { forgetVisitedPages } from './refresh';
-import { redirect } from 'next/navigation';
 import { requireStudent } from './guard';
 import { joinRoom } from './exam-room';
 import { translateRoomError } from './exam-room-rules';
+import { redirectFromAction } from './action-redirect';
 
 export type EnterState = { error?: string; waiting?: string } | undefined;
 
@@ -24,5 +24,5 @@ export async function entrarSalaAction(_: EnterState, form: FormData): Promise<E
   // `entrada=1` é o sinal de uso único do kixi-frontend#219 ("sala entrada"): a sala
   // é revisitada enquanto a prova controlada continua em curso.
   forgetVisitedPages();
-  redirect(`/sala/${roomId}?entrada=1`);
+  await redirectFromAction(`/sala/${roomId}?entrada=1`);
 }

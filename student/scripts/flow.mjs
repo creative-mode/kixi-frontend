@@ -55,16 +55,18 @@ const cabecalhos = () => (cookie ? { cookie } : {});
  *
  * - Navegação (`GET`): o redirect vem do `NextResponse.redirect` do proxy, feito a partir
  *   de um `NextURL`, que **já traz** o basePath. O browser usa-o tal e qual.
- * - Server action submetida sem JavaScript (`POST`): o `Location` é o valor cru do
- *   `redirect()`, e quem prefixa é o cliente — uma vez, à frente, sem verificar se já lá
- *   estava. Daí `/aluno/aluno/...` quando o `redirect()` já traz `/aluno`.
+ * - Server action submetida sem JavaScript (`POST`): o `Location` é o valor do `redirect()`
+ *   e o browser usa-o tal e qual, sem juntar o basePath (confirmado com Chromium contra
+ *   produção, #479: `Location: /inicio` levou a `/inicio`, um 404). Por isso
+ *   `redirectFromAction` escreve o prefixo neste caso. Quando o JavaScript já hidratou, a
+ *   action vai por `fetch` e o Next usa `x-action-redirect`, onde é o cliente que junta o
+ *   basePath; esse caminho é o das jornadas do Playwright, não deste teste.
  *
  * Preferi isto a copiar a função do Next: internal package não é um contrato, e o que este
- * teste tem de apanhar é o duplo prefixo, não a implementação de quem o aplica.
+ * teste tem de apanhar é o 404 e o duplo prefixo, não a implementação de quem o aplica.
  */
-function resolver(metodo, location) {
-  const caminho = metodo === 'GET' ? location : `/aluno${location}`;
-  return new URL(caminho, `${BASE}/aluno/`);
+function resolver(_metodo, location) {
+  return new URL(location, `${BASE}/aluno/`);
 }
 
 async function pedir(metodo, caminho, { form, seguir = false } = {}) {

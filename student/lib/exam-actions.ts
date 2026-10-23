@@ -1,6 +1,5 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
@@ -8,6 +7,7 @@ import { getStatementFull, myAccountId, saveAnswer, saveIntegrityEvent, startSim
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 import { isIntegrityKind, type IntegrityKind } from './integrity';
+import { redirectFromAction } from './action-redirect';
 
 /** What the room sends to save one answer. Plain values, not a FormData: the save
  *  queue calls this directly, and it is the queue — not a form — that knows the
@@ -111,7 +111,7 @@ export async function iniciarAction(_: StartState, form: FormData): Promise<Star
   // `iniciada=1` é o sinal de uso único do kixi-frontend#219 ("prova iniciada"): a
   // mesma sala é revisitada enquanto a tentativa continua em curso.
   forgetVisitedPages();
-  redirect(`/prova/${statementId}?iniciada=1`);
+  await redirectFromAction(`/prova/${statementId}?iniciada=1`);
 }
 
 export type SubmitState = { error?: string } | undefined;
@@ -133,7 +133,7 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   // `submetida=1` é o sinal de uso único do kixi-frontend#219 ("prova submetida"): o
   // resultado é revisitado depois, para o aluno ver a nota de novo.
   forgetVisitedPages();
-  redirect(`/resultado?prova=${simulationId}&submetida=1`);
+  await redirectFromAction(`/resultado?prova=${simulationId}&submetida=1`);
 }
 
 /** O que o modo de avaliação regista. Vem do cliente, por isso o tipo é validado

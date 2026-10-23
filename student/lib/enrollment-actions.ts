@@ -1,9 +1,9 @@
 'use server';
 
 import { forgetVisitedPages } from './refresh';
-import { redirect } from 'next/navigation';
 import { apiPost } from './api';
 import type { Enrollment } from './types';
+import { redirectFromAction } from './action-redirect';
 
 export type EnrollmentState = { error?: string; alreadyEnrolled?: boolean } | undefined;
 
@@ -53,5 +53,5 @@ export async function matricularAction(
   // concluído"): `/inicio` por si só não chega, porque é a página normal de entrada,
   // visitada em todas as sessões seguintes.
   forgetVisitedPages();
-  redirect('/inicio?matriculado=1');
+  await redirectFromAction('/inicio?matriculado=1');
 }
