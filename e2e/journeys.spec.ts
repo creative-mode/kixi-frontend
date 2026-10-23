@@ -214,16 +214,9 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByTestId('aluno-cadastro-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/onboarding/);
 
-    // Primeira escola com valor, e nao o ITEL pelo nome: num ambiente real o
-    // nome da escola de seed nao existe, e o teste nao deve depender dele.
-    await escolherOpcao(page.locator('#escola'));
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.locator('#curso')).toBeVisible();
-    await escolherOpcao(page.locator('#curso'));
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.locator('#classId')).toBeVisible();
-    await escolherOpcao(page.locator('#classId'));
-    // Desde kixi#255 a auto-matrícula exige um código (TESTE1234 é o que o mock semeia).
+    // Desde kixi#255 a auto-matrícula é só o código: a turma e o ano letivo vêm dele,
+    // por isso o onboarding deixou de pedir escola/curso/turma. TESTE1234 é o código
+    // da turma 12B que o mock semeia.
     await page.getByLabel('Código de matrícula').fill('TESTE1234');
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
@@ -301,6 +294,33 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/new\?statementId=/);
     await page.getByRole('button', { name: 'Criar sala' }).click();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/\d+/);
+  });
+
+  test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/classes');
+
+    // A lista de turmas é o sítio onde a escola emite o código (#255). 12B é a turma
+    // semeada; o botão leva o código da turma no nome acessível.
+    await page.getByRole('button', { name: /Códigos de matrícula de 12B/ }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: /Códigos de matrícula/ })).toBeVisible();
+
+    await dialog.getByLabel('Usos').fill('2');
+    await dialog.getByRole('button', { name: 'Gerar' }).click();
+
+    const item = dialog.locator('ul li').first();
+    await expect(item).toBeVisible();
+    await expect(item).toContainText('0/2 usos');
+    await expect(item.getByText('Ativo')).toBeVisible();
+    // O backend gera 8 caracteres do alfabeto sem O/0/I/1/L.
+    const code = (await item.locator('button').first().textContent())?.trim() ?? '';
+    expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+
+    page.on('dialog', (confirm) => confirm.accept());
+    await item.getByRole('button', { name: 'Revogar' }).click();
+    await expect(item.getByText('Revogado')).toBeVisible();
+    await expect(item.getByRole('button', { name: 'Revogar' })).toHaveCount(0);
   });
 
   test('admin: cria escola e turma e regressa ao dashboard', async ({ page }) => {
