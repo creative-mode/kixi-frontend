@@ -69,21 +69,27 @@ function MathLiveField({
   const field = useRef<MathfieldElementLike | null>(null);
   const initialValue = useRef(value);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    import('mathlive').then(() => {
-      if (!active || !field.current) return;
-      const mathVirtualKeyboard = window.mathVirtualKeyboard;
-      field.current.value = initialValue.current;
-      field.current.mathVirtualKeyboardPolicy = 'manual';
-      field.current.smartMode = true;
-      field.current.smartFence = true;
-      mathVirtualKeyboard.layouts = ['numeric', 'symbols', 'alphabetic', 'greek'];
-      mathVirtualKeyboard.container = keyboardContainer.current;
-      setReady(true);
-      field.current.focus();
-    });
+    void import('mathlive')
+      .then(() => {
+        if (!active || !field.current) return;
+        if (!window.customElements.get('math-field')) throw new Error('MathLive não registou o editor matemático.');
+        const mathVirtualKeyboard = window.mathVirtualKeyboard;
+        field.current.value = initialValue.current;
+        field.current.mathVirtualKeyboardPolicy = 'manual';
+        field.current.smartMode = true;
+        field.current.smartFence = true;
+        mathVirtualKeyboard.layouts = ['numeric', 'symbols', 'alphabetic', 'greek'];
+        mathVirtualKeyboard.container = keyboardContainer.current;
+        setReady(true);
+        field.current.focus();
+      })
+      .catch(() => {
+        if (active) setLoadError(true);
+      });
     return () => {
       active = false;
       if (typeof window !== 'undefined' && window.mathVirtualKeyboard) {
@@ -98,13 +104,30 @@ function MathLiveField({
     }
   }, [ready, value]);
 
+  if (loadError) {
+    return (
+      <div className="space-y-2">
+        <p role="status" className="text-sm text-muted-foreground">
+          O editor visual não carregou. Podes continuar a escrever a fórmula em LaTeX.
+        </p>
+        <textarea
+          aria-label="Fórmula em LaTeX"
+          className="min-h-28 w-full rounded-md border bg-background p-3 font-mono text-sm"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          spellCheck={false}
+        />
+      </div>
+    );
+  }
+
   return createElement('math-field', {
     ref: (element: MathfieldElementLike | null) => {
       field.current = element;
     },
     className: 'formula-mathfield',
     'aria-label': 'Editor visual de fórmula',
-    onFocus: () => window.mathVirtualKeyboard.show(),
+    onFocus: () => window.mathVirtualKeyboard?.show(),
     onInput: (event: FormEvent<HTMLElement>) => {
       onChange((event.currentTarget as MathfieldElementLike).value);
     },
@@ -144,7 +167,6 @@ export function FormulaBuilderModal({
         onPointerDownOutside={(event) => event.preventDefault()}
         onInteractOutside={(event) => event.preventDefault()}
         onFocusOutside={(event) => event.preventDefault()}
-        onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader className="border-b bg-muted/30 px-6 py-4 pr-12">
           <div className="flex items-start justify-between gap-3">

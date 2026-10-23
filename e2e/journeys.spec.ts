@@ -515,6 +515,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(vectorButton.locator('.katex')).toBeVisible();
     await expect(systemButton.locator('.katex')).toBeVisible();
     await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+
     const formulaEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/formula-picker-rendered-symbols.png');
     await page.locator('body').screenshot({ path: formulaEvidencePath });
     await testInfo.attach('formula-picker-rendered-symbols.png', {
@@ -533,6 +534,45 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect.poll(async () => systemDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\begin{cases}');
     await systemDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
     await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
+  });
+
+  test('construtor: falha do MathLive mantém edição de fórmula em LaTeX', async ({ page }, testInfo) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder');
+    const blockedMathLiveChunks: string[] = [];
+    await page.route('**/_next/static/chunks/**', async (route) => {
+      const response = await route.fetch();
+      const content = await response.body();
+      if (content.toString('utf8').includes('mathVirtualKeyboard')) {
+        blockedMathLiveChunks.push(route.request().url());
+        await route.abort();
+        return;
+      }
+      await route.fulfill({ response, body: content });
+    });
+    await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+
+    const dialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    await expect.poll(() => blockedMathLiveChunks.length).toBe(1);
+    await expect(dialog.getByRole('status')).toContainText('editor visual não carregou');
+    const latexInput = dialog.getByRole('textbox', { name: 'Fórmula em LaTeX' });
+    await expect(latexInput).toBeVisible();
+    await latexInput.fill('\\frac{1}{2}');
+    const fallbackEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/mathlive-latex-fallback.png');
+    await dialog.screenshot({ path: fallbackEvidencePath });
+    await testInfo.attach('mathlive-latex-fallback.png', {
+      path: fallbackEvidencePath,
+      contentType: 'image/png',
+    });
+    await dialog.getByRole('button', { name: 'Inserir fórmula', exact: true }).last().click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+    const reopenedDialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    await expect(reopenedDialog.getByRole('status')).toContainText('editor visual não carregou');
+    await page.keyboard.press('Escape');
+    await expect(reopenedDialog).toHaveCount(0);
   });
 
   test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
