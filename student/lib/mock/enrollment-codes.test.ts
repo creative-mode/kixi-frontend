@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes.ts';
+import { turmaDoCodigo, validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes.ts';
 
 const AGORA = new Date('2026-10-18T12:00:00Z');
 
@@ -61,4 +61,16 @@ test('o código leva a turma que abre, e é ela que a matrícula usa', () => {
   const resultado = validarCodigoDeMatricula([codigo({ classId: 7 })], 'TESTE1234', AGORA);
   assert.equal(resultado.ok, true);
   assert.equal(resultado.ok && resultado.entry.classId, 7);
+});
+
+test('a turma e o ano vêm do código, não de outra escolha', () => {
+  const turma = turmaDoCodigo(codigo({ classId: 7 }), [
+    { id: 7, schoolYearId: 2 },
+    { id: 1, schoolYearId: 1 },
+  ]);
+  assert.deepEqual(turma, { classId: 7, schoolYearId: 2 });
+});
+
+test('um código cuja turma já não existe não resolve', () => {
+  assert.equal(turmaDoCodigo(codigo({ classId: 99 }), [{ id: 1, schoolYearId: 1 }]), null);
 });

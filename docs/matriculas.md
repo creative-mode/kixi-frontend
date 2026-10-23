@@ -7,21 +7,16 @@ reduzida ao código no onboarding do aluno e à gestão de códigos no Manager.
 
 ## Aluno
 
-O código é a única coisa que o aluno envia em `POST /enrollments`:
+O onboarding do aluno tem um único campo, o código. A turma e o ano letivo vêm do
+código (`EnrollmentService.resolveBySelfEnrollCode`, kixi#255); o ecrã deixou de
+pedir escola/curso/turma, escolhas que o servidor ignorava na auto-matrícula. Um
+código inexistente, expirado, revogado ou esgotado devolve o mesmo `400` — o
+backend não os distingue de propósito — e a app mostra uma mensagem que pede para
+confirmar o código com a escola. `409` é uma matrícula ativa no mesmo ano letivo;
+`429` são tentativas a mais.
 
-```json
-{ "code": "AB3DK9F2" }
-```
-
-A turma e o ano letivo vêm do código (`EnrollmentService.resolveBySelfEnrollCode`,
-kixi#255); o `classId`/`schoolYearId` que o ecrã de onboarding ainda mostra para
-contexto **não** são enviados nem usados. Um código inexistente, expirado,
-revogado ou esgotado devolve o mesmo `400` — o backend não os distingue de
-propósito — e a app mostra uma mensagem que pede para confirmar o código com a
-escola. `409` é uma matrícula ativa no mesmo ano letivo; `429` são tentativas a
-mais.
-
-O código de demonstração do mock é `TESTE1234`, da turma 12B (id 1).
+O código de demonstração do mock é `TESTE1234`, da turma 12B (id 1). O fluxo do
+aluno usa também `TESTE5678`, da 11A (id 5), para os estados de turma sem dados.
 
 ## Manager
 

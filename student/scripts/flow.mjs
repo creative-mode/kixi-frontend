@@ -224,31 +224,20 @@ async function main() {
       (r, final, status) => destinoOk(final, '/aluno/onboarding', status),
     );
 
-    // 2 · onboarding. Os dois primeiros passos são GETs e não precisam de nada disto.
-    await passo('a lista de escolas abre', 'GET', '/aluno/onboarding', {},
-      (r) => (r.status === 200 ? null : `esperado 200, veio ${r.status}`));
-
-    await passo('a escola estreita o catálogo de cursos', 'GET', '/aluno/onboarding?escola=1', {},
-      (r) => (r.status === 200 ? null : `esperado 200, veio ${r.status}`));
-
-    // 3 · o passo da turma, e a matrícula
-    const passo2 = await pedir('GET', '/aluno/onboarding?escola=1&curso=3');
-    const corpo = await passo2.resposta.text();
-    // Isto verifica a ligação: que o ecrã mostra um ano e que o formulário o leva. A regra do
-    // mês de corte NÃO é verificável aqui, porque a semente só tem anos em que a resposta
-    // não muda com o corte — mudá-lo não muda nada e o teste passa. Quem cobre essa regra são
-    // os testes de `lib/school-year.test.ts`, com datas fixas em Março e no mês de corte.
-    const ano = /Ano letivo (\d{4}\/\d{4})/.exec(corpo)?.[1];
-    registar('o passo da turma oferece um ano letivo', ano ? null : 'não encontrei o ano letivo',
-      ano ?? '');
-    // O valor da opção é «<turma>:<ano letivo>», um só campo (ver lib/enrollment-rules.ts).
-    const turma = /<option value="(\d+:\d+)">/.exec(corpo)?.[1];
-    registar('há turma para escolher', turma ? null : 'nenhuma turma na lista', turma ?? '');
+    // 2 · onboarding: só o código. O ecrã é estático e a turma vem do código (kixi#255),
+    // por isso não há passos de escola/curso/turma para percorrer.
+    const onboarding = await pedir('GET', '/aluno/onboarding');
+    const corpo = await onboarding.resposta.text();
+    registar(
+      'o onboarding pede o código de matrícula',
+      corpo.includes('name="codigo"') ? null : 'não encontrei o campo do código',
+      '/aluno/onboarding',
+    );
 
     await passo(
       'um código inválido é explicado e não matricula',
       'POST', '/aluno/onboarding',
-      { form: camposDoForm(corpo, { turma: turma ?? '', codigo: 'CODIGOINVALIDO' }), seguir: true },
+      { form: camposDoForm(corpo, { codigo: 'CODIGOINVALIDO' }), seguir: true },
       async (r, final) => {
         const html = await r.text();
         if ((final || '').includes('/aluno/inicio')) return 'matriculou com um código inválido';
@@ -261,7 +250,7 @@ async function main() {
       'POST', '/aluno/onboarding',
       // Desde kixi#255 a auto-matrícula exige um código (TESTE5678 é o da turma vazia
       // que este fluxo usa; o da 12B fica para o teste do código no fim).
-      { form: camposDoForm(corpo, { turma: turma ?? '', codigo: 'TESTE5678' }), seguir: true },
+      { form: camposDoForm(corpo, { codigo: 'TESTE5678' }), seguir: true },
       (r, final, status) => destinoOk(final, '/aluno/inicio', status),
     );
 
@@ -615,10 +604,8 @@ async function main() {
       (r, final, status) => destinoOk(final, '/aluno/entrar', status),
     );
 
-    // 7 · o código manda na turma, não a escolha do ecrã (kixi#255). Uma segunda
-    // conta escolhe a turma 11A (5:1) no formulário mas usa um código da 12B: se a
-    // rota se ficasse pelo classId do corpo, o perfil mostrava 11A e este passo
-    // falhava. É o caso que o mock deixava passar antes de usar o classId do código.
+    // 7 · o código decide a turma (kixi#255). A segunda conta usa um código da 12B: o
+    // perfil mostra a turma do código, que é o que a rota do mock resolve.
     const quem2 = `bruno.codigo.${process.pid}`;
     const cadastro2 = await (await fetch(`${BASE}/aluno/cadastro`)).text();
     await passo(
@@ -634,15 +621,15 @@ async function main() {
       (r, final, status) => destinoOk(final, '/aluno/onboarding', status),
     );
 
-    const onboarding2 = await (await fetch(`${BASE}/aluno/onboarding?escola=1&curso=3`, { headers: cabecalhos() })).text();
+    const onboarding2 = await (await fetch(`${BASE}/aluno/onboarding`, { headers: cabecalhos() })).text();
     await passo(
-      'o código decide a turma mesmo com outra turma escolhida no ecrã',
+      'o código decide a turma da segunda conta',
       'POST', '/aluno/onboarding',
-      { form: camposDoForm(onboarding2, { turma: '5:1', codigo: 'TESTE1234' }), seguir: true },
+      { form: camposDoForm(onboarding2, { codigo: 'TESTE1234' }), seguir: true },
       (r, final, status) => destinoOk(final, '/aluno/inicio', status),
     );
 
-    await passo('o perfil mostra a turma do código (12B), não a escolhida (11A)', 'GET', '/aluno/perfil', {}, async (r) => {
+    await passo('o perfil mostra a turma do código (12B)', 'GET', '/aluno/perfil', {}, async (r) => {
       const html = textoLegivel(await r.text());
       return html.includes('Turma 12B') ? null : 'o perfil não mostra a turma do código (12B)';
     });

@@ -214,16 +214,9 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByTestId('aluno-cadastro-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/onboarding/);
 
-    // Primeira escola com valor, e nao o ITEL pelo nome: num ambiente real o
-    // nome da escola de seed nao existe, e o teste nao deve depender dele.
-    await escolherOpcao(page.locator('#escola'));
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.locator('#curso')).toBeVisible();
-    await escolherOpcao(page.locator('#curso'));
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.locator('#classId')).toBeVisible();
-    await escolherOpcao(page.locator('#classId'));
-    // Desde kixi#255 a auto-matrícula exige um código (TESTE1234 é o que o mock semeia).
+    // Desde kixi#255 a auto-matrícula é só o código: a turma e o ano letivo vêm dele,
+    // por isso o onboarding deixou de pedir escola/curso/turma. TESTE1234 é o código
+    // da turma 12B que o mock semeia.
     await page.getByLabel('Código de matrícula').fill('TESTE1234');
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);

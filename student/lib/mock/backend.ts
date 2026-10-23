@@ -24,7 +24,7 @@ import { invitationsOf, join, roomDeadline, studentView, type MockParticipant, t
 import { conversation, type MockPostComment } from './feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../post-blocks';
 import { parseServerTime } from '../exam-rules';
-import { validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes';
+import { turmaDoCodigo, validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes';
 import type {
   Course,
   Enrollment,
@@ -2141,12 +2141,17 @@ export async function mockHandle(
 
     // O código manda: o classId/schoolYearId do corpo são ignorados na auto-matrícula,
     // para um aluno não poder escolher a turma que lhe apetece (kixi#255).
-    const classId = selfEnroll ? codeEntry!.classId : Number(body.classId);
-    const row = db.classes.find((c) => c.id === classId);
-    if (!row) return problem(404, 'Class not found');
-    const schoolYearId = selfEnroll ? row.schoolYearId : Number(body.schoolYearId);
-    if (!selfEnroll && row.schoolYearId !== schoolYearId) {
-      return problem(400, 'Class does not belong to the given school year');
+    const resolvida = selfEnroll
+      ? turmaDoCodigo(codeEntry!, db.classes)
+      : { classId: Number(body.classId), schoolYearId: Number(body.schoolYearId) };
+    if (!resolvida) return problem(404, 'Class not found');
+    const { classId, schoolYearId } = resolvida;
+    if (!selfEnroll) {
+      const row = db.classes.find((c) => c.id === classId);
+      if (!row) return problem(404, 'Class not found');
+      if (row.schoolYearId !== schoolYearId) {
+        return problem(400, 'Class does not belong to the given school year');
+      }
     }
     if (!db.schoolYears.some((y) => y.id === schoolYearId)) {
       return problem(404, 'School year not found');

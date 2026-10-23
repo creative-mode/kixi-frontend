@@ -1,6 +1,6 @@
 /**
  * Validação do código de matrícula (kixi#255): a auto-matrícula (a conta a matricular-se a
- * si própria, sem ser ADMIN/TEACHER) passa a exigir um código válido, ao contrário da
+ * si própria, seja qual for o papel) passa a exigir um código válido, ao contrário da
  * matrícula feita por um admin ou professor em nome de outra conta.
  *
  * Vive no seu próprio módulo pela mesma razão que `school.ts`: `mock/backend.ts` começa com
@@ -38,4 +38,15 @@ export function validarCodigoDeMatricula(
   }
   if (entry.uses >= entry.maxUses) return { ok: false, status: 400, detail: 'Enrollment code has no uses left' };
   return { ok: true, entry };
+}
+
+/** A turma e o ano letivo vêm do código: o `classId` que o aluno mandasse no corpo é
+ *  irrelevante (EnrollmentService#resolveBySelfEnrollCode). Devolve `null` quando a turma
+ *  do código já não existe, para a rota responder 404 como o backend. */
+export function turmaDoCodigo(
+  entry: EnrollmentCode,
+  classes: Array<{ id: number; schoolYearId: number }>,
+): { classId: number; schoolYearId: number } | null {
+  const row = classes.find((c) => c.id === entry.classId);
+  return row ? { classId: row.id, schoolYearId: row.schoolYearId } : null;
 }
