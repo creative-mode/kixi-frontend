@@ -1,4 +1,7 @@
+import { hasMathContent } from '../../student/lib/shared/math-content.ts';
+
 export const OCR_TELEMETRY_URL = '/manager/api/ocr/metrics';
+export const OCR_IMAGE_DECODE_CONCURRENCY = 4;
 
 export const OCR_MARKS = [
   'request-start',
@@ -140,7 +143,13 @@ export function evaluateOcrEditorRender(
   previous: readonly string[],
 ): { firstUsefulIndex: number | null; editorReady: boolean; alreadyReady: boolean } {
   if (expected.length === 0) return { firstUsefulIndex: null, editorReady: false, alreadyReady: false };
-  const matches = expected.map((value, index) => current[index] === value);
+  const matches = expected.map((value, index) => {
+    const actual = current[index] ?? '';
+    // FormulaInput intentionally replaces the textarea with a rendered KaTeX
+    // textbox. Its accessible text is not byte-identical to the source LaTeX,
+    // so readiness means that the rendered math surface has content.
+    return hasMathContent(value) ? actual.trim().length > 0 : actual === value;
+  });
   const newlyVisible = matches.findIndex((matched, index) => matched && previous[index] !== current[index]);
   const editorReady = matches.every(Boolean);
   const alreadyReady = editorReady && expected.every((value, index) => previous[index] === value);
@@ -199,8 +208,13 @@ export async function reportOcrTelemetry(
 export async function decodeOcrImages(
   images: readonly { decode: () => Promise<void> }[],
   timeoutMs = 10_000,
+  concurrency = OCR_IMAGE_DECODE_CONCURRENCY,
 ): Promise<{ successCount: number; failureCount: number }> {
-  const results = await Promise.all(images.map(async (image) => {
+  const requestedLimit = Number.isFinite(concurrency) ? Math.floor(concurrency) : OCR_IMAGE_DECODE_CONCURRENCY;
+  const limit = Math.max(1, Math.min(requestedLimit, OCR_IMAGE_DECODE_CONCURRENCY));
+  const results = new Array<boolean>(images.length);
+  let next = 0;
+  const decodeOne = async (image: { decode: () => Promise<void> }): Promise<boolean> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const decoded = await Promise.race([
@@ -211,7 +225,15 @@ export async function decodeOcrImages(
     } finally {
       if (timer !== undefined) clearTimeout(timer);
     }
-  }));
+  };
+  const worker = async () => {
+    while (true) {
+      const index = next++;
+      if (index >= images.length) return;
+      results[index] = await decodeOne(images[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, images.length) }, worker));
   return {
     successCount: results.filter(Boolean).length,
     failureCount: results.filter((result) => !result).length,

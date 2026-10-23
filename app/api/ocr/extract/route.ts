@@ -2,6 +2,7 @@ import { getCurrentUser } from '@/lib/auth.server';
 import { call, message } from '@/lib/crud/http';
 import { ocrFilesProblem } from '@/lib/crud/ocr-files';
 import { createOcrRequestId, isOcrRequestId } from '@/lib/exam/ocr-telemetry';
+import { readBoundedRequestBody } from '@/lib/exam/ocr-upload';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,22 @@ export async function POST(request: Request) {
 
   let form: FormData;
   const uploadStarted = performance.now();
+  const body = await readBoundedRequestBody(request);
+  if (!body.ok) {
+    if (body.tooLarge) {
+      return Response.json({ detail: 'O envio ultrapassa o limite permitido.' }, { status: 413 });
+    }
+    return Response.json({ detail: 'Não foi possível ler os ficheiros enviados.' }, { status: 400 });
+  }
   try {
-    form = await request.formData();
+    // The original Request body has been bounded above. Parsing this reconstructed
+    // request keeps the multipart parser from seeing an unbounded stream.
+    const boundedRequest = new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: body.bytes,
+    });
+    form = await boundedRequest.formData();
   } catch {
     return Response.json({ detail: 'Não foi possível ler os ficheiros enviados.' }, { status: 400 });
   }

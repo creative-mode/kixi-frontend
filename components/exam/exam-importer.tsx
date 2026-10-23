@@ -76,9 +76,14 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
       .filter((legend) => /^Questão \d+$/.test(legend.textContent?.trim() ?? ''))
       .map((legend) => legend.parentElement as HTMLFieldSetElement)
       .filter((fieldset) => fieldset.getClientRects().length > 0);
-    const values = (fieldsets: HTMLFieldSetElement[]) => fieldsets.map((fieldset) =>
-      fieldset.querySelector<HTMLTextAreaElement>(':scope > div textarea')?.value ?? '',
-    );
+    const values = (fieldsets: HTMLFieldSetElement[]) => fieldsets.map((fieldset) => {
+      const textarea = fieldset.querySelector<HTMLTextAreaElement>(':scope > div textarea');
+      if (textarea) return textarea.value;
+      // FormulaInput shows a rendered, read-only textbox instead of its source
+      // textarea. Read its accessible text so OCR readiness does not time out
+      // after a successful mathematical render.
+      return fieldset.querySelector<HTMLElement>(':scope > div [role="textbox"]')?.textContent?.trim() ?? '';
+    });
 
     return (extraction: ExamExtraction, names: string) => {
       const expectedItems = draftFromExtraction(extraction, { subjects: [] }).items;

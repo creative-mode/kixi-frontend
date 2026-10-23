@@ -104,6 +104,14 @@ test('editor readiness waits for all imported questions and detects a previously
   });
 });
 
+test('rendered KaTeX text counts as ready even though it differs from the LaTeX source', () => {
+  assert.deepEqual(evaluateOcrEditorRender(['$v=v_0+at$', 'Questão 2'], ['𝑣 = 𝑣₀ + 𝑎𝑡', 'Questão 2'], ['', '']), {
+    firstUsefulIndex: 0,
+    editorReady: true,
+    alreadyReady: false,
+  });
+});
+
 test('image decode reports fulfilled, rejected and synchronous decode failures separately', async () => {
   const result = await decodeOcrImages([
     { decode: async () => undefined },
@@ -116,6 +124,22 @@ test('image decode reports fulfilled, rejected and synchronous decode failures s
 test('image decode timeout is counted as a failure so reporting cannot hang indefinitely', async () => {
   const result = await decodeOcrImages([{ decode: () => new Promise<void>(() => undefined) }], 2);
   assert.deepEqual(result, { successCount: 0, failureCount: 1 });
+});
+
+test('image decode limits concurrent work to protect the browser on large imports', async () => {
+  let active = 0;
+  let maximum = 0;
+  const images = Array.from({ length: 12 }, () => ({
+    decode: async () => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active -= 1;
+    },
+  }));
+  const result = await decodeOcrImages(images);
+  assert.deepEqual(result, { successCount: 12, failureCount: 0 });
+  assert.ok(maximum <= 4, `expected at most four decodes, got ${maximum}`);
 });
 
 test('payload validation rejects personal/file data and unknown telemetry fields', () => {
