@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { forgetReference } from '@/lib/crud/reference';
 import { getAuthHeaders } from '@/lib/auth.server';
 import { API_BASE } from '@/lib/constants';
 import type { SchoolYearRequest, SchoolYearResponse, SchoolYearList } from '@/types/school-year';
@@ -65,7 +64,6 @@ export async function createSchoolYear(data: SchoolYearRequest) {
 
     const created = (await res.json()) as SchoolYearResponse;
 
-    forgetReference('school-years');
     revalidatePath('/school-year');
     revalidatePath('/school-years/trash');
 
@@ -89,7 +87,6 @@ export async function updateSchoolYear(id: number, data: SchoolYearRequest) {
 
     const updated = (await res.json()) as SchoolYearResponse;
 
-    forgetReference('school-years');
     revalidatePath('/school-year');
     revalidatePath(`/school-years/${id}`);
 
@@ -110,7 +107,6 @@ export async function softDeleteSchoolYear(id: number) {
 
     if (!res.ok) throw new Error('Não foi possível eliminar');
 
-    forgetReference('school-years');
     revalidatePath('/school-year');
     revalidatePath('/school-years/trash');
 
@@ -131,7 +127,6 @@ export async function restoreSchoolYear(id: number) {
 
     if (!res.ok) throw new Error('Não foi possível restaurar');
 
-    forgetReference('school-years');
     revalidatePath('/school-year');
     revalidatePath('/school-years/trash');
 
@@ -152,7 +147,6 @@ export async function purgeSchoolYear(id: number) {
 
     if (!res.ok) throw new Error('Não foi possível eliminar permanentemente');
 
-    forgetReference('school-years');
     revalidatePath('/school-years/trash');
 
     return { success: true };

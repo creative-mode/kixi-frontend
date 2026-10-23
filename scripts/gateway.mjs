@@ -76,23 +76,11 @@ const sessionHome = (req) => {
   return null;
 };
 
-// As rotas internas das apps (o aviso do gestor ao aluno, #389) falam entre contentores, nunca pelo gateway.
-// A rota valida a assinatura de qualquer forma; isto só garante que de fora nem se chega lá.
-const isInternal = (url = '/') => {
-  let path = url.split('?')[0];
-  try { path = decodeURIComponent(path); } catch { return true; }
-  return /^\/aluno\/+api\/+internal(\/|$)/i.test(path.replace(/\/{2,}/g, '/'));
-};
-
 const server = http.createServer((req, res) => {
   for (const [k, v] of Object.entries(securityHeaders(req))) res.setHeader(k, v);
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'text/plain' });
     return res.end('ok');
-  }
-  if (isInternal(req.url)) {
-    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-    return res.end('Não encontrado.');
   }
   const home = sessionHome(req);
   if (home) {

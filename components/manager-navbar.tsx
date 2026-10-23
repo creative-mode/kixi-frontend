@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { m, AnimatePresence, LazyMotion, MotionConfig } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import {
   LayoutDashboard,
   LogOut,
@@ -28,8 +28,6 @@ import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
-
-const loadMotionFeatures = () => import("./motion-features").then((mod) => mod.default);
 
 const allNavLinks = [
   {
@@ -148,7 +146,6 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
   if (isPublicPage) return null;
 
   return (
-    <LazyMotion features={loadMotionFeatures} strict>
     <MotionConfig reducedMotion="user">
       <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -162,7 +159,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
 
           <div className="flex items-center gap-4 z-50 relative">
             <div className="hidden md:block">
-              <UserDisplay roles={roles} />
+              <UserDisplay />
             </div>
             <button
               onClick={() => setIsOpen(!isOpen)}
@@ -174,7 +171,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
               <div className="relative w-6 h-6 flex items-center justify-center">
                 <AnimatePresence mode="wait">
                   {isOpen ? (
-                    <m.div
+                    <motion.div
                       key="close"
                       initial={{ rotate: -90, opacity: 0 }}
                       animate={{ rotate: 0, opacity: 1 }}
@@ -182,9 +179,9 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
                       transition={{ duration: 0.2 }}
                     >
                       <X size={24} />
-                    </m.div>
+                    </motion.div>
                   ) : (
-                    <m.div
+                    <motion.div
                       key="menu"
                       initial={{ rotate: 90, opacity: 0 }}
                       animate={{ rotate: 0, opacity: 1 }}
@@ -192,7 +189,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
                       transition={{ duration: 0.2 }}
                     >
                       <MenuIcon size={24} />
-                    </m.div>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </div>
@@ -203,7 +200,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
 
       <AnimatePresence>
         {isOpen && (
-          <m.div
+          <motion.div
             id="manager-menu"
             initial={{ opacity: 0, y: "-100%" }}
             animate={{ opacity: 1, y: 0 }}
@@ -218,7 +215,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
                   const isActive = link.href === "/" ? pathname === "/" : pathname === link.href || pathname.startsWith(`${link.href}/`);
 
                   return (
-                    <m.div
+                    <motion.div
                       key={link.href}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -257,30 +254,29 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
                           </p>
                         </div>
                       </Link>
-                    </m.div>
+                    </motion.div>
                   );
                 })}
               </div>
 
-              <m.div
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6 }}
                 className="mt-12 max-w-6xl mx-auto border-t pt-8 flex justify-between items-center"
               >
                 <div className="md:hidden">
-                  <UserDisplay roles={roles} />
+                  <UserDisplay />
                 </div>
                 <Button variant="destructive" size="lg" className="ml-auto" onClick={() => { resetTeacherScope(); logoutAction(); }}>
                   <LogOut size={18} />
                   Sair do sistema
                 </Button>
-              </m.div>
+              </motion.div>
             </div>
-          </m.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </MotionConfig>
-    </LazyMotion>
   );
 }

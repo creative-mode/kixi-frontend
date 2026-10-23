@@ -16,9 +16,10 @@ import {
 } from "lucide-react";
 import { getDashboard } from "@/app/actions/analytics";
 import { dashboardCounts } from "@/app/actions/crud";
-import { ActivityChart, InstitutionPanel } from "@/components/dashboard/lazy-charts";
+import { ActivityChart } from "@/components/dashboard/activity-chart";
 import { AttentionPanel } from "@/components/dashboard/attention-panel";
 import { ClassesTable } from "@/components/dashboard/classes-table";
+import { InstitutionPanel } from "@/components/dashboard/institution-panel";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import {
   SectionError,
