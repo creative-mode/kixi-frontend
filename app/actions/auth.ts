@@ -1,7 +1,7 @@
 'use server';
 
 import { cookies, headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { redirectFromAction } from '@/lib/action-redirect';
 import { apiFetch } from '@/lib/mock/fetch';
 import { API_BASE } from '@/lib/constants';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
@@ -118,5 +118,5 @@ export async function logoutAction() {
   const cookieStore = await cookies();
   cookieStore.delete('auth_token');
   cookieStore.delete('user_info');
-  redirect('/login?reason=logged-out');
+  await redirectFromAction('/login?reason=logged-out');
 }
