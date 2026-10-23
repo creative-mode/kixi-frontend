@@ -8,7 +8,7 @@ import { ACTION_TIMEOUT_MS, withDeadline } from '@/lib/timeout';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { NativeSelect } from '@/components/ui/native-select';
-import { ActivityChart } from './lazy-charts';
+import { ActivityChart } from './activity-chart';
 import { KpiCard } from './kpi-card';
 import { SectionError, SectionState } from './section-state';
 import { TONE_BAR, TONE_TEXT, formatDuration, formatInt, formatPercent, scoreTone } from '@/lib/format';

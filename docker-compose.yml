@@ -46,10 +46,6 @@ services:
 
   manager:
     <<: *app
-    environment:
-      <<: *env
-      # O aviso ao aluno de que dados de referência mudaram (#389) vai direto ao contentor, sem passar pelo gateway.
-      STUDENT_INTERNAL_URL: http://student:3003
     build:
       context: .
       dockerfile: docker/app.Dockerfile

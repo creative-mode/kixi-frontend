@@ -28,16 +28,6 @@ export function register() {
 
   if (mode === 'mock') console.warn('[kixi] MODO DEMONSTRAÇÃO: backend simulado ativo; não usar dados reais.');
   if (process.env.NODE_ENV !== 'production') return;
-  // Sem isto, o aviso ao aluno de que dados de referência mudaram (#389) vai para 127.0.0.1:3003, que num contentor
-  // não é o aluno: falharia em cada escrita, só com uma linha no log, e o aluno voltava a esperar os 5 minutos da
-  // cache sem ninguém dar por isso. Não impede o arranque, porque o gestor funciona na mesma; diz-se logo aqui.
-  if (!process.env.STUDENT_INTERNAL_URL?.trim()) {
-    console.error(
-      '[kixi] STUDENT_INTERNAL_URL não está definido: o gestor não consegue avisar o aluno quando uma disciplina, ' +
-        'um ano letivo ou uma escola muda, e o aluno só vê a mudança quando a cache dele expirar (5 min). ' +
-        'Define-o com o endereço interno do aluno (no docker-compose: http://student:3003).',
-    );
-  }
   if (process.env.APP_ORIGIN?.trim()) return;
 
   console.error(

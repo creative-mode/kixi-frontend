@@ -19,21 +19,8 @@ async function formToJson(form: FormData): Promise<string> {
   return JSON.stringify(out);
 }
 
-/** `KIXI_TRACE=1` escreve no log do servidor cada pedido ao backend e quanto demorou, como no aluno: é assim que
- *  se contam os pedidos de cada página (#389). */
-const TRACE = process.env.KIXI_TRACE === '1';
-
 /** Drop-in replacement for `fetch` on the server: same arguments, same Response. */
 export async function apiFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
-  if (!TRACE) return send(input, init);
-  const started = performance.now();
-  const res = await send(input, init);
-  const url = new URL(String(input));
-  console.log(`[api] ${(init.method ?? 'GET').toUpperCase()} ${url.pathname}${url.search.slice(0, 60)} ${res.status} ${Math.round(performance.now() - started)}ms`);
-  return res;
-}
-
-async function send(input: string | URL, init: RequestInit): Promise<Response> {
   if (!MOCK) return fetch(input, init);
   const url = new URL(String(input));
   const headers = new Headers(init.headers);
