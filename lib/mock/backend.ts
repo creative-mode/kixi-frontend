@@ -5,6 +5,7 @@ import 'server-only';
 // Same contracts as scripts/mock-api.mjs (paths, DTOs, soft delete, HS256 JWT). State lives in memory per server process.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from 'node:crypto';
+import { getJwtSecretValue } from '../dev-secret';
 import { approvalProblem } from './gate';
 import { examRooms, liveStream, luandaClock } from './exam-rooms';
 import { assignmentsFrom, teacherCanWrite } from '../crud/teacher-scope';
@@ -13,7 +14,6 @@ import { buildQuestions } from './manual-questions';
 import { OGI_EXTRACTION } from './ogi-extraction';
 import { addToCurriculum, buildStructure, removeFromCurriculum, subjectOfferings, subjectsOfClass, teacherOverview, validateAssignment, type AcademicWorld } from './academic';
 
-const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
 
 
@@ -21,13 +21,13 @@ const b64 = (b) => Buffer.from(b).toString('base64url');
 function sign(payload) {
   const h = b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const p = b64(JSON.stringify(payload));
-  const s = crypto.createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url');
+  const s = crypto.createHmac('sha256', getJwtSecretValue()).update(`${h}.${p}`).digest('base64url');
   return `${h}.${p}.${s}`;
 }
 function verify(token) {
   const [h, p, s] = token.split('.');
   if (!h || !p || !s) return null;
-  const expect = crypto.createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url');
+  const expect = crypto.createHmac('sha256', getJwtSecretValue()).update(`${h}.${p}`).digest('base64url');
   if (s !== expect) return null;
   const payload = JSON.parse(Buffer.from(p, 'base64url').toString());
   if (payload.exp && Date.now() / 1000 > payload.exp) return null;
