@@ -72,7 +72,7 @@ function yearLabel(year: SchoolYear): string {
 /** Nomes para os ids do catálogo, cada endpoint carregado uma vez. */
 type CatalogNames = {
   subjects: Named[];
-  years: (Named & { label: string })[];
+  years: (Named & { label: string; startYear: number; endYear: number })[];
   schools: Named[];
 };
 
@@ -94,7 +94,7 @@ export async function getCatalogNames(): Promise<CatalogNames> {
         ? subjects.data.map((s) => ({ id: s.id, name: s.name }))
         : [],
       years: years.ok && Array.isArray(years.data)
-        ? years.data.map((y) => ({ id: y.id, name: `${y.startYear}–${y.endYear}`, label: yearLabel(y) }))
+        ? years.data.map((y) => ({ id: y.id, name: `${y.startYear}–${y.endYear}`, label: yearLabel(y), startYear: y.startYear, endYear: y.endYear }))
         : [],
       schools: schools.ok && Array.isArray(schools.data)
         ? schools.data.map((s) => ({ id: s.id, name: s.name }))

@@ -40,3 +40,28 @@ export function DetailSkeleton() {
     </div>
   );
 }
+
+/** Cabeçalho de página a carregar: ícone, título e descrição (o `PageHead`). */
+function PageHeadSkeleton() {
+  return (
+    <div className="mb-8 flex items-center gap-3" aria-hidden>
+      <Skeleton className="size-9" />
+      <div className="grid gap-2"><Skeleton className="h-7 w-48" /><Skeleton className="h-3.5 w-64 max-w-full" /></div>
+    </div>
+  );
+}
+
+/** Página de lista a carregar (`loading.tsx` das listas, #389): cabeçalho, pesquisa e linhas da tabela. */
+export function ListPageSkeleton({ cols = 4 }: { cols?: number }) {
+  return (
+    <div role="status" aria-label="A carregar" className="mx-auto max-w-7xl p-4 md:p-8">
+      <PageHeadSkeleton />
+      <Card>
+        <div className="border-b border-border p-4"><Skeleton className="h-9 w-full max-w-sm" /></div>
+        <CardContent className="p-0">
+          <table className="w-full"><tbody><TableRowsSkeleton cols={cols} rows={8} /></tbody></table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

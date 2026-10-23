@@ -1,20 +1,10 @@
-'use client'
-
-import { useState, useEffect } from 'react'
 import { User } from 'lucide-react'
-import { fetchCurrentUser } from '@/lib/auth'
-import type { CurrentUser } from '@/types/auth'
 
-export function UserDisplay() {
-    const [user, setUser] = useState<CurrentUser | null>(null)
+/** Os papéis vêm do layout, que já leu a sessão no servidor: sem um segundo pedido no browser (#389). */
+export function UserDisplay({ roles }: { roles: string[] }) {
+    if (roles.length === 0) return null
 
-    useEffect(() => {
-        fetchCurrentUser().then(setUser)
-    }, [])
-
-    if (!user) return null
-
-    const primaryRole = user.roles?.[0] ?? 'User'
+    const primaryRole = roles[0]
 
     return (
         <div className="flex items-center gap-2 text-sm">
