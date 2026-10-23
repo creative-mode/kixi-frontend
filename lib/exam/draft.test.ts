@@ -7,6 +7,7 @@ import {
   distributeScore,
   emptyItem,
   groupScore,
+  invalidateReviewOnContentChange,
   isChoice,
   itemLabel,
   kindOf,
@@ -25,6 +26,7 @@ import {
   toRequest,
   totalScore,
   unscored,
+  type DraftItem,
   type DraftOption,
   type DraftQuestion,
 } from './draft.ts';
@@ -295,6 +297,58 @@ test('uma alínea muda de tipo sem perder o texto', () => {
   assert.equal(item.options.length, 2);
 });
 
+test('mudar o tipo de uma alínea preserva evidência OCR e revisão matemática', () => {
+  const formulas = [{ raw: 'v = v\u2080 + at', latex: 'v = v_0 + at', confidence: 0.72, kind: 'formula' }];
+  const blocks = [{ type: 'formula' as const, ...formulas[0] }];
+  const item = convertItemKind({
+    ...emptyItem(), text: '$v = v_0 + at$', rawText: 'v = v\u2080 + at', confidence: 0.72,
+    formulas, blocks, review: true, reviewed: false, modelAnswer: 'resposta modelo',
+  }, 'true_false');
+
+  assert.equal(item.rawText, 'v = v\u2080 + at');
+  assert.equal(item.confidence, 0.72);
+  assert.deepEqual(item.formulas, formulas);
+  assert.deepEqual(item.blocks, blocks);
+  assert.equal(item.review, true);
+  assert.equal(item.reviewed, false);
+  assert.equal(item.modelAnswer, 'resposta modelo');
+});
+
+test('editar conteúdo de questão ou alínea invalida a confirmação de revisão', () => {
+  const formula = { raw: 'x2', latex: 'x^2', confidence: 0.62, kind: 'formula' };
+  const reviewedQuestion: DraftQuestion = {
+    text: 'Calcule $x^2$', points: 2, options: [], review: true, reviewed: true,
+    formulas: [formula], blocks: [{ type: 'formula', ...formula }],
+  };
+
+  const textEdit = invalidateReviewOnContentChange(reviewedQuestion, {
+    ...reviewedQuestion, text: 'Calcule $x^3$', blocks: undefined,
+  });
+  assert.equal(textEdit.reviewed, false);
+  assert.match(problems([textEdit]).join(' '), /Reveja a confiança OCR/);
+  assert.equal(toRequest([textEdit])[0].reviewed, undefined);
+
+  const formulaEdit = invalidateReviewOnContentChange(reviewedQuestion, {
+    ...reviewedQuestion, formulas: [{ ...formula, latex: 'x^3' }],
+  });
+  assert.equal(formulaEdit.reviewed, false);
+  assert.match(problems([formulaEdit]).join(' '), /Reveja a confiança OCR/);
+
+  const blockEdit = invalidateReviewOnContentChange(reviewedQuestion, {
+    ...reviewedQuestion, blocks: [{ type: 'text', text: 'Calcule x ao cubo' }],
+  });
+  assert.equal(blockEdit.reviewed, false);
+  assert.match(problems([blockEdit]).join(' '), /Reveja a confiança OCR/);
+
+  const reviewedItem: DraftItem = { ...emptyItem(), text: 'Calcule $x^2$', review: true, reviewed: true,
+    formulas: [formula], blocks: [{ type: 'formula' as const, ...formula }] };
+  const editedItem = invalidateReviewOnContentChange(reviewedItem, {
+    ...reviewedItem, text: 'Calcule $x^3$', blocks: undefined,
+  });
+  assert.equal(editedItem.reviewed, false);
+  assert.match(problems([{ ...emptyItem(), kind: 'group', items: [editedItem], text: 'Resolva', points: '', options: [] }]).join(' '), /Reveja a confiança OCR/);
+});
+
 test('as folhas de uma prova com alíneas têm os rótulos impressos 3a, 3b…', () => {
   assert.deepEqual(leavesOf(ogi()).map((l) => l.label), ['1', '2', '3a', '3b', '3c', '3d', '4', '5a', '5b', '6']);
 });
@@ -363,6 +417,57 @@ test('o pedido leva o tipo, os itens do grupo e as opções de verdadeiro/falso'
     { label: 'A', text: 'Verdadeiro', correct: false },
     { label: 'B', text: 'Falso', correct: true },
   ]);
+});
+
+test('o pedido preserva evidência OCR e a confiança pendente bloqueia publicação', () => {
+  const formula = { raw: 'v0', latex: 'v_0', confidence: 0.62, kind: 'formula' };
+  const question = {
+    text: 'Determine v0', points: 2, kind: 'open' as const, options: [],
+    rawText: 'Determine v0', confidence: 0.71, formulas: [formula],
+    blocks: [
+      { type: 'text' as const, text: 'Determine ' },
+      { type: 'formula' as const, ...formula },
+    ],
+    review: true,
+  };
+  assert.match(problems([question]).join(' '), /Reveja a confiança OCR antes de publicar: 1/);
+  const pending = toRequest([question])[0];
+  assert.equal(pending.text, 'Determine $v_0$');
+  assert.equal(pending.rawText, 'Determine v0');
+  assert.equal(pending.confidence, 0.71);
+  assert.equal(pending.reviewed, undefined);
+  assert.deepEqual(pending.formulas, [formula]);
+  assert.equal('blocks' in pending, false);
+  assert.equal('needsReview' in pending, false);
+
+  const reviewed = { ...question, review: false, reviewed: true };
+  assert.doesNotMatch(problems([reviewed]).join(' '), /confiança OCR/);
+  assert.equal(toRequest([reviewed])[0].reviewed, true);
+});
+
+test('o pedido de grupo preserva evidência do enunciado e de cada alínea no contrato manual', () => {
+  const formula = { raw: 'x2', latex: 'x^2', confidence: 0.91, kind: 'formula' };
+  const [request] = toRequest([{
+    text: 'Resolva x2', points: '', kind: 'group', options: [],
+    rawText: 'Resolva x2', confidence: 0.96,
+    blocks: [{ type: 'text', text: 'Resolva ' }, { type: 'formula', ...formula }],
+    items: [{
+      text: 'Calcule x2', points: 2, kind: 'open', options: [],
+      rawText: 'Calcule x2', confidence: 0.62, review: true,
+      blocks: [{ type: 'text', text: 'Calcule ' }, { type: 'formula', ...formula }],
+    }],
+  }]);
+
+  assert.equal(request.text, 'Resolva $x^2$');
+  assert.equal(request.rawText, 'Resolva x2');
+  assert.equal(request.confidence, 0.96);
+  assert.deepEqual(request.formulas, [formula]);
+  assert.deepEqual(request.items?.[0], {
+    label: 'a', text: 'Calcule $x^2$', type: 'open', maxScore: 2, options: [],
+    rawText: 'Calcule x2', confidence: 0.62, formulas: [formula],
+  });
+  assert.equal(request.items?.[0].reviewed, undefined);
+  assert.equal('blocks' in (request.items?.[0] ?? {}), false);
 });
 
 test('uma alínea aberta vai sem opções e as vazias não vão', () => {

@@ -33,6 +33,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
 import { QuestionImages } from './question-images';
+import { MathText } from '@/student/lib/shared/math-text';
+import { hasMathContent } from '@/student/lib/shared/math-content';
+import { mathContentFields, mathNeedsReview, type MathContentFields } from '@/student/lib/shared/math-types';
 
 // O tipo tem várias grafias no backend (OCR escreve `development`, o exam builder `open`).
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', GROUP: 'Com alíneas', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', DEVELOPMENT: 'Desenvolvimento' };
@@ -41,7 +44,7 @@ const typeLabel = (t: string | null) => (t ? QUESTION_TYPES[t.toUpperCase()] ?? 
 type OptionDraft = { id: number; optionLabel: string; optionText: string; isCorrect: boolean };
 // A cotação fica como o professor a escreve: como número, apagar o campo dava 0 e
 // escrever a seguir dava "01.5".
-type QuestionDraft = { id: number; number: number; parentId: number | null; label: string | null; questionType: string | null; text: string; maxScore: string; needsReview: boolean; ocrConfidence: number | null; modelAnswer: string; options: OptionDraft[] };
+type QuestionDraft = MathContentFields & { id: number; number: number; parentId: number | null; label: string | null; questionType: string | null; text: string; maxScore: string; needsReview: boolean; ocrReviewed: boolean; ocrConfidence: number | null; modelAnswer: string; options: OptionDraft[] };
 type HeaderDraft = { institutionId: string; title: string; examType: string; variant: string; durationMinutes: string; instructions: string; totalMaxScore: string; subjectId: string; classId: string; schoolYearId: string; termId: string };
 type Draft = { header: HeaderDraft; questions: QuestionDraft[] };
 
@@ -71,8 +74,10 @@ function toDraft(s: Row): Draft {
       label: q.label ?? null,
       questionType: q.questionType ?? null,
       text: q.text ?? '',
+      ...mathContentFields(q),
       maxScore: str(q.maxScore ?? 0),
       needsReview: !!q.needsReview,
+      ocrReviewed: !!q.ocrReviewed,
       ocrConfidence: q.ocrConfidence ?? null,
       modelAnswer: q.modelAnswer ?? '',
       options: (q.options ?? []).map((o: Row) => ({ id: Number(o.id), optionLabel: o.optionLabel, optionText: o.optionText ?? '', isCorrect: !!o.isCorrect })),
@@ -125,10 +130,13 @@ function questionEdits(before: QuestionDraft[], after: QuestionDraft[]): Questio
     const old = before.find((x) => x.id === q.id);
     if (!old) continue;
     const edit: QuestionEdit = { id: q.id, number: q.number };
-    if (q.text !== old.text || score(q.maxScore) !== score(old.maxScore) || q.modelAnswer !== old.modelAnswer) {
+    if (q.text !== old.text || score(q.maxScore) !== score(old.maxScore) || q.modelAnswer !== old.modelAnswer || q.ocrReviewed !== old.ocrReviewed) {
       // O modelAnswer vai sempre com o que o servidor tem (o PUT grava-o tal e qual):
       // é por isso que tem de ter vindo de /questions, e não do /full, que não o traz.
-      edit.question = { text: q.text.trim(), questionType: q.questionType, maxScore: score(q.maxScore), modelAnswer: q.modelAnswer.trim() || null };
+      edit.question = {
+        text: q.text.trim(), questionType: q.questionType, maxScore: score(q.maxScore), modelAnswer: q.modelAnswer.trim() || null,
+        ...(q.ocrReviewed !== old.ocrReviewed ? { ocrReviewed: q.ocrReviewed } : {}),
+      };
     }
     const changed = q.options.filter((o) => old.options.find((x) => x.id === o.id)?.optionText !== o.optionText);
     if (changed.length) edit.options = changed.map((o) => ({ id: o.id, optionLabel: o.optionLabel, optionText: o.optionText.trim() }));
@@ -491,6 +499,12 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                 {q.ocrConfidence != null && q.ocrConfidence < 0.9 ? (
                   <Badge variant="secondary">Confiança OCR baixa ({Math.round(q.ocrConfidence * 100)}%)</Badge>
                 ) : null}
+                {mathNeedsReview(q.formulas, q.blocks) ? <Badge variant="warning">Fórmula a rever</Badge> : null}
+                {(q.needsReview || mathNeedsReview(q.formulas, q.blocks)) && !q.ocrReviewed ? (
+                  <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => patchQ(q.id, { ocrReviewed: true })}>
+                    <Check size={14} /> Marcar OCR revisto
+                  </Button>
+                ) : null}
                 {isGroup(q) ? (
                   <span className="ml-auto text-xs text-muted-foreground">Vale a soma das alíneas</span>
                 ) : (
@@ -509,7 +523,14 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                   <Button type="button" size="icon" variant="ghost" className="size-7 hover:bg-danger-soft hover:text-destructive" disabled={saving} aria-label={`Remover questão ${displayNumber(q, questions)}`} onClick={() => removeQuestion(q)}><Trash2 size={14} /></Button>
                 </span>
               </div>
-              <textarea value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value })} rows={2} className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" aria-label={`Texto da questão ${displayNumber(q, questions)}`} />
+              <textarea value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value, blocks: undefined })} rows={2} className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" aria-label={`Texto da questão ${displayNumber(q, questions)}`} />
+              {hasMathContent(q.text, q.formulas, q.blocks) ? (
+                <div className="mt-2 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-sm" aria-label={`Pré-visualização matemática da questão ${displayNumber(q, questions)}`}>
+                  <MathText text={q.text} formulas={q.formulas} blocks={q.blocks} />
+                  {q.rawText && q.rawText !== q.text ? <details className="mt-2 text-xs text-muted-foreground"><summary>Texto OCR original</summary><p className="mt-1 whitespace-pre-wrap">{q.rawText}</p></details> : null}
+                  {q.formulas?.map((formula, index) => <span key={index} className="sr-only">Fórmula OCR: {formula.raw}; confiança {formula.confidence == null ? 'indisponível' : `${Math.round(formula.confidence * 100)}%`}</span>)}
+                </div>
+              ) : null}
               {/* Como o servidor: é ter opções que faz a questão precisar de resposta correta, não o tipo. */}
               {q.options.length > 0 ? (
                 <div className="mt-3 space-y-2">

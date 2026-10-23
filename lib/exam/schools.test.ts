@@ -34,6 +34,17 @@ test('as alíneas guardadas mantêm tipo, texto, cotação e marca de revisão',
   assert.equal(g.items?.[1].review, undefined);
 });
 
+test('normalizar rascunho preserva rótulos romanos e alíneas qualificadas', () => {
+  const [group] = normalizeDraft({ items: [{
+    text: 'Determine:', kind: 'group', options: [], items: [
+      { label: 'v.a', text: 'deslocamento', points: '', options: [] },
+      { label: 'VII.B)', text: 'raio de curvatura', points: '', options: [] },
+    ],
+  }] } as never).items;
+
+  assert.deepEqual(group.items?.map((item) => item.label), ['V.a', 'VII.b']);
+});
+
 test('um verdadeiro/falso guardado sem as duas opções recupera-as', () => {
   const [g] = normalizeDraft({ items: [{ text: 'Q', kind: 'group', items: [{ text: 'a', kind: 'true_false', options: [] }] }] } as never).items;
   assert.deepEqual(g.items?.[0].options.map((o) => o.text), ['Verdadeiro', 'Falso']);

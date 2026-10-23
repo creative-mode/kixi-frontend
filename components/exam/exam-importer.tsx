@@ -6,9 +6,19 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
-import { extractExamOcr } from '@/app/actions/media';
 import { addOcrFiles, OCR_ACCEPT, ocrFilesProblem } from '@/lib/crud/ocr-files';
-import type { ExamExtraction } from '@/lib/exam/extraction';
+import { streamExamOcr, type OcrStreamEvent } from '@/lib/exam/ocr-stream';
+import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
+import {
+  buildOcrTelemetryPayload,
+  createOcrRequestId,
+  decodeOcrImages,
+  evaluateOcrEditorRender,
+  reportOcrTelemetry,
+  type OcrCountKey,
+  type OcrMark,
+} from '@/lib/exam/ocr-telemetry';
+import { serializeMathText } from '@/student/lib/shared/math-types';
 
 const size = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1000))} KB`);
 
@@ -18,14 +28,137 @@ const size = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1).repla
  * Nada é guardado aqui. `onExtracted` recebe o que o motor leu e quem chama decide o que fazer com isso
  * (o construtor transforma-o em rascunho e avisa do que ficou por decidir).
  */
-export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extraction: ExamExtraction, names: string) => void; onClose: () => void }) {
+export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extraction: ExamExtraction, names: string) => boolean | void; onClose: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const [pageProgress, setPageProgress] = useState<{ page: number; pageCount: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  function recordRenderTimings(
+    requestId: string,
+    marks: Partial<Record<OcrMark, number>>,
+    serverTimings: Record<string, number>,
+    counts: Record<OcrCountKey, number>,
+  ) {
+    const prefix = `kixi.ocr.${requestId}`;
+    let reported = false;
+    const markUi = (name: Extract<OcrMark, 'first-useful-render' | 'editor-ready' | 'image-decode-start' | 'image-decode-end'>, at = performance.now()) => {
+      if (marks[name] !== undefined) return;
+      marks[name] = at;
+      performance.mark(`${prefix}.${name}`);
+    };
+    const measure = (name: string, start: OcrMark, end: OcrMark) => {
+      if (marks[start] !== undefined && marks[end] !== undefined) {
+        performance.measure(`${prefix}.${name}`, `${prefix}.${start}`, `${prefix}.${end}`);
+      }
+    };
+    const cleanup = () => {
+      performance.getEntriesByType('mark').filter((entry) => entry.name.startsWith(`${prefix}.`)).forEach((entry) => performance.clearMarks(entry.name));
+      performance.getEntriesByType('measure').filter((entry) => entry.name.startsWith(`${prefix}.`)).forEach((entry) => performance.clearMeasures(entry.name));
+    };
+    const report = () => {
+      if (reported) return;
+      reported = true;
+      measure('request-to-first-useful-render', 'request-start', 'first-useful-render');
+      measure('request-to-editor-ready', 'request-start', 'editor-ready');
+      measure('ocr-end-to-first-useful-render', 'ocr-end', 'first-useful-render');
+      measure('ocr-end-to-editor-ready', 'ocr-end', 'editor-ready');
+      measure('image-decode', 'image-decode-start', 'image-decode-end');
+      const payload = buildOcrTelemetryPayload({ requestId, marks, serverTimings, counts });
+      void reportOcrTelemetry(payload).finally(cleanup);
+    };
+    const fields = () => Array.from(document.querySelectorAll('fieldset > legend.sr-only'))
+      .filter((legend) => /^Questão \d+$/.test(legend.textContent?.trim() ?? ''))
+      .map((legend) => legend.parentElement as HTMLFieldSetElement)
+      .filter((fieldset) => fieldset.getClientRects().length > 0);
+    const values = (fieldsets: HTMLFieldSetElement[]) => fieldsets.map((fieldset) => {
+      const textarea = fieldset.querySelector<HTMLTextAreaElement>(':scope > div textarea');
+      if (textarea) return textarea.value;
+      // FormulaInput shows a rendered, read-only textbox instead of its source
+      // textarea. Read its accessible text so OCR readiness does not time out
+      // after a successful mathematical render.
+      return fieldset.querySelector<HTMLElement>(':scope > div [role="textbox"]')?.textContent?.trim() ?? '';
+    });
+
+    return (extraction: ExamExtraction, names: string) => {
+      const expectedItems = draftFromExtraction(extraction, { subjects: [] }).items;
+      const expected = expectedItems.map((item) => serializeMathText(item.text, item.formulas, item.blocks));
+      const previous = values(fields()).slice(0, expected.length);
+      counts.questionCount = Math.min(10_000, expected.length);
+      // A callback may ask a blocking confirmation before replacing the current
+      // draft. Start observing only after it returns, and skip declined imports.
+      if (onExtracted(extraction, names) === false) {
+        report();
+        return;
+      }
+
+      if (expected.length === 0) {
+        report();
+        return;
+      }
+
+      let observationClosed = false;
+      let checkScheduled = false;
+      const check = () => {
+        if (observationClosed) return false;
+        const currentFields = fields();
+        const current = values(currentFields);
+        const state = evaluateOcrEditorRender(expected, current, previous);
+        if (state.alreadyReady && marks['first-useful-render'] === undefined) {
+          // The identical draft was already visible before this OCR run; it is ready at OCR completion.
+          const readyAt = marks['ocr-end'] ?? performance.now();
+          markUi('first-useful-render', readyAt);
+          markUi('editor-ready', readyAt);
+        } else {
+          if (state.firstUsefulIndex !== null) markUi('first-useful-render');
+          if (state.editorReady) markUi('editor-ready');
+        }
+        if (!state.editorReady) return false;
+
+        observationClosed = true;
+        observer.disconnect();
+        window.clearTimeout(timeout);
+        const images = currentFields.flatMap((fieldset) => Array.from(fieldset.querySelectorAll<HTMLImageElement>('img')));
+        counts.imageCount = Math.min(10_000, images.length);
+        if (images.length === 0) {
+          report();
+          return true;
+        }
+
+        markUi('image-decode-start');
+        void decodeOcrImages(images).then((result) => {
+          counts.imageDecodeSuccessCount = Math.min(10_000, result.successCount);
+          counts.imageDecodeFailureCount = Math.min(10_000, result.failureCount);
+          markUi('image-decode-end');
+          report();
+        });
+        return true;
+      };
+
+      const scheduleCheck = () => {
+        if (checkScheduled || observationClosed) return;
+        checkScheduled = true;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          checkScheduled = false;
+          check();
+        }));
+      };
+      const observer = new MutationObserver(scheduleCheck);
+      observer.observe(document.body, { childList: true, subtree: true });
+      const timeout = window.setTimeout(() => {
+        observationClosed = true;
+        observer.disconnect();
+        counts.renderTimeoutCount = 1;
+        report();
+      }, 15_000);
+      scheduleCheck();
+    };
+  }
 
   function add(list: FileList | File[]) {
     const { files: next, rejected } = addOcrFiles(files, Array.from(list));
@@ -43,27 +176,91 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
     setBusy(true);
     setError(null);
     setStage('A enviar ficheiros…');
-    const started = Date.now();
-    const timer = window.setInterval(() => {
-      const s = Math.floor((Date.now() - started) / 1000);
-      setElapsed(s);
-      // FE-11: sem progresso real do servidor; mostra a fase provável.
-      setStage(s < 5 ? 'A enviar ficheiros…' : 'A ler a prova (OCR)…');
-    }, 1000);
+    setUploadPercent(0);
+    setPageProgress(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const requestId = createOcrRequestId();
+    const marks: Partial<Record<OcrMark, number>> = {};
+    const serverTimings: Record<string, number> = {};
+    const pageTimings: Record<string, number> = {};
+    const counts: Record<OcrCountKey, number> = {
+      pageCount: 0,
+      fileCount: files.length,
+      questionCount: 0,
+      imageCount: 0,
+      imageDecodeSuccessCount: 0,
+      imageDecodeFailureCount: 0,
+      requestFailureCount: 0,
+      cancelledRequestCount: 0,
+      renderTimeoutCount: 0,
+    };
+    const prefix = `kixi.ocr.${requestId}`;
+    let reported = false;
+    const reportFailure = () => {
+      if (reported) return;
+      reported = true;
+      if (!Number.isFinite(serverTimings.ocrMs) && Number.isFinite(pageTimings.ocrMs)) serverTimings.ocrMs = pageTimings.ocrMs;
+      if (!Number.isFinite(serverTimings.parsingMs) && Number.isFinite(pageTimings.parsingMs)) serverTimings.parsingMs = pageTimings.parsingMs;
+      const payload = buildOcrTelemetryPayload({ requestId, marks, serverTimings, counts });
+      void reportOcrTelemetry(payload).finally(() => {
+        performance.getEntriesByType('mark').filter((entry) => entry.name.startsWith(`${prefix}.`)).forEach((entry) => performance.clearMarks(entry.name));
+        performance.getEntriesByType('measure').filter((entry) => entry.name.startsWith(`${prefix}.`)).forEach((entry) => performance.clearMeasures(entry.name));
+      });
+    };
     try {
-      const res = await extractExamOcr(form);
-      if (res.ok) {
-        onExtracted(res.data, files.map((f) => f.name).join(', '));
-        setFiles([]);
-      } else setError(res.error);
-    } catch {
-      // A action pode rebentar antes de correr (413 do limite de corpo, ligação cortada):
-      // aí não há Result, e sem este catch a página ficava parada sem dizer nada.
-      setError('Não foi possível enviar os ficheiros. Verifique a ligação e tente com menos ficheiros ou ficheiros mais leves.');
+      const extraction = await streamExamOcr(form, {
+        requestId,
+        onMark(mark, at) { marks[mark] = at; },
+        onUploadProgress(loaded, total) {
+          if (total > 0) setUploadPercent(Math.min(100, Math.round((loaded / total) * 100)));
+        },
+        onEvent(event: OcrStreamEvent) {
+          if (event.type === 'prepared') {
+            setStage('A ler as páginas…');
+            setPageProgress({ page: 0, pageCount: event.pageCount });
+            counts.pageCount = Math.min(10_000, Math.max(counts.pageCount, event.pageCount));
+            Object.assign(serverTimings, event.timings);
+          } else if (event.type === 'rasterized') {
+            setStage(`A preparar página ${event.page} de ${event.pageCount}…`);
+            counts.pageCount = Math.min(10_000, Math.max(counts.pageCount, event.pageCount));
+            if (Number.isFinite(event.timings.rasterizationMs) && event.timings.rasterizationMs >= 0) {
+              serverTimings.rasterizationMs = event.timings.rasterizationMs;
+            }
+          } else if (event.type === 'progress') {
+            setStage(`A ler página ${event.page} de ${event.pageCount}…`);
+            setPageProgress({ page: event.page, pageCount: event.pageCount });
+            counts.pageCount = Math.min(10_000, Math.max(counts.pageCount, event.pageCount));
+            for (const key of ['ocrMs', 'parsingMs']) {
+              const value = event.timings[key];
+              if (Number.isFinite(value) && value >= 0) pageTimings[key] = (pageTimings[key] ?? 0) + value;
+            }
+          } else if (event.type === 'result') {
+            setStage('A montar as questões…');
+            Object.assign(serverTimings, event.timings);
+            if (!Number.isFinite(serverTimings.ocrMs) && Number.isFinite(pageTimings.ocrMs)) serverTimings.ocrMs = pageTimings.ocrMs;
+            if (!Number.isFinite(serverTimings.parsingMs) && Number.isFinite(pageTimings.parsingMs)) serverTimings.parsingMs = pageTimings.parsingMs;
+          }
+        },
+      }, controller.signal);
+      const apply = recordRenderTimings(requestId, marks, serverTimings, counts);
+      apply(extraction, files.map((f) => f.name).join(', '));
+      reported = true;
+      setFiles([]);
+    } catch (caught) {
+      marks['request-end'] ??= performance.now();
+      if (caught instanceof DOMException && caught.name === 'AbortError') counts.cancelledRequestCount = 1;
+      else counts.requestFailureCount = 1;
+      reportFailure();
+      if (!(caught instanceof DOMException && caught.name === 'AbortError')) {
+        setError(caught instanceof Error ? caught.message : 'Não foi possível concluir a leitura OCR.');
+      }
     } finally {
-      window.clearInterval(timer);
+      abortRef.current = null;
       setBusy(false);
       setStage(null);
+      setUploadPercent(null);
+      setPageProgress(null);
     }
   }
 
@@ -109,10 +306,12 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
             <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm" role="status" aria-live="polite">
               <Spinner className="size-4" />
               <span className="font-medium">{stage}</span>
-              <span className="ml-auto text-xs text-muted-foreground">{elapsed}s · limite 180s</span>
+              {uploadPercent !== null && <span className="text-xs text-muted-foreground">Envio: {uploadPercent}%</span>}
+              {pageProgress && <span className="ml-auto text-xs text-muted-foreground">{pageProgress.page}/{pageProgress.pageCount} páginas</span>}
             </div>
           ) : null}
           <div className="flex justify-end gap-2">
+            {busy && <Button type="button" variant="outline" onClick={() => abortRef.current?.abort()}>Cancelar</Button>}
             <Button type="submit" disabled={busy || files.length === 0} data-testid="gestor-statements-import-submeter">
               {busy ? (<><Spinner className="size-4" />A ler a prova…</>) : (<><ScanText size={16} aria-hidden />Ler e preencher</>)}
             </Button>

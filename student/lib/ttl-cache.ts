@@ -6,7 +6,8 @@
  *  fazerem dez leituras. O que falhou nunca fica guardado. */
 export class TtlCache<T> {
   private entries = new Map<string, { value: T; until: number }>();
-  private inflight = new Map<string, Promise<T>>();
+  private inflight = new Map<string, { promise: Promise<T>; generation: number }>();
+  private generation = 0;
 
   private readonly ttlMs: number;
   private readonly maxEntries: number;
@@ -27,15 +28,18 @@ export class TtlCache<T> {
     const hit = this.entries.get(key);
     if (hit && hit.until > this.now()) return hit.value;
     const running = this.inflight.get(key);
-    if (running) return running;
+    if (running?.generation === this.generation) return running.promise;
 
+    const generation = this.generation;
     const started = load()
       .then(({ value, keep }) => {
-        if (keep) this.store(key, value);
+        if (keep && generation === this.generation) this.store(key, value);
         return value;
       })
-      .finally(() => this.inflight.delete(key));
-    this.inflight.set(key, started);
+      .finally(() => {
+        if (this.inflight.get(key)?.promise === started) this.inflight.delete(key);
+      });
+    this.inflight.set(key, { promise: started, generation });
     return started;
   }
 
@@ -49,6 +53,8 @@ export class TtlCache<T> {
   }
 
   clear(): void {
+    this.generation++;
     this.entries.clear();
+    this.inflight.clear();
   }
 }

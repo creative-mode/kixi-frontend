@@ -2,8 +2,8 @@
 
 import { ArrowDown, ArrowUp, Check, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { labelAt, move, nextLabel, type DraftOption } from '@/lib/exam/draft';
+import { FormulaInput } from './formula-input';
 
 /**
  * As opções de uma questão de escolha múltipla (ou de uma alínea).
@@ -36,11 +36,12 @@ export function OptionEditor({
         // garante que nenhum vem vazio — por isso serve de key.
         <div key={option.label || i} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
           <span className="grid size-7 shrink-0 place-items-center rounded-md border text-[12px] font-bold text-muted-foreground">{option.label || labelAt(i)}</span>
-          <Input
+          <FormulaInput
             value={option.text}
-            onChange={(e) => setOption(i, { text: e.target.value })}
+            onChange={(value) => setOption(i, { text: value })}
+            label={`Opção ${option.label || labelAt(i)} da questão ${where}`}
+            rows={1}
             placeholder={`Opção ${option.label || labelAt(i)}`}
-            aria-label={`Opção ${option.label || labelAt(i)} da questão ${where}`}
             className="min-w-0 flex-1"
           />
           <Button

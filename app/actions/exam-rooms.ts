@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/auth.server';
 import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { assignmentsFrom, teacherCanWrite } from '@/lib/crud/teacher-scope';
-import type { BulkGradeResult, ExamRoom, Grade, RoomAction, RoomDraft, RoomReview } from '@/lib/exam-rooms/model';
+import type { BulkGradeResult, ExamRoom, Grade, RoomAction, RoomDraft, RoomIntegrity, RoomReview } from '@/lib/exam-rooms/model';
 import { draftProblem, toLocalDateTime } from '@/lib/exam-rooms/model';
 
 const BASE = '/api/v1/exam-rooms';
@@ -183,6 +183,12 @@ export async function changeRoomStatus(id: number, action: RoomAction): Promise<
 
 export async function roomGrades(id: number): Promise<Result<Grade[]>> {
   return guard(async () => json<Grade[]>(`${BASE}/${safeId(id)}/grades`));
+}
+
+/** Os eventos do modo de avaliação (#192) da sala, por aluno. Só o dono da sala (ou
+ *  o ADMIN) os lê; o backend decide, como no `/live` e no `/grades`. */
+export async function roomIntegrity(id: number): Promise<Result<RoomIntegrity>> {
+  return guard(async () => json<RoomIntegrity>(`${BASE}/${safeId(id)}/integrity`));
 }
 
 /** As respostas abertas da sala, questão a questão, com a chave ao lado. */

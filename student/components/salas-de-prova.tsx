@@ -30,9 +30,10 @@ const BADGE: Record<Phase, { label: string; variant: 'success' | 'warning' | 'se
 
 /** A secção "Salas de prova": as provas controladas para que o professor convidou o
  *  aluno. Só aparece quando há convites; com erro, aparece o aviso em vez de nada. */
-export function SalasDeProva({ invitations, invitationsError }: {
+export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0 }: {
   invitations: Invitation[];
   invitationsError?: { message: string; status: number | null } | null;
+  hiddenCount?: number;
 }) {
   // O relógio só arranca depois de montar: `Date.now()` no render diferia entre o
   // servidor e o browser, e o React acusava a divergência na hidratação.
@@ -47,7 +48,7 @@ export function SalasDeProva({ invitations, invitationsError }: {
   }, []);
 
   if (invitations.length === 0) {
-    if (!invitationsError) return null;
+    if (!invitationsError) return hiddenCount > 0 ? <p className="text-[13px] text-muted-foreground">{hiddenCount === 1 ? '1 sala já entregue ou terminada' : `${hiddenCount} salas já entregues ou terminadas`} · <Link href="/provas" className="font-semibold text-primary hover:underline">ver em Provas</Link></p> : null;
     return (
       <section aria-labelledby="salas-title" className="grid gap-3">
         <h2 id="salas-title" className="flex items-center gap-2 text-lg font-bold"><DoorOpen className="size-5" aria-hidden /> Salas de prova</h2>
@@ -74,6 +75,7 @@ export function SalasDeProva({ invitations, invitationsError }: {
           </li>
         ))}
       </ul>
+      {hiddenCount > 0 && <p className="text-[13px] text-muted-foreground">{hiddenCount === 1 ? '1 sala já entregue ou terminada' : `${hiddenCount} salas já entregues ou terminadas`} · <Link href="/provas" className="font-semibold text-primary hover:underline">ver em Provas</Link></p>}
     </section>
   );
 }

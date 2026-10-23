@@ -151,32 +151,6 @@ export function ProvaSkeleton() {
   );
 }
 
-/** Onboarding: só o conteúdo de dentro do cartão (passos, escolha e botão).
- *
- *  O `AuthShell` do onboarding está no `layout.tsx`, por isso o logo, o cartão e o título já estão
- *  no ecrã enquanto a página carrega. Este esqueleto é o `children` desse cartão: desenhar aqui outro
- *  ecrã completo (como o `AuthSkeleton`, que serve as páginas que trazem o seu próprio shell) dava
- *  um cartão dentro do cartão, dois logos e conteúdo fora dos limites. */
-export function OnboardingSkeleton() {
-  return (
-    <div className="grid gap-6" role="status" aria-busy="true">
-      <span className="sr-only">A carregar os cursos…</span>
-      <div className="flex items-center gap-2" aria-hidden>
-        <Skeleton className="size-6 shrink-0 rounded-full" />
-        <Skeleton className="h-3.5 w-12" />
-        <Skeleton className="h-px w-4 md:w-6" />
-        <Skeleton className="size-6 shrink-0 rounded-full" />
-        <Skeleton className="h-3.5 w-12" />
-        <Skeleton className="h-px w-4 md:w-6" />
-        <Skeleton className="size-6 shrink-0 rounded-full" />
-        <Skeleton className="h-3.5 w-10" />
-      </div>
-      <div className="grid gap-2" aria-hidden><Skeleton className="h-3.5 w-32" /><Skeleton className="h-10 w-full" /><Skeleton className="h-3 w-48 max-w-full" /></div>
-      <Skeleton className="h-11 w-full" aria-hidden />
-    </div>
-  );
-}
-
 /** Formulário de entrada/cadastro: mesma coluna centrada do AuthShell. */
 export function AuthSkeleton({ fields = 2 }: { fields?: number }) {
   return (

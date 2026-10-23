@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import { test, expect, type Page, type Locator } from '@playwright/test';
 
 const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
@@ -66,6 +67,12 @@ async function escolherOpcao(select: Locator) {
   const texto = (await primeira.textContent())?.trim();
   if (!texto) throw new Error('a primeira opção não tem value nem texto');
   await select.selectOption({ label: texto });
+}
+
+async function assertPrintablePdf(page: Page) {
+  const pdf = await page.pdf({ printBackground: true, preferCSSPageSize: true });
+  expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  expect(pdf.byteLength).toBeGreaterThan(1_000);
 }
 
 const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
@@ -214,26 +221,31 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByTestId('aluno-cadastro-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/onboarding/);
 
-    // Primeira escola com valor, e nao o ITEL pelo nome: num ambiente real o
-    // nome da escola de seed nao existe, e o teste nao deve depender dele.
-    await escolherOpcao(page.locator('#escola'));
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.locator('#curso')).toBeVisible();
-    await escolherOpcao(page.locator('#curso'));
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.locator('#classId')).toBeVisible();
-    await escolherOpcao(page.locator('#classId'));
-    // Desde kixi#255 a auto-matrícula exige um código (TESTE1234 é o que o mock semeia).
+    // Desde kixi#255 a auto-matrícula é só o código: a turma e o ano letivo vêm dele,
+    // por isso o onboarding deixou de pedir escola/curso/turma. TESTE1234 é o código
+    // da turma 12B que o mock semeia.
     await page.getByLabel('Código de matrícula').fill('TESTE1234');
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     // Conta nova: o início abre sem o bloco «Começa por aqui» (saiu do início).
     await expect(page.getByRole('region', { name: 'Primeiros passos' })).toHaveCount(0);
+    const applause = page.getByRole('button', { name: 'Aplaudir' }).first();
+    await expect(applause).toBeVisible();
+    await applause.click();
+    const applauded = page.getByRole('button', { name: 'Aplaudido, tocar para retirar' }).first();
+    await expect(applauded).toHaveAttribute('aria-pressed', 'true');
+    await applauded.click();
+    await expect(page.getByRole('button', { name: 'Aplaudir' }).first()).toHaveAttribute('aria-pressed', 'false');
 
     // Follow the catalogue for the class selected during onboarding so the test does
     // not assume a fixed class-to-statement mapping.
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
+    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    await assertPrintablePdf(page);
+    await page.emulateMedia({ media: 'screen' });
     await page.getByRole('link', { name: 'Começar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
@@ -270,10 +282,22 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       buffer: samplePdf(),
     });
     await page.getByTestId('gestor-statements-import-submeter').click();
+    await expect(page.getByText('A ler página 1 de 1…')).toBeVisible();
 
     // O extrato entra no rascunho. Publicar exige disciplina e turma — o proprio
     // botao diz isso no `title` — e so depois de a prova existir.
     await expect(page.getByText('ocr-sample.pdf')).toBeVisible();
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+    await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
+    const mathQuestion = page.getByRole('textbox', { name: 'Questão 1' });
+    await expect(mathQuestion).toBeEditable();
+    await mathQuestion.fill('Questão sintética editada: determine $v = v_0 + at$.');
+    await expect(page.locator('#exam-sheet')).toContainText('Questão sintética editada: determine');
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+    await assertPrintablePdf(page);
+    await page.emulateMedia({ media: 'screen' });
     // Por label, nao por posicao: o `Field` do construtor passou a envolver o
     // controlo no `<label>`, que e o que da ao campo um nome acessivel. Antes o
     // teste ia por `select` a dedo (Escola, Disciplina, Turma), e isso partia se o
@@ -297,10 +321,285 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.getByRole('button', { name: 'Publicar' }).click();
     await expect(page.getByText('Prova publicada. Os alunos já a podem simular.')).toBeVisible();
 
+    const detailHref = await page.getByRole('link', { name: 'Ver o enunciado' }).getAttribute('href');
+    expect(detailHref).toBeTruthy();
+    const detail = await page.context().newPage();
+    await detail.goto(detailHref!);
+    await expect(detail.getByRole('img', { name: 'Diagrama OCR' })).toBeVisible();
+    await expect(detail.locator('.katex')).toBeVisible();
+    await detail.emulateMedia({ media: 'print' });
+    await expect(detail.locator('.katex')).toBeVisible();
+    await assertPrintablePdf(detail);
+    await detail.close();
+
     await page.getByRole('link', { name: 'Criar sala com esta prova' }).click();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/new\?statementId=/);
     await page.getByRole('button', { name: 'Criar sala' }).click();
     await expect(page).toHaveURL(/\/manager\/exam-rooms\/\d+/);
+  });
+
+  test('OCR matemático: vectores da questão VII.a aparecem na folha e na impressão', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const latex = String.raw`\vec{v}\;e\;\vec{a}`;
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      title: 'Regressão visual sintética — Física',
+      class_grade: '12',
+      subject_name: 'Física',
+      questions: [{
+        number: '4',
+        type: 'dissertativa',
+        confidence: 0.95,
+        text: 'Para t = 3 s:',
+        subitems_content: [{
+          label: 'VII.a',
+          type: 'dissertativa',
+          text: `O ângulo formado entre os vectores $${latex}$`,
+          rawText: 'O ângulo formado entre os vectores e',
+          confidence: 0.55,
+          formulas: [{ raw: latex, latex, confidence: 0.55, layoutConfidence: 0.55, kind: 'formula' }],
+        }],
+      }],
+      warnings: [{ code: 'LOW_CONFIDENCE_FORMULA', field: 'question_4_formula_1', confidence: 0.55 }],
+    };
+    const events = [
+      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-physics', pageCount: 1, timings: {} })}`,
+      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
+      `event: result\ndata: ${JSON.stringify(extraction)}`,
+    ].join('\n\n') + '\n\n';
+    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+      body: events,
+    }));
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'ocr-physics-vectors.pdf',
+      mimeType: 'application/pdf',
+      buffer: samplePdf(),
+    });
+    await page.getByTestId('gestor-statements-import-submeter').click();
+
+    const sheet = page.locator('#exam-sheet');
+    await expect(sheet).toContainText('O ângulo formado entre os vectores');
+    await expect(sheet.locator('.katex')).toBeVisible();
+    await expect(sheet.locator('.kixi-math-review')).toContainText('Fórmula a rever');
+    await page.getByText(/Prova lida/).waitFor({ state: 'hidden' });
+    await sheet.screenshot({ path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/vector-pair-builder.png') });
+
+    await page.emulateMedia({ media: 'print' });
+    await expect(sheet.locator('.katex')).toBeVisible();
+    const pdf = await page.pdf({
+      path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/vector-pair-print.pdf'),
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    await page.emulateMedia({ media: 'screen' });
+  });
+
+  test('OCR: grupo impresso com chaveta mantém as três alíneas no construtor e na impressão', async ({ page }, testInfo) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      title: 'Regressão visual sintética — Física',
+      class_grade: '12',
+      subject_name: 'Física',
+      questions: [{
+        number: '5',
+        type: 'composta',
+        groupLayout: 'brace',
+        confidence: 0.95,
+        text: 'Para o intervalo [2; 4] s, calcule: $\\vec{v}$',
+        formulas: [{ raw: '\\vec{v}', latex: '\\vec{v}', confidence: 0.95, kind: 'formula' }],
+        subitems_content: [
+          { label: 'a', type: 'dissertativa', text: 'o deslocamento' },
+          { label: 'b', type: 'dissertativa', text: 'a velocidade média' },
+          { label: 'c', type: 'dissertativa', text: 'a aceleração média' },
+        ],
+      }],
+      warnings: [],
+    };
+    const events = [
+      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-brace', pageCount: 1, timings: {} })}`,
+      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
+      `event: result\ndata: ${JSON.stringify(extraction)}`,
+    ].join('\n\n') + '\n\n';
+    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+      body: events,
+    }));
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'ocr-physics-brace.pdf',
+      mimeType: 'application/pdf',
+      buffer: samplePdf(),
+    });
+    await page.getByTestId('gestor-statements-import-submeter').click();
+
+    const sheet = page.locator('#exam-sheet');
+    await expect(sheet).toContainText('Para o intervalo [2; 4] s, calcule:');
+    for (const text of ['o deslocamento', 'a velocidade média', 'a aceleração média']) {
+      await expect(sheet.getByText(text, { exact: true })).toBeVisible();
+    }
+    const brace = sheet.getByTestId('group-brace');
+    await expect(brace).toBeVisible();
+    await expect(sheet).not.toContainText('a) o deslocamento');
+    await page.getByText(/Prova lida/).waitFor({ state: 'hidden' });
+
+    const originalViewport = page.viewportSize() ?? { width: 1280, height: 900 };
+    for (const width of [375, 390, 430, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const geometry = await brace.evaluate((element) => {
+        const braceRect = element.getBoundingClientRect();
+        const list = element.parentElement?.querySelector('ol');
+        if (!list) throw new Error('Lista de alíneas não encontrada junto à chaveta.');
+        const listRect = list.getBoundingClientRect();
+        return {
+          braceTop: braceRect.top,
+          braceBottom: braceRect.bottom,
+          listTop: listRect.top,
+          listBottom: listRect.bottom,
+          viewportWidth: window.innerWidth,
+          documentWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(Math.abs(geometry.braceTop - geometry.listTop), `topo da chaveta a ${width}px`).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(geometry.braceBottom - geometry.listBottom), `base da chaveta a ${width}px`).toBeLessThanOrEqual(1.5);
+      expect(geometry.documentWidth, `overflow horizontal a ${width}px`).toBeLessThanOrEqual(geometry.viewportWidth);
+      if (width === 375) {
+        const mobileEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-mobile-375.png');
+        await sheet.screenshot({ path: mobileEvidencePath });
+        await testInfo.attach('group-brace-mobile-375.png', {
+          path: mobileEvidencePath,
+          contentType: 'image/png',
+        });
+      }
+    }
+    await page.setViewportSize(originalViewport);
+    const builderEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-builder.png');
+    await sheet.screenshot({ path: builderEvidencePath });
+    await testInfo.attach('group-brace-builder.png', {
+      path: builderEvidencePath,
+      contentType: 'image/png',
+    });
+
+    await page.emulateMedia({ media: 'print' });
+    await expect(brace).toBeVisible();
+    const pdf = await page.pdf({
+      path: resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/group-brace-print.pdf'),
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    await testInfo.attach('group-brace-print.pdf', { body: pdf, contentType: 'application/pdf' });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    await page.emulateMedia({ media: 'screen' });
+
+    const renderedQuestion = page.getByLabel('Enunciado comum da questão 1');
+    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion.locator('.katex')).toBeVisible();
+    const formulaToggle = page.getByRole('button', { name: 'Inserir fórmula' }).first();
+    await formulaToggle.click();
+    const formulaDialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    const vectorButton = formulaDialog.getByRole('button', { name: 'Inserir modelo Vetor' });
+    const systemButton = formulaDialog.getByRole('button', { name: 'Inserir modelo Sistema' });
+    await expect(vectorButton.locator('.katex')).toBeVisible();
+    await expect(systemButton.locator('.katex')).toBeVisible();
+    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+
+    const formulaEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/formula-picker-rendered-symbols.png');
+    await page.locator('body').screenshot({ path: formulaEvidencePath });
+    await testInfo.attach('formula-picker-rendered-symbols.png', {
+      path: formulaEvidencePath,
+      contentType: 'image/png',
+    });
+    await vectorButton.click();
+    await expect.poll(async () => formulaDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\vec{v}');
+    await formulaDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion.locator('.katex')).toHaveCount(2);
+
+    await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+    const systemDialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    await systemDialog.getByRole('button', { name: 'Inserir modelo Sistema' }).click();
+    await expect.poll(async () => systemDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\begin{cases}');
+    await systemDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+    await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
+  });
+
+  test('construtor: falha do MathLive mantém edição de fórmula em LaTeX', async ({ page }, testInfo) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder');
+    const blockedMathLiveChunks: string[] = [];
+    await page.route('**/_next/static/chunks/**', async (route) => {
+      const response = await route.fetch();
+      const content = await response.body();
+      if (content.toString('utf8').includes('mathVirtualKeyboard')) {
+        blockedMathLiveChunks.push(route.request().url());
+        await route.abort();
+        return;
+      }
+      await route.fulfill({ response, body: content });
+    });
+    await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+
+    const dialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    await expect.poll(() => blockedMathLiveChunks.length).toBe(1);
+    await expect(dialog.getByRole('status')).toContainText('editor visual não carregou');
+    const latexInput = dialog.getByRole('textbox', { name: 'Fórmula em LaTeX' });
+    await expect(latexInput).toBeVisible();
+    await latexInput.fill('\\frac{1}{2}');
+    const fallbackEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/mathlive-latex-fallback.png');
+    await dialog.screenshot({ path: fallbackEvidencePath });
+    await testInfo.attach('mathlive-latex-fallback.png', {
+      path: fallbackEvidencePath,
+      contentType: 'image/png',
+    });
+    await dialog.getByRole('button', { name: 'Inserir fórmula', exact: true }).last().click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('#exam-sheet .katex')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
+    const reopenedDialog = page.getByRole('dialog', { name: 'Inserir fórmula' });
+    await expect(reopenedDialog.getByRole('status')).toContainText('editor visual não carregou');
+    await page.keyboard.press('Escape');
+    await expect(reopenedDialog).toHaveCount(0);
+  });
+
+  test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/classes');
+
+    // A lista de turmas é o sítio onde a escola emite o código (#255). 12B é a turma
+    // semeada; o botão leva o código da turma no nome acessível.
+    await page.getByRole('button', { name: /Códigos de matrícula de 12B/ }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: /Códigos de matrícula/ })).toBeVisible();
+
+    await dialog.getByLabel('Usos').fill('2');
+    await dialog.getByRole('button', { name: 'Gerar' }).click();
+
+    const item = dialog.locator('ul li').first();
+    await expect(item).toBeVisible();
+    await expect(item).toContainText('0/2 usos');
+    await expect(item.getByText('Ativo')).toBeVisible();
+    // O backend gera 8 caracteres do alfabeto sem O/0/I/1/L.
+    const code = (await item.locator('button').first().textContent())?.trim() ?? '';
+    expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+
+    page.on('dialog', (confirm) => confirm.accept());
+    await item.getByRole('button', { name: 'Revogar' }).click();
+    await expect(item.getByText('Revogado')).toBeVisible();
+    await expect(item.getByRole('button', { name: 'Revogar' })).toHaveCount(0);
   });
 
   test('admin: cria escola e turma e regressa ao dashboard', async ({ page }) => {
