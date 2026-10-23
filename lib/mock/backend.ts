@@ -5,6 +5,7 @@ import 'server-only';
 // Same contracts as scripts/mock-api.mjs (paths, DTOs, soft delete, HS256 JWT). State lives in memory per server process.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from 'node:crypto';
+import { getJwtSecretValue } from '../dev-secret';
 import { approvalProblem } from './gate';
 import { examRooms, liveStream, luandaClock } from './exam-rooms';
 import { assignmentsFrom, teacherCanWrite } from '../crud/teacher-scope';
@@ -13,7 +14,6 @@ import { buildQuestions } from './manual-questions';
 import { OGI_EXTRACTION } from './ogi-extraction';
 import { addToCurriculum, buildStructure, removeFromCurriculum, subjectOfferings, subjectsOfClass, teacherOverview, validateAssignment, type AcademicWorld } from './academic';
 
-const SECRET = process.env.JWT_SECRET ?? 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
 
 
@@ -21,13 +21,13 @@ const b64 = (b) => Buffer.from(b).toString('base64url');
 function sign(payload) {
   const h = b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const p = b64(JSON.stringify(payload));
-  const s = crypto.createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url');
+  const s = crypto.createHmac('sha256', getJwtSecretValue()).update(`${h}.${p}`).digest('base64url');
   return `${h}.${p}.${s}`;
 }
 function verify(token) {
   const [h, p, s] = token.split('.');
   if (!h || !p || !s) return null;
-  const expect = crypto.createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url');
+  const expect = crypto.createHmac('sha256', getJwtSecretValue()).update(`${h}.${p}`).digest('base64url');
   if (s !== expect) return null;
   const payload = JSON.parse(Buffer.from(p, 'base64url').toString());
   if (payload.exp && Date.now() / 1000 > payload.exp) return null;
@@ -44,8 +44,9 @@ const nextId = (t) => (seq[t] = (seq[t] ?? 0) + 1);
 G.__kixiMock.db ??= {
   roles: [], accounts: [], users: [], accountRoles: [], 'school-years': [], terms: [], subjects: [], courses: [],
   classes: [], statements: [], simulations: [], 'simulation-answers': [], sessions: [], 'question-images': [],
+  'integrity-events': [],
   institutions: [], teachers: [], institutionSubjects: [], institutionTeachers: [], institutionStudents: [],
-  enrollments: [], 'teaching-assignments': [], courseSubjects: [],
+  enrollments: [], 'teaching-assignments': [], courseSubjects: [], enrollmentCodes: [],
 };
 const db: any = G.__kixiMock.db;
 function add(table, data) {
@@ -280,6 +281,8 @@ function authorize(auth: any, method: string, path: string) {
     const readable = method === 'GET' && (path === '/api/v1/institutions' || path === '/api/v1/institutions/mine' || /^\/api\/v1\/institutions\/\d+(\/subjects)?$/.test(path));
     return readable || has('ADMIN') ? 200 : 403;
   }
+  // kixi#255: emitir, listar por turma e revogar códigos de matrícula é ADMIN-only.
+  if (/^\/api\/v1\/enrollment-codes(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   if (method === 'GET') {
     if (/^\/api\/v1\/statements\/(review|from-ocr|trash|stats)$/.test(path) || /\/trash$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
     return 200;
@@ -1024,7 +1027,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
     }
 
     // ── exam rooms (BE-16/BE-17) ──
-    if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades))?$/))) {
+    if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades|integrity))?$/))) {
       const me = Number(auth.sub);
       const roles = auth.roles ?? [];
       const admin = roles.includes('ADMIN');
@@ -1046,6 +1049,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       }
       if (Number.isFinite(id) && method === 'GET' && staff) {
         if (action === 'grades') return out(rooms.grades(id, me, admin));
+        if (action === 'integrity') return out(rooms.integrity(id, me, admin));
         if (action === 'live') {
           const first = rooms.live(id, me, admin);
           return first.ok ? liveStream(() => rooms.live(id, me, admin)) : out(first);
@@ -1171,6 +1175,49 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return json(200, db['teaching-assignments'].filter((a) => !a.deletedAt && a.teacherId === t.id));
     }
 
+    // ── códigos de matrícula (#255): ADMIN emite, lista por turma e revoga. ──
+    if ((m = path.match(/^\/api\/v1\/enrollment-codes(?:\/(\d+))?$/))) {
+      if (!(auth?.roles ?? []).includes('ADMIN')) return problem(403, 'Only ADMIN can manage enrollment codes');
+      const codeOut = (c: any) => ({
+        id: c.id, code: c.code, classId: c.classId, maxUses: c.maxUses, uses: c.uses,
+        expiresAt: c.expiresAt, revokedAt: c.revokedAt, createdAt: c.createdAt,
+      });
+      if (!m[1] && method === 'POST') {
+        const b = readBody();
+        const classId = Number(b.classId);
+        if (!Number.isInteger(classId) || classId < 1) return problem(400, 'Class is required');
+        if (!db.classes.find((c: any) => c.id === classId && !c.deletedAt)) return problem(404, 'Class not found');
+        const maxUses = b.maxUses == null ? 1 : Number(b.maxUses);
+        if (!Number.isInteger(maxUses) || maxUses < 1) return problem(400, 'maxUses must be at least 1');
+        let expiresAt: string | null = null;
+        if (b.expiresAt != null && b.expiresAt !== '') {
+          const when = new Date(String(b.expiresAt));
+          if (Number.isNaN(when.getTime()) || when <= new Date()) return problem(400, 'expiresAt must be in the future');
+          expiresAt = String(b.expiresAt);
+        }
+        // Mesmo alfabeto do EnrollmentCodeService: sem O/0 nem I/1/L, que se confundem.
+        const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const code = Array.from({ length: 8 }, () => alphabet[crypto.randomInt(alphabet.length)]).join('');
+          if (db.enrollmentCodes.some((c: any) => c.code === code)) continue;
+          const row = add('enrollmentCodes', { code, classId, maxUses, uses: 0, expiresAt, revokedAt: null });
+          return json(201, codeOut(row));
+        }
+        return problem(503, 'Could not generate a unique enrollment code');
+      }
+      if (!m[1] && method === 'GET') {
+        const classId = Number(url.searchParams.get('classId'));
+        if (!Number.isInteger(classId) || classId < 1) return problem(400, 'classId is required');
+        return json(200, db.enrollmentCodes.filter((c: any) => c.classId === classId).sort((a: any, b: any) => b.id - a.id).map(codeOut));
+      }
+      if (m[1] && method === 'DELETE') {
+        const row = db.enrollmentCodes.find((c: any) => c.id === Number(m[1]));
+        if (!row) return problem(404, 'Enrollment code not found');
+        if (!row.revokedAt) row.revokedAt = now();
+        return json(200, codeOut(row));
+      }
+    }
+
     // ── generic CRUD (/api/v1/<resource>) ──
     m = path.match(/^\/api\/v1\/([a-z-]+)(?:\/(trash|active|[^/]+?))?(?:\/(restore|purge|login))?$/);
     const def = m && RES[m[1]];
@@ -1265,6 +1312,49 @@ function seedExtras() {
   for (const [username, first, last] of [['helder', 'Helder', 'Gomes'], ['mariana', 'Mariana', 'Costa'], ['paulo', 'Paulo', 'Neto'], ['sara', 'Sara', 'Pinto']]) {
     const acc = seedAccount(username, `${username}@kixi.ao`, 'STUDENT', first, last);
     add('enrollments', { accountId: acc.id, classId: db.classes[0].id, schoolYearId: sy.id, status: 'ACTIVE' });
+  }
+
+  // Uma sala a decorrer, com um aluno e eventos de integridade (#192), para o
+  // professor ter o que ver na consola sem correr a stack toda. No backend, quem
+  // escreve estes eventos é o aluno, pelo `POST /simulations/{id}/integrity-events`;
+  // o mock do gestor é outro processo e outra base, por isso semeia-os aqui (a
+  // limitação do kixi#323, registada na nota do endpoint).
+  const helena = db.accounts.find((a: any) => a.username === 'professor');
+  const wall = (mins: number) => new Date(Date.now() + 3_600_000 + mins * 60_000).toISOString().slice(0, 19);
+  const room = add('exam-rooms', {
+    statementId: 1,
+    classId: db.classes[0].id,
+    teacherAccountId: helena.id,
+    startsAt: wall(-30),
+    endsAt: wall(60),
+    durationMinutes: 90,
+    status: 'RUNNING',
+  });
+  const roomSim = add('simulations', {
+    accountId: student.id,
+    statementId: 1,
+    examRoomId: room.id,
+    schoolYearId: sy.id,
+    startedAt: wall(-29),
+    finishedAt: null,
+    timeSpentSeconds: 0,
+    finalScore: null,
+    status: 'IN_PROGRESS',
+  });
+  add('exam-room-participants', { examRoomId: room.id, accountId: student.id, simulationId: roomSim.id, joinedAt: wall(-29) });
+  // Os restantes convidados ainda não entraram: mostram a coluna vazia de eventos.
+  for (const acc of db.accounts.filter((a: any) => ['helder', 'mariana', 'paulo', 'sara'].includes(a.username))) {
+    add('exam-room-participants', { examRoomId: room.id, accountId: acc.id, simulationId: null, joinedAt: null });
+  }
+  for (const [kind, mins, questionId] of [
+    ['TAB_HIDDEN', -25, null],
+    ['TAB_VISIBLE', -24, null],
+    ['WINDOW_BLUR', -18, null],
+    ['WINDOW_FOCUS', -17, null],
+    ['PASTE_BLOCKED', -12, db.statements[0].questions[2]?.id ?? null],
+    ['TUTOR_BLOCKED', -6, null],
+  ] as [string, number, number | null][]) {
+    add('integrity-events', { simulationId: roomSim.id, kind, questionId, at: wall(mins) });
   }
 }
 

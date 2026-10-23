@@ -2,10 +2,11 @@
 //
 // Os DTOs são os do `examrooms` do backend (BE-16 e BE-17). As horas chegam como
 // `LocalDateTime` sem fuso, na hora do servidor, que corre em Africa/Luanda
-// (`TZ` no backend.Dockerfile). Por isso aqui nunca se passa por `Date`: as
-// horas são tratadas como hora de parede, lidas e escritas como texto. Um
-// `new Date('2026-10-12T09:00:00')` dependia do fuso do browser e deslocava a
-// janela da prova para quem não estivesse em Luanda.
+// (`TZ` no backend.Dockerfile). Por isso aqui nunca se constrói um `Date` a partir
+// de texto: as horas são tratadas como hora de parede, lidas e escritas como texto.
+// Um `new Date('2026-10-12T09:00:00')` dependia do fuso do browser e deslocava a
+// janela da prova para quem não estivesse em Luanda. Para subtrair, `Date.UTC`
+// trata os campos como número, sem fuso.
 
 export type RoomStatus = 'DRAFT' | 'OPEN' | 'RUNNING' | 'CLOSED';
 
@@ -77,6 +78,97 @@ export const PARTICIPANT_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelada',
 };
 
+// ── modo de avaliação (#192) ────────────────────────────────────────────────
+
+/**
+ * `IntegrityEventResponse`: um evento que o modo de avaliação registou, com a hora
+ * que o SERVIDOR lhe deu — o cliente nunca a manda.
+ *
+ * Os nomes dos eventos têm de bater certo com `student/lib/integrity.ts`, de onde
+ * nascem, e com o contrato do backend. Há um teste de cada lado a fixá-los, como
+ * nas denúncias (#323), porque um evento que o aluno escreve e o professor não sabe
+ * ler é pior do que não o ter.
+ */
+export interface IntegrityEvent {
+  id: number;
+  kind: string;
+  at: string;
+  questionId: number | null;
+}
+
+/** `RoomIntegrityResponse.ParticipantIntegrity` */
+export interface ParticipantIntegrity {
+  accountId: number;
+  simulationId: number | null;
+  events: IntegrityEvent[];
+  /** Ainda não vem do backend; ver `participantName`. */
+  displayName?: string | null;
+}
+
+/** `RoomIntegrityResponse` */
+export interface RoomIntegrity {
+  roomId: number;
+  serverTime: string;
+  participants: ParticipantIntegrity[];
+}
+
+export const INTEGRITY_LABEL: Record<string, string> = {
+  TAB_HIDDEN: 'Saiu do separador',
+  TAB_VISIBLE: 'Voltou ao separador',
+  WINDOW_BLUR: 'Perdeu o foco da janela',
+  WINDOW_FOCUS: 'Recuperou o foco da janela',
+  PASTE_BLOCKED: 'Tentou colar uma resposta',
+  TUTOR_BLOCKED: 'Tentou abrir o tutor durante a prova',
+};
+
+/** Os eventos que, para o professor, contam como o aluno ter saído da prova: os
+ *  pares `TAB_VISIBLE`/`WINDOW_FOCUS` são o regresso e não somam.
+ *
+ *  Esconder o separador e perder o foco são a MESMA saída vista por dois sinais do
+ *  browser. O cliente já os engole juntos (`student/lib/integrity.ts`), mas o
+ *  servidor pode guardá-los separados — dois pedidos que chegam fora da janela do
+ *  cliente. Por isso a deduplicação é feita também aqui, na leitura. */
+const INTEGRITY_EXIT = new Set(['TAB_HIDDEN', 'WINDOW_BLUR']);
+
+/** A janela em que dois sinais são a mesma saída. Tem de ser a mesma do cliente
+ *  (`student/lib/integrity.ts`, `COALESCE_MS`): mudar uma sem a outra faz o
+ *  professor ler um número que o aluno não produziu. */
+export const INTEGRITY_COALESCE_MS = 2_000;
+
+export interface IntegritySummary {
+  total: number;
+  /** Saídas da prova (separador escondido ou janela sem foco), sem contar duas
+   *  vezes os dois sinais da mesma saída. */
+  exits: number;
+  /** Quantos eventos de cada tipo, na ordem em que apareceram. É a contagem crua:
+   *  dois sinais contam dois aqui, mas uma só saída em `exits`. */
+  byKind: { kind: string; label: string; count: number }[];
+}
+
+export function summarizeIntegrity(events: IntegrityEvent[]): IntegritySummary {
+  const counts = new Map<string, number>();
+  for (const e of events) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
+
+  // Pela hora, não pela ordem de chegada: o servidor pode devolver os eventos
+  // fora de ordem, e a janela é sobre quando aconteceram.
+  const ordered = [...events].sort((a, b) => (wallSeconds(a.at) ?? 0) - (wallSeconds(b.at) ?? 0));
+  let exits = 0;
+  let lastExit: number | null = null;
+  for (const e of ordered) {
+    if (!INTEGRITY_EXIT.has(e.kind)) continue;
+    const at = wallSeconds(e.at);
+    if (lastExit !== null && at !== null && at - lastExit < INTEGRITY_COALESCE_MS / 1000) continue;
+    exits += 1;
+    if (at !== null) lastExit = at;
+  }
+
+  return {
+    total: events.length,
+    exits,
+    byKind: [...counts.entries()].map(([kind, count]) => ({ kind, label: INTEGRITY_LABEL[kind] ?? kind, count })),
+  };
+}
+
 /** O backend ainda não devolve o nome do aluno (pedido no kixi#181). Até lá,
  *  o número da conta é a única identificação que o professor pode ler. */
 export function participantName(p: { accountId: number; displayName?: string | null }): string {
@@ -93,6 +185,16 @@ export function wallMinutes(value: string): number | null {
   if (!m) return null;
   const [, y, mo, d, h, mi] = m.map(Number);
   return Date.UTC(y, mo - 1, d, h, mi) / 60_000;
+}
+
+/** Segundos desde 1970 de uma hora de parede — como `wallMinutes`, com a precisão
+ *  que os eventos precisam (dois sinais da mesma saída chegam no mesmo segundo).
+ *  `Date.UTC` fixa a hora de parede; não lê o fuso do browser. */
+function wallSeconds(value: string): number | null {
+  const m = WALL.exec(value);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), s ? Number(s) : 0) / 1000;
 }
 
 /** "12/10 09:00", ou com o ano quando não é o corrente. */

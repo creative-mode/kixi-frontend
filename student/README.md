@@ -5,9 +5,13 @@ Next.js 16 (App Router) + React 19 + TypeScript. Interface mobile-first do aluno
 ```bash
 cd student
 npm install
-npm run dev      # http://localhost:3003/aluno (ou, com tudo junto: npm run dev:all na raiz → http://localhost:3000/aluno)
+KIXI_MOCK=true npm run dev      # demonstração local em http://localhost:3003/aluno (ou `KIXI_MOCK=true npm run dev:all` na raiz)
 npm run build
 ```
+
+No PowerShell, use `$env:KIXI_MOCK='true'; npm run dev`; no `cmd.exe`, use
+`set KIXI_MOCK=true && npm run dev`. Também pode definir `KIXI_MOCK=true` no
+`student/.env.local` e arrancar sem prefixar o comando.
 
 ## Rotas
 
@@ -39,7 +43,7 @@ O perfil, a matrícula e a edição de nome e foto falam com o backend:
 - `lib/me.ts`: `GET /me`, uma vez por request. Devolve três estados, e a distinção importa: `unauthorized` (401) leva ao login, `unknown` (rede caída, 500) deixa o aluno passar e `ok` é a única resposta que pode mandar para o onboarding. Tratar tudo como "sem perfil" trancava o aluno fora do feed quando o servidor tinha um problema.
 - `lib/guard.ts`: sessão viva e papel de aluno. Partilhado entre o shell e o onboarding.
 - `lib/me-context.tsx`: publica o perfil aos ecrãs cliente, para haver uma só fonte de verdade do nome e da turma.
-- `lib/mock/backend.ts`: com `KIXI_MOCK` ligado (por omissão) responde em processo a `/me`, `/enrollments`, `/institutions`, `/courses`, `/classes` e ao resto, com as mesmas regras do backend, incluindo os filtros por escola. É o que permite desenhar sem base de dados. `KIXI_MOCK_FAULT=500` ou `=timeout` injecta uma falha de propósito, para o estado `unknown` de `lib/me.ts` deixar de ser código morto: sem isso, uma regressão que mandasse o aluno para o login quando o servidor cai passava todos os testes.
+- `lib/mock/backend.ts`: com `KIXI_MOCK=true` explícito responde em processo a `/me`, `/enrollments`, `/institutions`, `/courses`, `/classes` e ao resto, com as mesmas regras do backend, incluindo os filtros por escola. O modo não é ativado por omissão; o servidor recusa arrancar se `KIXI_MOCK` estiver ausente ou inválido. `KIXI_MOCK_FAULT=500` ou `=timeout` injecta uma falha de propósito, para o estado `unknown` de `lib/me.ts` deixar de ser código morto: sem isso, uma regressão que mandasse o aluno para o login quando o servidor cai passava todos os testes.
 
 ## A sala de prova
 

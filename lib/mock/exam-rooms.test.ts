@@ -30,6 +30,7 @@ function world(now = '2026-10-12T09:30:00') {
     ],
     simulations: [],
     'simulation-answers': [],
+    'integrity-events': [],
   };
   const clock = { now };
   const w: RoomWorld = {
@@ -133,6 +134,39 @@ test('de ponta a ponta: abrir, iniciar na janela, entrar, encerrar e notas', () 
   assert.equal(!reopen.ok && reopen.problem.status, 409);
   const closedJoin = rooms.join(id, S2);
   assert.equal(!closedJoin.ok && closedJoin.problem.status, 409);
+});
+
+test('os eventos de integridade saem por aluno, com a hora e sem os de outra tentativa', () => {
+  const { rooms, db } = world('2026-10-12T10:30:00');
+  const r = rooms.create(room, TEACHER, false);
+  const id = r.ok ? r.body.id : 0;
+  rooms.addParticipant(id, { classId: 7 }, TEACHER, false);
+  assert.equal(rooms.transition(id, TEACHER, false, 'OPEN').ok, true);
+  assert.equal(rooms.transition(id, TEACHER, false, 'RUNNING').ok, true);
+
+  const joined = rooms.join(id, S1);
+  const simId = joined.ok ? joined.body.simulationId : null;
+  db['integrity-events'].push(
+    { id: 1, simulationId: simId, kind: 'TAB_HIDDEN', questionId: null, at: '2026-10-12T10:05:00', deletedAt: null },
+    { id: 2, simulationId: simId, kind: 'PASTE_BLOCKED', questionId: 1, at: '2026-10-12T10:06:00', deletedAt: null },
+    // De outra tentativa, de outro aluno: não pode aparecer na sala.
+    { id: 3, simulationId: 999, kind: 'TAB_HIDDEN', questionId: null, at: '2026-10-12T10:07:00', deletedAt: null },
+  );
+
+  const seen = rooms.integrity(id, TEACHER, false);
+  assert.ok(seen.ok);
+  if (seen.ok) {
+    const s1 = seen.body.participants.find((p: { accountId: number }) => p.accountId === S1);
+    assert.deepEqual(s1.events.map((e: { id: number }) => e.id), [1, 2]);
+    assert.equal(s1.events[1].questionId, 1);
+    // O S2 foi convidado mas não entrou: sem tentativa, sem eventos.
+    const s2 = seen.body.participants.find((p: { accountId: number }) => p.accountId === S2);
+    assert.deepEqual(s2.events, []);
+  }
+
+  // Outro professor não lê os eventos de uma sala que não é dele.
+  const stranger = rooms.integrity(id, OTHER_TEACHER, false);
+  assert.equal(!stranger.ok && stranger.problem.status, 403);
 });
 
 test('o /live termina quando a sala fecha', async () => {

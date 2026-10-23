@@ -5,6 +5,7 @@ import { findVisible, summaryOf } from './statement-detail';
 import { resolveSchoolId } from './school';
 import { isRestricted, isVisibility, matchesSearch, personAttributes, type Visibility } from './profiles';
 import { validateReport, blockPair, bloqueadoEntre, deveDesaparecer, desaparecePara, visibilidadePara } from '@/lib/moderation';
+import { integrityRefusal, isIntegrityKind, parseQuestionId } from '@/lib/integrity';
 import * as friends from './friends';
 import { institutionsCounted as countInstitutions, rankGlobal } from './global-ranking';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
@@ -19,11 +20,12 @@ import {
 } from './simulation';
 
 import crypto from 'node:crypto';
+import { getJwtSecretValue, isMockEnabled } from '../dev-secret';
 import { invitationsOf, join, roomDeadline, studentView, type MockParticipant, type MockRoom } from './exam-rooms';
 import { conversation, type MockPostComment } from './feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../post-blocks';
 import { parseServerTime } from '../exam-rules';
-import { validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes';
+import { turmaDoCodigo, validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-codes';
 import type {
   Course,
   Enrollment,
@@ -37,7 +39,7 @@ import type {
  *  security rules, so the screens can be built against it without a database.
  *  The secret matches the manager's, so the same cookie works on both apps.
  *  Set KIXI_MOCK=false to talk to the real API instead. */
-export const MOCK = process.env.KIXI_MOCK !== 'false';
+export const MOCK = isMockEnabled();
 
 /** Inject a backend failure, so the client's resilience can be exercised for real:
  *  `KIXI_MOCK_FAULT=500` makes every route answer 500 and `=timeout` makes them fail the
@@ -54,7 +56,6 @@ export function setFault(mode: string): void {
   G.__kixiFault = normalizeFault(mode);
 }
 
-const SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production-min-256-bits';
 const SEED_PASSWORD = 'Kixi1234!';
 const TOKEN_TTL = 86400;
 
@@ -199,6 +200,18 @@ type Store = {
   /** Bloqueios de pessoa (#323). Guardados como par normalizado: `blockPair` garante
    *  que o mesmo bloqueio nunca existe nos dois sentidos. */
   blocks: { accountId: number; blockedAccountId: number; createdAt: string }[];
+  /** Eventos do modo de avaliação (#192): o que o aluno fez e o servidor viu. A hora
+   *  é carimbada no servidor, nunca a que o cliente mande. */
+  integrityEvents: MockIntegrityEvent[];
+  nextIntegrityEvent: number;
+};
+
+type MockIntegrityEvent = {
+  id: number;
+  simulationId: number;
+  kind: string;
+  questionId: number | null;
+  at: string;
 };
 
 type MockReport = {
@@ -269,7 +282,7 @@ const b64 = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
 function sign(payload: object): string {
   const head = b64({ alg: 'HS256', typ: 'JWT' });
   const body = b64(payload);
-  const sig = crypto.createHmac('sha256', SECRET).update(`${head}.${body}`).digest('base64url');
+  const sig = crypto.createHmac('sha256', getJwtSecretValue()).update(`${head}.${body}`).digest('base64url');
   return `${head}.${body}.${sig}`;
 }
 
@@ -279,7 +292,7 @@ function accountIdOf(token: string | null): number | null {
   if (!token) return null;
   const [head, body, sig] = token.split('.');
   if (!head || !body || !sig) return null;
-  const expected = crypto.createHmac('sha256', SECRET).update(`${head}.${body}`).digest('base64url');
+  const expected = crypto.createHmac('sha256', getJwtSecretValue()).update(`${head}.${body}`).digest('base64url');
   if (sig !== expected) return null;
   try {
     const claims = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
@@ -403,10 +416,13 @@ function seed(): Store {
       { id: 4, accountId: 6, classId: 2, schoolYearId: 1, status: 'ACTIVE' },
     ],
     nextEnrollment: 5,
-    // Código fixo e com usos de sobra: os testes de fluxo e o Playwright
-    // auto-matriculam-se com ele, como se a escola o tivesse distribuído.
+    // Códigos fixos e com usos de sobra: os testes de fluxo e o Playwright
+    // auto-matriculam-se com eles, como se a escola os tivesse distribuído. O
+    // TESTE5678 é da turma 5 (11A), a turma vazia que o fluxo usa para os estados
+    // sem tentativas e o ranking 1.º de 1; o TESTE1234 é da 12B, com colegas.
     enrollmentCodes: [
-      { id: 1, code: 'TESTE1234', maxUses: 9999, uses: 0, expiresAt: null, revokedAt: null },
+      { id: 1, code: 'TESTE1234', classId: 1, maxUses: 9999, uses: 0, expiresAt: null, revokedAt: null },
+      { id: 2, code: 'TESTE5678', classId: 5, maxUses: 9999, uses: 0, expiresAt: null, revokedAt: null },
     ],
     subjects: [
       { id: 1, code: 'RED', name: 'Redes de Computadores' },
@@ -655,6 +671,10 @@ function seed(): Store {
     reports: [],
     nextReport: 1,
     blocks: [],
+    // Vazio: quem os cria é a sala de prova, ao correr (#192). Semeá-los não teria
+    // quem os lesse — o professor lê os do mock do gestor, que é outro processo.
+    integrityEvents: [],
+    nextIntegrityEvent: 1,
   };
 }
 
@@ -1708,6 +1728,58 @@ export async function mockHandle(
     return json(simulationResponse(db, row), 201);
   }
 
+  // O modo de avaliação (#192) a registar um evento. O corpo leva o tipo e, na
+  // colagem, a questão — nunca texto de resposta. A hora é do servidor: um cliente
+  // não carimba os seus próprios eventos.
+  //
+  // As regras são as do `SimulationIntegrityEventService` do backend e vivem em
+  // `integrityRefusal`, para não divergirem: `PASTE_BLOCKED` exige uma questão (e só
+  // esse tipo a leva), a questão tem de ser desta prova, e a tentativa tem de estar a
+  // decorrer. O backend fecha por `IN_PROGRESS`; aqui fecha-se também pelo prazo,
+  // porque o mock não tem um scheduler que mude o estado quando o tempo acaba.
+  const integrityMatch = pathname.match(/^\/simulations\/(\d+)\/integrity-events$/);
+  if (integrityMatch && method === 'POST') {
+    const simulationId = Number(integrityMatch[1]);
+    if (!isIntegrityKind(body.kind)) return validationError({ kind: 'Evento de integridade desconhecido' });
+    const kind = body.kind;
+    // `0`, `-1`, `1.5` ou `"abc"` não são "sem questão": o backend recusa-os com 400
+    // na desserialização. Passá-los a `null` deixaria um `TAB_HIDDEN` inválido entrar.
+    const questionId = parseQuestionId(body.questionId);
+    if (questionId === undefined) {
+      return validationError({ questionId: 'questionId tem de ser um inteiro positivo' });
+    }
+    const simulation = db.simulations.find((s) => s.id === simulationId && s.accountId === account.id);
+    const refusal = integrityRefusal({
+      kind,
+      questionId,
+      attempt: simulation
+        ? {
+            active: simulation.status === 'IN_PROGRESS',
+            expired: expired(simulationResponse(db, simulation).deadline),
+            questionBelongs:
+              questionId === null
+                ? null
+                : (QUESTIONS_BY_STATEMENT[simulation.statementId] ?? []).includes(questionId),
+          }
+        : null,
+    });
+    if (refusal) {
+      return refusal.status === 400
+        ? validationError({ questionId: refusal.message })
+        : problem(refusal.status, refusal.message);
+    }
+
+    const event = {
+      id: db.nextIntegrityEvent++,
+      simulationId,
+      kind,
+      questionId,
+      at: toLocalDateTime(new Date()),
+    };
+    db.integrityEvents.push(event);
+    return json(event, 201);
+  }
+
   // ── salas de prova (FE-14) ─────────────────────────────────────────────────
   if (pathname === '/exam-rooms/mine' && method === 'GET') {
     return json(invitationsOf(
@@ -2046,14 +2118,21 @@ export async function mockHandle(
     if (target !== account.id && !staff) {
       return problem(403, 'Only ADMIN or TEACHER can enroll another account');
     }
-    const missing: Record<string, string> = {};
-    if (!Number.isInteger(Number(body.classId))) missing.classId = 'Class is required';
-    if (!Number.isInteger(Number(body.schoolYearId))) missing.schoolYearId = 'School year is required';
-    // Auto-matrícula (kixi#255): sem código, nem o admin nem o professor estão a
-    // decidir por ela, por isso é exigido — ao contrário da matrícula feita por eles.
-    const selfEnroll = target === account.id && !staff;
+    const targetAccount = db.accounts.find((a) => a.id === target);
+    if (!targetAccount || !targetAccount.active) return problem(404, 'Account not found');
+
+    // Auto-matrícula (kixi#255): quem se matricula a si próprio — mesmo sendo ADMIN ou
+    // TEACHER — precisa de um código. A matrícula de outra conta por staff continua a
+    // indicar a turma e o ano, como no EnrollmentService.
+    const selfEnroll = target === account.id;
     const code = typeof body.code === 'string' ? body.code.trim() : '';
-    if (selfEnroll && !code) missing.code = 'An enrollment code is required';
+    const missing: Record<string, string> = {};
+    if (selfEnroll) {
+      if (!code) missing.code = 'An enrollment code is required';
+    } else {
+      if (!Number.isInteger(Number(body.classId))) missing.classId = 'Class is required';
+      if (!Number.isInteger(Number(body.schoolYearId))) missing.schoolYearId = 'School year is required';
+    }
     if (Object.keys(missing).length) return validationError(missing);
 
     let codeEntry: EnrollmentCode | undefined;
@@ -2061,17 +2140,24 @@ export async function mockHandle(
       const validacao = validarCodigoDeMatricula(db.enrollmentCodes, code, new Date());
       if (!validacao.ok) return problem(validacao.status, validacao.detail);
       codeEntry = validacao.entry;
+      // Como o backend, o uso é reservado antes de procurar uma matrícula activa: um
+      // 409 também gasta o código (EnrollmentService#enroll redime primeiro).
+      codeEntry.uses++;
     }
 
-    const targetAccount = db.accounts.find((a) => a.id === target);
-    if (!targetAccount || !targetAccount.active) return problem(404, 'Account not found');
-
-    const classId = Number(body.classId);
-    const schoolYearId = Number(body.schoolYearId);
-    const row = db.classes.find((c) => c.id === classId);
-    if (!row) return problem(404, 'Class not found');
-    if (row.schoolYearId !== schoolYearId) {
-      return problem(400, 'Class does not belong to the given school year');
+    // O código manda: o classId/schoolYearId do corpo são ignorados na auto-matrícula,
+    // para um aluno não poder escolher a turma que lhe apetece (kixi#255).
+    const resolvida = selfEnroll
+      ? turmaDoCodigo(codeEntry!, db.classes)
+      : { classId: Number(body.classId), schoolYearId: Number(body.schoolYearId) };
+    if (!resolvida) return problem(404, 'Class not found');
+    const { classId, schoolYearId } = resolvida;
+    if (!selfEnroll) {
+      const row = db.classes.find((c) => c.id === classId);
+      if (!row) return problem(404, 'Class not found');
+      if (row.schoolYearId !== schoolYearId) {
+        return problem(400, 'Class does not belong to the given school year');
+      }
     }
     if (!db.schoolYears.some((y) => y.id === schoolYearId)) {
       return problem(404, 'School year not found');
@@ -2082,8 +2168,6 @@ export async function mockHandle(
     if (active) {
       return problem(409, 'Account already has an active enrollment for this school year');
     }
-
-    if (codeEntry) codeEntry.uses++;
 
     const enrollment: Enrollment = {
       id: db.nextEnrollment++,

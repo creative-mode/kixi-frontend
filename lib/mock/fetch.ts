@@ -1,8 +1,8 @@
 import 'server-only';
+import { isMockEnabled } from '../dev-secret';
 
-/** The manager has no backend: every API call is answered in-process by lib/mock/backend.ts.
- *  Set KIXI_MOCK=false to talk to the real Spring Boot API instead. */
-export const MOCK = process.env.KIXI_MOCK !== 'false';
+/** The mock is opt-in; startup rejects an unset or invalid KIXI_MOCK value. */
+export const MOCK = isMockEnabled();
 
 /** Multipart bodies reach the mock as JSON: JSON parts are parsed, files become `{ name, type, size, dataUrl }`. */
 async function formToJson(form: FormData): Promise<string> {
