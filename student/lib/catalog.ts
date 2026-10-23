@@ -72,13 +72,23 @@ function yearLabel(year: SchoolYear): string {
 /** Nomes para os ids do catálogo, cada endpoint carregado uma vez. */
 type CatalogNames = {
   subjects: Named[];
-  years: (Named & { label: string })[];
+  years: (Named & { label: string; startYear: number; endYear: number })[];
   schools: Named[];
 };
 
 /** Disciplinas, anos lectivos e escolas quase nunca mudam e eram pedidos em cada navegação (3 a 6 chamadas por página).
- *  Guardam-se 5 minutos por utilizador, e só quando as três leituras correram bem. */
-const namesCache = new TtlCache<CatalogNames>(5 * 60_000, 500);
+ *  Guardam-se 5 minutos por utilizador, e só quando as três leituras correram bem.
+ *
+ *  Fica em `globalThis` e não numa variável do módulo: o build do Next instancia este módulo uma vez por grupo de
+ *  rotas, e o aviso do gestor (`app/api/internal/reference-changed`, #389) tem de esquecer o que as páginas guardaram. */
+const SHARED = Symbol.for('kixi.student.catalog-names');
+const store = globalThis as typeof globalThis & { [SHARED]?: TtlCache<CatalogNames> };
+const namesCache = (store[SHARED] ??= new TtlCache<CatalogNames>(5 * 60_000, 500));
+
+/** Chamado quando o gestor avisa que uma disciplina, um ano letivo ou uma escola mudou (#389). */
+export function forgetCatalogNames(): void {
+  namesCache.clear();
+}
 
 export async function getCatalogNames(): Promise<CatalogNames> {
   const viewer = await viewerKey();
@@ -94,7 +104,7 @@ export async function getCatalogNames(): Promise<CatalogNames> {
         ? subjects.data.map((s) => ({ id: s.id, name: s.name }))
         : [],
       years: years.ok && Array.isArray(years.data)
-        ? years.data.map((y) => ({ id: y.id, name: `${y.startYear}–${y.endYear}`, label: yearLabel(y) }))
+        ? years.data.map((y) => ({ id: y.id, name: `${y.startYear}–${y.endYear}`, label: yearLabel(y), startYear: y.startYear, endYear: y.endYear }))
         : [],
       schools: schools.ok && Array.isArray(schools.data)
         ? schools.data.map((s) => ({ id: s.id, name: s.name }))

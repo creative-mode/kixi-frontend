@@ -28,6 +28,21 @@ export function classChoices<T extends Choice>(c: Omit<CurriculumChoices, 'class
   });
 }
 
+/** O currículo de uma turma é o do seu curso para a sua classe (CurriculumService.subjectsOfClass no backend):
+ *  turmas com o mesmo curso e a mesma classe têm as mesmas disciplinas. Agrupa-as para se pedir o currículo
+ *  uma vez por grupo, a uma turma qualquer dele, em vez de uma vez por turma (#389). Uma turma sem curso
+ *  fica sozinha no seu grupo. */
+export function curriculumGroups(classes: { id: number; courseId: number | null; grade: number | null }[]): { key: string; classId: number; classIds: number[] }[] {
+  const groups = new Map<string, { key: string; classId: number; classIds: number[] }>();
+  for (const c of classes) {
+    const key = c.courseId == null ? `class:${c.id}` : `course:${c.courseId}:grade:${c.grade ?? '-'}`;
+    const group = groups.get(key);
+    if (group) group.classIds.push(c.id);
+    else groups.set(key, { key, classId: c.id, classIds: [c.id] });
+  }
+  return [...groups.values()];
+}
+
 /** Junta os currículos das turmas: o conjunto de disciplinas oferecidas e o mapa turma → disciplinas. */
 export function mergeCurricula(perClass: { classId: number; subjects: { subjectId: number; name: string }[] }[]): { subjects: Choice[]; curriculum: Record<number, number[]> } {
   const names = new Map<number, string>();

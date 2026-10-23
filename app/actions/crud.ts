@@ -7,7 +7,8 @@ import { ENTITIES, type EntityKey, type Row } from '@/lib/crud/entities';
 import { apiFetch } from '@/lib/mock/fetch';
 import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
 import { friendlyMessage } from '@/lib/crud/messages';
-import { mergeCurricula } from '@/lib/exam/curriculum';
+import { curriculumGroups, mergeCurricula } from '@/lib/exam/curriculum';
+import { forgetReference, isReference, readReference } from '@/lib/crud/reference';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -62,15 +63,26 @@ export async function getRow(key: string, id: string | number): Promise<Result<R
   });
 }
 
+/** A lista inteira de uma entidade. As de referência (disciplinas, anos, escolas…) vêm da cache por utilizador (#389). */
+async function readRows(key: string): Promise<Result<Row[]>> {
+  const e = entity(key);
+  if (isReference(key)) {
+    const r = await readReference<Row[]>(e.api, [key], () => call(e.api));
+    return r.ok ? ok(r.data) : fail(r.error);
+  }
+  const res = await call(e.api);
+  if (!res.ok) return fail(await message(res));
+  return ok((await res.json()) as Row[]);
+}
+
 /** `[value, label]` pairs for a select that points at another entity. */
 export async function listOptions(key: string): Promise<Result<{ value: number; label: string }[]>> {
   return guard(async () => {
     const e = entity(key);
-    const res = await call(e.api);
-    if (!res.ok) return fail(await message(res));
-    const rows = (await res.json()) as Row[];
+    const rows = await readRows(key);
+    if (!rows.ok) return rows;
     return ok(
-      rows.map((r) => ({
+      rows.data.map((r) => ({
         value: Number(r.id),
         label: key === 'accounts' ? `${r.username} · ${r.email}` : key === 'courses' ? `${r.code} · ${r.name}` : e.titleOf(r),
       })),
@@ -97,6 +109,7 @@ export async function createRow(key: string, values: Row): Promise<Result<Row>> 
     if (!e.canCreate) return fail('Esta entidade não pode ser criada aqui.');
     const res = await call(e.api, { method: 'POST', body: JSON.stringify(body(key, values)) });
     if (!res.ok) return fail(await message(res));
+    forgetReference(key);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });
@@ -108,6 +121,7 @@ export async function updateRow(key: string, id: string | number, values: Row): 
     if (!e.canEdit) return fail('Esta entidade não pode ser editada.');
     const res = await call(`${e.api}/${safeId(id)}`, { method: 'PUT', body: JSON.stringify(body(key, values)) });
     if (!res.ok) return fail(await message(res));
+    forgetReference(key);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });
@@ -118,6 +132,7 @@ async function simple(key: string, id: string | number, method: string, suffix: 
     const e = entity(key);
     const res = await call(`${e.api}/${safeId(id)}${suffix}`, { method });
     if (!res.ok) return fail((await message(res)) || fallback);
+    forgetReference(key);
     revalidatePath(`/${e.path}`);
     revalidatePath(`/${e.path}/trash`);
     return ok(undefined);
@@ -289,18 +304,27 @@ export type ReviewChoices = {
 export async function reviewChoices(institutionId: number, teacher: boolean): Promise<Result<ReviewChoices>> {
   return guard(async () => {
     const inst = safeId(institutionId);
+    const classesPath = `/api/v1/classes?institutionId=${inst}`;
     const [classes, mine] = await Promise.all([
-      call(`/api/v1/classes?institutionId=${inst}`),
+      readReference<Row[]>(classesPath, ['classes'], () => call(classesPath)),
       teacher ? call('/api/v1/teaching-assignments/me') : Promise.resolve(null),
     ]);
-    for (const r of [classes, mine]) if (r && !r.ok) return fail(await message(r));
+    if (!classes.ok) return fail(classes.error);
+    if (mine && !mine.ok) return fail(await message(mine));
     const assignments = mine ? ((await mine.json()) as Row[]).map((a) => ({ classId: Number(a.classId), subjectId: Number(a.subjectId) })) : null;
-    const classRows = ((await classes.json()) as Row[]).filter((c) => !assignments || assignments.some((a) => a.classId === Number(c.id)));
-    const perClass = await Promise.all(classRows.map(async (c) => {
-      const r = await call(`/api/v1/classes/${safeId(c.id)}/subjects`);
-      return { classId: Number(c.id), subjects: r.ok ? ((await r.json()) as { subjectId: number; name: string }[]) : [] };
+    const classRows = classes.data.filter((c) => !assignments || assignments.some((a) => a.classId === Number(c.id)));
+    // Um pedido por curso+classe, e não por turma (#389): as turmas do mesmo curso e da mesma classe têm o mesmo currículo.
+    const groups = curriculumGroups(classRows.map((c) => ({
+      id: Number(c.id),
+      courseId: c.course?.id ?? c.courseId ?? null,
+      grade: c.grade ?? null,
+    })));
+    const perGroup = await Promise.all(groups.map(async (g) => {
+      const path = `/api/v1/classes/${safeId(g.classId)}/subjects`;
+      const r = await readReference<{ subjectId: number; name: string }[]>(path, ['curriculum'], () => call(path));
+      return { classIds: g.classIds, subjects: r.ok ? r.data : [] };
     }));
-    const merged = mergeCurricula(perClass);
+    const merged = mergeCurricula(perGroup.flatMap((g) => g.classIds.map((classId) => ({ classId, subjects: g.subjects }))));
     return ok({
       subjects: merged.subjects,
       curriculum: merged.curriculum,
@@ -425,11 +449,10 @@ export async function dashboardCounts(): Promise<Result<Record<string, number>>>
   return guard(async () => {
     const keys = Object.keys(ENTITIES) as EntityKey[];
     const entries = await Promise.all(
+      // O backend não tem contagens: as listas de referência vêm da cache e as outras continuam inteiras.
       keys.map(async (k) => {
-        const res = await call(ENTITIES[k].api).catch(() => null);
-        if (!res?.ok) return [k, -1] as const;
-        const rows = (await res.json()) as Row[];
-        return [k, rows.length] as const;
+        const rows = await readRows(k).catch(() => null);
+        return [k, rows?.ok ? rows.data.length : -1] as const;
       }),
     );
     const counts: Record<string, number> = Object.fromEntries(entries);
@@ -453,6 +476,7 @@ export async function setInstitutionLink(institutionId: number, kind: LinkKind, 
   return guard(async () => {
     const res = await call(`/api/v1/institutions/${safeId(institutionId)}/${kind}/${safeId(targetId)}`, { method: linked ? 'POST' : 'DELETE' });
     if (!res.ok) return fail(await message(res));
+    if (kind === 'subjects') forgetReference('subjects', 'institutions');
     return ok(undefined);
   });
 }

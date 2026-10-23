@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { apiGet, apiPost, apiPut, type Result } from './api';
+import { getCatalogNames } from './catalog';
 import { getMe } from './me';
 import type { PaperMeta } from './folha-da-prova';
 import {
@@ -335,16 +336,20 @@ export async function loadPaperMeta(statement: StatementFull): Promise<PaperMeta
     const result = await apiGet<{ name?: string | null }>(path);
     return result.ok ? result.data.name ?? null : null;
   };
-  // `/subjects/{x}` procura pelo código e não pelo id, por isso a disciplina sai da lista.
-  const subjects = statement.subjectId != null ? await apiGet<{ id: number; name?: string | null }[]>('/subjects') : null;
-  const subject = subjects && subjects.ok && Array.isArray(subjects.data)
-    ? subjects.data.find((s) => s.id === statement.subjectId)?.name ?? null
-    : null;
+  // Disciplina, escola e ano saem dos nomes do catálogo, que estão em cache (#389): antes era a lista inteira de
+  // `/subjects` por cada prova aberta (`/subjects/{x}` procura pelo código e não pelo id), mais escola e ano.
+  // Uma escola ou um ano que não esteja na lista ainda se pede pelo id.
+  const names = await getCatalogNames();
+  const subject = statement.subjectId != null ? names.subjects.find((s) => s.id === statement.subjectId)?.name ?? null : null;
+  const school = names.schools.find((s) => s.id === statement.institutionId)?.name ?? null;
+  const knownYear = names.years.find((y) => y.id === statement.schoolYearId);
   const [institution, year, klass] = await Promise.all([
-    name(statement.institutionId != null ? `/institutions/${statement.institutionId}` : null),
-    statement.schoolYearId != null
-      ? apiGet<{ startYear?: number; endYear?: number }>(`/school-years/${statement.schoolYearId}`)
-      : Promise.resolve(null),
+    school ?? name(statement.institutionId != null ? `/institutions/${statement.institutionId}` : null),
+    knownYear
+      ? Promise.resolve({ ok: true as const, data: knownYear })
+      : statement.schoolYearId != null
+        ? apiGet<{ startYear?: number; endYear?: number }>(`/school-years/${statement.schoolYearId}`)
+        : Promise.resolve(null),
     statement.classId != null ? apiGet<{ grade?: number | null }>(`/classes/${statement.classId}`) : Promise.resolve(null),
   ]);
   const grade = klass && klass.ok && klass.data.grade != null ? `${klass.data.grade}ª Classe` : null;
