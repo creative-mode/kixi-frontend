@@ -7,6 +7,7 @@ import { MOCK, mockPost } from './mock/backend';
 import { problem } from './api';
 import { authFailureMessage, forwardedFor, retryAfterSeconds } from './auth-rules';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
+import { redirectFromAction } from './action-redirect';
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
 
@@ -109,7 +110,7 @@ export async function entrarAction(_: FormState, form: FormData): Promise<FormSt
     return { error: 'Resposta de sessão inválida. Tenta novamente.', fields: { usernameOrEmail } };
   }
 
-  redirect(destination);
+  await redirectFromAction(destination);
 }
 
 export async function cadastroAction(_: FormState, form: FormData): Promise<FormState> {
@@ -147,12 +148,12 @@ export async function cadastroAction(_: FormState, form: FormData): Promise<Form
   // salto e deixa um sinal de uso único (kixi-frontend#219: "registo concluído") que
   // `/onboarding`, por si só, não tem — a página é revisitada por quem ainda não
   // terminou a matrícula, não só por quem acaba de se registar.
-  redirect('/onboarding?novo=1');
+  await redirectFromAction('/onboarding?novo=1');
 }
 
 export async function sairAction() {
   const jar = await cookies();
   jar.delete(COOKIE);
   jar.delete('user_info');
-  redirect('/entrar?reason=logged-out');
+  await redirectFromAction('/entrar?reason=logged-out');
 }
