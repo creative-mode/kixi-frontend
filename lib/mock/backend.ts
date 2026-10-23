@@ -46,7 +46,7 @@ G.__kixiMock.db ??= {
   classes: [], statements: [], simulations: [], 'simulation-answers': [], sessions: [], 'question-images': [],
   'integrity-events': [],
   institutions: [], teachers: [], institutionSubjects: [], institutionTeachers: [], institutionStudents: [],
-  enrollments: [], 'teaching-assignments': [], courseSubjects: [],
+  enrollments: [], 'teaching-assignments': [], courseSubjects: [], enrollmentCodes: [],
 };
 const db: any = G.__kixiMock.db;
 function add(table, data) {
@@ -281,6 +281,8 @@ function authorize(auth: any, method: string, path: string) {
     const readable = method === 'GET' && (path === '/api/v1/institutions' || path === '/api/v1/institutions/mine' || /^\/api\/v1\/institutions\/\d+(\/subjects)?$/.test(path));
     return readable || has('ADMIN') ? 200 : 403;
   }
+  // kixi#255: emitir, listar por turma e revogar códigos de matrícula é ADMIN-only.
+  if (/^\/api\/v1\/enrollment-codes(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   if (method === 'GET') {
     if (/^\/api\/v1\/statements\/(review|from-ocr|trash|stats)$/.test(path) || /\/trash$/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
     return 200;
@@ -1130,6 +1132,49 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
       if (!t) return json(200, []);
       return json(200, db['teaching-assignments'].filter((a) => !a.deletedAt && a.teacherId === t.id));
+    }
+
+    // ── códigos de matrícula (#255): ADMIN emite, lista por turma e revoga. ──
+    if ((m = path.match(/^\/api\/v1\/enrollment-codes(?:\/(\d+))?$/))) {
+      if (!(auth?.roles ?? []).includes('ADMIN')) return problem(403, 'Only ADMIN can manage enrollment codes');
+      const codeOut = (c: any) => ({
+        id: c.id, code: c.code, classId: c.classId, maxUses: c.maxUses, uses: c.uses,
+        expiresAt: c.expiresAt, revokedAt: c.revokedAt, createdAt: c.createdAt,
+      });
+      if (!m[1] && method === 'POST') {
+        const b = readBody();
+        const classId = Number(b.classId);
+        if (!Number.isInteger(classId) || classId < 1) return problem(400, 'Class is required');
+        if (!db.classes.find((c: any) => c.id === classId && !c.deletedAt)) return problem(404, 'Class not found');
+        const maxUses = b.maxUses == null ? 1 : Number(b.maxUses);
+        if (!Number.isInteger(maxUses) || maxUses < 1) return problem(400, 'maxUses must be at least 1');
+        let expiresAt: string | null = null;
+        if (b.expiresAt != null && b.expiresAt !== '') {
+          const when = new Date(String(b.expiresAt));
+          if (Number.isNaN(when.getTime()) || when <= new Date()) return problem(400, 'expiresAt must be in the future');
+          expiresAt = String(b.expiresAt);
+        }
+        // Mesmo alfabeto do EnrollmentCodeService: sem O/0 nem I/1/L, que se confundem.
+        const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const code = Array.from({ length: 8 }, () => alphabet[crypto.randomInt(alphabet.length)]).join('');
+          if (db.enrollmentCodes.some((c: any) => c.code === code)) continue;
+          const row = add('enrollmentCodes', { code, classId, maxUses, uses: 0, expiresAt, revokedAt: null });
+          return json(201, codeOut(row));
+        }
+        return problem(503, 'Could not generate a unique enrollment code');
+      }
+      if (!m[1] && method === 'GET') {
+        const classId = Number(url.searchParams.get('classId'));
+        if (!Number.isInteger(classId) || classId < 1) return problem(400, 'classId is required');
+        return json(200, db.enrollmentCodes.filter((c: any) => c.classId === classId).sort((a: any, b: any) => b.id - a.id).map(codeOut));
+      }
+      if (m[1] && method === 'DELETE') {
+        const row = db.enrollmentCodes.find((c: any) => c.id === Number(m[1]));
+        if (!row) return problem(404, 'Enrollment code not found');
+        if (!row.revokedAt) row.revokedAt = now();
+        return json(200, codeOut(row));
+      }
     }
 
     // ── generic CRUD (/api/v1/<resource>) ──

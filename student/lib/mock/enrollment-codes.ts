@@ -11,6 +11,9 @@
 export type EnrollmentCode = {
   id: number;
   code: string;
+  /** A turma que o código abre. É ela, não o `classId` do corpo, que decide onde o
+   *  aluno fica matriculado (EnrollmentService#resolveBySelfEnrollCode, kixi#255). */
+  classId: number;
   maxUses: number;
   uses: number;
   expiresAt: string | null;

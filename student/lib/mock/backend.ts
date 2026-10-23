@@ -416,10 +416,13 @@ function seed(): Store {
       { id: 4, accountId: 6, classId: 2, schoolYearId: 1, status: 'ACTIVE' },
     ],
     nextEnrollment: 5,
-    // Código fixo e com usos de sobra: os testes de fluxo e o Playwright
-    // auto-matriculam-se com ele, como se a escola o tivesse distribuído.
+    // Códigos fixos e com usos de sobra: os testes de fluxo e o Playwright
+    // auto-matriculam-se com eles, como se a escola os tivesse distribuído. O
+    // TESTE5678 é da turma 5 (11A), a turma vazia que o fluxo usa para os estados
+    // sem tentativas e o ranking 1.º de 1; o TESTE1234 é da 12B, com colegas.
     enrollmentCodes: [
-      { id: 1, code: 'TESTE1234', maxUses: 9999, uses: 0, expiresAt: null, revokedAt: null },
+      { id: 1, code: 'TESTE1234', classId: 1, maxUses: 9999, uses: 0, expiresAt: null, revokedAt: null },
+      { id: 2, code: 'TESTE5678', classId: 5, maxUses: 9999, uses: 0, expiresAt: null, revokedAt: null },
     ],
     subjects: [
       { id: 1, code: 'RED', name: 'Redes de Computadores' },
@@ -2109,14 +2112,21 @@ export async function mockHandle(
     if (target !== account.id && !staff) {
       return problem(403, 'Only ADMIN or TEACHER can enroll another account');
     }
-    const missing: Record<string, string> = {};
-    if (!Number.isInteger(Number(body.classId))) missing.classId = 'Class is required';
-    if (!Number.isInteger(Number(body.schoolYearId))) missing.schoolYearId = 'School year is required';
-    // Auto-matrícula (kixi#255): sem código, nem o admin nem o professor estão a
-    // decidir por ela, por isso é exigido — ao contrário da matrícula feita por eles.
-    const selfEnroll = target === account.id && !staff;
+    const targetAccount = db.accounts.find((a) => a.id === target);
+    if (!targetAccount || !targetAccount.active) return problem(404, 'Account not found');
+
+    // Auto-matrícula (kixi#255): quem se matricula a si próprio — mesmo sendo ADMIN ou
+    // TEACHER — precisa de um código. A matrícula de outra conta por staff continua a
+    // indicar a turma e o ano, como no EnrollmentService.
+    const selfEnroll = target === account.id;
     const code = typeof body.code === 'string' ? body.code.trim() : '';
-    if (selfEnroll && !code) missing.code = 'An enrollment code is required';
+    const missing: Record<string, string> = {};
+    if (selfEnroll) {
+      if (!code) missing.code = 'An enrollment code is required';
+    } else {
+      if (!Number.isInteger(Number(body.classId))) missing.classId = 'Class is required';
+      if (!Number.isInteger(Number(body.schoolYearId))) missing.schoolYearId = 'School year is required';
+    }
     if (Object.keys(missing).length) return validationError(missing);
 
     let codeEntry: EnrollmentCode | undefined;
@@ -2124,16 +2134,18 @@ export async function mockHandle(
       const validacao = validarCodigoDeMatricula(db.enrollmentCodes, code, new Date());
       if (!validacao.ok) return problem(validacao.status, validacao.detail);
       codeEntry = validacao.entry;
+      // Como o backend, o uso é reservado antes de procurar uma matrícula activa: um
+      // 409 também gasta o código (EnrollmentService#enroll redime primeiro).
+      codeEntry.uses++;
     }
 
-    const targetAccount = db.accounts.find((a) => a.id === target);
-    if (!targetAccount || !targetAccount.active) return problem(404, 'Account not found');
-
-    const classId = Number(body.classId);
-    const schoolYearId = Number(body.schoolYearId);
+    // O código manda: o classId/schoolYearId do corpo são ignorados na auto-matrícula,
+    // para um aluno não poder escolher a turma que lhe apetece (kixi#255).
+    const classId = selfEnroll ? codeEntry!.classId : Number(body.classId);
     const row = db.classes.find((c) => c.id === classId);
     if (!row) return problem(404, 'Class not found');
-    if (row.schoolYearId !== schoolYearId) {
+    const schoolYearId = selfEnroll ? row.schoolYearId : Number(body.schoolYearId);
+    if (!selfEnroll && row.schoolYearId !== schoolYearId) {
       return problem(400, 'Class does not belong to the given school year');
     }
     if (!db.schoolYears.some((y) => y.id === schoolYearId)) {
@@ -2145,8 +2157,6 @@ export async function mockHandle(
     if (active) {
       return problem(409, 'Account already has an active enrollment for this school year');
     }
-
-    if (codeEntry) codeEntry.uses++;
 
     const enrollment: Enrollment = {
       id: db.nextEnrollment++,

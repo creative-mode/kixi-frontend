@@ -5,7 +5,7 @@ import { validarCodigoDeMatricula, type EnrollmentCode } from './enrollment-code
 const AGORA = new Date('2026-10-18T12:00:00Z');
 
 function codigo(sobrepor: Partial<EnrollmentCode> = {}): EnrollmentCode {
-  return { id: 1, code: 'TESTE1234', maxUses: 1, uses: 0, expiresAt: null, revokedAt: null, ...sobrepor };
+  return { id: 1, code: 'TESTE1234', classId: 1, maxUses: 1, uses: 0, expiresAt: null, revokedAt: null, ...sobrepor };
 }
 
 test('um código que não existe é inválido', () => {
@@ -55,4 +55,10 @@ test('um código válido devolve a entrada, para quem chama contar o uso', () =>
   const resultado = validarCodigoDeMatricula([entrada], 'TESTE1234', AGORA);
   assert.equal(resultado.ok, true);
   assert.equal(resultado.ok && resultado.entry, entrada);
+});
+
+test('o código leva a turma que abre, e é ela que a matrícula usa', () => {
+  const resultado = validarCodigoDeMatricula([codigo({ classId: 7 })], 'TESTE1234', AGORA);
+  assert.equal(resultado.ok, true);
+  assert.equal(resultado.ok && resultado.entry.classId, 7);
 });

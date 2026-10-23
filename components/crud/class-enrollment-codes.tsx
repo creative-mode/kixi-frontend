@@ -38,6 +38,7 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
     e.preventDefault();
     const uses = Number(maxUses);
     if (!Number.isInteger(uses) || uses < 1) return toast.error('O número de usos tem de ser pelo menos 1.');
+    if (expiresAt && new Date(expiresAt) <= new Date()) return toast.error('A data de expiração tem de ser no futuro.');
     setBusy(true);
     const res = await createEnrollmentCode(classItem.id, uses, expiresAt ? new Date(expiresAt).toISOString() : null);
     setBusy(false);
