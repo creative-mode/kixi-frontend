@@ -9,6 +9,10 @@ KIXI_MOCK=true npm run dev      # demonstração local em http://localhost:3003/
 npm run build
 ```
 
+No PowerShell, use `$env:KIXI_MOCK='true'; npm run dev`; no `cmd.exe`, use
+`set KIXI_MOCK=true && npm run dev`. Também pode definir `KIXI_MOCK=true` no
+`student/.env.local` e arrancar sem prefixar o comando.
+
 ## Rotas
 
 | Rota | Ecrã |

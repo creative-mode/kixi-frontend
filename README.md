@@ -55,6 +55,10 @@ npm --prefix landing install
 KIXI_MOCK=true npm run dev:all   # demonstração local: landing + aluno + gestor + gateway
 ```
 
+No PowerShell, use `$env:KIXI_MOCK='true'; npm run dev:all`; no `cmd.exe`, use
+`set KIXI_MOCK=true && npm run dev:all`. Em alternativa, coloque `KIXI_MOCK=true`
+no `.env.local` da raiz e no `student/.env.local` antes de arrancar cada app.
+
 Ou cada app na sua porta:
 
 ```bash
@@ -62,6 +66,10 @@ KIXI_MOCK=true npm run dev            # gestor :3002
 KIXI_MOCK=true npm --prefix student run dev   # aluno :3003
 npm --prefix landing run dev   # landing :3004
 ```
+
+Equivalentes no PowerShell: `$env:KIXI_MOCK='true'; npm run dev` e
+`$env:KIXI_MOCK='true'; npm --prefix student run dev`. No `cmd.exe`, use
+`set KIXI_MOCK=true && npm run dev` e `set KIXI_MOCK=true && npm --prefix student run dev`.
 
 ## Variáveis de ambiente
 

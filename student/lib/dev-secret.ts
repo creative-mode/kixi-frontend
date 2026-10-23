@@ -6,8 +6,12 @@ const DEMO_JWT_SECRET = 'default-secret-change-in-production-min-256-bits';
 export const MIN_JWT_SECRET_LENGTH = 32;
 
 function configuredJwtSecret(env: RuntimeEnvironment): string | undefined {
-  const configured = env.JWT_SECRET?.trim();
+  const raw = env.JWT_SECRET;
+  const configured = raw?.trim();
   if (!configured) return undefined;
+  if (raw !== configured) {
+    throw new Error('JWT_SECRET não pode começar ou terminar com espaços; use o valor exacto partilhado com o backend');
+  }
   if (configured.length < MIN_JWT_SECRET_LENGTH) {
     throw new Error(`JWT_SECRET deve ter pelo menos ${MIN_JWT_SECRET_LENGTH} caracteres`);
   }
@@ -25,6 +29,8 @@ export function validateRuntimeConfiguration(
     throw new Error('KIXI_MOCK tem de ser definido explicitamente como true ou false');
   }
 
+  const configuredSecret = configuredJwtSecret(env);
+
   if (isMockEnabled(env)) {
     if (env.NODE_ENV === 'production' && env.KIXI_ALLOW_MOCK_IN_PROD !== 'true') {
       throw new Error('KIXI_MOCK em produção exige KIXI_ALLOW_MOCK_IN_PROD=true');
@@ -35,7 +41,7 @@ export function validateRuntimeConfiguration(
   if (!env.BACKEND_API_URL?.trim()) {
     throw new Error('BACKEND_API_URL é obrigatório quando KIXI_MOCK=false');
   }
-  if (!configuredJwtSecret(env)) {
+  if (!configuredSecret) {
     throw new Error('JWT_SECRET é obrigatório quando KIXI_MOCK=false');
   }
 
