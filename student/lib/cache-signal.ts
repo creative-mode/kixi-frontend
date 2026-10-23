@@ -3,8 +3,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 /** O aviso do gestor ao aluno de que dados de referência mudaram (#389).
  *
  *  O aluno guarda 5 minutos os nomes de disciplinas, anos letivos e escolas (`lib/catalog.ts`). Sem aviso, uma
- *  edição no gestor só aparecia ao aluno quando a entrada expirasse. O gestor assina o aviso com o `JWT_SECRET`,
- *  que os dois apps já partilham, e o aluno só esquece a cache se a assinatura bater e o aviso for recente.
+ *  edição no gestor só aparecia ao aluno quando a entrada expirasse. O gestor assina o aviso e o aluno só esquece
+ *  a cache se a assinatura bater e o aviso for recente.
+ *
+ *  A chave não é o `JWT_SECRET` em si: deriva-se dele com um rótulo só deste aviso (`signalKey`), para que nada do
+ *  que se assina aqui sirva para forjar ou adivinhar a assinatura das sessões.
  *
  *  Este módulo é puro e é importado pelos dois apps, como o `dev-secret.ts`. */
 
@@ -23,8 +26,15 @@ export interface Signal {
   at: number;
 }
 
+const KEY_LABEL = 'kixi:reference-changed:v1';
+
+/** A chave do aviso, derivada do segredo partilhado com um rótulo próprio. */
+function signalKey(secret: string): Buffer {
+  return createHmac('sha256', secret).update(KEY_LABEL).digest();
+}
+
 export function signSignal(body: string, secret: string): string {
-  return createHmac('sha256', secret).update(body).digest('hex');
+  return createHmac('sha256', signalKey(secret)).update(body).digest('hex');
 }
 
 /** O corpo e a assinatura de um aviso para as etiquetas dadas. */
