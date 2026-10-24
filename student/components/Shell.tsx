@@ -73,7 +73,7 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
         </header>
 
         <div className="flex min-w-0 flex-1">
-          <main id="conteudo" tabIndex={-1} className={cn('min-w-0 flex-1 outline-none md:border-r', showRail ? '' : 'md:max-w-[760px]')}>
+          <main id="conteudo" tabIndex={-1} className={cn('min-w-0 flex-1 outline-none md:border-r', !showRail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/')) && 'md:max-w-[760px]')}>
             {children}
           </main>
           {showRail && (

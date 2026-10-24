@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FileText, Loader2, RefreshCw, Send, Square, TriangleAlert } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
+import { TutorText } from '@/components/tutor-text';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -302,7 +303,7 @@ export function TutorChat({
 
   return (
     <Page>
-      <Column className="gap-5">
+      <Column className="mx-auto w-full max-w-[1040px] gap-5">
         <PageHeader
           kicker={paperTitle ? 'Estudo assistido' : undefined}
           title="Tutor"
@@ -323,12 +324,14 @@ export function TutorChat({
               </p>
             )}
             {messages.map((m) => (
-              <div key={m.id} className={cn('flex max-w-[94%] gap-2.5 md:max-w-[86%]', m.role === 'student' && 'flex-row-reverse self-end')}>
+              <div key={m.id} className={cn('flex max-w-[94%] gap-2.5 md:max-w-[88%]', m.role === 'student' ? 'flex-row-reverse self-end' : 'min-w-0')}>
                 {m.role === 'tutor'
                   ? <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-[13px] font-bold text-background" aria-hidden="true">K</span>
                   : <UserAvatar name={fullName(me)} src={photoUrl(me)} size={32} className="max-md:hidden" />}
-                <div className={cn('whitespace-pre-wrap rounded-xl border px-3.5 py-2.5 leading-relaxed', m.role === 'student' ? 'border-primary bg-primary text-primary-foreground' : 'bg-secondary')}>
-                  {m.text || (m.streaming ? <span className="text-muted-foreground">A pensar…</span> : null)}
+                <div className={cn('min-w-0 rounded-xl border px-3.5 py-2.5 leading-relaxed', m.role === 'student' ? 'whitespace-pre-wrap border-primary bg-primary text-primary-foreground' : 'bg-secondary')}>
+                  {m.role === 'tutor' && m.text
+                    ? <TutorText text={m.text} streaming={!!m.streaming} />
+                    : m.text || (m.streaming ? <span className="text-muted-foreground">A pensar…</span> : null)}
                   {m.streaming && m.text && <span className="ml-0.5 inline-block h-4 w-1.5 motion-safe:animate-pulse bg-current align-middle" aria-hidden />}
                   {m.failed && (
                     <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-destructive" role="alert">
