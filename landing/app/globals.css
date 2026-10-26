@@ -216,3 +216,13 @@ a { color: inherit; }
 
 /* short screens (phones on their side): title only, console lower */
 @media (max-height: 520px) { .pres__hero-sub { display: none; } .pres__hero { top: 80px; } .pres__art .gb { --ht: 56svh; --hs: .05; } }
+
+/* 404: a endereço partido ainda se vê que é o site do Kixi (#544) - marca no
+   cabeçalho, tipografia da landing e uma saída clara. As regras ficam todas
+   baixo .nf para o resto do site não dar um passo. */
+.nf main { display: grid; justify-items: center; gap: 12px; padding-block: clamp(56px, 10svh, 96px) 24px; text-align: center; }
+.nf__code { margin: 0; font: 400 clamp(13px, 1.8vw, 15px)/1.2 var(--font-pixel); letter-spacing: .08em; color: var(--lp-dim); }
+.nf__title { margin: 0; font: 700 clamp(34px, 7vw, 64px)/1.05 var(--font-sans); letter-spacing: -0.04em; text-wrap: balance; }
+.nf__message { margin: 0; font: 400 clamp(16px, 1.8vw, 18px)/1.55 var(--font-sans); max-width: 40ch; color: var(--lp-dim); text-wrap: balance; }
+.nf__actions { margin-top: 16px; }
+@media (max-width: 520px) { .nf__actions .kx-btn-wrap { width: 100%; } .nf__actions .kx-btn { width: 100%; } }

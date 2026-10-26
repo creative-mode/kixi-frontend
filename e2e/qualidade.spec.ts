@@ -319,3 +319,60 @@ test.describe('auditoria de UX do aluno', () => {
     expect((botao?.x ?? 0) + (botao?.width ?? 0)).toBeLessThanOrEqual(390);
   });
 });
+
+/** O 404 da landing (#544): endereço partido devolve "Esta página não existe" em
+ *  português, na marca do site, com saída clara - e o banner de cookies nunca por
+ *  cima de nada. Antes era o 404 de omissão do Next: inglês, sem marca, sem saída. */
+test.describe('404 da landing (#544)', () => {
+  async function semEscolha(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  test('404 com status certo, título em português, marca e saída', async ({ page, request }) => {
+    const resposta = await request.get('/nao-existe-xyz');
+    expect(resposta.status(), 'o status HTTP').toBe(404);
+
+    await semEscolha(page);
+    await page.goto('/nao-existe-xyz');
+    await expect(page).toHaveTitle(/Página não encontrada · Kixi/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible();
+    // A marca: o cabeçalho leva de volta ao início ("Kixi, início") e o texto é o meu.
+    await expect(page.getByRole('link', { name: 'Kixi, início' })).toBeVisible();
+    const inicio = page.getByRole('link', { name: 'Ir para o início' });
+    await expect(inicio).toBeVisible();
+    expect(await inicio.getAttribute('href')).toBe('/');
+    // O segundo caminho: entrar. O cabeçalho e o corpo têm o seu; o rodapé pode repetir.
+    expect(
+      await page.getByRole('link', { name: 'Entrar' }).count(),
+      'pelo menos o do cabeçalho e o do corpo',
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  test('sem violações sérias de acessibilidade, com o banner na página', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/nao-existe-xyz');
+    await page.waitForLoadState('networkidle');
+    expect(await page.locator('section.ck').count(), 'o banner faz parte da página').toBe(1);
+    expect(await graves(page)).toEqual([]);
+  });
+
+  test.describe('no telemóvel', () => {
+    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+    test('o banner de cookies por cima, mas sem tapar o conteúdo do 404', async ({ page }) => {
+      await semEscolha(page);
+      await page.goto('/nao-existe-xyz');
+      const bnn = page.locator('section.ck');
+      await expect(bnn).toBeVisible();
+      // O botão principal acaba antes do topo do banner: nada do que interessa
+      // fica escondido por baixo dele (a altura do banner é contrato de outra issue).
+      const cta = page.getByRole('link', { name: 'Ir para o início' });
+      await expect(cta).toBeVisible();
+      const ctaBox = await cta.boundingBox();
+      const caixa = await bnn.boundingBox();
+      expect((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0), 'o botão acaba antes do banner').toBeLessThanOrEqual(caixa!.y);
+      // E o título da conversa é o primeiro que se vê.
+      await expect(page.getByRole('heading', { name: 'Esta página não existe' })).toBeInViewport();
+    });
+  });
+});
