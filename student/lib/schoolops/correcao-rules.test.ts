@@ -80,3 +80,14 @@ test('com a correcção feita, a nota é a do motor e as dissertativas levam pon
   assert.deepEqual([r.questions?.[2].scoreObtained, r.questions?.[2].isCorrect], [0.8, false]);
   assert.notEqual(r.questions?.[1].reviewStatus, 'PENDING_REVIEW');
 });
+
+import { semNotaDasSimulacoes } from './correcao-rules.ts';
+
+test('a nota das simulações livres sai das outras páginas; a das salas fica', () => {
+  const sims = [{ id: 1, finalScore: 14 }, { id: 2, finalScore: 18 }, { id: '3', finalScore: null }];
+  assert.deepEqual(semNotaDasSimulacoes(sims, [{ simulationId: 2 }]), [{ id: 1, finalScore: null }, { id: 2, finalScore: 18 }, { id: '3', finalScore: null }]);
+});
+
+test('se a lista de salas falhou, não se arrisca: sai a nota de todas', () => {
+  assert.deepEqual(semNotaDasSimulacoes([{ id: 2, finalScore: 18 }], null), [{ id: 2, finalScore: null }]);
+});
