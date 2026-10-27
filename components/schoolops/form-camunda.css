@@ -1,0 +1,131 @@
+/*
+ * Forms do Camunda no desenho do Kixi. O form-js lê as cores das variáveis `--cds-*` (e as de `--color-*` que delas derivam):
+ * aqui mapeiam-se para os tokens do design system, por isso o form acompanha o tema e nunca leva cores literais.
+ */
+@import '@bpmn-io/form-js-viewer/dist/assets/form-js-base.css';
+
+.form-camunda .fjs-container {
+  --cds-background: var(--muted);
+  --cds-field: var(--card);
+  --cds-field-01: var(--card);
+  --cds-layer: var(--card);
+  --cds-layer-01: var(--card);
+  --cds-layer-accent: var(--muted);
+  --cds-text-primary: var(--foreground);
+  --cds-text-secondary: var(--muted-foreground);
+  --cds-text-placeholder: var(--muted-foreground);
+  --cds-text-disabled: var(--muted-foreground);
+  --cds-text-error: var(--destructive);
+  --cds-text-inverse: var(--primary-foreground);
+  --cds-border-strong: var(--input);
+  --cds-border-strong-01: var(--input);
+  --cds-border-subtle: var(--border);
+  --cds-border-subtle-01: var(--border);
+  --cds-border-disabled: var(--border);
+  --cds-border-interactive: var(--ring);
+  --cds-link-primary: var(--primary);
+  --cds-button-primary: var(--primary);
+  --cds-interactive: var(--primary);
+  --cds-focus: var(--ring);
+  --cds-icon-primary: var(--foreground);
+  --cds-icon-secondary: var(--muted-foreground);
+  --cds-shadow: var(--border);
+  --font-family: var(--font-sans);
+  --font-size-base: 0.875rem;
+  --font-size-input: 0.875rem;
+  --font-size-label: 0.8125rem;
+  --font-size-group: 0.9375rem;
+  --letter-spacing-base: 0;
+  --letter-spacing-input: 0;
+  font-family: var(--font-sans);
+  color: var(--foreground);
+}
+
+/* Campos: a mesma altura, raio e anel de foco dos componentes do Kixi. */
+.form-camunda .fjs-input,
+.form-camunda .fjs-select,
+.form-camunda .fjs-textarea,
+.form-camunda .fjs-taglist,
+.form-camunda .fjs-input-group {
+  border-radius: calc(var(--radius) - 2px);
+  border-color: var(--input);
+  background: var(--card);
+}
+.form-camunda .fjs-input:focus,
+.form-camunda .fjs-select:focus,
+.form-camunda .fjs-textarea:focus,
+.form-camunda .fjs-input-group:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+  border-color: var(--ring);
+}
+.form-camunda .fjs-form-field-label,
+.form-camunda .fjs-form-field label {
+  font-weight: 500;
+  color: var(--foreground);
+}
+.form-camunda .fjs-form-field-description {
+  color: var(--muted-foreground);
+}
+.form-camunda .fjs-form-field-error {
+  color: var(--destructive);
+}
+
+/* Grupos e listas dinâmicas como cartões discretos, com o separador do Kixi. */
+.form-camunda .fjs-form-field-grouplike {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.form-camunda .fjs-form-field-grouplike .fjs-form-field-grouplike {
+  background: var(--muted);
+}
+
+/* Tabelas e botões do form (listas, adicionar item). */
+.form-camunda .fjs-table th {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.form-camunda .fjs-button {
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.form-camunda .fjs-button:hover:not(:disabled) {
+  background: var(--primary);
+  filter: brightness(1.08);
+}
+.form-camunda .fjs-button:disabled {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+/* O botão de enviar é o do Kixi (fora do form): o do form-js, se o schema o trouxer, fica escondido. */
+.form-camunda .fjs-form-field-button[type='submit'],
+.form-camunda .fjs-container button[type='submit'] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-camunda * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Calendário: tokens do Kixi no selector de dias. */
+.flatpickr-calendar {
+  font-family: var(--font-sans);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  border: 1px solid var(--border);
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.flatpickr-day.today:not(.selected) {
+  border-color: var(--primary);
+}
