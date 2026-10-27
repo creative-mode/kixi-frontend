@@ -99,7 +99,7 @@ function checarTexto(linhas) {
       });
       break;
     }
-    // O hash `"integrity": "sha512-..."` do package-lock.json é base64 aleatório: tem `aaa` sempre que calha, e não é texto
+    // O hash `"integrity": "sha512-..."` do package-lock.json é base64 aleatório, com letras repetidas de vez em quando, e não é texto
     // de ninguém. Só se ignora esta linha; o resto do lock (e de qualquer ficheiro) continua a ser verificado.
     if (HASH_DE_INTEGRIDADE.test(texto)) continue;
     // Sem a flag `i`: com ela o `pp` de um identificador em camelCase casa com o `P` e
