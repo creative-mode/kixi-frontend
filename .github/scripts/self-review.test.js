@@ -166,6 +166,21 @@ test('mexer fora do mock não dispara', () => {
   assert.deepEqual(checarParidadeMock(linha('x', 'student/lib/school-year.ts')), []);
 });
 
+// ── hashes de integridade do package-lock.json ───────────────────────────────────────
+
+test('um hash de integridade com letras repetidas não é texto estragado', () => {
+  const hash = '      "integrity": "sha512-d1mkCrgQgwLmVTOEiuocZGKHsrQJtttGZFmybJ2zYP5zCSZuU5ZyeS8aaa/eee==",';
+  assert.deepEqual(checarTexto(linha(hash, 'package-lock.json')), []);
+});
+
+test('o resto do package-lock.json continua a ser verificado', () => {
+  // só a linha do hash é isenta: um campo que não é `integrity`, ou texto a seguir ao hash, apanha-se
+  assert.deepEqual(regras(checarTexto(linha('      "resolved": "https://registry.npmjs.org/aaa/-/pacote-1.0.0.tgz",', 'package-lock.json'))),
+    ['texto/repeticao']);
+  assert.deepEqual(regras(checarTexto(linha('      "integrity": "sha512-abc", "nome": "aguuu"', 'package-lock.json'))),
+    ['texto/repeticao']);
+});
+
 // ── a lista de exclusões ─────────────────────────────────────────────────────────
 
 test('a exclusão é só este ficheiro de testes', () => {
