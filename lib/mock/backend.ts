@@ -39,6 +39,7 @@ const hash = (pw) => crypto.createHash('sha256').update(`kixi:${pw}`).digest('he
 const now = () => new Date().toISOString().slice(0, 19);
 const G: any = globalThis;
 G.__kixiMock ??= { seq: {}, db: null, seeded: false };
+G.__kixiMock.ocrJobs ??= new Map();
 const seq = G.__kixiMock.seq;
 const nextId = (t) => (seq[t] = (seq[t] ?? 0) + 1);
 G.__kixiMock.db ??= {
@@ -963,6 +964,43 @@ export async function handle(method: string, rawUrl: string, authorization: stri
 
     // ── OCR: extração estruturada, sem persistir (alimenta o construtor de provas) ──
     // O mock não corre o motor: responde com uma prova sintética para jornadas locais.
+    if (path === '/api/v1/ocr/jobs' && method === 'POST') {
+      const b = readBody();
+      const files = [b.files ?? b.file].flat().filter(Boolean);
+      if (!files.length) return problem(400, 'At least one file is required');
+      const jobId = crypto.randomUUID();
+      const requestId = crypto.randomUUID();
+      const extraction = {
+        ...OGI_EXTRACTION,
+        request_id: `req-${requestId}`,
+        processing_time_ms: 1200,
+        questions: OGI_EXTRACTION.questions?.map((question, index) => index === 0 ? {
+          ...question,
+          text: 'Questão sintética para validação matemática: determine $v = v_0 + at$.',
+          formulas: [{ raw: 'v = v_0 + at', latex: 'v = v_0 + at', confidence: 0.98, kind: 'formula' }],
+        } : question),
+        images_to_upload: [{
+          region: 'questao_1', description: 'Diagrama OCR', kind: 'figure',
+          data_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJ7sAAAAASUVORK5CYII=',
+        }],
+      };
+      G.__kixiMock.ocrJobs.set(jobId, { accountId: String(auth.sub), polls: 0, result: extraction, cancelled: false });
+      return json(202, { jobId, requestId, status: 'QUEUED', statusUrl: `/api/v1/ocr/jobs/${jobId}` });
+    }
+    if ((m = path.match(/^\/api\/v1\/ocr\/jobs\/([0-9a-f-]{36})$/i)) && method === 'GET') {
+      const job = G.__kixiMock.ocrJobs.get(m[1]);
+      if (!job || job.accountId !== String(auth.sub)) return problem(404, 'OCR job not found');
+      if (job.cancelled) return json(200, { jobId: m[1], requestId: null, status: 'CANCELLED', pageCount: 0, completedPages: 0, currentPage: 0, eventType: 'error', result: null, error: 'Import cancelled' });
+      job.polls += 1;
+      if (job.polls < 3) return json(200, { jobId: m[1], requestId: null, status: 'PROCESSING', pageCount: 1, completedPages: job.polls - 1, currentPage: 1, eventType: job.polls === 1 ? 'rasterized' : 'progress', result: null, error: null });
+      return json(200, { jobId: m[1], requestId: null, status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: job.result, error: null });
+    }
+    if ((m = path.match(/^\/api\/v1\/ocr\/jobs\/([0-9a-f-]{36})$/i)) && method === 'DELETE') {
+      const job = G.__kixiMock.ocrJobs.get(m[1]);
+      if (!job || job.accountId !== String(auth.sub)) return problem(404, 'OCR job not found');
+      job.cancelled = true;
+      return json(204);
+    }
     if (path === '/api/v1/ocr/extract/stream' && method === 'POST') {
       const b = readBody();
       const files = [b.files ?? b.file].flat().filter(Boolean);

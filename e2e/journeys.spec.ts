@@ -28,6 +28,43 @@ function samplePdf(): Buffer {
   return Buffer.from(pdf);
 }
 
+async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) {
+  const jobId = randomUUID();
+  await page.route('**/manager/api/ocr/extract', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        jobId,
+        requestId: randomUUID(),
+        statusUrl: `/manager/api/ocr/jobs/${jobId}`,
+      }),
+    });
+  });
+  await page.route(`**/manager/api/ocr/jobs/${jobId}`, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        jobId,
+        status: 'SUCCEEDED',
+        pageCount: 1,
+        completedPages: 1,
+        currentPage: 1,
+        eventType: 'result',
+        result: extraction,
+        error: null,
+      }),
+    });
+  });
+}
+
 // Admin e professor não aterram no mesmo sítio: o admin vai ao dashboard, o professor
 // vai ao seu âmbito. E o "Dashboard" não se pode procurar por texto — o Next injecta um
 //#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
@@ -364,16 +401,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       }],
       warnings: [{ code: 'LOW_CONFIDENCE_FORMULA', field: 'question_4_formula_1', confidence: 0.55 }],
     };
-    const events = [
-      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-physics', pageCount: 1, timings: {} })}`,
-      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
-      `event: result\ndata: ${JSON.stringify(extraction)}`,
-    ].join('\n\n') + '\n\n';
-    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
-      status: 200,
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
-      body: events,
-    }));
+    await mockAsyncOcrJob(page, extraction);
 
     await page.goto('/manager/exam-builder?importar=1');
     await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
@@ -426,16 +454,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       }],
       warnings: [],
     };
-    const events = [
-      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-brace', pageCount: 1, timings: {} })}`,
-      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
-      `event: result\ndata: ${JSON.stringify(extraction)}`,
-    ].join('\n\n') + '\n\n';
-    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
-      status: 200,
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
-      body: events,
-    }));
+    await mockAsyncOcrJob(page, extraction);
 
     await page.goto('/manager/exam-builder?importar=1');
     await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();

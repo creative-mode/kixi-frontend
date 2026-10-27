@@ -21,7 +21,7 @@ class FakeXhr extends FakeTarget {
   url = '';
   headers: Record<string, string> = {};
   static responseOnSend = true;
-  static finalPayload: Record<string, unknown> = { title: 'Prova', timings: { totalMs: 10 } };
+  static finalPayload: Record<string, unknown> = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
   static last: FakeXhr | undefined;
   constructor() { super(); FakeXhr.last = this; }
   open(_method: string, url: string) { this.url = url; }
@@ -31,13 +31,7 @@ class FakeXhr extends FakeTarget {
     this.upload.emit('progress', { loaded: 16, total: 32 });
     this.upload.emit('load');
     if (FakeXhr.responseOnSend) {
-      this.responseText = [
-        'event: prepared\ndata: {"pageCount":2,"timings":{"uploadMs":7}}\n\n',
-        'event: rasterized\ndata: {"page":1,"pageCount":2,"timings":{"rasterizationMs":8}}\n\n',
-        'event: progress\ndata: {"page":1,"pageCount":2,"timings":{"ocrMs":3}}\n\n',
-        `event: result\ndata: ${JSON.stringify(FakeXhr.finalPayload)}\n\n`,
-      ].join('');
-      this.emit('progress');
+      this.responseText = JSON.stringify(FakeXhr.finalPayload);
       this.emit('load');
     }
   }
@@ -63,8 +57,21 @@ test('SSE parser supports multiline data and leaves an incomplete following fram
 
 test('browser bridge reports real upload and page events, then resolves the final extraction', async () => {
   const original = globalThis.XMLHttpRequest;
+  const originalFetch = globalThis.fetch;
   globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
   FakeXhr.responseOnSend = true;
+  FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+  let poll = 0;
+  globalThis.fetch = (async () => {
+    poll += 1;
+    const states = [
+      { status: 'PROCESSING', pageCount: 2, completedPages: 0, currentPage: 1, eventType: 'rasterized' },
+      { status: 'PROCESSING', pageCount: 2, completedPages: 1, currentPage: 1, eventType: 'progress' },
+      { status: 'SUCCEEDED', pageCount: 2, completedPages: 2, currentPage: 2, eventType: 'result',
+        result: { title: 'Prova', timings: { totalMs: 10 } } },
+    ];
+    return Response.json(states[Math.min(poll - 1, states.length - 1)]);
+  }) as typeof fetch;
   const upload: number[] = [];
   const events: OcrStreamEvent[] = [];
   const marks: string[] = [];
@@ -79,24 +86,27 @@ test('browser bridge reports real upload and page events, then resolves the fina
     assert.equal(result.title, 'Prova');
     assert.equal(result.timings?.totalMs, 10);
     assert.deepEqual(upload, [50]);
-    assert.deepEqual(events.map((event) => event.type), ['prepared', 'rasterized', 'progress', 'result']);
-    assert.equal((events[1] as Extract<OcrStreamEvent, { type: 'rasterized' }>).page, 1);
+    assert.deepEqual(events.map((event) => event.type), ['queued', 'prepared', 'rasterized', 'progress', 'progress', 'result']);
+    assert.equal((events[2] as Extract<OcrStreamEvent, { type: 'rasterized' }>).page, 1);
     assert.equal(FakeXhr.last?.url, '/manager/api/ocr/extract');
     assert.equal(FakeXhr.last?.withCredentials, true);
-    assert.equal(FakeXhr.last?.headers.Accept, 'text/event-stream');
+    assert.equal(FakeXhr.last?.headers.Accept, 'application/json');
     assert.equal(FakeXhr.last?.headers['X-OCR-Request-ID'], requestId);
     assert.deepEqual(marks, ['request-start', 'upload-start', 'upload-complete', 'first-server-event', 'ocr-end', 'request-end']);
   } finally {
-    FakeXhr.finalPayload = { title: 'Prova', timings: { totalMs: 10 } };
+    FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
     globalThis.XMLHttpRequest = original;
+    globalThis.fetch = originalFetch;
   }
 });
 
 test('a terminal OCR error keeps the backend message and rejects the extraction', async () => {
   const original = globalThis.XMLHttpRequest;
+  const originalFetch = globalThis.fetch;
   globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
   FakeXhr.responseOnSend = true;
-  FakeXhr.finalPayload = { status: 'error', errorMessage: 'PDF ilegível' };
+  FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+  globalThis.fetch = (async () => Response.json({ status: 'FAILED', pageCount: 0, error: 'PDF ilegível' })) as typeof fetch;
   const events: OcrStreamEvent[] = [];
   try {
     await assert.rejects(streamExamOcr(new FormData(), {
@@ -104,14 +114,44 @@ test('a terminal OCR error keeps the backend message and rejects the extraction'
       onEvent: (event) => events.push(event),
     }), /PDF ilegível/);
     assert.deepEqual(events, [
-      { type: 'prepared', pageCount: 2, timings: { uploadMs: 7 } },
-      { type: 'rasterized', page: 1, pageCount: 2, timings: { rasterizationMs: 8 } },
-      { type: 'progress', page: 1, pageCount: 2, timings: { ocrMs: 3 } },
+      { type: 'queued' },
       { type: 'error', message: 'PDF ilegível' },
     ]);
   } finally {
-    FakeXhr.finalPayload = { title: 'Prova', timings: { totalMs: 10 } };
+    FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
     globalThis.XMLHttpRequest = original;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('polling retries a transient server failure without abandoning the job', async () => {
+  const original = globalThis.XMLHttpRequest;
+  const originalFetch = globalThis.fetch;
+  globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
+  FakeXhr.responseOnSend = true;
+  FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+  let polls = 0;
+  const methods: string[] = [];
+  globalThis.fetch = (async (_input, init) => {
+    methods.push(init?.method ?? 'GET');
+    polls += 1;
+    if (polls === 1) return Response.json({ detail: 'temporariamente indisponível' }, { status: 503 });
+    return Response.json({
+      status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1,
+      eventType: 'result', result: { title: 'Prova recuperada' },
+    });
+  }) as typeof fetch;
+  try {
+    const result = await streamExamOcr(new FormData(), {
+      onUploadProgress: () => undefined,
+      onEvent: () => undefined,
+    });
+    assert.equal(result.title, 'Prova recuperada');
+    assert.equal(polls, 2);
+    assert.deepEqual(methods, ['GET', 'GET']);
+  } finally {
+    globalThis.XMLHttpRequest = original;
+    globalThis.fetch = originalFetch;
   }
 });
 
@@ -133,10 +173,54 @@ test('browser bridge aborts the request when its signal is cancelled', async () 
   }
 });
 
-test('an internal event callback error is not swallowed as user cancellation', async () => {
+test('cancelling after acceptance asks the server to cancel the durable job', async () => {
   const original = globalThis.XMLHttpRequest;
+  const originalFetch = globalThis.fetch;
   globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
   FakeXhr.responseOnSend = true;
+  FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+  const controller = new AbortController();
+  let signalFetchStarted!: () => void;
+  const fetchStarted = new Promise<void>((resolve) => { signalFetchStarted = resolve; });
+  const methods: string[] = [];
+  globalThis.fetch = (async (input, init) => {
+    const method = init?.method ?? 'GET';
+    methods.push(`${method} ${String(input)}`);
+    if (method === 'DELETE') return new Response(null, { status: 204 });
+    signalFetchStarted();
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    });
+  }) as typeof fetch;
+  try {
+    const pending = streamExamOcr(new FormData(), {
+      onUploadProgress: () => undefined,
+      onEvent: () => undefined,
+    }, controller.signal);
+    await fetchStarted;
+    controller.abort();
+    await assert.rejects(pending, { name: 'AbortError' });
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+    assert.deepEqual(methods, [
+      'GET /manager/api/ocr/jobs/5dbfe179-e74d-4aa6-a603-8b1e6a264cea',
+      'DELETE /manager/api/ocr/jobs/5dbfe179-e74d-4aa6-a603-8b1e6a264cea',
+    ]);
+  } finally {
+    FakeXhr.responseOnSend = true;
+    globalThis.XMLHttpRequest = original;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('an internal event callback error is not swallowed as user cancellation', async () => {
+  const original = globalThis.XMLHttpRequest;
+  const originalFetch = globalThis.fetch;
+  globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
+  FakeXhr.responseOnSend = true;
+  FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+  globalThis.fetch = (async () => Response.json({
+    status: 'PROCESSING', pageCount: 1, currentPage: 1, completedPages: 0, eventType: 'rasterized',
+  })) as typeof fetch;
   try {
     await assert.rejects(streamExamOcr(new FormData(), {
       onUploadProgress: () => undefined,
@@ -144,5 +228,6 @@ test('an internal event callback error is not swallowed as user cancellation', a
     }), /Medição inválida/);
   } finally {
     globalThis.XMLHttpRequest = original;
+    globalThis.fetch = originalFetch;
   }
 });

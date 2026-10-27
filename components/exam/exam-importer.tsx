@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileImage, FileText, ScanText, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,8 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   function recordRenderTimings(
     requestId: string,
@@ -216,7 +218,9 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
           if (total > 0) setUploadPercent(Math.min(100, Math.round((loaded / total) * 100)));
         },
         onEvent(event: OcrStreamEvent) {
-          if (event.type === 'prepared') {
+          if (event.type === 'queued') {
+            setStage('Na fila OCR…');
+          } else if (event.type === 'prepared') {
             setStage('A ler as páginas…');
             setPageProgress({ page: 0, pageCount: event.pageCount });
             counts.pageCount = Math.min(10_000, Math.max(counts.pageCount, event.pageCount));
