@@ -14,6 +14,8 @@ x-app: &app
     KIXI_MOCK: ${KIXI_MOCK:-false}
     KIXI_ALLOW_MOCK_IN_PROD: ${KIXI_ALLOW_MOCK_IN_PROD:-false}
     BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:8080/api/v1}
+    SCHOOLOPS_CAMUNDA_URL: ${SCHOOLOPS_CAMUNDA_URL:-}
+    SCHOOLOPS_CAMUNDA_TOKEN: ${SCHOOLOPS_CAMUNDA_TOKEN:-}
     # Endereço público do gateway. É com ele que o gestor e o aluno constroem os
     # redireccionamentos para a landing e para a /403 canónica; os cabeçalhos Host e
     # x-forwarded-host vêm do cliente e não são de confiança.
