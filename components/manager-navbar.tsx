@@ -11,6 +11,7 @@ import {
   Menu as MenuIcon,
   ChevronRight,
   FilePen,
+  ClipboardCheck,
   DoorOpen,
   TrendingUp,
   Home,
@@ -42,6 +43,13 @@ const allNavLinks = [
     label: "Salas de Prova",
     description: "Provas ao vivo para a turma, com notas no fim",
     icon: DoorOpen,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/tarefas",
+    label: "Tarefas das pautas",
+    description: "Correcções, validações e reclamações por fazer",
+    icon: ClipboardCheck,
     color: "bg-accent text-primary",
   },
   {
@@ -94,7 +102,7 @@ const allNavLinks = [
 
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
-const TEACHER_HREFS = ["/desempenho", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+const TEACHER_HREFS = ["/desempenho", "/tarefas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink = {
   href: "/professor",
