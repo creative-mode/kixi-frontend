@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { correcaoLigada } from './schoolops/correcao';
 import { apiDelete, apiGet, apiPost, type Result } from './api';
 
 export interface ScoreBucket {
@@ -61,7 +62,12 @@ interface Page<T> {
 }
 
 export async function getCommunityStats(statementId: number): Promise<Result<CommunityStats>> {
-  return apiGet<CommunityStats>(`/statements/${statementId}/community`);
+  const result = await apiGet<CommunityStats>(`/statements/${statementId}/community`);
+  // Com a correcção do SchoolOps ligada, a tua nota só aparece no resultado: aqui não há comparação com a média por corrigir.
+  if (result.ok && result.data.mine && correcaoLigada()) {
+    return { ok: true, data: { ...result.data, mine: { ...result.data.mine, finalScore: null } } };
+  }
+  return result;
 }
 
 export async function getSharedSolutions(

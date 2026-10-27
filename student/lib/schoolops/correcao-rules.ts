@@ -110,3 +110,14 @@ export function comCorrecao(base: SimulationResult, r: ResultadoCorrecao): Simul
   });
   return { ...base, finalScore: r.nota ?? null, pendingReviewCount: 0, questions };
 }
+
+/** Com a correcção do SchoolOps ligada, a nota de uma simulação só se mostra no resultado, depois de corrigida. Nas outras páginas
+ *  (histórico, catálogo, detalhe, desempenho) a nota do backend sai das simulações livres. As provas de sala ficam como estão;
+ *  se a lista de salas não se leu, não se arrisca e sai a de todas. */
+export function semNotaDasSimulacoes<T extends { id?: number | string; finalScore?: number | null }>(
+  simulacoes: readonly T[],
+  salas: ReadonlyArray<{ simulationId: number | null }> | null,
+): T[] {
+  const deSala = new Set((salas ?? []).map((s) => s.simulationId).filter((id): id is number => id != null));
+  return simulacoes.map((s) => (salas != null && s.id != null && deSala.has(Number(s.id)) ? s : { ...s, finalScore: null }));
+}
