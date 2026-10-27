@@ -86,32 +86,50 @@ export function valoresDasVariaveis(variaveis: { name: string; value: string; is
 const SO_MOSTRAM = new Set(['text', 'html', 'image', 'button', 'expression', 'spacer', 'separator', 'table', 'iframe', 'documentPreview']);
 
 /**
- * Os campos que o professor pode escrever: componentes de entrada ao nível do form (ou dentro de grupos, que só
- * agrupam), nem só de leitura, nem desactivados, nem calculados. Uma lista dinâmica conta pela sua chave, sem os filhos,
- * que não são variáveis do processo. Uma chave que só aparece no schema como campo de leitura não se aceita de volta.
+ * O nome com que um componente se liga aos dados do form. Os campos de entrada usam `key`; as listas dinâmicas e os grupos
+ * com caminho usam `path` (é o que os forms do SchoolOps têm: nenhuma lista dinâmica tem `key`). Um nome com pontos
+ * (`a.b`) guarda-se dentro da variável `a`.
+ */
+export function nomeDoCampo(c: Componente): string | null {
+  if (typeof c.key === 'string' && c.key) return c.key;
+  if (typeof c.path === 'string' && c.path) return c.path;
+  return null;
+}
+
+/** A variável do processo a que o nome pertence: o primeiro segmento. */
+export const variavelDe = (nome: string) => nome.split('.')[0];
+
+/**
+ * Os campos que o professor pode escrever: componentes de entrada, listas dinâmicas e grupos com caminho, ao nível do
+ * form (um grupo sem caminho só agrupa: entra-se nele). Nem só de leitura, nem desactivados, nem calculados. Os filhos de uma
+ * lista não são variáveis do processo, vão dentro da lista.
  */
 export function camposEscreviveis(schema: Componente): Componente[] {
   const campos: Componente[] = [];
   const visitar = (c: Componente) => {
-    if (c.type === 'group') {
+    if (c.type === 'group' && nomeDoCampo(c) === null) {
       c.components?.forEach(visitar);
       return;
     }
-    if (SO_MOSTRAM.has(String(c.type)) || c.readonly === true || c.disabled === true || typeof c.key !== 'string') return;
+    if (SO_MOSTRAM.has(String(c.type)) || c.readonly === true || c.disabled === true || nomeDoCampo(c) === null) return;
     campos.push(c);
   };
   schema.components?.forEach(visitar);
   return campos;
 }
 
-/** O que se devolve ao concluir: só os campos escreviveis, com a chave que o form lhes dá. */
+/** O que se devolve ao concluir: só as variáveis dos campos escreviveis. */
 export function dadosParaConcluir(dados: Record<string, unknown>, schema: Componente): Record<string, unknown> {
-  const chaves = new Set(camposEscreviveis(schema).map((c) => c.key as string));
-  return Object.fromEntries(Object.entries(dados).filter(([k]) => chaves.has(k)));
+  const variaveis = new Set(camposEscreviveis(schema).map((c) => variavelDe(nomeDoCampo(c) as string)));
+  return Object.fromEntries(Object.entries(dados).filter(([k]) => variaveis.has(k)));
 }
 
 const vazio = (v: unknown, tipo?: string) =>
   v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0) || (tipo === 'checkbox' && v === false);
+
+/** O valor num caminho com pontos (`a.b`). */
+const valorEm = (dados: Record<string, unknown>, nome: string): unknown =>
+  nome.split('.').reduce<unknown>((acc, parte) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[parte] : undefined), dados);
 
 /**
  * O servidor também confere as regras `required`: o browser valida, mas a acção pode ser chamada sem ele.
@@ -120,8 +138,9 @@ const vazio = (v: unknown, tipo?: string) =>
 export function primeiroErro(dados: Record<string, unknown>, schema: Componente): string | null {
   for (const c of camposEscreviveis(schema)) {
     const validate = c.validate as { required?: boolean } | undefined;
-    if (validate?.required && vazio(dados[c.key as string], c.type)) {
-      return `O campo "${String(c.label ?? c.key)}" é obrigatório.`;
+    const nome = nomeDoCampo(c) as string;
+    if (validate?.required && vazio(valorEm(dados, nome), c.type)) {
+      return `O campo "${String(c.label ?? nome)}" é obrigatório.`;
     }
   }
   return null;
