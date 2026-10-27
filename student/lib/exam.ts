@@ -2,6 +2,8 @@ import 'server-only';
 
 import { apiGet, apiPost, apiPut, type Result } from './api';
 import { getMe } from './me';
+import { correcaoLigada } from './schoolops/correcao';
+import { semNotaDasSimulacoes } from './schoolops/correcao-rules';
 import type { PaperMeta } from './folha-da-prova';
 import {
   answeredQuestionIds,
@@ -100,6 +102,11 @@ export async function listSimulationsResult(): Promise<Result<SimulationSummary[
   if (!result.ok) return result;
   if (!Array.isArray(result.data)) {
     return { ok: false, status: 0, message: 'O servidor devolveu uma resposta inesperada.' };
+  }
+  // Com a correcção do SchoolOps ligada a nota de uma simulação só aparece no resultado, depois de corrigida.
+  if (correcaoLigada()) {
+    const salas = await apiGet<Array<{ simulationId: number | null }>>('/exam-rooms/mine');
+    return { ok: true, data: semNotaDasSimulacoes(result.data, salas.ok && Array.isArray(salas.data) ? salas.data : null) };
   }
   return { ok: true, data: result.data };
 }

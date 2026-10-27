@@ -32,8 +32,8 @@ gabarito e as respostas.
 O callback (`/api/schoolops/eventos`) só confirma a entrega: valida a assinatura Standard Webhooks (300 s de tolerância) e responde 204. A
 nota chega ao ecrã por leitura, não pelo evento.
 
-## O que ainda mostra a nota do backend
+## A nota fora do resultado
 
-A página de resultado é o sítio onde a nota era revelada. Outras superfícies lêem `finalScore` do backend (histórico de tentativas, detalhe
-do enunciado, desempenho, feed). Enquanto a correcção estiver ligada convém escondê-las para simulações por corrigir: fica para um
-seguimento, porque cada uma tem o seu desenho.
+Com a correcção ligada, a nota de uma simulação livre só aparece no resultado, depois de corrigida. `listSimulationsResult` (histórico,
+catálogo, detalhe do enunciado, desempenho) tira a `finalScore` das simulações que não são de sala, e `getCommunityStats` tira
+`mine.finalScore` (comparação com a média). Se a lista de salas não se ler, tira a de todas. Sem a correcção ligada nada muda.
