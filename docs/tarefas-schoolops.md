@@ -16,7 +16,7 @@ decidir uma reclamação) e conclui-as com o **form do próprio processo**, no d
 
 ## Configuração
 
-`SCHOOLOPS_CAMUNDA_URL` (API REST do Camunda), `SCHOOLOPS_CAMUNDA_TOKEN` (só se o Camunda o exigir) e
+`SCHOOLOPS_CAMUNDA_URL` (API REST do Camunda), `SCHOOLOPS_CAMUNDA_TOKEN` (só se o Camunda o exigir) ou, com o Camunda em OIDC, `SCHOOLOPS_CAMUNDA_TOKEN_URL`, `SCHOOLOPS_CAMUNDA_CLIENT_ID` e `SCHOOLOPS_CAMUNDA_CLIENT_SECRET` (client credentials, com cache e renovação num 401), e
 `NEXT_PUBLIC_SCHOOLOPS_TASKLIST_URL`. Sem a primeira, a página diz que as tarefas não estão configuradas.
 
 ## Limites
