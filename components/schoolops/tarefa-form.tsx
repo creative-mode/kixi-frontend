@@ -12,6 +12,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { abrirTarefa, concluir, type TarefaAberta } from '@/app/actions/schoolops';
 import { FormCamunda } from './form-camunda';
 
+// Valor de compilação: sem ele o botão não aparece (um link para '#' não leva a lado nenhum).
+const TASKLIST = process.env.NEXT_PUBLIC_SCHOOLOPS_TASKLIST_URL;
+
 export function TarefaForm({ chave }: { chave: string }) {
   const router = useRouter();
   const [aberta, setAberta] = useState<TarefaAberta | null>(null);
@@ -20,11 +23,13 @@ export function TarefaForm({ chave }: { chave: string }) {
 
   useEffect(() => {
     let activo = true;
-    void abrirTarefa(chave).then((r) => {
-      if (!activo) return;
-      if (r.ok) setAberta(r.data);
-      else setErro(r.error);
-    });
+    abrirTarefa(chave)
+      .then((r) => {
+        if (!activo) return;
+        if (r.ok) setAberta(r.data);
+        else setErro(r.error);
+      })
+      .catch(() => activo && setErro('Não foi possível abrir a tarefa. Tente de novo.'));
     return () => {
       activo = false;
     };
@@ -32,15 +37,19 @@ export function TarefaForm({ chave }: { chave: string }) {
 
   async function enviar(dados: Record<string, unknown>) {
     setAEnviar(true);
-    const r = await concluir(chave, dados);
-    if (r.ok) {
-      toast.success('Tarefa concluída.');
-      router.push('/tarefas');
-      router.refresh();
-    } else {
+    try {
+      const r = await concluir(chave, dados);
+      if (r.ok) {
+        toast.success('Tarefa concluída.');
+        router.push('/tarefas');
+        router.refresh();
+        return;
+      }
       toast.error(r.error);
-      setAEnviar(false);
+    } catch {
+      toast.error('Não foi possível concluir a tarefa. Tente de novo.');
     }
+    setAEnviar(false);
   }
 
   return (
@@ -69,11 +78,15 @@ export function TarefaForm({ chave }: { chave: string }) {
               {aberta.precisaDeFicheiros ? (
                 <div className="grid gap-3 text-sm">
                   <p>Esta tarefa pede o envio de ficheiros (as folhas digitalizadas). Por agora conclui-se no Tasklist.</p>
-                  <Button asChild variant="outline" className="w-fit">
-                    <a href={process.env.NEXT_PUBLIC_SCHOOLOPS_TASKLIST_URL ?? '#'} target="_blank" rel="noreferrer">
-                      Abrir no Tasklist <ExternalLink size={14} />
-                    </a>
-                  </Button>
+                  {TASKLIST ? (
+                    <Button asChild variant="outline" className="w-fit">
+                      <a href={TASKLIST} target="_blank" rel="noreferrer">
+                        Abrir no Tasklist <ExternalLink size={14} />
+                      </a>
+                    </Button>
+                  ) : (
+                    <p className="text-muted-foreground">Peça ao administrador o endereço do Tasklist.</p>
+                  )}
                 </div>
               ) : aberta.schema ? (
                 <FormCamunda schema={aberta.schema} dados={aberta.dados} aEnviar={aEnviar} onEnviar={enviar} />

@@ -5,6 +5,12 @@ import type { Componente, TarefaCamunda } from './tarefas';
 // Camunda, e o token do Camunda nunca chega ao browser. Quem decide de quem é a tarefa é o `assignee`, e a verificação
 // faz-se em `app/actions/schoolops.ts` antes de qualquer leitura ou conclusão.
 
+export class CamundaErro extends Error {
+  constructor(readonly estado: number, corpo: string) {
+    super(`Camunda ${estado}: ${corpo.slice(0, 200)}`);
+  }
+}
+
 function base(): string {
   const url = process.env.SCHOOLOPS_CAMUNDA_URL;
   if (!url) throw new Error('As tarefas do SchoolOps não estão configuradas (SCHOOLOPS_CAMUNDA_URL).');
@@ -26,21 +32,24 @@ async function pedir<T>(caminho: string, init: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const corpo = await res.text().catch(() => '');
-    throw new Error(`Camunda ${res.status}: ${corpo.slice(0, 200)}`);
+    throw new CamundaErro(res.status, corpo);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
-export async function tarefasDoProfessor(accountId: number): Promise<TarefaCamunda[]> {
-  const r = await pedir<{ items: TarefaCamunda[] }>('/user-tasks/search', {
+const LIMITE_TAREFAS = 100;
+
+export async function tarefasDoProfessor(accountId: number): Promise<{ items: TarefaCamunda[]; total: number }> {
+  const r = await pedir<{ items: TarefaCamunda[]; page: { totalItems: number } }>('/user-tasks/search', {
     method: 'POST',
     body: JSON.stringify({
       filter: { assignee: String(accountId), state: 'CREATED' },
-      sort: [{ field: 'creationDate', order: 'DESC' }],
-      page: { limit: 100 },
+      // as mais antigas primeiro: são as que estão mais atrasadas
+      sort: [{ field: 'creationDate', order: 'ASC' }],
+      page: { limit: LIMITE_TAREFAS },
     }),
   });
-  return r.items;
+  return { items: r.items, total: r.page?.totalItems ?? r.items.length };
 }
 
 export const obterTarefa = (key: string) => pedir<TarefaCamunda>(`/user-tasks/${encodeURIComponent(key)}`);
@@ -49,19 +58,39 @@ export const obterTarefa = (key: string) => pedir<TarefaCamunda>(`/user-tasks/${
 export async function obterFormulario(key: string): Promise<{ formId: string; schema: Componente } | null> {
   try {
     const f = await pedir<{ formId: string; schema: string }>(`/user-tasks/${encodeURIComponent(key)}/form`);
-    return { formId: f.formId, schema: JSON.parse(f.schema) as Componente };
+    try {
+      return { formId: f.formId, schema: JSON.parse(f.schema) as Componente };
+    } catch {
+      throw new Error('O formulário da tarefa não é JSON válido.');
+    }
   } catch (e) {
-    if (String((e as Error).message).startsWith('Camunda 404')) return null; // tarefa sem form
+    if (e instanceof CamundaErro && e.estado === 404) return null; // tarefa sem form
     throw e;
   }
 }
 
-export async function variaveisDaTarefa(key: string): Promise<{ name: string; value: string; isTruncated?: boolean }[]> {
-  const r = await pedir<{ items: { name: string; value: string; isTruncated?: boolean }[] }>(
-    `/user-tasks/${encodeURIComponent(key)}/variables/search`,
-    { method: 'POST', body: JSON.stringify({ page: { limit: 200 } }) },
+type VariavelCamunda = { name: string; value: string; isTruncated?: boolean; variableKey?: string };
+
+/** Todas as variáveis da tarefa, página a página, com o valor completo das que o Camunda trunca. */
+export async function variaveisDaTarefa(key: string): Promise<{ name: string; value: string }[]> {
+  const todas: VariavelCamunda[] = [];
+  let depois: string | undefined;
+  for (let pagina = 0; pagina < 10; pagina++) {
+    const r = await pedir<{ items: VariavelCamunda[]; page: { endCursor?: string } }>(
+      `/user-tasks/${encodeURIComponent(key)}/variables/search`,
+      { method: 'POST', body: JSON.stringify({ page: { limit: 200, ...(depois ? { after: depois } : {}) } }) },
+    );
+    todas.push(...r.items);
+    if (r.items.length < 200 || !r.page?.endCursor) break;
+    depois = r.page.endCursor;
+  }
+  return Promise.all(
+    todas.map(async (v) => {
+      if (!v.isTruncated || !v.variableKey) return { name: v.name, value: v.value };
+      const inteira = await pedir<{ value: string }>(`/variables/${encodeURIComponent(v.variableKey)}`);
+      return { name: v.name, value: inteira.value };
+    }),
   );
-  return r.items;
 }
 
 export const concluirTarefa = (key: string, variables: Record<string, unknown>) =>

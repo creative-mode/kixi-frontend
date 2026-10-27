@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dadosParaConcluir, pertenceA, paraTarefa, temEnvioDeFicheiros, valoresDasVariaveis } from './tarefas.ts';
+import { camposEscreviveis, dadosParaConcluir, primeiroErro, pertenceA, paraTarefa, temEnvioDeFicheiros, valoresDasVariaveis } from './tarefas.ts';
 
 const schema = {
   components: [
@@ -17,9 +17,29 @@ test('o professor só conclui tarefas suas e ainda por fazer', () => {
   assert.equal(pertenceA({ assignee: null, state: 'CREATED' }, 2), false);
 });
 
-test('devolve ao concluir só o que o form escreve, mesmo dentro de grupos e listas', () => {
-  const dados = { confirmacaoProfessor: true, parecer: 'ok', notas: [{ nota: 12 }], pautaId: 'PT-1', professorId: 'x' };
+test('devolve ao concluir só o que o form escreve, em grupos mas sem os filhos de listas', () => {
+  const dados = { confirmacaoProfessor: true, parecer: 'ok', notas: [{ nota: 12 }], nota: 99, pautaId: 'PT-1', professorId: 'x' };
   assert.deepEqual(dadosParaConcluir(dados, schema), { confirmacaoProfessor: true, parecer: 'ok', notas: [{ nota: 12 }] });
+});
+
+test('um campo de leitura, desactivado ou calculado não se aceita de volta', () => {
+  const s = {
+    components: [
+      { type: 'textfield', key: 'pautaId', readonly: true },
+      { type: 'number', key: 'media', disabled: true },
+      { type: 'expression', key: 'total' },
+      { type: 'textfield', key: 'parecer' },
+    ],
+  };
+  assert.deepEqual(camposEscreviveis(s).map((c) => c.key), ['parecer']);
+  assert.deepEqual(dadosParaConcluir({ pautaId: 'OUTRA', media: 20, total: 5, parecer: 'ok' }, s), { parecer: 'ok' });
+});
+
+test('o servidor recusa o que falta num campo obrigatório', () => {
+  const s = { components: [{ type: 'checkbox', key: 'confirmacao', label: 'Confirmo', validate: { required: true } }, { type: 'textfield', key: 'nota' }] };
+  assert.match(primeiroErro({ confirmacao: false }, s) ?? '', /Confirmo/);
+  assert.equal(primeiroErro({ confirmacao: true }, s), null);
+  assert.match(primeiroErro({}, s) ?? '', /obrigatório/);
 });
 
 test('as variáveis chegam como texto JSON e uma truncada fica de fora', () => {

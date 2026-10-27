@@ -82,8 +82,47 @@ export function valoresDasVariaveis(variaveis: { name: string; value: string; is
   return valores;
 }
 
-/** Os campos que o form escreve (chaves dos componentes de entrada) são as variáveis que se devolvem ao concluir. */
+/** Componentes que só mostram: nunca escrevem variáveis. */
+const SO_MOSTRAM = new Set(['text', 'html', 'image', 'button', 'expression', 'spacer', 'separator', 'table', 'iframe', 'documentPreview']);
+
+/**
+ * Os campos que o professor pode escrever: componentes de entrada ao nível do form (ou dentro de grupos, que só
+ * agrupam), nem só de leitura, nem desactivados, nem calculados. Uma lista dinâmica conta pela sua chave, sem os filhos,
+ * que não são variáveis do processo. Uma chave que só aparece no schema como campo de leitura não se aceita de volta.
+ */
+export function camposEscreviveis(schema: Componente): Componente[] {
+  const campos: Componente[] = [];
+  const visitar = (c: Componente) => {
+    if (c.type === 'group') {
+      c.components?.forEach(visitar);
+      return;
+    }
+    if (SO_MOSTRAM.has(String(c.type)) || c.readonly === true || c.disabled === true || typeof c.key !== 'string') return;
+    campos.push(c);
+  };
+  schema.components?.forEach(visitar);
+  return campos;
+}
+
+/** O que se devolve ao concluir: só os campos escreviveis, com a chave que o form lhes dá. */
 export function dadosParaConcluir(dados: Record<string, unknown>, schema: Componente): Record<string, unknown> {
-  const chaves = new Set(componentesDe(schema).map((c) => c.key).filter((k): k is string => typeof k === 'string'));
+  const chaves = new Set(camposEscreviveis(schema).map((c) => c.key as string));
   return Object.fromEntries(Object.entries(dados).filter(([k]) => chaves.has(k)));
+}
+
+const vazio = (v: unknown, tipo?: string) =>
+  v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0) || (tipo === 'checkbox' && v === false);
+
+/**
+ * O servidor também confere as regras `required`: o browser valida, mas a acção pode ser chamada sem ele.
+ * @returns a mensagem do primeiro campo em falta, ou null
+ */
+export function primeiroErro(dados: Record<string, unknown>, schema: Componente): string | null {
+  for (const c of camposEscreviveis(schema)) {
+    const validate = c.validate as { required?: boolean } | undefined;
+    if (validate?.required && vazio(dados[c.key as string], c.type)) {
+      return `O campo "${String(c.label ?? c.key)}" é obrigatório.`;
+    }
+  }
+  return null;
 }

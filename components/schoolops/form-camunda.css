@@ -112,3 +112,20 @@
     animation: none !important;
   }
 }
+
+/* Calendário: tokens do Kixi no selector de dias. */
+.flatpickr-calendar {
+  font-family: var(--font-sans);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  border: 1px solid var(--border);
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.flatpickr-day.today:not(.selected) {
+  border-color: var(--primary);
+}

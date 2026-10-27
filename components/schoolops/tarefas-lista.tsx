@@ -15,12 +15,16 @@ const atrasada = (t: Tarefa) => t.prazo !== null && new Date(t.prazo).getTime() 
 
 export function TarefasLista() {
   const [tarefas, setTarefas] = useState<Tarefa[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setErro(null);
     const r = await listarTarefas();
-    if (r.ok) setTarefas(r.data);
+    if (r.ok) {
+      setTarefas(r.data.tarefas);
+      setTotal(r.data.total);
+    }
     else {
       setTarefas([]);
       setErro(r.error);
@@ -62,6 +66,10 @@ export function TarefasLista() {
           <CardContent className="py-16 text-center text-sm text-muted-foreground">Não tem tarefas por fazer.</CardContent>
         </Card>
       ) : (
+        <>
+        {total > tarefas.length && (
+          <p className="mb-3 text-sm text-muted-foreground">A mostrar as {tarefas.length} mais antigas de {total} tarefas.</p>
+        )}
         <ul className="grid gap-3">
           {tarefas.map((t) => (
             <li key={t.key}>
@@ -85,6 +93,7 @@ export function TarefasLista() {
             </li>
           ))}
         </ul>
+        </>
       )}
     </div>
   );

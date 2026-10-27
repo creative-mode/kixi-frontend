@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Componente } from '@/lib/schoolops/tarefas';
+import './calendario.css';
 import './form-camunda.css';
 
 type Props = {
@@ -22,6 +23,7 @@ export function FormCamunda({ schema, dados, aEnviar, onEnviar }: Props) {
   const form = useRef<import('@bpmn-io/form-js-viewer').Form | null>(null);
   const [pronto, setPronto] = useState(false);
   const [problemas, setProblemas] = useState<string | null>(null);
+  const [falhou, setFalhou] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -30,8 +32,13 @@ export function FormCamunda({ schema, dados, aEnviar, onEnviar }: Props) {
       if (cancelado || !contentor.current) return;
       const instancia = new Form({ container: contentor.current });
       form.current = instancia;
-      await instancia.importSchema(schema, dados);
-      if (!cancelado) setPronto(true);
+      try {
+        await instancia.importSchema(schema, dados);
+        if (!cancelado) setPronto(true);
+      } catch (e) {
+        console.error('[schoolops] form:', e);
+        if (!cancelado) setFalhou(true);
+      }
     })();
     return () => {
       cancelado = true;
@@ -55,8 +62,9 @@ export function FormCamunda({ schema, dados, aEnviar, onEnviar }: Props) {
 
   return (
     <div className="grid gap-5">
-      {!pronto && <Skeleton className="h-48 w-full rounded-xl" />}
+      {!pronto && !falhou && <Skeleton className="h-48 w-full rounded-xl" />}
       <div ref={contentor} className="form-camunda" aria-busy={!pronto} />
+      {falhou && <p role="alert" className="text-sm text-destructive">Não foi possível mostrar o formulário desta tarefa. Conclua-a no Tasklist.</p>}
       {problemas && <p role="alert" className="text-sm text-destructive">{problemas}</p>}
       <div className="flex justify-end">
         <Button onClick={submeter} disabled={!pronto || aEnviar}>
