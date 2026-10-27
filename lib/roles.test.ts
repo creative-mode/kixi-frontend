@@ -10,6 +10,8 @@ test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enu
     '/exam-rooms',
     '/exam-rooms/new',
     '/exam-rooms/12',
+    '/tarefas',
+    '/tarefas/2251799813726180',
     '/desempenho',
     '/exam-builder',
     '/exam-builder/x',
@@ -56,4 +58,8 @@ test('isStructureEntity: a estrutura académica é só do ADMIN', async () => {
   const { isStructureEntity } = await import('./roles.ts');
   for (const k of ['classes', 'courses', 'subjects', 'school-years', 'terms', 'institutions']) assert.equal(isStructureEntity(k), true, k);
   for (const k of ['statements', 'simulations', 'accounts']) assert.equal(isStructureEntity(k), false, k);
+});
+
+test('o professor não abre uma tarefa que não é um número (a chave do Camunda)', () => {
+  for (const p of ['/tarefas/abc', '/tarefas/12/outra', '/tarefas/']) assert.notEqual(teacherRoute(p), 'allow', p);
 });
