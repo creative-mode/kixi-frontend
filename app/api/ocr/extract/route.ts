@@ -5,11 +5,6 @@ import { createOcrRequestId, isOcrRequestId } from '@/lib/exam/ocr-telemetry';
 import { readBoundedRequestBody } from '@/lib/exam/ocr-upload';
 
 export const dynamic = 'force-dynamic';
-export const OCR_UPSTREAM_TIMEOUT_MS = 180_000;
-
-function ocrSignal(requestSignal: AbortSignal): AbortSignal {
-  return AbortSignal.any([requestSignal, AbortSignal.timeout(OCR_UPSTREAM_TIMEOUT_MS)]);
-}
 
 /** Same-origin authenticated bridge. The bearer token stays on the server. */
 export async function POST(request: Request) {
@@ -54,39 +49,25 @@ export async function POST(request: Request) {
   const upstreamForm = new FormData();
   for (const file of files) upstreamForm.append('files', file, file.name);
 
-  let upstream: Response;
-  try {
-    upstream = await call('/api/v1/ocr/extract/stream', {
-      method: 'POST',
-      body: upstreamForm,
-      headers: {
-        Accept: 'text/event-stream',
-        'X-OCR-Upload-Ms': String(uploadMs),
-        'X-OCR-Request-ID': requestId,
-      },
-      signal: ocrSignal(request.signal),
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
-      return Response.json({ detail: 'O processamento OCR excedeu o limite de 180 segundos.' }, { status: 504 });
-    }
-    throw error;
-  }
-  if (!upstream.ok || !upstream.body) {
+  const upstream = await call('/api/v1/ocr/jobs', {
+    method: 'POST',
+    body: upstreamForm,
+    headers: {
+      Accept: 'application/json',
+      'X-OCR-Upload-Ms': String(uploadMs),
+      'X-OCR-Request-ID': requestId,
+    },
+    signal: request.signal,
+  });
+  if (!upstream.ok) {
     return new Response(await message(upstream), { status: upstream.status || 502 });
   }
-
-  const headers = new Headers({
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
+  const accepted = await upstream.json().catch(() => null);
+  if (!accepted || typeof accepted.jobId !== 'string' || typeof accepted.statusUrl !== 'string') {
+    return Response.json({ detail: 'O servidor não confirmou a fila OCR.' }, { status: 502 });
+  }
+  return Response.json(accepted, {
+    status: 202,
+    headers: { 'Cache-Control': 'no-store', 'X-OCR-Request-ID': requestId },
   });
-  const upstreamRequestId = upstream.headers.get('X-Request-ID');
-  const serverTiming = upstream.headers.get('Server-Timing');
-  headers.set('X-OCR-Request-ID', requestId);
-  if (upstreamRequestId) headers.set('X-Request-ID', upstreamRequestId);
-  if (serverTiming) headers.set('Server-Timing', serverTiming);
-
-  return new Response(upstream.body, { status: upstream.status, headers });
 }
