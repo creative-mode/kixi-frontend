@@ -20,6 +20,11 @@ x-app: &app
     SCHOOLOPS_CAMUNDA_CLIENT_ID: ${SCHOOLOPS_CAMUNDA_CLIENT_ID:-}
     SCHOOLOPS_CAMUNDA_CLIENT_SECRET: ${SCHOOLOPS_CAMUNDA_CLIENT_SECRET:-}
     SCHOOLOPS_CAMUNDA_AUDIENCE: ${SCHOOLOPS_CAMUNDA_AUDIENCE:-}
+    # Correcção em tempo real das simulações do aluno (motor SchoolOps). Sem SCHOOLOPS_URL e token fica desligada.
+    SCHOOLOPS_URL: ${SCHOOLOPS_URL:-}
+    SCHOOLOPS_CLIENTE_TOKEN: ${SCHOOLOPS_CLIENTE_TOKEN:-}
+    SCHOOLOPS_SEGREDO_EVENTOS: ${SCHOOLOPS_SEGREDO_EVENTOS:-}
+    SCHOOLOPS_CALLBACK_URL: ${SCHOOLOPS_CALLBACK_URL:-}
     # Endereço público do gateway. É com ele que o gestor e o aluno constroem os
     # redireccionamentos para a landing e para a /403 canónica; os cabeçalhos Host e
     # x-forwarded-host vêm do cliente e não são de confiança.
