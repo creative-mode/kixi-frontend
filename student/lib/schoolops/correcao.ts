@@ -20,7 +20,9 @@ function config(): { url: string; token: string; callback: string } | null {
 
 export const correcaoLigada = (): boolean => config() !== null;
 
-async function chamar<T>(cfg: { url: string; token: string }, caminho: string, init: RequestInit = {}): Promise<T | null> {
+type Resposta<T> = { ok: true; corpo: T } | { ok: false; status: number };
+
+async function chamar<T>(cfg: { url: string; token: string }, caminho: string, init: RequestInit = {}): Promise<Resposta<T>> {
   try {
     const res = await fetch(`${cfg.url}${caminho}`, {
       ...init,
@@ -28,10 +30,10 @@ async function chamar<T>(cfg: { url: string; token: string }, caminho: string, i
       cache: 'no-store',
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
+    if (!res.ok) return { ok: false, status: res.status };
+    return { ok: true, corpo: (await res.json()) as T };
   } catch {
-    return null; // o motor em baixo não pode deitar abaixo o ecrã: mostra-se "a corrigir" e volta-se a tentar
+    return { ok: false, status: 0 }; // o motor em baixo não pode deitar abaixo o ecrã: mostra-se "a corrigir" e volta-se a tentar
   }
 }
 
@@ -45,12 +47,14 @@ export async function correcaoDaSimulacao(args: {
   const cfg = config();
   if (!cfg) return null;
   const pedido = pedidoDeCorrecao({ ...args, callbackUrl: cfg.callback });
-  if (!pedido) return { kind: 'a-corrigir' };
   const aberta = await chamar<{ correcaoId: string; resultado?: CorrecaoEstado['resultado'] }>(cfg, '/v1/correcoes?aguardar=0', {
     method: 'POST',
     body: JSON.stringify(pedido),
   });
-  if (!aberta) return { kind: 'a-corrigir' };
-  const estado = await chamar<CorrecaoEstado>(cfg, `/v1/correcoes/${encodeURIComponent(aberta.correcaoId)}`);
-  return vistaDaCorrecao(estado ?? { correcaoId: aberta.correcaoId, estado: 'ACTIVE' });
+  if (!aberta.ok) {
+    // Um 4xx (menos o 429) é o motor a recusar o pedido: repetir não adianta e esperar para sempre é pior do que dizê-lo.
+    return aberta.status >= 400 && aberta.status < 500 && aberta.status !== 429 && aberta.status !== 408 ? { kind: 'falhou' } : { kind: 'a-corrigir' };
+  }
+  const estado = await chamar<CorrecaoEstado>(cfg, `/v1/correcoes/${encodeURIComponent(aberta.corpo.correcaoId)}`);
+  return vistaDaCorrecao(estado.ok ? estado.corpo : { correcaoId: aberta.corpo.correcaoId, estado: 'ACTIVE' });
 }
