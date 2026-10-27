@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { camposEscreviveis, dadosParaConcluir, primeiroErro, pertenceA, paraTarefa, temEnvioDeFicheiros, valoresDasVariaveis } from './tarefas.ts';
+import { nomeDoCampo, camposEscreviveis, dadosParaConcluir, primeiroErro, pertenceA, paraTarefa, temEnvioDeFicheiros, valoresDasVariaveis } from './tarefas.ts';
 
 const schema = {
   components: [
     { type: 'text' },
     { type: 'group', components: [{ type: 'checkbox', key: 'confirmacaoProfessor' }, { type: 'textarea', key: 'parecer' }] },
-    { type: 'dynamiclist', key: 'notas', components: [{ type: 'number', key: 'nota' }] },
+    { type: 'dynamiclist', path: 'notas', components: [{ type: 'number', key: 'nota' }] },
   ],
 };
 
@@ -62,4 +62,52 @@ test('a tarefa mostra o processo em linguagem do professor', () => {
   assert.equal(t.processo, 'Pauta do trimestre');
   assert.equal(t.nome, 'Validar a pauta');
   assert.equal(paraTarefa({ userTaskKey: '2', elementId: 'UT_X', processDefinitionId: 'novo', state: 'CREATED', creationDate: 'x' }).nome, 'UT_X');
+});
+
+// A forma real dos forms do SchoolOps (definir-avaliacoes-continuas.form): a lista dinâmica liga-se por `path`, não por `key`.
+const avaliacoesContinuas = {
+  components: [
+    { type: 'text', text: 'Defina as avaliações' },
+    {
+      type: 'dynamiclist',
+      label: 'Avaliações',
+      path: 'avaliacoesContinuas',
+      isRepeating: true,
+      validate: { required: true },
+      components: [
+        { type: 'textfield', key: 'titulo', validate: { required: true } },
+        { type: 'datetime', key: 'data', subtype: 'date', validate: { required: true } },
+      ],
+    },
+  ],
+};
+
+test('uma lista dinâmica liga-se por path e volta ao Camunda (era deitada fora)', () => {
+  assert.deepEqual(camposEscreviveis(avaliacoesContinuas).map(nomeDoCampo), ['avaliacoesContinuas']);
+  const lista = [{ titulo: 'Teste curto 1', data: '2026-11-20' }];
+  assert.deepEqual(dadosParaConcluir({ avaliacoesContinuas: lista, titulo: 'solto', pautaId: 'PT-1' }, avaliacoesContinuas), {
+    avaliacoesContinuas: lista,
+  });
+});
+
+test('o servidor exige a lista obrigatória, também por path', () => {
+  assert.match(primeiroErro({}, avaliacoesContinuas) ?? '', /Avaliações/);
+  assert.match(primeiroErro({ avaliacoesContinuas: [] }, avaliacoesContinuas) ?? '', /obrigatório/);
+  assert.equal(primeiroErro({ avaliacoesContinuas: [{ titulo: 'x', data: '2026-11-20' }] }, avaliacoesContinuas), null);
+});
+
+test('um grupo com caminho conta pelo caminho; um sem caminho só agrupa', () => {
+  const s = {
+    components: [
+      { type: 'group', path: 'cabecalho', components: [{ type: 'textfield', key: 'titulo' }] },
+      { type: 'group', components: [{ type: 'textfield', key: 'parecer' }] },
+      { type: 'textfield', key: 'dados.nota' },
+    ],
+  };
+  assert.deepEqual(camposEscreviveis(s).map(nomeDoCampo), ['cabecalho', 'parecer', 'dados.nota']);
+  assert.deepEqual(dadosParaConcluir({ cabecalho: { titulo: 'x' }, parecer: 'ok', dados: { nota: 5 }, pautaId: 'PT-1' }, s), {
+    cabecalho: { titulo: 'x' },
+    parecer: 'ok',
+    dados: { nota: 5 },
+  });
 });
