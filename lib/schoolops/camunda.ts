@@ -1,5 +1,6 @@
 import 'server-only';
 import type { Componente, TarefaCamunda } from './tarefas';
+import { FonteDeToken, configuracaoDoAmbiente } from './token';
 
 // Acesso do gestor ao Camunda (API REST v2) para as tarefas do SchoolOps. Só corre no servidor: o browser nunca fala com o
 // Camunda, e o token do Camunda nunca chega ao browser. Quem decide de quem é a tarefa é o `assignee`, e a verificação
@@ -17,24 +18,42 @@ function base(): string {
   return `${url.replace(/\/$/, '')}/v2`;
 }
 
-async function pedir<T>(caminho: string, init: RequestInit = {}): Promise<T> {
-  const token = process.env.SCHOOLOPS_CAMUNDA_TOKEN;
-  const res = await fetch(`${base()}${caminho}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers as Record<string, string> | undefined),
-    },
-    cache: 'no-store',
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) {
-    const corpo = await res.text().catch(() => '');
-    throw new CamundaErro(res.status, corpo);
+// Com SCHOOLOPS_CAMUNDA_TOKEN_URL, _CLIENT_ID e _CLIENT_SECRET o token vem do Keycloak por client credentials; senão
+// vale o token estático (ou nenhum, com o Camunda aberto).
+let fonte: FonteDeToken | null | undefined;
+function fonteDeToken(): FonteDeToken | null {
+  if (fonte === undefined) {
+    const cfg = configuracaoDoAmbiente(process.env);
+    fonte = cfg ? new FonteDeToken(cfg) : null;
   }
-  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+  return fonte;
+}
+
+async function pedir<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+  const origem = fonteDeToken();
+  for (let tentativa = 0; ; tentativa++) {
+    const token = origem ? await origem.obter() : process.env.SCHOOLOPS_CAMUNDA_TOKEN;
+    const res = await fetch(`${base()}${caminho}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init.headers as Record<string, string> | undefined),
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 401 && origem && tentativa === 0) {
+      origem.invalidar(); // o token pode ter sido revogado ou o relógio ter derivado: pede-se outro e repete-se uma vez
+      continue;
+    }
+    if (!res.ok) {
+      const corpo = await res.text().catch(() => '');
+      throw new CamundaErro(res.status, corpo);
+    }
+    return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+  }
 }
 
 const LIMITE_TAREFAS = 100;
