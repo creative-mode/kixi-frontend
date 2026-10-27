@@ -75,6 +75,8 @@ export function proxy(req: NextRequest) {
   // A página 403 é uma tela estática do manual: segura de mostrar a qualquer
   // visitante (paridade com o manager, que também deixa abrir /403 sem sessão).
   if (pathname === '/403' || pathname.startsWith('/403/')) return NextResponse.next();
+  // O callback do SchoolOps vem de uma máquina, sem sessão: quem o autentica é a assinatura do evento, na própria rota.
+  if (pathname === '/api/schoolops/eventos') return NextResponse.next();
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   if (isPublic) {

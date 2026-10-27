@@ -12,6 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { getMe } from '@/lib/me';
 import { getResultView } from '@/lib/result';
+import { ACorrigir } from '@/components/a-corrigir';
+import { listInvitations } from '@/lib/exam-room';
+import { comCorrecao, eSimulacaoLivre } from '@/lib/schoolops/correcao-rules';
+import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { MathText } from '@/lib/shared/math-text';
@@ -98,6 +102,7 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
           {formatScore(question.scoreObtained)} de {formatScore(question.maxScore)} valores
         </p>
       )}
+      {question.feedback && <p className="pl-[46px] text-[13px] text-muted-foreground">{question.feedback}</p>}
     </li>
   );
 }
@@ -120,8 +125,46 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
     );
   }
 
-  const { result, statementId, comparison } = view;
+  const { result: resultadoDoBackend, statementId, comparison } = view;
   const me = await getMe();
+
+  // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
+  // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
+  let totalMax = view.totalMaxScore;
+  let result = resultadoDoBackend;
+  if (correcaoLigada() && me && statementId != null) {
+    const salas = await listInvitations();
+    if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
+      const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId, statementTitle: view.title });
+      if (correcao && correcao.kind !== 'corrigida') {
+        return (
+          <Page>
+            <FireEventOnce param="submetida" event="exam_submitted" />
+            <Column className="gap-5">
+              <PageHeader kicker="Resultado" title={view.title} />
+              <Card className="px-5 py-6">
+                {correcao.kind === 'a-corrigir' && <ACorrigir />}
+                {correcao.kind === 'incompleta' && (
+                  <p role="status" className="text-sm">Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.</p>
+                )}
+                {correcao.kind === 'falhou' && (
+                  <p role="status" className="text-sm">A correcção demorou mais do que o esperado. A tua prova está guardada: volta a abrir o resultado daqui a pouco.</p>
+                )}
+              </Card>
+              <div className="flex flex-wrap items-start gap-2.5">
+                {statementId != null && <RefazerSimulacao statementId={statementId} />}
+                <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
+              </div>
+            </Column>
+          </Page>
+        );
+      }
+      if (correcao?.kind === 'corrigida') {
+        result = comCorrecao(resultadoDoBackend, correcao.resultado);
+        totalMax = correcao.resultado.maximo ?? 20;
+      }
+    }
+  }
   const classId = me?.currentClass?.id ?? null;
   const questions = inOrder(result.questions);
   const score = formatScore(result.finalScore);
@@ -132,9 +175,9 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   // A prova entregue na folha, corrigida. O cabeçalho e as figuras são extras: se algum falhar, a folha leva o
   // molde em branco e a revisão questão a questão, mais abaixo, continua a ser a fonte de tudo.
   const statement = statementId != null ? await getStatementFull(statementId, { cached: true }) : null;
-  const paperMeta = statement?.ok ? await loadPaperMeta(statement.data) : { kind: 'Prova', totalMaxScore: view.totalMaxScore };
+  const paperMeta = statement?.ok ? await loadPaperMeta(statement.data) : { kind: 'Prova', totalMaxScore: totalMax };
   const figures = Object.fromEntries(await Promise.all(questions.map(async (q) => [q.questionId, await getQuestionImages(q.questionId)] as const)));
-  const stamp = stampOf(result.finalScore, view.totalMaxScore, pending);
+  const stamp = stampOf(result.finalScore, totalMax, pending);
 
   return (
     <Page>
@@ -144,8 +187,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
 
         <div className="flex flex-wrap items-end gap-x-3.5 gap-y-2">
           <span className="text-[52px] leading-[.95] font-bold tracking-tighter tabular-nums md:text-[64px]">{score ? <CountUp value={score} /> : '—'}</span>
-          {view.totalMaxScore != null && (
-            <span className="pb-1.5 text-lg font-semibold text-muted-foreground">de {formatScore(view.totalMaxScore)} valores</span>
+          {totalMax != null && (
+            <span className="pb-1.5 text-lg font-semibold text-muted-foreground">de {formatScore(totalMax)} valores</span>
           )}
           {comparison && (
             <Badge variant={comparison.delta >= 0 ? 'success' : 'warning'} className="mb-2">
@@ -212,7 +255,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
               schoolName: me?.school?.name ?? null,
               statementTitle: view.title,
               finalScore: result.finalScore,
-              maxScore: view.totalMaxScore,
+              maxScore: totalMax,
               correctAnswers: result.correctAnswers ?? null,
               totalQuestions: result.totalQuestions ?? null,
               timeSpentSeconds: result.timeSpentSeconds ?? null,

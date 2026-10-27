@@ -38,6 +38,8 @@ export interface ResultQuestion extends MathContentFields {
   reviewStatus?: string | null;
   options?: ResultOption[];
   ocrConfidence?: number | null;
+  /** A justificação da nota de uma dissertativa corrigida pelo SchoolOps. */
+  feedback?: string | null;
 }
 
 export interface SimulationResult {
