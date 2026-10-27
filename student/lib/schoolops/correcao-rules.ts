@@ -53,12 +53,15 @@ export function pedidoDeCorrecao(args: {
   callbackUrl: string;
 }) {
   const { me } = args;
-  if (!me.school) return null; // o contrato exige a instituição
+  // O contrato exige a instituição. Um aluno sem escola (a simulação é aberta a quem se regista) usa a organização geral do Kixi.
+  const org = me.school
+    ? { sourcedId: String(me.school.id), nome: me.school.name, sigla: me.school.code }
+    : { sourcedId: 'kixi', nome: 'Kixi', sigla: 'KIXI' };
   const nome = [me.first_name, me.last_name].filter(Boolean).join(' ').trim() || me.username;
   return {
     contratoVersao: '1',
     correcaoRef: `kixi-sim-${args.simulationId}`,
-    org: { sourcedId: String(me.school.id), nome: me.school.name, sigla: me.school.code },
+    org,
     prova: { sourcedId: String(args.statementId), titulo: args.statementTitle ?? undefined },
     simulacao: { sourcedId: String(args.simulationId) },
     aluno: { sourcedId: String(me.accountId), nome },
