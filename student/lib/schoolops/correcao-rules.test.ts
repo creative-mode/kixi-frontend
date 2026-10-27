@@ -29,8 +29,9 @@ test('o pedido leva a instituição, a prova, a simulação e o aluno, e usa o u
   assert.equal(pedidoDeCorrecao({ me: { ...me, first_name: null, last_name: null }, simulationId: 9, statementId: 2, statementTitle: null, callbackUrl: 'x' })?.aluno.nome, 'ana.domingos');
 });
 
-test('sem escola não há pedido', () => {
-  assert.equal(pedidoDeCorrecao({ me: { ...me, school: null }, simulationId: 1, statementId: 1, statementTitle: null, callbackUrl: 'x' }), null);
+test('um aluno sem escola usa a organização geral do Kixi em vez de ficar sem pedido', () => {
+  const p = pedidoDeCorrecao({ me: { ...me, school: null }, simulationId: 1, statementId: 1, statementTitle: null, callbackUrl: 'x' });
+  assert.deepEqual(p?.org, { sourcedId: 'kixi', nome: 'Kixi', sigla: 'KIXI' });
 });
 
 test('a simulação de uma sala de prova não é simulação livre', () => {
