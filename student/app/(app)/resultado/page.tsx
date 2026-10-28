@@ -145,7 +145,11 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
               <Card className="px-5 py-6">
                 {correcao.kind === 'a-corrigir' && <ACorrigir />}
                 {correcao.kind === 'incompleta' && (
-                  <p role="status" className="text-sm">Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.</p>
+                  <p role="status" className="text-sm">
+                    {correcao.semGabarito
+                      ? 'Esta prova ainda não tem gabarito nas questões abertas, por isso não conseguimos dar-te nota. Fala com o teu professor.'
+                      : 'Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.'}
+                  </p>
                 )}
                 {correcao.kind === 'falhou' && (
                   <p role="status" className="text-sm">A correcção demorou mais do que o esperado. A tua prova está guardada: volta a abrir o resultado daqui a pouco.</p>
