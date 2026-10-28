@@ -369,6 +369,57 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect.poll(temRascunho, { timeout: 15_000 }).toBe(false);
   });
 
+  test('aluno: sem ligação avisa, guarda a resposta e a entrega falha sem partir a sala (#485)', async ({ page }) => {
+    test.setTimeout(60_000);
+    page.on('dialog', (dialogo) => void dialogo.accept());
+    const id = randomUUID().replaceAll('-', '').slice(0, 12);
+    await page.goto('/aluno/cadastro');
+    await page.getByLabel('Nome', { exact: true }).fill('Rita');
+    await page.getByLabel('Apelido').fill(`OFF${id}`);
+    await page.getByLabel('Utilizador').fill(`off${id}`);
+    await page.getByLabel('Email').fill(`off${id}@kixi.ao`);
+    await page.locator('#password').fill(PASSWORD);
+    await page.locator('#confirm').fill(PASSWORD);
+    await page.getByTestId('aluno-cadastro-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/onboarding/);
+    await page.getByLabel('Código de matrícula').fill('TESTE1234');
+    await page.getByRole('button', { name: 'Entrar na turma' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/provas');
+    await page.getByRole('link', { name: 'Ver a prova' }).first().click();
+    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await page.getByRole('button', { name: 'Começar', exact: true }).click();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+
+    const faixa = page.getByTestId('sala-offline');
+    await page.context().setOffline(true);
+    await expect(faixa).toBeVisible({ timeout: 2000 });
+
+    // Offline a sério: a fila esgota as tentativas e mostra o erro. Ao voltar a
+    // rede, o evento `online` reenvia a resposta sem o aluno recarregar nada.
+    await page.locator('label:has(input[type="radio"])').last().click();
+    await expect(page.getByText('Não foi possível contactar o servidor.')).toBeVisible({ timeout: 15_000 });
+    await page.context().setOffline(false);
+    await expect(faixa).toHaveCount(0);
+    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible({ timeout: 15_000 });
+
+    // A entrega também pode falhar por rede. Tem de ficar no diálogo, com a sala
+    // ainda por trás, e não no error boundary global.
+    await page.getByRole('button', { name: 'Entregar', exact: true }).first().click();
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+    const semEntrega = (route: import('@playwright/test').Route) =>
+      route.request().headers()['next-action'] ? route.abort('failed') : route.continue();
+    await page.route('**/aluno/prova/**', semEntrega);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
+    await expect(page.getByRole('alertdialog').getByRole('alert')).toContainText('Sem ligação');
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    await expect(page.getByText('Algo falhou, mas não perdeste nada')).toHaveCount(0);
+    await page.unroute('**/aluno/prova/**', semEntrega);
+  });
+
   test('professor: OCR, revisão, gabarito, publicação e sala', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     // `/statements/import` passou a redireccionar para o construtor com o importador
