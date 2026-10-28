@@ -12,7 +12,7 @@ test('enquanto não está corrigida não há nota para mostrar', () => {
 
 test('corrigida mostra o resultado; sem respostas legíveis diz-se incompleta, nunca zero', () => {
   assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'CONCLUIDA', resultado: { estado: 'FULLY_GRADED', nota: 18 } }).kind, 'corrigida');
-  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'CONCLUIDA', resultado: { estado: 'INCOMPLETE', nota: null } }).kind, 'incompleta');
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'CONCLUIDA', resultado: { estado: 'INCOMPLETE', nota: null } }), { kind: 'incompleta', semGabarito: false });
 });
 
 test('uma correcção cancelada ou com incidente é uma falha, não uma espera eterna', () => {
@@ -91,4 +91,17 @@ test('a nota das simulações livres sai das outras páginas; a das salas fica',
 
 test('se a lista de salas falhou, não se arrisca: sai a nota de todas', () => {
   assert.deepEqual(semNotaDasSimulacoes([{ id: 2, finalScore: 18 }], null), [{ id: 2, finalScore: null }]);
+});
+
+test('sem gabarito numa questão aberta diz-se, em vez de culpar a leitura das respostas', () => {
+  const v = vistaDaCorrecao({
+    correcaoId: 'c',
+    estado: 'CONCLUIDA',
+    resultado: { estado: 'INCOMPLETE', nota: null, questoes: [{ questaoId: '1', tipo: 'DISSERTATIVA', corrigida: false }] },
+  });
+  assert.deepEqual(v, { kind: 'incompleta', semGabarito: true });
+});
+
+test('uma correcção FALHADA (incidente no motor) é uma falha, não uma espera', () => {
+  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'FALHADA' }).kind, 'falhou');
 });
