@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, 
 import { guardarAction, submeterAction } from '@/lib/exam-actions';
 import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue';
 import { aRecuperar, guardarRascunho, lerRascunho, limparRascunho, type Armazem } from '@/lib/draft-store';
+import { guardarMarcadas, lerMarcadas, limparMarcadas } from '@/lib/flag-store';
 import { PASTE_NOTICE, pasteBlocked } from '@/lib/integrity';
 import { useIntegrity } from '@/components/use-integrity';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -98,6 +99,7 @@ function Confirmar({
   unanswered,
   saving,
   failed,
+  marked,
   pending,
   error,
   onCancel,
@@ -106,6 +108,7 @@ function Confirmar({
   unanswered: number;
   saving: boolean;
   failed: number;
+  marked: number;
   pending: boolean;
   error?: string;
   onCancel: () => void;
@@ -147,6 +150,10 @@ function Confirmar({
           </p>
         </div>
       </div>
+      <p className="text-[13px] text-muted-foreground">
+        <Flag className="mr-1 inline size-4" aria-hidden />
+        {marked === 0 ? 'Nenhuma questão marcada para rever.' : `Marcadas (${marked}) para rever.`}
+      </p>
       {error && <p role="alert" className="text-[13px] font-medium text-destructive">{error}</p>}
       <div className="flex flex-wrap gap-2.5">
         {failed > 0 && (
@@ -351,11 +358,14 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   );
   const failed = queue.failed();
   const saving = queue.busy() || unsaved.size > 0;
+  /** O aviso nativo só faz sentido quando há mesmo algo por chegar ao servidor:
+   *  uma resposta em voo, uma que falhou ou uma que ainda não foi pedida. */
+  const haRespostasPorGuardar = queue.busy() || failed.length > 0 || unsaved.size > 0;
 
-  // Respostas por confirmar sobrevivem a um separador fechado ou a uma rede em baixo (#587): guardam-se no browser enquanto o servidor não as
+    // Respostas por confirmar sobrevivem a um separador fechado ou a uma rede em baixo (#587): guardam-se no browser enquanto o servidor não as
   // confirma e restauram-se ao reabrir a prova. Só o que ainda não está confirmado: se existe, é mais recente do que o do servidor.
   const [recuperadas, setRecuperadas] = useState(0);
-  const [rascunhoArmado, setRascunhoArmado] = useState(false);
+  const [estadoLocalArmado, setEstadoLocalArmado] = useState(false);
   const jaRestaurou = useRef(false);
   useEffect(() => {
     if (jaRestaurou.current) return;
@@ -366,7 +376,13 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
       const terminada = (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' || (restante !== null && restante <= 0);
       if (terminada) {
         limparRascunho(armazem, data.simulationId); // já não se responde: um rascunho antigo não pode ressuscitar
+        limparMarcadas(armazem, data.simulationId);
       } else {
+        // As marcas (#486) são do aluno e sobrevivem a sair/voltar; só se aceitam
+        // ids de questões que ainda existem nesta prova.
+        const existentes = new Set(data.questions.map((q) => q.id));
+        const marcadas = new Set([...lerMarcadas(armazem, data.simulationId)].filter((id) => existentes.has(id)));
+        if (marcadas.size > 0) setFlagged(marcadas);
         const guardadoNoServidor = Object.fromEntries(Object.entries(data.saved).map(([id, v]) => [Number(id), { optionId: v.optionId, text: v.text }]));
         const restaurar = aRecuperar(lerRascunho(armazem, data.simulationId), data.questions.map((q) => q.id), guardadoNoServidor);
         const ids = Object.keys(restaurar).map(Number);
@@ -380,26 +396,33 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
         }
       }
     }
-    setRascunhoArmado(true); // só depois de restaurar: antes disso um rascunho por ler seria apagado por uma lista vazia
+    setEstadoLocalArmado(true); // só depois de restaurar: antes disso uma lista vazia apagaria o que está no browser
   }, [data, guardar]);
 
   const porConfirmar = JSON.stringify(Object.fromEntries([...unsaved].map((id) => [id, snapshotOf(id)])));
   useEffect(() => {
-    if (!rascunhoArmado) return;
+    if (!estadoLocalArmado) return;
     const armazem = armazemLocal();
     if (armazem) guardarRascunho(armazem, data.simulationId, JSON.parse(porConfirmar));
-  }, [rascunhoArmado, porConfirmar, data.simulationId]);
+  }, [estadoLocalArmado, porConfirmar, data.simulationId]);
+
+  // As marcas mudam com um toque e têm de sobreviver a recarregar a sala (#486).
+  useEffect(() => {
+    if (!estadoLocalArmado) return;
+    const armazem = armazemLocal();
+    if (armazem) guardarMarcadas(armazem, data.simulationId, flagged);
+  }, [estadoLocalArmado, flagged, data.simulationId]);
 
   // Fechar ou recarregar com respostas por confirmar pede confirmação ao browser (as que já saíram não pedem nada).
   useEffect(() => {
-    if (!saving || submitting) return;
+    if (!haRespostasPorGuardar || submitting) return;
     const avisar = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', avisar);
     return () => window.removeEventListener('beforeunload', avisar);
-  }, [saving, submitting]);
+  }, [haRespostasPorGuardar, submitting]);
 
   function patch(questionId: number, change: Partial<Draft>) {
     const next = { ...draftsRef.current, [questionId]: { ...snapshotOf(questionId), ...change } };
@@ -575,6 +598,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               unanswered={questions.length - answered.size}
               saving={saving && failed.length === 0}
               failed={failed.length}
+              marked={flagged.size}
               pending={submitting}
               error={submitState?.error}
               onCancel={fecharConfirm}

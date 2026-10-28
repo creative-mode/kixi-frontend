@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Check, Clock, MessageCircle, X } from 'lucide-react';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
+import { ClearExamLocal } from '@/components/clear-exam-local';
 import { Column, Page, PageHeader } from '@/components/page';
 import { PublishResult } from '@/components/publish-result';
 import { RefazerSimulacao } from '@/components/refazer-simulacao';
@@ -140,6 +141,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         return (
           <Page>
             <FireEventOnce param="submetida" event="exam_submitted" />
+            <ClearExamLocal simulationId={id} />
             <Column className="gap-5">
               <PageHeader kicker="Resultado" title={view.title} />
               <Card className="px-5 py-6">
@@ -186,6 +188,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   return (
     <Page>
       <FireEventOnce param="submetida" event="exam_submitted" />
+      <ClearExamLocal simulationId={id} />
       <Column className="gap-5">
         <PageHeader kicker="Resultado" title={view.title} />
 

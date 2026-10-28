@@ -28,6 +28,43 @@ function samplePdf(): Buffer {
   return Buffer.from(pdf);
 }
 
+async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) {
+  const jobId = randomUUID();
+  await page.route('**/manager/api/ocr/extract', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        jobId,
+        requestId: randomUUID(),
+        statusUrl: `/manager/api/ocr/jobs/${jobId}`,
+      }),
+    });
+  });
+  await page.route(`**/manager/api/ocr/jobs/${jobId}`, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        jobId,
+        status: 'SUCCEEDED',
+        pageCount: 1,
+        completedPages: 1,
+        currentPage: 1,
+        eventType: 'result',
+        result: extraction,
+        error: null,
+      }),
+    });
+  });
+}
+
 // Admin e professor não aterram no mesmo sítio: o admin vai ao dashboard, o professor
 // vai ao seu âmbito. E o "Dashboard" não se pode procurar por texto — o Next injecta um
 //#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
@@ -178,6 +215,26 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('region', { name: 'Escolas' }).getByRole('link').first()).toBeVisible();
   });
 
+  test('pesquisar na barra lateral no desktop abre a mesma pesquisa', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // No desktop só a barra lateral mostra este link: o cabeçalho e a barra inferior
+    // do telemóvel estão `md:hidden`, por isso a consulta por role encontra um só.
+    const pesquisa = page.getByRole('link', { name: 'Pesquisar escolas, professores e alunos' });
+    await expect(pesquisa).toBeVisible();
+    // O critério de aceitação pede teclado: foco no link e ativação com Enter.
+    await pesquisa.focus();
+    await expect(pesquisa).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/aluno\/pesquisa/);
+    await expect(page.getByLabel(/Nome de uma escola/)).toBeVisible();
+  });
+
   test('a escola segue o padrão do perfil: faixa, nome, etiquetas e separadores', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -252,6 +309,19 @@ test.describe('jornadas críticas do Kixi', () => {
     // O cabeçalho passou a ser "Questão 2 (1 de 12)": o número de exibição e o
 // índice de posição deixaram de ser a mesma coisa.
 await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    // #486: a marca «para rever» sobrevive a recarregar a sala, e sem respostas
+    // por guardar o browser não mostra o aviso nativo.
+    let avisosNativos = 0;
+    page.on('dialog', (dialogo) => {
+      avisosNativos += 1;
+      void dialogo.accept();
+    });
+    await page.getByRole('button', { name: 'Marcar para rever' }).click();
+    await expect(page.getByRole('button', { name: 'Marcada para rever', exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Marcada para rever', exact: true })).toBeVisible();
+    expect(avisosNativos).toBe(0);
     // Resposta deliberadamente errada para o resultado oferecer a ligação ao tutor.
     // Clica-se na linha da opção, não no input: o radio é `sr-only` e o círculo
     // visível é um `<span>` sobreposto, por isso `.check()` no input nunca chega lá.
@@ -259,8 +329,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
     await page.getByRole('button', { name: 'Entregar', exact: true }).first().click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toContainText('Marcadas (1) para rever.');
     await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
+    // Entregar fecha a tentativa: as marcas locais dessa simulação desaparecem.
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kixi:marcadas:')).length)).toBe(0);
     // O `CardTitle` da revisão é um `div`, não um heading, por isso não aparece em
     // `getByRole('heading')`. O alvo estável é o `aria-label` que o card já traz.
     await expect(page.getByLabel('Revisão questão a questão')).toBeVisible();
@@ -407,16 +480,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       }],
       warnings: [{ code: 'LOW_CONFIDENCE_FORMULA', field: 'question_4_formula_1', confidence: 0.55 }],
     };
-    const events = [
-      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-physics', pageCount: 1, timings: {} })}`,
-      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
-      `event: result\ndata: ${JSON.stringify(extraction)}`,
-    ].join('\n\n') + '\n\n';
-    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
-      status: 200,
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
-      body: events,
-    }));
+    await mockAsyncOcrJob(page, extraction);
 
     await page.goto('/manager/exam-builder?importar=1');
     await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
@@ -469,16 +533,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       }],
       warnings: [],
     };
-    const events = [
-      `event: prepared\ndata: ${JSON.stringify({ requestId: 'req-visual-brace', pageCount: 1, timings: {} })}`,
-      `event: progress\ndata: ${JSON.stringify({ page: 1, pageCount: 1, timings: {} })}`,
-      `event: result\ndata: ${JSON.stringify(extraction)}`,
-    ].join('\n\n') + '\n\n';
-    await page.route('**/manager/api/ocr/extract', (route) => route.fulfill({
-      status: 200,
-      headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
-      body: events,
-    }));
+    await mockAsyncOcrJob(page, extraction);
 
     await page.goto('/manager/exam-builder?importar=1');
     await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
