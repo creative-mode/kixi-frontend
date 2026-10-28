@@ -5,7 +5,7 @@ import { ArrowLeft, BookOpen, Clock, FileText, History, Play, Target, Users } fr
 import { Column, Page, PageHeader } from '@/components/page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { EmptyState } from '@/components/states';
 import { StatementCommunity } from '@/components/statement-community';
 import type { AttemptRow, StatementSummaryView } from '@/lib/statement-detail';
