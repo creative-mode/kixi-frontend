@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, RefreshCw, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { guardarAction, submeterAction } from '@/lib/exam-actions';
 import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue';
+import { aRecuperar, guardarRascunho, lerRascunho, limparRascunho, type Armazem } from '@/lib/draft-store';
 import { PASTE_NOTICE, pasteBlocked } from '@/lib/integrity';
 import { useIntegrity } from '@/components/use-integrity';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -66,6 +67,15 @@ function draftFrom(data: RoomData): Record<number, Draft> {
       return [q.id, saved ? { optionId: saved.optionId, text: saved.text } : { optionId: null, text: '' }];
     }),
   );
+}
+
+/** O armazém local, ou null se o browser o bloqueia (modo privado, política da escola): a prova funciona na mesma, sem rascunho local. */
+function armazemLocal(): Armazem | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function isAnswered(question: ExamQuestion, draft: Draft | undefined): boolean {
@@ -342,6 +352,55 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   const failed = queue.failed();
   const saving = queue.busy() || unsaved.size > 0;
 
+  // Respostas por confirmar sobrevivem a um separador fechado ou a uma rede em baixo (#587): guardam-se no browser enquanto o servidor não as
+  // confirma e restauram-se ao reabrir a prova. Só o que ainda não está confirmado: se existe, é mais recente do que o do servidor.
+  const [recuperadas, setRecuperadas] = useState(0);
+  const [rascunhoArmado, setRascunhoArmado] = useState(false);
+  const jaRestaurou = useRef(false);
+  useEffect(() => {
+    if (jaRestaurou.current) return;
+    jaRestaurou.current = true;
+    const armazem = armazemLocal();
+    if (armazem) {
+      const restante = remainingMs(data.deadline, Date.now());
+      const terminada = (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' || (restante !== null && restante <= 0);
+      if (terminada) {
+        limparRascunho(armazem, data.simulationId); // já não se responde: um rascunho antigo não pode ressuscitar
+      } else {
+        const guardadoNoServidor = Object.fromEntries(Object.entries(data.saved).map(([id, v]) => [Number(id), { optionId: v.optionId, text: v.text }]));
+        const restaurar = aRecuperar(lerRascunho(armazem, data.simulationId), data.questions.map((q) => q.id), guardadoNoServidor);
+        const ids = Object.keys(restaurar).map(Number);
+        if (ids.length > 0) {
+          const next = { ...draftsRef.current };
+          for (const id of ids) next[id] = restaurar[id];
+          draftsRef.current = next;
+          setDrafts(next);
+          for (const id of ids) guardar(id);
+          setRecuperadas(ids.length);
+        }
+      }
+    }
+    setRascunhoArmado(true); // só depois de restaurar: antes disso um rascunho por ler seria apagado por uma lista vazia
+  }, [data, guardar]);
+
+  const porConfirmar = JSON.stringify(Object.fromEntries([...unsaved].map((id) => [id, snapshotOf(id)])));
+  useEffect(() => {
+    if (!rascunhoArmado) return;
+    const armazem = armazemLocal();
+    if (armazem) guardarRascunho(armazem, data.simulationId, JSON.parse(porConfirmar));
+  }, [rascunhoArmado, porConfirmar, data.simulationId]);
+
+  // Fechar ou recarregar com respostas por confirmar pede confirmação ao browser (as que já saíram não pedem nada).
+  useEffect(() => {
+    if (!saving || submitting) return;
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [saving, submitting]);
+
   function patch(questionId: number, change: Partial<Draft>) {
     const next = { ...draftsRef.current, [questionId]: { ...snapshotOf(questionId), ...change } };
     draftsRef.current = next;
@@ -438,6 +497,22 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           <AlertDescription className="flex flex-wrap items-center gap-3">
             <span>{integrityNotice}</span>
             <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={dismissIntegrityNotice}>
+              Fechar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {recuperadas > 0 && (
+        <Alert variant="info" className="mx-4 mt-3 md:mx-6 lg:mx-auto lg:w-full lg:max-w-[1480px]">
+          <RefreshCw aria-hidden />
+          <AlertDescription role="status" className="flex flex-wrap items-center gap-3">
+            <span>
+              {recuperadas === 1
+                ? 'Recuperámos 1 resposta que não tinha chegado ao servidor e estamos a enviá-la.'
+                : `Recuperámos ${recuperadas} respostas que não tinham chegado ao servidor e estamos a enviá-las.`}
+            </span>
+            <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => setRecuperadas(0)}>
               Fechar
             </Button>
           </AlertDescription>

@@ -306,6 +306,49 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Tutor' })).toBeVisible();
   });
 
+  test('aluno: a resposta que não chegou ao servidor sobrevive a recarregar e é recuperada (#587)', async ({ page }) => {
+    // Recarregar com respostas por confirmar pede confirmação ao browser: aceita-se, é o que o aluno faria.
+    page.on('dialog', (dialogo) => void dialogo.accept());
+    const id = randomUUID().replaceAll('-', '').slice(0, 12);
+    await page.goto('/aluno/cadastro');
+    await page.getByLabel('Nome', { exact: true }).fill('Rita');
+    await page.getByLabel('Apelido').fill(`E2E${id}`);
+    await page.getByLabel('Utilizador').fill(`aluno${id}`);
+    await page.getByLabel('Email').fill(`aluno${id}@kixi.ao`);
+    await page.locator('#password').fill(PASSWORD);
+    await page.locator('#confirm').fill(PASSWORD);
+    await page.getByTestId('aluno-cadastro-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/onboarding/);
+    await page.getByLabel('Código de matrícula').fill('TESTE1234');
+    await page.getByRole('button', { name: 'Entrar na turma' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/provas');
+    await page.getByRole('link', { name: 'Ver a prova' }).first().click();
+    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await page.getByRole('button', { name: 'Começar', exact: true }).click();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+
+    const temRascunho = () => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('kixi:rascunho:')));
+
+    // Sem rede para gravar: só as server actions (têm o cabeçalho next-action) ficam sem resposta, a página continua a abrir.
+    const semRede = (route: import('@playwright/test').Route) =>
+      route.request().headers()['next-action'] ? route.abort('failed') : route.continue();
+    await page.route('**/aluno/prova/**', semRede);
+    await page.locator('label:has(input[type="radio"])').last().click();
+    await expect.poll(temRascunho, { timeout: 15_000 }).toBe(true);
+    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toHaveCount(0);
+
+    // A rede volta e o aluno reabre a prova: a resposta regressa e é enviada.
+    await page.unroute('**/aluno/prova/**', semRede);
+    await page.reload();
+    await expect(page.getByText(/Recuperámos 1 resposta/)).toBeVisible();
+    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
+    // Confirmada pelo servidor, o rascunho local deixa de existir.
+    await expect.poll(temRascunho, { timeout: 15_000 }).toBe(false);
+  });
+
   test('professor: OCR, revisão, gabarito, publicação e sala', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     // `/statements/import` passou a redireccionar para o construtor com o importador
