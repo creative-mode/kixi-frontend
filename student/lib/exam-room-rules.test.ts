@@ -119,3 +119,10 @@ test('o cartão oferece entrar, continuar, esperar ou nada (#204)', () => {
   assert.deepEqual(joinActionOf({ ...base, status: 'DRAFT' }, 'scheduled', false), { kind: 'none' });
   assert.deepEqual(joinActionOf({ ...base, status: 'CLOSED' }, 'over', false), { kind: 'none' });
 });
+
+test('a vista da sala guarda-se por aluno e por sala: dois alunos na mesma sala não partilham a entrada', async () => {
+  const { viewCacheKey } = await import('./exam-room-rules.ts');
+  assert.notEqual(viewCacheKey('aluno-a', 7), viewCacheKey('aluno-b', 7));
+  assert.notEqual(viewCacheKey('aluno-a', 7), viewCacheKey('aluno-a', 8));
+  assert.equal(viewCacheKey('aluno-a', 7), viewCacheKey('aluno-a', 7));
+});
