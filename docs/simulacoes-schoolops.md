@@ -32,6 +32,18 @@ gabarito e as respostas.
 O callback (`/api/schoolops/eventos`) só confirma a entrega: valida a assinatura Standard Webhooks (300 s de tolerância) e responde 204. A
 nota chega ao ecrã por leitura, não pelo evento.
 
+## Como o callback e as repetições funcionam (decisões)
+
+- **Repetições:** o resultado volta a chamar o motor de 3 em 3 segundos enquanto está «a corrigir» (até 5 minutos). O `POST /v1/correcoes` é idempotente por
+  (cliente, instituição, prova, simulação), por isso essa leitura é, na prática, a repetição: um motor em baixo uns segundos não perde a correção. Não há
+  retry dentro do pedido: duplicaria esse ciclo e alongava a página.
+- **Callback (`/api/schoolops/eventos`):** só confirma a entrega, validando a assinatura. A nota chega por leitura, não pelo evento. Não se deduplica o
+  `webhook-id` porque o receptor não faz nada com o evento: uma repetição dentro da janela de 300 s é inofensiva. Se o callback passar a notificar o aluno,
+  passa a ser preciso deduplicar.
+- **Rotação do token do cliente e do segredo de eventos:** o motor aceita dois de cada durante a troca. Procedimento completo no repositório schoolops
+  (`deploy/servidor/README.md`, «Rotação do token do cliente e do segredo de eventos»). Do lado do Kixi: trocar `SCHOOLOPS_CLIENTE_TOKEN` e
+  `SCHOOLOPS_SEGREDO_EVENTOS` em `/opt/kixi/.env` e recriar o serviço `student`.
+
 ## A nota fora do resultado
 
 Com a correcção ligada, a nota de uma simulação livre só aparece no resultado, depois de corrigida. `listSimulationsResult` (histórico,
