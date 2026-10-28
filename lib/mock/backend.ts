@@ -1097,8 +1097,8 @@ export async function handle(method: string, rawUrl: string, authorization: stri
       return problem(405, 'Method not allowed');
     }
 
-    // ── simulations (note: /api/simulations, restore is PUT, purge is /permanent) ──
-    if ((m = path.match(/^\/api\/simulations(?:\/(trash|\d+)(?:\/(restore|permanent))?)?$/))) {
+    // ── simulations (note: /api/v1/simulations, restore is PUT, purge is /permanent) ──
+    if ((m = path.match(/^\/api\/v1\/simulations(?:\/(trash|\d+)(?:\/(restore|permanent))?)?$/))) {
       const t = m[1];
       const list = (del) => db.simulations.filter((s) => (del ? s.deletedAt : !s.deletedAt) && (isStaff || s.accountId === Number(auth.sub))).map(mapSimulation);
       if (!t && method === 'GET') return json(200, list(false));
