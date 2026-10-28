@@ -6,7 +6,7 @@
 // com opções a passar no cliente para levar 422 no servidor.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { answerKeyIssues, sumOfScores } from './answer-key.ts';
+import { answerKeyIssues, gabaritosEmFalta, sumOfScores } from './answer-key.ts';
 
 const q = (number: number, maxScore: number, correct: boolean[] = []) => ({
   number,
@@ -50,4 +50,25 @@ test('o total em branco preenche-se com a soma das cotações, a 2 casas', () =>
 test('sem cotações não há total, em vez de uma escala de zero', () => {
   assert.equal(sumOfScores([q(1, 0), q(2, 0)]), null);
   assert.equal(sumOfScores([]), null);
+});
+
+const aberta = (id: number, extra: Record<string, unknown> = {}) => ({ id, maxScore: 5, options: [] as unknown[], modelAnswer: '', questionType: 'open', ...extra });
+
+test('gabaritos em falta: só as abertas com pontos e sem resposta modelo', () => {
+  const qs = [
+    aberta(1), // em falta
+    aberta(2, { modelAnswer: 'A resposta.' }), // tem
+    aberta(3, { modelAnswer: '   ' }), // só espaços: em falta
+    aberta(4, { options: [{ isCorrect: true }], questionType: 'multiple_choice' }), // escolha múltipla: não se aplica
+    aberta(5, { questionType: 'group', maxScore: 0 }), // enunciado comum: não se aplica
+    aberta(6, { maxScore: 0 }), // não vale pontos
+    aberta(7, { modelAnswer: null }), // em falta
+    aberta(8, { questionType: 'GROUP' }), // tipo com outra grafia
+  ];
+  assert.deepEqual(gabaritosEmFalta(qs).map((q) => q.id), [1, 3, 7]);
+});
+
+test('a falta de gabarito não é pendência: continua a não bloquear a aprovação', () => {
+  assert.deepEqual(answerKeyIssues([{ ...q(1, 20), modelAnswer: '' } as never], 20), []);
+  assert.equal(gabaritosEmFalta([aberta(1, { maxScore: 20 })]).length, 1);
 });
