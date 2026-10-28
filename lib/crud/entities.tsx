@@ -612,7 +612,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     key: 'simulations',
     fem: true,
     path: 'simulations',
-    api: '/api/simulations',
+    api: '/api/v1/simulations',
     idKey: 'id',
     singular: 'Simulação',
     plural: 'Simulações',
