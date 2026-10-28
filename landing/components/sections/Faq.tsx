@@ -1,4 +1,5 @@
 import { FAQ, LOGIN_URL, SIGNUP_URL } from '@/lib/content';
+import { Cta } from './CtaLink';
 
 const GROUPS = [...new Set(FAQ.map((f) => f.group))];
 
@@ -25,16 +26,8 @@ export function Faq() {
         <div className="faq__cta">
           <p className="sec__sub">Pronto para estudar o que vai mesmo sair?</p>
           <div className="actions">
-            <span className="kx-btn-wrap kx-scope">
-              <a href={SIGNUP_URL} className="kx-btn kx-btn--lg kx-btn--a" style={{ textDecoration: 'none' }}>
-                <span className="kx-btn__label">Começar a estudar</span>
-              </a>
-            </span>
-            <span className="kx-btn-wrap kx-scope">
-              <a href={LOGIN_URL} className="kx-btn kx-btn--lg kx-btn--secondary" style={{ textDecoration: 'none' }}>
-                <span className="kx-btn__label">Já tenho conta</span>
-              </a>
-            </span>
+            <Cta href={SIGNUP_URL} origem="faq">Começar a estudar</Cta>
+            <Cta href={LOGIN_URL} origem="faq" secondary>Já tenho conta</Cta>
           </div>
         </div>
       </div>

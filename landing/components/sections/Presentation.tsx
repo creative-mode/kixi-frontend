@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
 import { Cartridge, LAYERS } from './Cartridge';
+import { Cta } from './CtaLink';
 import { GameDemo } from './GameDemo';
 import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
@@ -18,16 +19,6 @@ const SCENES = [
 
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smooth = (t: number) => t * t * (3 - 2 * t);
-
-function Cta({ href, children, secondary }: { href: string; children: React.ReactNode; secondary?: boolean }) {
-  return (
-    <span className="kx-btn-wrap kx-scope">
-      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ' kx-btn--a'}`} style={{ textDecoration: 'none' }}>
-        <span className="kx-btn__label">{children}</span>
-      </a>
-    </span>
-  );
-}
 
 function Bridge() {
   return (
@@ -51,7 +42,7 @@ function Outro() {
       <h2 className="pres__title pres__title--pixel">Do ITEL a toda a Angola e a África.</h2>
       <p className="pres__sub">Feito por alunos, para alunos.</p>
       <div className="actions">
-        <Cta href={SIGNUP_URL}>Começar a estudar</Cta>
+        <Cta href={SIGNUP_URL} origem="outro">Começar a estudar</Cta>
       </div>
     </>
   );
@@ -64,6 +55,22 @@ function Scene({ i }: { i: number }) {
       <h2 className="pres__head">{s.head}</h2>
       <p className="pres__sub">{s.line}</p>
     </>
+  );
+}
+
+/** Frase de valor do herói (#512): quem chega percebe o que é o Kixi sem descer. */
+const HERO_SUB = 'Estuda o que vai mesmo sair: simulações, tutor de IA e a rede de estudo entre escolas.';
+
+/** Saltar a apresentação (#512): uma âncora chega a rato, teclado e toque. Vive no
+ *  fluxo do herói — em cima, longe do banner de cookies fixo — e some com ele. */
+function SkipShow() {
+  return (
+    <a href="#modulos" className="pres__skip">
+      <span>Saltar a apresentação</span>
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+        <polyline points="4,7 10,13 16,7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </a>
   );
 }
 
@@ -122,7 +129,9 @@ export function Presentation() {
     return (
       <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
         <div className="wrap">
-          <h1 id="hero-title" className="sr-only">E se estudar fosse... divertido?</h1>
+          <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
+          <p className="pres__hero-sub">{HERO_SUB}</p>
+          <SkipShow />
           <div className="still-plate"><Cartridge explode={1} callouts className="pres__svg" /></div>
           <ol className="pres__list">
             {SCENES.map((s, i) => (
@@ -167,6 +176,8 @@ export function Presentation() {
       <div className="pres__stick">
         <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
           <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
+          <p className="pres__hero-sub">{HERO_SUB}</p>
+          <SkipShow />
         </div>
         <div className="pres__text">
                     <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
