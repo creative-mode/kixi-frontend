@@ -1,7 +1,8 @@
 import 'server-only';
 
 import { cache } from 'react';
-import { apiGet, apiPost, type Result } from './api';
+import { apiGet, apiPost, viewerKey, type Result } from './api';
+import { TtlCache } from './ttl-cache';
 import {
   getQuestionImages,
   getStatementFull,
@@ -11,7 +12,7 @@ import {
   type Simulation,
 } from './exam';
 import { answeredQuestionIds, orderQuestions, savedAnswerFor, type ExamQuestion } from './exam-rules';
-import { phaseOf, translateRoomError, type Invitation, type Phase } from './exam-room-rules';
+import { phaseOf, translateRoomError, viewCacheKey, type Invitation, type Phase } from './exam-room-rules';
 
 /** As Salas de Prova do lado do aluno (FE-14), sobre o `ExamRoomController`.
  *
@@ -49,20 +50,19 @@ interface StudentView {
 /** As questões que o aluno vê na sala, sem gabarito. Guardadas um minuto, como o
  *  `/full` do treino: cada resposta guardada volta a ler o tipo da questão. */
 const VIEW_TTL_MS = 60_000;
-const viewCache = new Map<string, { at: number; data: StudentView }>();
+const VIEW_MAX = 500;
+const viewCache = new TtlCache<Result<StudentView>>(VIEW_TTL_MS, VIEW_MAX);
 
 export async function getStudentView(roomId: number, { cached = false } = {}): Promise<Result<StudentView>> {
-  const key = String(roomId);
-  const hit = viewCache.get(key);
-  if (cached && hit && Date.now() - hit.at < VIEW_TTL_MS) return { ok: true, data: hit.data };
-  const result = await apiGet<StudentView>(`/exam-rooms/${roomId}/student`);
-  if (!result.ok) {
-    viewCache.delete(key);
-    return result;
-  }
-  const data = { ...result.data, questions: orderQuestions(result.data.questions ?? []) };
-  viewCache.set(key, { at: Date.now(), data });
-  return { ok: true, data };
+  const ler = async () => {
+    const result = await apiGet<StudentView>(`/exam-rooms/${roomId}/student`);
+    if (!result.ok) return { value: result, keep: false }; // o que falhou nunca fica guardado
+    const data = { ...result.data, questions: orderQuestions(result.data.questions ?? []) };
+    return { value: { ok: true, data } as Result<StudentView>, keep: true };
+  };
+  if (!cached) return (await ler()).value;
+  // A chave leva o aluno: o valor traz o `simulationId` dele, e quem o lesse não podia herdar o de outro.
+  return viewCache.remember(viewCacheKey(await viewerKey(), roomId), ler);
 }
 
 export type ControlledRoom =
