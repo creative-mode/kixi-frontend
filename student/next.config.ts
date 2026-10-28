@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { NextConfig } from 'next';
+import { cabecalhosDeSeguranca } from './lib/security-headers';
 
 // This app lives inside the kixi-frontend repo next to the manager app: pin the root so
 // Next does not pick up the parent's postcss config, proxy.ts or lockfile.
@@ -28,6 +29,9 @@ const nextConfig: NextConfig = {
     // 2 MB, um ficheiro mesmo no maximo seria rejeitado pela envelopedura.
     serverActions: { bodySizeLimit: '3mb' },
     proxyClientMaxBodySize: '3mb',
+  },
+  async headers() {
+    return [{ source: '/:path*', headers: cabecalhosDeSeguranca() }];
   },
 };
 
