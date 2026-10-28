@@ -26,18 +26,21 @@ export type ResultadoCorrecao = {
 export type VistaCorrecao =
   | { kind: 'corrigida'; resultado: ResultadoCorrecao }
   | { kind: 'a-corrigir' }
-  | { kind: 'incompleta' }
+  /** `semGabarito`: há questões abertas que o motor não pôde corrigir por não terem gabarito no Kixi. */
+  | { kind: 'incompleta'; semGabarito: boolean }
   | { kind: 'falhou' };
 
 /** Estados do motor em que não vale a pena esperar mais. */
-const FALHADOS = new Set(['CANCELADA', 'FALHADA', 'INCIDENTE']);
+const FALHADOS = new Set(['CANCELADA', 'FALHADA', 'INCIDENTE']); // FALHADA: o motor tem um incidente e não avança sozinho
 
 export function vistaDaCorrecao(c: CorrecaoEstado): VistaCorrecao {
   if (c.estado === 'CONCLUIDA' && c.resultado) {
     // R10: sem respostas legíveis a correcção termina sem nota, e dizê-lo é melhor do que mostrar zero.
-    return c.resultado.estado === 'INCOMPLETE' || c.resultado.nota == null
-      ? { kind: 'incompleta' }
-      : { kind: 'corrigida', resultado: c.resultado };
+    if (c.resultado.estado === 'INCOMPLETE' || c.resultado.nota == null) {
+      const semGabarito = (c.resultado.questoes ?? []).some((q) => q.tipo === 'DISSERTATIVA' && q.corrigida === false);
+      return { kind: 'incompleta', semGabarito };
+    }
+    return { kind: 'corrigida', resultado: c.resultado };
   }
   return FALHADOS.has(c.estado) ? { kind: 'falhou' } : { kind: 'a-corrigir' };
 }
