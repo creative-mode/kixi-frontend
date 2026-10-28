@@ -362,7 +362,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
    *  uma resposta em voo, uma que falhou ou uma que ainda não foi pedida. */
   const haRespostasPorGuardar = queue.busy() || failed.length > 0 || unsaved.size > 0;
 
-  // Respostas por confirmar sobrevivem a um separador fechado ou a uma rede em baixo (#587): guardam-se no browser enquanto o servidor não as
+    // Respostas por confirmar sobrevivem a um separador fechado ou a uma rede em baixo (#587): guardam-se no browser enquanto o servidor não as
   // confirma e restauram-se ao reabrir a prova. Só o que ainda não está confirmado: se existe, é mais recente do que o do servidor.
   const [recuperadas, setRecuperadas] = useState(0);
   const [estadoLocalArmado, setEstadoLocalArmado] = useState(false);
