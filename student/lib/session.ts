@@ -1,5 +1,6 @@
 import 'server-only';
 import { cookies, headers } from 'next/headers';
+import { verificarSessao } from './jwt';
 import { managerUrl as configuredManagerUrl, originFromRequest } from './origin';
 
 export const COOKIE = 'auth_token';
@@ -15,20 +16,9 @@ export async function managerUrl(): Promise<string> {
   return `${origin}/manager`;
 }
 
-export type Session = { accountId: number | null; roles: string[]; exp: number };
+export type { Session } from './jwt';
 
-/** Reads the JWT payload. The backend verifies the signature on every API call; here it only drives the UI. */
-export function decode(token?: string): Session | null {
-  if (!token) return null;
-  try {
-    const p = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
-    if (typeof p.exp === 'number' && p.exp * 1000 < Date.now()) return null;
-    return { accountId: Number(p.sub) || null, roles: Array.isArray(p.roles) ? p.roles : [], exp: p.exp ?? 0 };
-  } catch {
-    return null;
-  }
-}
-
+/** A sessão do pedido, com a assinatura do token verificada. */
 export async function getSession() {
-  return decode((await cookies()).get(COOKIE)?.value);
+  return verificarSessao((await cookies()).get(COOKIE)?.value);
 }

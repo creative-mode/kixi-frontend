@@ -3,7 +3,8 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { canAccessManager, normalizeRoles } from './roles';
-import { COOKIE, decode, managerUrl, type Session } from './session';
+import { verificarSessao, type Session } from './jwt';
+import { COOKIE, managerUrl } from './session';
 
 /** The gate every private screen in this app shares: there must be a live session and
  *  it must be a student's. Administrators and teachers are bounced to the manager,
@@ -13,7 +14,7 @@ import { COOKIE, decode, managerUrl, type Session } from './session';
  *  enrollment check — a student who has not enrolled yet still has to reach it. */
 export async function requireStudent(): Promise<Session> {
   const token = (await cookies()).get(COOKIE)?.value;
-  const session = decode(token);
+  const session = await verificarSessao(token);
 
   if (!session) {
     redirect(`/entrar?reason=${token ? 'session-expired' : 'required'}`);
