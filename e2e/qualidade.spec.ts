@@ -624,7 +624,8 @@ test.describe('CTA de registo da landing (#512)', () => {
   });
 
   test.describe('movimento reduzido', () => {
-    test.use({ reducedMotion: 'reduce' });
+    // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
     test('herói com valor e salto, sem animação', async ({ page }) => {
       await semEscolha(page);
