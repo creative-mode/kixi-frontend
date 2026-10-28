@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
  * O menu da conta, no avatar da barra: abre o perfil e termina a sessão. É a única porta para o
  * perfil na barra (não há separador "Perfil" a duplicar), e o sítio onde se espera encontrar «Sair».
  */
-export function AccountMenu({ name, photo, active, placement }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top' }) {
+export function AccountMenu({ name, photo, placement }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top' }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 

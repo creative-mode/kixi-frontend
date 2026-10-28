@@ -1,7 +1,6 @@
 'use server';
 
 import { cookies, headers } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { BACKEND, COOKIE, managerUrl } from './session';
 import { MOCK, mockPost } from './mock/backend';
 import { problem } from './api';

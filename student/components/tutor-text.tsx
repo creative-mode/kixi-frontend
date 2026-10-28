@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import katex from 'katex';
-import { parseInline, parseMarkdown, type Block, type Inline } from '@/lib/markdown';
+import { parseMarkdown, type Block, type Inline } from '@/lib/markdown';
 import { advance } from '@/lib/typewriter';
 
 /** Uma fórmula. O KaTeX escreve no elemento por si: o texto do modelo nunca passa por `__html` nosso. */
