@@ -215,6 +215,26 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('region', { name: 'Escolas' }).getByRole('link').first()).toBeVisible();
   });
 
+  test('pesquisar na barra lateral no desktop abre a mesma pesquisa', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // No desktop só a barra lateral mostra este link: o cabeçalho e a barra inferior
+    // do telemóvel estão `md:hidden`, por isso a consulta por role encontra um só.
+    const pesquisa = page.getByRole('link', { name: 'Pesquisar escolas, professores e alunos' });
+    await expect(pesquisa).toBeVisible();
+    // O critério de aceitação pede teclado: foco no link e ativação com Enter.
+    await pesquisa.focus();
+    await expect(pesquisa).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/aluno\/pesquisa/);
+    await expect(page.getByLabel(/Nome de uma escola/)).toBeVisible();
+  });
+
   test('a escola segue o padrão do perfil: faixa, nome, etiquetas e separadores', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
