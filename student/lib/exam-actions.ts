@@ -124,7 +124,16 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   const simulationId = id(form.get('simulationId'));
   if (simulationId === null) return { error: 'Não identificámos a prova.' };
 
-  const result = await submitSimulation(simulationId);
+  // A entrega é o único passo da sala que pode falhar sem o aluno saber o que
+  // fazer a seguir. A `api` já devolve `Result`, mas uma excepção inesperada não
+  // pode subir ao error boundary do app: a sala tem de continuar montada para as
+  // respostas por enviar não se perderem (#485).
+  let result: Awaited<ReturnType<typeof submitSimulation>>;
+  try {
+    result = await submitSimulation(simulationId);
+  } catch {
+    return { error: 'Sem ligação ao servidor. As respostas já guardadas continuam seguras; tenta entregar quando voltares a ter rede.' };
+  }
 
   // 409 é "já entregue": a prova está corrigida, o aluno não está a perder nada
   // por acidentalmente carregar em Entregar duas vezes.
