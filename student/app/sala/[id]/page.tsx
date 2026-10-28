@@ -48,7 +48,7 @@ export default async function SalaControladaPage({ params }: { params: Params })
         : room.message;
 
   return (
-    <div className="mx-auto grid min-h-dvh max-w-[760px] place-items-center p-6">
+    <div className="mx-auto grid above-banner-min-h max-w-[760px] place-items-center p-6">
       {room.kind === 'error' ? (
         <RefreshError
           title="Não conseguimos abrir a sala"

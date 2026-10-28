@@ -127,10 +127,10 @@ test.beforeEach(async ({ page }) => {
   erros.length = 0;
   page.on('pageerror', (erro) => erros.push(erro));
   // O banner de cookies do aluno (kixi-frontend#219) fica fixo ao fundo do ecrã até
-  // haver escolha, e nalguns ecrãs mais curtos cobria ações reais (ex.: "Estudar os
-  // erros com o tutor" no resultado). Pré-semear a escolha é o que um visitante que já
-  // respondeu antes tem — não há banner nenhum para testar aqui, só as jornadas por
-  // baixo dele.
+  // haver escolha. Desde o #506 ele reserva espaço e sobe a barra inferior, por isso já
+  // não cobre ações; o teste próprio do banner está abaixo. Pré-semear a escolha continua
+  // a ser o que um visitante que já respondeu antes tem — aqui só interessam as jornadas
+  // por baixo dele, sem mais um clique em cada uma.
   await page.addInitScript(() => localStorage.setItem('kixi-consent', 'necessary'));
 });
 
@@ -139,6 +139,71 @@ test.afterEach(() => {
 });
 
 test.describe('jornadas críticas do Kixi', () => {
+  test('o banner de cookies não tapa a barra inferior e devolve o foco ao fechar (#506)', async ({ page }) => {
+    // Sem escolha semeada: é a primeira visita, e é o banner que aparece.
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/entrar');
+
+    const banner = page.getByRole('dialog', { name: 'Cookies' });
+    await expect(banner).toBeVisible();
+    // Recebe o foco ao aparecer, senão um leitor de ecrã lê a página e esquece o pedido.
+    await expect(banner).toBeFocused();
+
+    // Recusar e aceitar pesam o mesmo: mesmo fundo, contorno, peso de letra e tamanho.
+    const aparencia = (botao: Locator) =>
+      botao.evaluate((el) => {
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return [s.backgroundColor, s.borderTopColor, s.fontWeight, Math.round(r.width), Math.round(r.height)].join('|');
+      });
+    expect(await aparencia(banner.getByRole('button', { name: 'Só necessários' }))).toBe(
+      await aparencia(banner.getByRole('button', { name: 'Aceitar' })),
+    );
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const caixa = async (alvo: Locator) => {
+      const b = await alvo.boundingBox();
+      expect(b).not.toBeNull();
+      return b!;
+    };
+    // A barra inferior assenta por cima do banner, nunca tapada por ele.
+    const barra = page.locator('nav[aria-label="Principal"]:visible');
+    const [caixaBarra, caixaBanner] = [await caixa(barra), await caixa(banner)];
+    expect(Math.round(caixaBarra.y + caixaBarra.height)).toBeLessThanOrEqual(Math.round(caixaBanner.y));
+
+    // E o fim do conteúdo reserva a mesma altura: ao fundo, nenhuma ação fica por baixo.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    expect(
+      await page.evaluate(() => {
+        const topo = document.querySelector('[role="dialog"]')!.getBoundingClientRect().top;
+        return [...document.querySelectorAll('#conteudo a, #conteudo button, #conteudo input')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.height > 0 && r.top < innerHeight && r.bottom > topo;
+        }).length;
+      }),
+    ).toBe(0);
+
+    // Reabrir (o rodapé faz o mesmo) e fechar devolve o foco a quem o tinha, e a barra ao fundo.
+    await banner.getByRole('button', { name: 'Aceitar' }).click();
+    await expect(banner).toHaveCount(0);
+    const campo = page.locator('#conteudo a[href]').first();
+    await campo.focus();
+    await page.evaluate(() => {
+      localStorage.removeItem('kixi-consent');
+      window.dispatchEvent(new Event('kixi-consent-change'));
+    });
+    await expect(banner).toBeFocused();
+    await banner.getByRole('button', { name: 'Só necessários' }).click();
+    await expect(banner).toHaveCount(0);
+    await expect(campo).toBeFocused();
+    await expect(barra).toHaveCSS('bottom', '0px');
+  });
+
   test('o feed mostra o nome verdadeiro de quem publicou e a etiqueta de colega de turma', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');

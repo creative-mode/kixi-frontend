@@ -36,7 +36,7 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
   const showRail = !!rail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/'));
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[1500px]">
+    <div className="mx-auto flex above-banner-min-h w-full max-w-[1500px]">
       <NavProgress />
       <a
         href="#conteudo"
@@ -45,7 +45,7 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
         Saltar para o conteudo
       </a>
 
-      <header className="sticky top-0 hidden h-dvh w-[72px] shrink-0 flex-col items-center justify-between border-r py-3 md:flex">
+      <header className="sticky top-0 hidden above-banner-h w-[72px] shrink-0 flex-col items-center justify-between border-r py-3 md:flex">
         <div className="grid justify-items-center gap-1">
           <Link href="/inicio" aria-label="Kixi, início" className="mb-2 grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary"><Logo size={26} /></Link>
           <nav aria-label="Principal" className="grid justify-items-center gap-1">
@@ -80,14 +80,15 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
             {children}
           </main>
           {showRail && (
-            <aside aria-label="Destaques" className="sticky top-0 hidden h-dvh w-[380px] shrink-0 overflow-y-auto px-4 py-3 [scrollbar-width:none] lg:block">
+            <aside aria-label="Destaques" className="sticky top-0 hidden above-banner-h w-[380px] shrink-0 overflow-y-auto px-4 py-3 [scrollbar-width:none] lg:block">
               <div className="grid gap-4 pb-8">{rail}</div>
             </aside>
           )}
         </div>
       </div>
 
-      <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background/95 px-1 pt-1 pb-[calc(4px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+      {/* `--ck-banner-h` (#506): com o banner de cookies em baixo, a barra sobe por cima dele em vez de ficar tapada. */}
+      <nav aria-label="Principal" className="fixed inset-x-0 bottom-[var(--ck-banner-h,0px)] z-30 grid grid-cols-4 border-t bg-background/95 px-1 pt-1 pb-[calc(4px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         {ITEMS.filter((it) => !it.desktopOnly).map((it) => (
           <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} aria-label={it.label} title={it.label} className="grid min-h-14 place-items-center text-muted-foreground aria-[current=page]:text-primary">
             <Ico name={it.icon} filled={on(it)} size={28} />
