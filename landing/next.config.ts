@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { NextConfig } from 'next';
+import { cabecalhosDeSeguranca } from './lib/security-headers';
 
 // Lives next to the manager app in the same repo: pin the root so Next ignores the parent's
 // postcss config, proxy.ts and lockfile.
@@ -18,6 +19,9 @@ const nextConfig: NextConfig = {
       { source: '/aluno/:path*', destination: `http://localhost:${student}/aluno/:path*` },
       { source: '/manager/:path*', destination: `http://localhost:${manager}/manager/:path*` },
     ];
+  },
+  async headers() {
+    return [{ source: '/:path*', headers: cabecalhosDeSeguranca() }];
   },
 };
 
