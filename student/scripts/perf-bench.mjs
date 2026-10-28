@@ -16,7 +16,7 @@ const CHROME = process.env.CHROME ?? `${process.env.HOME}/.cache/ms-playwright/c
 const login = await (await fetch(`${BACKEND}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ usernameOrEmail: SEED.viewer.user, password: SEED.viewer.pass }) })).json();
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
 
-async function session(warm) {
+async function session(_warm) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
   await ctx.addCookies([{ name: 'auth_token', value: login.accessToken, url: BASE }]);
   const page = await ctx.newPage();
