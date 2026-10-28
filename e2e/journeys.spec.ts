@@ -309,6 +309,19 @@ test.describe('jornadas críticas do Kixi', () => {
     // O cabeçalho passou a ser "Questão 2 (1 de 12)": o número de exibição e o
 // índice de posição deixaram de ser a mesma coisa.
 await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    // #486: a marca «para rever» sobrevive a recarregar a sala, e sem respostas
+    // por guardar o browser não mostra o aviso nativo.
+    let avisosNativos = 0;
+    page.on('dialog', (dialogo) => {
+      avisosNativos += 1;
+      void dialogo.accept();
+    });
+    await page.getByRole('button', { name: 'Marcar para rever' }).click();
+    await expect(page.getByRole('button', { name: 'Marcada para rever', exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Marcada para rever', exact: true })).toBeVisible();
+    expect(avisosNativos).toBe(0);
     // Resposta deliberadamente errada para o resultado oferecer a ligação ao tutor.
     // Clica-se na linha da opção, não no input: o radio é `sr-only` e o círculo
     // visível é um `<span>` sobreposto, por isso `.check()` no input nunca chega lá.
@@ -316,8 +329,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
     await page.getByRole('button', { name: 'Entregar', exact: true }).first().click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toContainText('Marcadas (1) para rever.');
     await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
+    // Entregar fecha a tentativa: as marcas locais dessa simulação desaparecem.
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kixi:marcadas:')).length)).toBe(0);
     // O `CardTitle` da revisão é um `div`, não um heading, por isso não aparece em
     // `getByRole('heading')`. O alvo estável é o `aria-label` que o card já traz.
     await expect(page.getByLabel('Revisão questão a questão')).toBeVisible();
