@@ -87,19 +87,19 @@ for (const [name, description] of [
 
 seedAccount('admin', 'admin@kixi.ao', 'ADMIN', 'Administrador', 'Kixi');
 seedAccount('professor', 'professor@kixi.ao', 'TEACHER', 'Helena', 'Gomes');
-export const student = seedAccount('12345', 'aluno@kixi.ao', 'STUDENT', 'Abner', 'Ede');
-export const teacherAcc = db.accounts.find((a) => a.username === 'professor');
+const student = seedAccount('12345', 'aluno@kixi.ao', 'STUDENT', 'Abner', 'Ede');
+const teacherAcc = db.accounts.find((a) => a.username === 'professor');
 
-export const sy = add('school-years', { startYear: 2025, endYear: 2026 });
+const sy = add('school-years', { startYear: 2025, endYear: 2026 });
 add('school-years', { startYear: 2024, endYear: 2025 });
 for (const [number, name] of [[1, '1.º Trimestre'], [2, '2.º Trimestre'], [3, '3.º Trimestre']]) add('terms', { number, name });
-export const redes = add('subjects', { code: 'RED', name: 'Redes de Computadores', short_name: 'Redes' });
+const redes = add('subjects', { code: 'RED', name: 'Redes de Computadores', short_name: 'Redes' });
 add('subjects', { code: 'SO', name: 'Sistemas Operativos', short_name: 'SO' });
 add('subjects', { code: 'MD', name: 'Matemática Discreta', short_name: 'MD' });
 // A disciplina da prova de OGI: o OCR lê a sigla «OGI» e o construtor tem de a encontrar por aqui.
-export const ogi = add('subjects', { code: 'OGI', name: 'Organização e Gestão Industrial', short_name: 'OGI' });
-export const crs = add('courses', { code: 'TISM', name: 'Técnico de Informática e Sistemas Multimédia', description: 'Curso técnico do ITEL' });
-export const cls = add('classes', { code: '12B', grade: 12, course: crs, schoolYear: sy });
+const ogi = add('subjects', { code: 'OGI', name: 'Organização e Gestão Industrial', short_name: 'OGI' });
+const crs = add('courses', { code: 'TISM', name: 'Técnico de Informática e Sistemas Multimédia', description: 'Curso técnico do ITEL' });
+const cls = add('classes', { code: '12B', grade: 12, course: crs, schoolYear: sy });
 for (const [title, examType, variant, subj] of [['P1 · Redes de Computadores', 'P1', 'A', redes], ['P2 · Sistemas Operativos', 'P2', 'A', db.subjects[1]], ['Exame · Matemática Discreta', 'EXAME', 'B', db.subjects[2]]]) {
   add('statements', {
     title, examType, durationMinutes: 90, variant, instructions: 'Leia atentamente.', totalMaxScore: 20, visible: true, needsReview: false,
