@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/mock/fetch';
 import { API_BASE } from '@/lib/constants';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
 import { forwardedFor, loginLimitMessage } from '@/lib/auth-rules';
+import { cookieSeguro } from '@/lib/cookie-seguro';
 
 interface LoginResponse {
   accessToken: string;
@@ -77,8 +78,7 @@ export async function loginAction(formData: FormData) {
 
     const maxAgeSeconds = Math.max(1, Math.floor((expiresAt - Date.now()) / 1000));
     const cookieStore = await cookies();
-    // Cookie Secure só em HTTPS (direto ou atrás de um proxy TLS); em HTTP o browser descartaria o cookie e o login não ficaria guardado.
-    const secure = (await headers()).get('x-forwarded-proto') === 'https';
+    const secure = cookieSeguro((await headers()).get('x-forwarded-proto'));
 
     cookieStore.set('auth_token', data.accessToken, {
       httpOnly: true,
@@ -89,18 +89,7 @@ export async function loginAction(formData: FormData) {
       maxAge: maxAgeSeconds,
     });
 
-    cookieStore.set(
-      'user_info',
-      JSON.stringify({ accountId: data.accountId, roles }),
-      {
-        httpOnly: false,
-        secure,
-        sameSite: 'lax',
-        path: '/',
-        expires: new Date(expiresAt),
-        maxAge: maxAgeSeconds,
-      },
-    );
+    // O `user_info` (papéis e accountId legíveis por JS) já não se escreve: nada o lia. Continua a apagar-se, para limpar os de sessões antigas.
 
     return { success: true };
   } catch (error: unknown) {
