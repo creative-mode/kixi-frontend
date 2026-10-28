@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import ForbiddenScene from '@/components/forbidden/forbidden-scene';
 import { Header } from '@/components/sections/Header';
-import { LOGIN_URL } from '@/lib/content';
+import { getForbiddenCopy } from '@/lib/forbidden/messages';
 import '@/components/forbidden/forbidden.css';
 
 export const metadata: Metadata = {
@@ -28,22 +28,12 @@ function button(href: string, label: string) {
 
 export default async function ForbiddenPage({ searchParams }: PageProps) {
   const raw = (await searchParams).reason;
-  const reason = Array.isArray(raw) ? raw[0] : raw;
-  const wrongRole = reason === 'role';
+  const copy = getForbiddenCopy(raw);
 
-  const primary = wrongRole
-    ? button('/manager/exam-builder', 'Voltar ao meu painel')
-    : button('/aluno/inicio', 'Ir para o caminho certo');
-
-  const secondary = wrongRole
-    ? button('/', 'Ver o site')
-    : button(LOGIN_URL, 'Entrar noutra conta');
-
-  const hint = wrongRole
-    ? 'Esta área é para quem gere o Kixi. O teu acesso chega até aqui.'
-    : 'O teu acesso é do lado dos alunos. Esta porta não abre para ti.';
+  const primary = button(copy.primary.href, copy.primary.label);
+  const secondary = button(copy.secondary.href, copy.secondary.label);
 
   return (
-    <ForbiddenScene header={<Header />} hint={hint} primary={primary} secondary={secondary} />
+    <ForbiddenScene header={<Header />} hint={copy.hint} primary={primary} secondary={secondary} />
   );
 }
