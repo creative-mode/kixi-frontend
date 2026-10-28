@@ -1,8 +1,8 @@
 'use server';
 
 import { cookies, headers } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { BACKEND, COOKIE, managerUrl } from './session';
+import { cookieSeguro } from './cookie-seguro';
 import { MOCK, mockPost } from './mock/backend';
 import { problem } from './api';
 import { authFailureMessage, forwardedFor, retryAfterSeconds } from './auth-rules';
@@ -38,10 +38,7 @@ async function startSession(data: LoginResponse): Promise<string | null> {
   }
 
   const jar = await cookies();
-  // `Secure` em produção mesmo que o proxy não mande o cabeçalho: sem isto, um TLS que
-  // termina antes do Next emite o token sem `Secure` e ele passa a poder trafegar em claro.
-  const secure =
-    (await headers()).get('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production';
+  const secure = cookieSeguro((await headers()).get('x-forwarded-proto'));
 
   jar.set(COOKIE, data.accessToken, {
     httpOnly: true,

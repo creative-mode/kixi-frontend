@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { cabecalhosDeSeguranca } from './lib/security-headers';
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -29,6 +30,9 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [];
+  },
+  async headers() {
+    return [{ source: '/:path*', headers: cabecalhosDeSeguranca() }];
   },
 };
 
