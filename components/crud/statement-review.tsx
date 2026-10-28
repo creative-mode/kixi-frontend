@@ -26,7 +26,7 @@ import {
   type StatementInput,
 } from '@/app/actions/crud';
 import { fetchCurrentUser } from '@/lib/auth';
-import { answerKeyIssues, sumOfScores } from '@/lib/crud/answer-key';
+import { answerKeyIssues, gabaritosEmFalta, sumOfScores } from '@/lib/crud/answer-key';
 import type { Row } from '@/lib/crud/entities';
 import { removeQuestionBlock } from '@/lib/crud/question-remove';
 import { Spinner } from '@/components/ui/spinner';
@@ -244,6 +244,8 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   const courseId = choices?.classes.find((c) => c.value === Number(header.classId))?.courseId ?? null;
 
   const issues = answerKeyIssues(questions.map((q) => ({ ...q, maxScore: score(q.maxScore) })), numOrNull(header.totalMaxScore));
+  // Aviso, não pendência: aprova-se sem gabarito, mas o SchoolOps não corrige a questão e a simulação do aluno fica sem nota nela.
+  const semGabarito = gabaritosEmFalta(questions.map((q) => ({ ...q, maxScore: score(q.maxScore) })));
   const lowConfidence = meta.ocrConfidence != null && meta.ocrConfidence < 0.9;
   const dirty = JSON.stringify({ header, questions }) !== JSON.stringify(original);
 
@@ -443,6 +445,23 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                   <li key={t}>{t}</li>
                 ))}
               </ul>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {semGabarito.length > 0 ? (
+        <Card className="border-border bg-muted/40" data-testid="gestor-statements-sem-gabarito">
+          <CardContent className="flex items-start gap-3 p-4 text-sm">
+            <TriangleAlert size={18} className="mt-0.5 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="font-semibold">
+                {semGabarito.length === 1 ? '1 questão aberta sem gabarito' : `${semGabarito.length} questões abertas sem gabarito`}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Pode publicar na mesma, mas sem gabarito a correção automática não corrige{semGabarito.length === 1 ? ' esta questão' : ' estas questões'} e a nota da simulação do aluno fica por dar.
+                Escreva a resposta modelo (e, se quiser, os critérios depois de «Critérios:») em: {semGabarito.map((q) => `Questão ${displayNumber(q, questions)}`).join(', ')}.
+              </p>
             </div>
           </CardContent>
         </Card>

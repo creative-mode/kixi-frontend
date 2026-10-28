@@ -9,6 +9,30 @@
 
 export type AnswerKeyQuestion = { number: number; maxScore: number; options: { isCorrect: boolean }[] };
 
+export type AnswerKeyOpenQuestion = {
+  maxScore: number;
+  questionType?: string | null;
+  modelAnswer?: string | null;
+  options: unknown[];
+};
+
+/**
+ * As questões abertas sem gabarito. **Não são pendência** (o servidor aprova sem elas, e divergir já deu bugs: ver o teste), mas
+ * sem gabarito o SchoolOps não corrige a questão e a simulação do aluno fica sem nota (kixi-frontend#593). É um aviso, não um bloqueio.
+ *
+ * Questão aberta: sem opções, que não seja o enunciado comum de uma questão com alíneas (`group`) e que valha pontos.
+ */
+export function gabaritosEmFalta<T extends AnswerKeyOpenQuestion>(questions: readonly T[]): T[] {
+  return questions.filter(
+    (q) =>
+      q.options.length === 0 &&
+      (q.questionType ?? '').toLowerCase() !== 'group' &&
+      Number.isFinite(q.maxScore) &&
+      q.maxScore > 0 &&
+      !(q.modelAnswer ?? '').trim(),
+  );
+}
+
 /** Em cêntimos: cada cotação é guardada em DECIMAL(10, 2), por isso arredonda antes de somar. */
 const cents = (n: number) => (Number.isFinite(n) ? Math.round(n * 100) : 0);
 
