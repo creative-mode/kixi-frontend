@@ -261,6 +261,29 @@ export function formatClock(ms: number): string {
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
 }
 
+/** How pressing the countdown looks, from the time the student actually sees — the
+ *  one passed here has to be `displayRemainingMs`, so the thresholds land on the
+ *  number on screen rather than on the server's real deadline (which runs 10 s later).
+ *
+ *  The UX audit (M11) found that a clock that only turns red when the room is
+ *  already closed tells a SEEING student nothing at the 5-minute and 1-minute marks,
+ *  where what still can be done matters:
+ *
+ *  - `calmo`: more than 5 minutes, or no limit — the clock looks as before.
+ *  - `alerta`: 5 minutes or less — amber, the student should start wrapping up.
+ *  - `critico`: 1 minute or less — red plus a nudge to hand in what is saved.
+ *
+ *  Colour alone is not the signal (audit criterion: style AND text, never only
+ *  colour); this value only chooses the palette. The text lives in the room. */
+export type Urgency = 'calmo' | 'alerta' | 'critico';
+
+export function urgencyOf(displayLeft: number | null): Urgency {
+  if (displayLeft === null) return 'calmo';
+  if (displayLeft <= 60_000) return 'critico';
+  if (displayLeft <= 300_000) return 'alerta';
+  return 'calmo';
+}
+
 /** The simulation to carry on with, out of the student's own attempts.
  *
  *  The attempt in progress always wins over a newer finished one: opening the room
