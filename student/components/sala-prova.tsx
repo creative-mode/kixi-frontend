@@ -1,10 +1,13 @@
 'use client';
 
-import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, RefreshCw, ShieldAlert, TriangleAlert } from 'lucide-react';
+import { unstable_rethrow } from 'next/navigation';
+import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, RefreshCw, ShieldAlert, TriangleAlert, WifiOff } from 'lucide-react';
 import { guardarAction, submeterAction } from '@/lib/exam-actions';
 import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue';
+import { aRecuperar, guardarRascunho, lerRascunho, limparRascunho, type Armazem } from '@/lib/draft-store';
+import { guardarMarcadas, lerMarcadas, limparMarcadas } from '@/lib/flag-store';
 import { PASTE_NOTICE, pasteBlocked } from '@/lib/integrity';
 import { useIntegrity } from '@/components/use-integrity';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -68,6 +71,15 @@ function draftFrom(data: RoomData): Record<number, Draft> {
   );
 }
 
+/** O armazém local, ou null se o browser o bloqueia (modo privado, política da escola): a prova funciona na mesma, sem rascunho local. */
+function armazemLocal(): Armazem | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function isAnswered(question: ExamQuestion, draft: Draft | undefined): boolean {
   if (!draft) return false;
   return isChoice(question) ? draft.optionId !== null : draft.text.trim().length > 0;
@@ -88,6 +100,7 @@ function Confirmar({
   unanswered,
   saving,
   failed,
+  marked,
   pending,
   error,
   onCancel,
@@ -96,6 +109,7 @@ function Confirmar({
   unanswered: number;
   saving: boolean;
   failed: number;
+  marked: number;
   pending: boolean;
   error?: string;
   onCancel: () => void;
@@ -137,6 +151,10 @@ function Confirmar({
           </p>
         </div>
       </div>
+      <p className="text-[13px] text-muted-foreground">
+        <Flag className="mr-1 inline size-4" aria-hidden />
+        {marked === 0 ? 'Nenhuma questão marcada para rever.' : `Marcadas (${marked}) para rever.`}
+      </p>
       {error && <p role="alert" className="text-[13px] font-medium text-destructive">{error}</p>}
       <div className="flex flex-wrap gap-2.5">
         {failed > 0 && (
@@ -192,6 +210,9 @@ const TEXT_DEBOUNCE_MS = 800;
 /** Flush of everything still unsent when this much time is left, so the last words
  *  typed reach the server before the deadline closes the room. */
 const FLUSH_BEFORE_END_MS = 4000;
+/** Texto único do aviso de rede: o mesmo que o aluno lê na faixa e o teste procura. */
+const OFFLINE_BANNER = 'Sem ligação. As respostas ficam neste aparelho e seguem quando voltares.';
+const OFFLINE_DELIVERY = 'Sem ligação. As respostas continuam neste aparelho. Tenta entregar quando voltares a ter rede.';
 
 export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: boolean }) {
   const questions = data.questions;
@@ -217,8 +238,19 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
    *  efeito é que o faz aparecer. */
   const [now, setNow] = useState<number | null>(null);
   /** `useActionState` for the same reason as the rest of the app: the error the
-   *  server sends back has to land next to the button that caused it. */
+   *  server sends back has to land next to the button that caused it. Keep it as
+   *  the form's action so the delivery still works without JavaScript (#485). */
   const [submitState, submit, submitting] = useActionState(submeterAction, undefined);
+  /** Com JavaScript o formulário entrega-se à mão (#485): uma falha de rede entre o
+   *  browser e a server action rejeita a promessa, e o `useActionState` sozinho
+   *  deixava-a subir ao error boundary global, desmontando a sala. */
+  const [deliveryError, setDeliveryError] = useState('');
+  const [deliveryPending, startDelivery] = useTransition();
+  const submitError = deliveryError || submitState?.error;
+  const submitPending = deliveryPending || submitting;
+  /** `navigator.onLine` só existe depois da hidratação. Começar em `true` evita
+   *  divergir do HTML do servidor; o efeito abaixo corrige-o no primeiro tick. */
+  const [online, setOnline] = useState(true);
 
   /** One queue per room: it serialises the writes of each question, retries the ones
    *  that fail for a transient reason, and is the only thing that knows which answers
@@ -302,6 +334,24 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     return queue.settled();
   }, [data.questions, guardar, queue]);
 
+  // Sem rede a fila tenta quatro vezes e desiste; quando a ligação volta, o evento
+  // `online` é o sinal para reenviar tudo o que ficou por confirmar (#485). A faixa
+  // segue o mesmo evento, por isso aparece e desaparece sem refresh.
+  useEffect(() => {
+    const sync = () => setOnline(navigator.onLine);
+    const onOnline = () => {
+      setOnline(true);
+      void flushAll();
+    };
+    sync();
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', sync);
+    };
+  }, [flushAll]);
+
   // O que ainda não saiu não pode ficar só neste separador: ao esconder ou fechar a
   // página, e pouco antes de o tempo acabar, tudo o que está por enviar é enviado.
   useEffect(() => {
@@ -341,6 +391,72 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   );
   const failed = queue.failed();
   const saving = queue.busy() || unsaved.size > 0;
+  /** O aviso nativo só faz sentido quando há mesmo algo por chegar ao servidor:
+   *  uma resposta em voo, uma que falhou ou uma que ainda não foi pedida. */
+  const haRespostasPorGuardar = queue.busy() || failed.length > 0 || unsaved.size > 0;
+
+  // Respostas por confirmar sobrevivem a um separador fechado ou a uma rede em baixo (#587): guardam-se no browser enquanto o servidor não as
+  // confirma e restauram-se ao reabrir a prova. Só o que ainda não está confirmado: se existe, é mais recente do que o do servidor.
+  const [recuperadas, setRecuperadas] = useState(0);
+  const [estadoLocalArmado, setEstadoLocalArmado] = useState(false);
+  const jaRestaurou = useRef(false);
+  useEffect(() => {
+    if (jaRestaurou.current) return;
+    jaRestaurou.current = true;
+    const armazem = armazemLocal();
+    if (armazem) {
+      const restante = remainingMs(data.deadline, Date.now());
+      const terminada = (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' || (restante !== null && restante <= 0);
+      if (terminada) {
+        limparRascunho(armazem, data.simulationId); // já não se responde: um rascunho antigo não pode ressuscitar
+        limparMarcadas(armazem, data.simulationId);
+      } else {
+        // As marcas (#486) são do aluno e sobrevivem a sair/voltar; só se aceitam
+        // ids de questões que ainda existem nesta prova.
+        const existentes = new Set(data.questions.map((q) => q.id));
+        const marcadas = new Set([...lerMarcadas(armazem, data.simulationId)].filter((id) => existentes.has(id)));
+        if (marcadas.size > 0) setFlagged(marcadas);
+        const guardadoNoServidor = Object.fromEntries(Object.entries(data.saved).map(([id, v]) => [Number(id), { optionId: v.optionId, text: v.text }]));
+        const restaurar = aRecuperar(lerRascunho(armazem, data.simulationId), data.questions.map((q) => q.id), guardadoNoServidor);
+        const ids = Object.keys(restaurar).map(Number);
+        if (ids.length > 0) {
+          const next = { ...draftsRef.current };
+          for (const id of ids) next[id] = restaurar[id];
+          draftsRef.current = next;
+          setDrafts(next);
+          for (const id of ids) guardar(id);
+          setRecuperadas(ids.length);
+        }
+      }
+    }
+    setEstadoLocalArmado(true); // só depois de restaurar: antes disso uma lista vazia apagaria o que está no browser
+  }, [data, guardar]);
+
+  const porConfirmar = JSON.stringify(Object.fromEntries([...unsaved].map((id) => [id, snapshotOf(id)])));
+  useEffect(() => {
+    if (!estadoLocalArmado) return;
+    const armazem = armazemLocal();
+    if (armazem) guardarRascunho(armazem, data.simulationId, JSON.parse(porConfirmar));
+  }, [estadoLocalArmado, porConfirmar, data.simulationId]);
+
+  // As marcas mudam com um toque e têm de sobreviver a recarregar a sala (#486).
+  useEffect(() => {
+    if (!estadoLocalArmado) return;
+    const armazem = armazemLocal();
+    if (armazem) guardarMarcadas(armazem, data.simulationId, flagged);
+  }, [estadoLocalArmado, flagged, data.simulationId]);
+
+  // Fechar ou recarregar com respostas por confirmar pede confirmação ao browser (as que já saíram não pedem nada).
+  // A entrega em curso também conta: `submitPending` cobre o `useActionState` e a entrega manual (#485).
+  useEffect(() => {
+    if (!haRespostasPorGuardar || submitPending) return;
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [haRespostasPorGuardar, submitPending]);
 
   function patch(questionId: number, change: Partial<Draft>) {
     const next = { ...draftsRef.current, [questionId]: { ...snapshotOf(questionId), ...change } };
@@ -375,8 +491,29 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   function openConfirm() {
     // Tudo o que está por enviar sai antes de confirmar: caso contrário a última
     // resposta escrita não chegava ao servidor e a prova saía sem ela.
+    setDeliveryError('');
     void flushAll();
     setConfirming(true);
+  }
+
+  /** Com JavaScript entrega-se aqui, não no `action` do form, para se poder apanhar
+   *  a rejeição da server action. O `action` continua no form para o envio sem
+   *  JavaScript (o fluxo testa-o) e para o `<form>` não ficar só no cliente. */
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setDeliveryError('');
+    startDelivery(async () => {
+      try {
+        const result = await submeterAction(undefined, new FormData(form));
+        if (result?.error) setDeliveryError(result.error);
+      } catch (error) {
+        // `redirect()` e `notFound()` também lançam: são controlo de fluxo do Next,
+        // não uma falha de rede, e têm de continuar a subir.
+        unstable_rethrow(error);
+        setDeliveryError(OFFLINE_DELIVERY);
+      }
+    });
   }
 
   function fecharConfirm() {
@@ -393,40 +530,52 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-card px-4 py-2.5 md:px-5">
-        {/* A tentativa a decorrer não se abandona por um toque a mais: sai-se pelo
-            aviso. Fechada, o link direto chega. */}
-        {closed ? (
-          <Button asChild variant="ghost" size="icon" aria-label="Sair da prova">
-            <Link href={data.roomId ? '/provas?aba=salas' : '/provas'}><ChevronLeft /></Link>
-          </Button>
-        ) : (
-          <Button variant="ghost" size="icon" aria-label="Sair da prova" onClick={() => setExitConfirm(true)}>
-            <ChevronLeft />
-          </Button>
-        )}
-        <div className="min-w-0 leading-tight">
-          <h1 className="truncate text-[15px] font-bold">{data.title}</h1>
-          <div className="text-xs text-muted-foreground">{data.subtitle}</div>
-        </div>
-        <div
-          className={cn('ml-auto flex items-center gap-2 text-lg font-bold', closed && 'text-destructive')}
-          role="timer"
-          aria-label={tempo === 'sem-limite' ? 'Sem limite de tempo' : 'Tempo restante'}
-        >
-          <Clock className="size-[18px]" aria-hidden />
-          {/* Três estados, e não dois: sem limite é uma coisa real (uma prova sem
-              `durationMinutes` nunca expira), e "ainda a contar" é o primeiro render,
-              em que o relógio do browser ainda não arrancou. Dizer "Sem tempo" nos
-              dois casos mentiria ao aluno sobre uma prova que está a contar. */}
-          <span className="tabular-nums">
-            {tempo === 'restante' ? formatClock(displayRemainingMs(left) ?? 0) : tempo === 'sem-limite' ? 'Sem tempo' : '—:—'}
-          </span>
-          {extraTime && (
-            <small className="hidden text-xs font-semibold text-muted-foreground sm:inline">+25% de tempo</small>
+      <header className="sticky top-0 z-10 border-b bg-card">
+        <div className="flex items-center gap-3 px-4 py-2.5 md:px-5">
+          {/* A tentativa a decorrer não se abandona por um toque a mais: sai-se pelo
+              aviso. Fechada, o link direto chega. */}
+          {closed ? (
+            <Button asChild variant="ghost" size="icon" aria-label="Sair da prova">
+              <Link href={data.roomId ? '/provas?aba=salas' : '/provas'}><ChevronLeft /></Link>
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" aria-label="Sair da prova" onClick={() => setExitConfirm(true)}>
+              <ChevronLeft />
+            </Button>
           )}
+          <div className="min-w-0 leading-tight">
+            <h1 className="truncate text-[15px] font-bold">{data.title}</h1>
+            <div className="text-xs text-muted-foreground">{data.subtitle}</div>
+          </div>
+          <div
+            className={cn('ml-auto flex items-center gap-2 text-lg font-bold', closed && 'text-destructive')}
+            role="timer"
+            aria-label={tempo === 'sem-limite' ? 'Sem limite de tempo' : 'Tempo restante'}
+          >
+            <Clock className="size-[18px]" aria-hidden />
+            {/* Três estados, e não dois: sem limite é uma coisa real (uma prova sem
+                `durationMinutes` nunca expira), e "ainda a contar" é o primeiro render,
+                em que o relógio do browser ainda não arrancou. Dizer "Sem tempo" nos
+                dois casos mentiria ao aluno sobre uma prova que está a contar. */}
+            <span className="tabular-nums">
+              {tempo === 'restante' ? formatClock(displayRemainingMs(left) ?? 0) : tempo === 'sem-limite' ? 'Sem tempo' : '—:—'}
+            </span>
+            {extraTime && (
+              <small className="hidden text-xs font-semibold text-muted-foreground sm:inline">+25% de tempo</small>
+            )}
+          </div>
+          <Button variant="outline" size="sm" onClick={openConfirm} disabled={closed}>Entregar</Button>
         </div>
-        <Button variant="outline" size="sm" onClick={openConfirm} disabled={closed}>Entregar</Button>
+        {!online && (
+          <p
+            data-testid="sala-offline"
+            role="status"
+            className="flex items-center justify-center gap-2 border-t border-warning/30 bg-warning-soft px-4 py-2 text-center text-[13px] font-medium text-warning"
+          >
+            <WifiOff className="size-4 shrink-0" aria-hidden />
+            {OFFLINE_BANNER}
+          </p>
+        )}
       </header>
       <p className="sr-only" role="status" aria-live="assertive">{announcement}</p>
 
@@ -438,6 +587,22 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           <AlertDescription className="flex flex-wrap items-center gap-3">
             <span>{integrityNotice}</span>
             <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={dismissIntegrityNotice}>
+              Fechar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {recuperadas > 0 && (
+        <Alert variant="info" className="mx-4 mt-3 md:mx-6 lg:mx-auto lg:w-full lg:max-w-[1480px]">
+          <RefreshCw aria-hidden />
+          <AlertDescription role="status" className="flex flex-wrap items-center gap-3">
+            <span>
+              {recuperadas === 1
+                ? 'Recuperámos 1 resposta que não tinha chegado ao servidor e estamos a enviá-la.'
+                : `Recuperámos ${recuperadas} respostas que não tinham chegado ao servidor e estamos a enviá-las.`}
+            </span>
+            <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => setRecuperadas(0)}>
               Fechar
             </Button>
           </AlertDescription>
@@ -491,7 +656,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           {/* One form for the whole room: the confirmation's submit button joins it
               through `form=`, and so does the "deliver what is saved" button shown
               once the time is up. */}
-          <form id={SUBMIT_FORM} action={submit}>
+          <form id={SUBMIT_FORM} action={submit} onSubmit={handleSubmit}>
             <input type="hidden" name="simulationId" value={String(data.simulationId)} />
           </form>
 
@@ -500,8 +665,9 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               unanswered={questions.length - answered.size}
               saving={saving && failed.length === 0}
               failed={failed.length}
-              pending={submitting}
-              error={submitState?.error}
+              marked={flagged.size}
+              pending={submitPending}
+              error={submitError}
               onCancel={fecharConfirm}
               onRetry={retryAll}
             />
@@ -514,10 +680,10 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                 O servidor já não aceita respostas. Entrega o que está guardado para veres a nota.
                 {unsaved.size > 0 && ` ${unsaved.size === 1 ? '1 resposta' : `${unsaved.size} respostas`} não chegou ao servidor e vai ficar de fora.`}
               </p>
-              {submitState?.error && (
-                <p role="alert" className="text-[13px] font-medium text-destructive">{submitState.error}</p>
+              {submitError && (
+                <p role="alert" className="text-[13px] font-medium text-destructive">{submitError}</p>
               )}
-              <Button type="submit" form={SUBMIT_FORM} size="sm" className="mt-2 justify-self-start" disabled={submitting}>
+              <Button type="submit" form={SUBMIT_FORM} size="sm" className="mt-2 justify-self-start" disabled={submitPending}>
                 Entregar o que está guardado
               </Button>
             </Card>

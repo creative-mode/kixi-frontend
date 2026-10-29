@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { apiGet, apiPost, apiPut, type Result } from './api';
+import { TtlCache } from './ttl-cache';
 import { getMe } from './me';
 import { correcaoLigada } from './schoolops/correcao';
 import { semNotaDasSimulacoes } from './schoolops/correcao-rules';
@@ -136,7 +137,8 @@ export async function startSimulation(
  *  whole statement just to learn one question's type. A short cache keeps the tap
  *  fast, which also narrows the window in which two saves can overlap. */
 const FULL_TTL_MS = 60_000;
-const fullCache = new Map<number, { at: number; data: StatementFull }>();
+const FULL_MAX = 200;
+const fullCache = new TtlCache<Result<StatementFull>>(FULL_TTL_MS, FULL_MAX);
 
 /** GET /statements/{id}/full — the questions. For a STUDENT the backend serves the
  *  visible variant with the answer key stripped (StatementController.java:132-136),
@@ -145,17 +147,13 @@ export async function getStatementFull(
   statementId: number,
   { cached = false }: { cached?: boolean } = {},
 ): Promise<Result<StatementFull>> {
-  const hit = fullCache.get(statementId);
-  if (cached && hit && Date.now() - hit.at < FULL_TTL_MS) return { ok: true, data: hit.data };
-
-  const result = await apiGet<StatementFull>(`/statements/${statementId}/full`);
-  if (!result.ok) {
-    fullCache.delete(statementId);
-    return result;
-  }
-  const data = { ...result.data, questions: orderQuestions(result.data.questions ?? []) };
-  fullCache.set(statementId, { at: Date.now(), data });
-  return { ok: true, data };
+  const ler = async () => {
+    const result = await apiGet<StatementFull>(`/statements/${statementId}/full`);
+    if (!result.ok) return { value: result, keep: false }; // o que falhou nunca fica guardado
+    const data = { ...result.data, questions: orderQuestions(result.data.questions ?? []) };
+    return { value: { ok: true, data } as Result<StatementFull>, keep: true };
+  };
+  return cached ? fullCache.remember(String(statementId), ler) : (await ler()).value;
 }
 
 /** GET /simulation-answers — every active answer of the student, across attempts.

@@ -215,6 +215,26 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('region', { name: 'Escolas' }).getByRole('link').first()).toBeVisible();
   });
 
+  test('pesquisar na barra lateral no desktop abre a mesma pesquisa', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // No desktop só a barra lateral mostra este link: o cabeçalho e a barra inferior
+    // do telemóvel estão `md:hidden`, por isso a consulta por role encontra um só.
+    const pesquisa = page.getByRole('link', { name: 'Pesquisar escolas, professores e alunos' });
+    await expect(pesquisa).toBeVisible();
+    // O critério de aceitação pede teclado: foco no link e ativação com Enter.
+    await pesquisa.focus();
+    await expect(pesquisa).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/aluno\/pesquisa/);
+    await expect(page.getByLabel(/Nome de uma escola/)).toBeVisible();
+  });
+
   test('a escola segue o padrão do perfil: faixa, nome, etiquetas e separadores', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -289,6 +309,19 @@ test.describe('jornadas críticas do Kixi', () => {
     // O cabeçalho passou a ser "Questão 2 (1 de 12)": o número de exibição e o
 // índice de posição deixaram de ser a mesma coisa.
 await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    // #486: a marca «para rever» sobrevive a recarregar a sala, e sem respostas
+    // por guardar o browser não mostra o aviso nativo.
+    let avisosNativos = 0;
+    page.on('dialog', (dialogo) => {
+      avisosNativos += 1;
+      void dialogo.accept();
+    });
+    await page.getByRole('button', { name: 'Marcar para rever' }).click();
+    await expect(page.getByRole('button', { name: 'Marcada para rever', exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Marcada para rever', exact: true })).toBeVisible();
+    expect(avisosNativos).toBe(0);
     // Resposta deliberadamente errada para o resultado oferecer a ligação ao tutor.
     // Clica-se na linha da opção, não no input: o radio é `sr-only` e o círculo
     // visível é um `<span>` sobreposto, por isso `.check()` no input nunca chega lá.
@@ -296,14 +329,111 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
     await page.getByRole('button', { name: 'Entregar', exact: true }).first().click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toContainText('Marcadas (1) para rever.');
     await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
+    // Entregar fecha a tentativa: as marcas locais dessa simulação desaparecem.
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kixi:marcadas:')).length)).toBe(0);
     // O `CardTitle` da revisão é um `div`, não um heading, por isso não aparece em
     // `getByRole('heading')`. O alvo estável é o `aria-label` que o card já traz.
     await expect(page.getByLabel('Revisão questão a questão')).toBeVisible();
     await page.getByRole('link', { name: 'Estudar os erros com o tutor' }).click();
     await expect(page).toHaveURL(/\/aluno\/tutor\?statementId=/);
     await expect(page.getByRole('heading', { name: 'Tutor' })).toBeVisible();
+  });
+
+  test('aluno: a resposta que não chegou ao servidor sobrevive a recarregar e é recuperada (#587)', async ({ page }) => {
+    // Recarregar com respostas por confirmar pede confirmação ao browser: aceita-se, é o que o aluno faria.
+    page.on('dialog', (dialogo) => void dialogo.accept());
+    const id = randomUUID().replaceAll('-', '').slice(0, 12);
+    await page.goto('/aluno/cadastro');
+    await page.getByLabel('Nome', { exact: true }).fill('Rita');
+    await page.getByLabel('Apelido').fill(`E2E${id}`);
+    await page.getByLabel('Utilizador').fill(`aluno${id}`);
+    await page.getByLabel('Email').fill(`aluno${id}@kixi.ao`);
+    await page.locator('#password').fill(PASSWORD);
+    await page.locator('#confirm').fill(PASSWORD);
+    await page.getByTestId('aluno-cadastro-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/onboarding/);
+    await page.getByLabel('Código de matrícula').fill('TESTE1234');
+    await page.getByRole('button', { name: 'Entrar na turma' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/provas');
+    await page.getByRole('link', { name: 'Ver a prova' }).first().click();
+    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await page.getByRole('button', { name: 'Começar', exact: true }).click();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+
+    const temRascunho = () => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('kixi:rascunho:')));
+
+    // Sem rede para gravar: só as server actions (têm o cabeçalho next-action) ficam sem resposta, a página continua a abrir.
+    const semRede = (route: import('@playwright/test').Route) =>
+      route.request().headers()['next-action'] ? route.abort('failed') : route.continue();
+    await page.route('**/aluno/prova/**', semRede);
+    await page.locator('label:has(input[type="radio"])').last().click();
+    await expect.poll(temRascunho, { timeout: 15_000 }).toBe(true);
+    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toHaveCount(0);
+
+    // A rede volta e o aluno reabre a prova: a resposta regressa e é enviada.
+    await page.unroute('**/aluno/prova/**', semRede);
+    await page.reload();
+    await expect(page.getByText(/Recuperámos 1 resposta/)).toBeVisible();
+    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
+    // Confirmada pelo servidor, o rascunho local deixa de existir.
+    await expect.poll(temRascunho, { timeout: 15_000 }).toBe(false);
+  });
+
+  test('aluno: sem ligação avisa, guarda a resposta e a entrega falha sem partir a sala (#485)', async ({ page }) => {
+    test.setTimeout(60_000);
+    page.on('dialog', (dialogo) => void dialogo.accept());
+    const id = randomUUID().replaceAll('-', '').slice(0, 12);
+    await page.goto('/aluno/cadastro');
+    await page.getByLabel('Nome', { exact: true }).fill('Rita');
+    await page.getByLabel('Apelido').fill(`OFF${id}`);
+    await page.getByLabel('Utilizador').fill(`off${id}`);
+    await page.getByLabel('Email').fill(`off${id}@kixi.ao`);
+    await page.locator('#password').fill(PASSWORD);
+    await page.locator('#confirm').fill(PASSWORD);
+    await page.getByTestId('aluno-cadastro-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/onboarding/);
+    await page.getByLabel('Código de matrícula').fill('TESTE1234');
+    await page.getByRole('button', { name: 'Entrar na turma' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/provas');
+    await page.getByRole('link', { name: 'Ver a prova' }).first().click();
+    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await page.getByRole('button', { name: 'Começar', exact: true }).click();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+
+    const faixa = page.getByTestId('sala-offline');
+    await page.context().setOffline(true);
+    await expect(faixa).toBeVisible({ timeout: 2000 });
+
+    // Offline a sério: a fila esgota as tentativas e mostra o erro. Ao voltar a
+    // rede, o evento `online` reenvia a resposta sem o aluno recarregar nada.
+    await page.locator('label:has(input[type="radio"])').last().click();
+    await expect(page.getByText('Não foi possível contactar o servidor.')).toBeVisible({ timeout: 15_000 });
+    await page.context().setOffline(false);
+    await expect(faixa).toHaveCount(0);
+    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible({ timeout: 15_000 });
+
+    // A entrega também pode falhar por rede. Tem de ficar no diálogo, com a sala
+    // ainda por trás, e não no error boundary global.
+    await page.getByRole('button', { name: 'Entregar', exact: true }).first().click();
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+    const semEntrega = (route: import('@playwright/test').Route) =>
+      route.request().headers()['next-action'] ? route.abort('failed') : route.continue();
+    await page.route('**/aluno/prova/**', semEntrega);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
+    await expect(page.getByRole('alertdialog').getByRole('alert')).toContainText('Sem ligação');
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+    await expect(page.getByText('Algo falhou, mas não perdeste nada')).toHaveCount(0);
+    await page.unroute('**/aluno/prova/**', semEntrega);
   });
 
   test('professor: OCR, revisão, gabarito, publicação e sala', async ({ page }) => {

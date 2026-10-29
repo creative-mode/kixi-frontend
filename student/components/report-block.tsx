@@ -31,7 +31,7 @@ export interface ReportBlockProps {
  * O motivo é lista fechada com nota opcional: permite triar e contar quantas denúncias
  * há de cada tipo, coisa que o texto livre das publicações não permite.
  */
-export function ReportBlock({ target, targetId, nome, accountId, podeBloquear = false, onReport, onBlock }: ReportBlockProps) {
+export function ReportBlock({ target, nome, accountId, podeBloquear = false, onReport, onBlock }: ReportBlockProps) {
   const [aberto, setAberto] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [nota, setNota] = useState('');

@@ -7,6 +7,11 @@
 
 import { parseServerTime } from './exam-rules.ts';
 
+/** A chave da cache da vista da sala: por aluno e por sala. A vista traz o `simulationId` do aluno, por isso não se partilha entre alunos. */
+export function viewCacheKey(viewer: string, roomId: number): string {
+  return `${viewer}:${roomId}`;
+}
+
 export type RoomStatus = 'DRAFT' | 'OPEN' | 'RUNNING' | 'CLOSED';
 
 /** `ExamRoomInvitationResponse` (kixi#195). */

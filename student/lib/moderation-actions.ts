@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { requireStudent } from './guard';
-import { apiGet, apiPost, apiPut, type Result } from './api';
+import { apiGet, apiPost, apiPut } from './api';
 import { validateReport } from './moderation';
 
 /**
