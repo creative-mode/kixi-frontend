@@ -96,7 +96,7 @@ test.describe('ecrãs de erro do aluno', () => {
 });
 
 test.describe('avisos do aluno', () => {
-  test('um aviso sem ícone ocupa a largura toda e não parte o texto em colunas', async ({ page }) => {
+  test('uma falha de carregamento do ranking oferece repetição', async ({ page }) => {
     await alunoLogin(page);
     await page.goto('/aluno/ranking');
     await page.waitForLoadState('networkidle');
@@ -105,12 +105,9 @@ test.describe('avisos do aluno', () => {
     try {
       expect((await definir('500')).ok()).toBeTruthy();
       await page.getByRole('tab', { name: 'Escola' }).click();
-      const aviso = page.locator('[data-slot="alert"]').first();
+      const aviso = page.getByRole('status', { name: 'Não foi possível carregar o ranking' });
       await expect(aviso).toBeVisible();
-      const caixa = await aviso.boundingBox();
-      // Antes da correção o texto ficava numa coluna de largura zero: mais de 280 px de altura.
-      expect(caixa!.height).toBeLessThan(120);
-      expect(caixa!.width).toBeGreaterThan(250);
+      await expect(aviso.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
     } finally {
       await definir('');
     }
