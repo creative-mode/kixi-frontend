@@ -11,7 +11,7 @@ const base = { head: 'feature/23-login-com-jwt', base: 'dev', body: 'Closes #23'
 
 test('PR conforme', () => assert.deepEqual(evaluate(base), []));
 test('branch fora do padrão', () => assert.equal(evaluate({ ...base, head: 'feat/auth-register' }).length, 1));
-test('destino errado', () => assert.match(evaluate({ ...base, base: 'prod' })[0], /apontam para `dev`/));
+test('destino errado', () => assert.match(evaluate({ ...base, base: 'qua' })[0], /apontam para `dev`/));
 test('sem Closes', () => assert.match(evaluate({ ...base, body: 'só texto' })[0], /ligar uma issue/));
 test('Refs satisfaz sem fechar', () => assert.deepEqual(evaluate({ ...base, body: 'Refs #23' }), []));
 test('Refs de outra issue', () => assert.match(evaluate({ ...base, body: 'Refs #99' })[0], /refere a issue #23/));
@@ -24,9 +24,13 @@ test('promoções', () => {
   assert.deepEqual(evaluate({ ...base, head: 'qua', base: 'prod', body: '' }), []);
   assert.equal(evaluate({ ...base, head: 'dev', base: 'prod', body: '' }).length, 1);
 });
-test('hotfix pode ir a prod; dependabot isento', () => {
-  assert.deepEqual(evaluate({ ...base, head: 'hotfix/40-crash', base: 'prod', body: 'Closes #40' }), []);
+test('hotfix não escapa a prod; dependabot isento', () => {
+  assert.match(evaluate({ ...base, head: 'hotfix/40-crash', base: 'prod', body: 'Closes #40' })[0], /só aceita merges vindos de `qua`/);
+  assert.deepEqual(evaluate({ ...base, head: 'hotfix/40-crash', base: 'dev', body: 'Closes #40' }), []);
   assert.deepEqual(evaluate({ ...base, head: 'dependabot/npm/x', body: '' }), []);
+});
+test('prod só aceita qua, nem branch normal escapa', () => {
+  assert.match(evaluate({ ...base, base: 'prod' })[0], /só aceita merges vindos de `qua`/);
 });
 test('closingRefs', () => assert.deepEqual(closingRefs('Closes #1, #2', 'a/b'), [1, 2]));
 
