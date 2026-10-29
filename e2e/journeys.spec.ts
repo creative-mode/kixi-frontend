@@ -346,7 +346,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('heading', { name: 'Privacidade' })).toBeVisible();
   });
 
-  test('aluno: encontra privacidade e cookies no menu da conta e no perfil', async ({ page }) => {
+  test('aluno: menu da conta, tutor, comentários e navegação de provas são acessíveis (#500)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
     await page.locator('#password').fill(PASSWORD);
@@ -361,6 +362,48 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('tab', { name: 'Definições' }).click();
     await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Privacidade' })).toHaveAttribute('href', /\/privacidade$/);
     await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
+
+    const trigger = page.locator('button[aria-haspopup="menu"]:visible').first();
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    const perfil = page.getByRole('menuitem', { name: 'O meu perfil' });
+    const terminar = page.getByRole('menuitem', { name: 'Terminar sessão' });
+    await expect(perfil).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(terminar).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(perfil).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+
+    await page.goto('/aluno/provas');
+    const nav = page.getByRole('navigation', { name: 'Provas' });
+    await expect(nav.getByRole('link', { name: 'Enunciados' })).toHaveAttribute('aria-current', 'page');
+    await expect(nav.getByRole('tab')).toHaveCount(0);
+    await nav.getByRole('link', { name: /Salas de prova/ }).click();
+    await expect(nav.getByRole('link', { name: /Salas de prova/ })).toHaveAttribute('aria-current', 'page');
+
+    await page.goto('/aluno/tutor?statementId=1');
+    const conversa = page.getByRole('log');
+    await expect(conversa).toHaveAttribute('aria-live', 'off');
+    const respostaAnunciada = page.locator('[role="status"][aria-live="polite"][aria-atomic="true"]');
+    const pergunta = page.getByLabel('Mensagem para o tutor');
+    await pergunta.fill('Como resolvo a primeira questão?');
+    await page.getByRole('button', { name: 'Enviar' }).click();
+    await expect(respostaAnunciada).toContainText('Resposta do tutor:', { timeout: 15_000 });
+
+    await page.goto('/aluno/inicio');
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+    await expect(page.getByLabel('Escrever um comentário')).toHaveCSS('height', '44px');
+    await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
   });
 
   test('aluno: registo, onboarding, prova, resultado e tutor', async ({ page }) => {

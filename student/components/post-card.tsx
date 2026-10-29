@@ -310,7 +310,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           </div>
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
             <UserAvatar name={myName} src={myPhoto} size={32} />
-            <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
+            <Input className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Ico name="send" size={22} /></Button>
           </form>
           {commentError && <Alert variant="destructive">{commentError}</Alert>}

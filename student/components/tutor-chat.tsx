@@ -114,6 +114,7 @@ export function TutorChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState(initialDraft);
   const [busy, setBusy] = useState(false);
+  const [answerAnnouncement, setAnswerAnnouncement] = useState('');
   const [mode, setMode] = useState<ChatMode>(initialMode);
   const [questionId, setQuestionId] = useState<number | null>(
     initialQuestionNumber == null
@@ -183,6 +184,7 @@ export function TutorChat({
     }
     lastSent.current = text;
     setNotice(null);
+    setAnswerAnnouncement('');
     setBusy(true);
 
     const controller = new AbortController();
@@ -235,17 +237,24 @@ export function TutorChat({
       const reader = body.getReader();
       const decoder = new TextDecoder();
       let pending = '';
+      let answerText = '';
+      let streamFailed = false;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         pending += decoder.decode(value, { stream: true });
         const parsed = parseSse(pending);
         pending = parsed.rest;
-        for (const event of parsed.events) setMessages((prev) => applyEvent(prev, event));
+        for (const event of parsed.events) {
+          if (event.type === 'delta') answerText += event.content;
+          if (event.type === 'error') streamFailed = true;
+          setMessages((prev) => applyEvent(prev, event));
+        }
       }
       // The stream ended without a `final`: close the answer rather than leave it
       // blinking forever.
       setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
+      if (!streamFailed && answerText) setAnswerAnnouncement(`Resposta do tutor: ${answerText}`);
     } catch (error) {
       if (controller.signal.aborted) {
         setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
@@ -309,6 +318,7 @@ export function TutorChat({
           title="Tutor"
           description={paperTitle ? `Sobre ${paperTitle}.` : 'Pergunta o que quiseres sobre esta prova.'}
         />
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{answerAnnouncement}</p>
         {paperTitle && (
           <div className="-mt-2">
             <Button asChild variant="outline" size="sm">
@@ -317,7 +327,7 @@ export function TutorChat({
           </div>
         )}
         <Card className="min-h-[calc(100dvh-230px)] gap-0 py-0" aria-label="Conversa com o tutor">
-          <div className="flex flex-1 flex-col gap-4 p-4 md:p-5" role="log" aria-live="polite" aria-busy={busy}>
+          <div className="flex flex-1 flex-col gap-4 p-4 md:p-5" role="log" aria-live="off" aria-busy={busy}>
             {messages.length === 0 && (
               <p className="m-auto max-w-[44ch] text-center text-sm text-muted-foreground">
                 Pergunta sobre uma questão ou um conceito desta prova. O tutor explica o raciocínio, mas não dá a resposta feita.
