@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatAverage, globalNote, myPositionLabel, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from './ranking-rules.ts';
+import { formatAverage, globalNote, myPositionLabel, podiumGap, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from './ranking-rules.ts';
 
 test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
@@ -18,6 +18,21 @@ test('a média formata-se com uma casa decimal, e sem nota dá um traço', () =>
 test('a posição só aparece com nota rankeável', () => {
   assert.equal(myPositionLabel(5, 28), '5.º de 28');
   assert.equal(myPositionLabel(null, 28), null);
+});
+
+test('o progresso até ao pódio respeita a métrica e não inventa dados ausentes', () => {
+  const board = {
+    scope: 'class' as const, groupId: 1, statementId: null, period: 'all' as const,
+    totalStudents: 8, rankedStudents: 8, smallGroup: false, myPosition: 5, myAverage: 72.4,
+    entries: [
+      { position: 3, accountId: null, displayName: 'Colega', average: 76.6, xp: 500, me: false },
+      { position: 5, accountId: 4, displayName: 'Tu', average: 72.4, xp: 260, me: true },
+    ],
+  };
+  assert.equal(podiumGap(board, 'average'), 'A 4,2 pontos do 3.º lugar');
+  assert.equal(podiumGap(board, 'xp'), 'A 240 XP do 3.º lugar');
+  assert.equal(podiumGap({ ...board, myPosition: 3 }, 'average'), null);
+  assert.equal(podiumGap({ ...board, entries: [] }, 'average'), null);
 });
 
 test('o aviso de grupo pequeno só aparece quando o backend o assinala', () => {

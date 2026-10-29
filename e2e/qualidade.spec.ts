@@ -117,6 +117,40 @@ test.describe('avisos do aluno', () => {
   });
 });
 
+test.describe('ranking acessível (#498)', () => {
+  test('sincroniza o título com o carregamento, liga a aba ao painel e mostra a unidade da média', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/ranking');
+
+    const turma = page.getByRole('tab', { name: 'Turma' });
+    const painel = page.getByRole('tabpanel');
+    const painelId = await painel.getAttribute('id');
+    expect(painelId).not.toBeNull();
+    await expect(turma).toHaveAttribute('aria-controls', painelId ?? '');
+    await expect(painel).toHaveAttribute('aria-busy', 'false');
+
+    await page.route('**/aluno/ranking', async (route) => {
+      if (route.request().method() === 'POST' && route.request().headers()['next-action']) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+      await route.continue();
+    });
+
+    await page.getByRole('tab', { name: 'Escola' }).click();
+    await expect(page.getByRole('heading', { name: 'A carregar Escola…' })).toBeVisible();
+    await expect(painel).toHaveAttribute('aria-busy', 'true');
+    await expect(painel.getByRole('table')).toHaveCount(0);
+    await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('A carregar o ranking da Escola.');
+
+    await expect(page.getByRole('heading', { name: 'Ranking · Escola' })).toBeVisible();
+    await expect(painel).toHaveAttribute('aria-busy', 'false');
+    await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('Ranking da Escola carregado');
+    await expect(painel.getByRole('table')).toBeVisible();
+    await expect(painel.locator('tbody tr').first().locator('td').nth(2)).toContainText('%');
+    await expect(painel.getByText(/A tua média:/)).toContainText('%');
+  });
+});
+
 test.describe('títulos', () => {
   test('cada página do aluno e do gestor tem o seu título', async ({ page }) => {
     const titulos = new Map<string, string>();
