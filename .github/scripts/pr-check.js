@@ -6,7 +6,7 @@
 //  2. O PR liga a issue:  "Closes #23" (fecha) ou "Refs #23" (não fecha:
 //     trabalho parcial ou critério noutra issue). O n.º tem de coincidir com o da branch.
 //  3. O PR aponta para a branch de integração (dev). Promoções seguem dev → qua → prod.
-//  4. hotfix/* pode apontar a qualquer ambiente.
+//  4. hotfix/* pode apontar a dev ou a qua. A prod só chega promoção vinda de qua — sem excepção.
 
 const TYPES = 'feature|feat|bug|fix|hotfix|refactor|docs|test|tests|chore|ci|devops|perf';
 const BRANCH_RE = new RegExp(`^(${TYPES})/(\\d+)-[a-z0-9][a-z0-9._-]*$`);
@@ -29,6 +29,12 @@ function evaluate({ head, base, body, ownRepo, branches, isBot = false }) {
   if (isBot || /^(dependabot|renovate)\//.test(head)) return [];
   const { dev, qua, prod } = branches;
   const problems = [];
+
+  // prod só aceita a promoção de qua. Nem hotfix foge disto.
+  if (base === prod && head !== qua) {
+    problems.push(`\`${prod}\` só aceita merges vindos de \`${qua}\`: este PR vem de \`${head}\`.`);
+    return problems;
+  }
 
   // Promoções entre ambientes
   if (head === dev || head === qua) {
