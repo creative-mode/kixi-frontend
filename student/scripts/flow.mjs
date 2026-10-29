@@ -128,7 +128,8 @@ function camposDoForm(html, extras = {}) {
   // Uma página pode ter mais do que uma Server Action (por exemplo, matrícula e
   // terminar sessão no onboarding). Recolher todos os campos hidden da página mistura
   // as referências das actions e submete a action errada. Quando há um campo extra,
-  // escolhe o form que contém esse campo; sem extras mantém o comportamento anterior.
+  // escolhe o form que contém esse campo; sem extras usa o primeiro form. Se a página
+  // tiver vários forms, passa um campo extra exclusivo do form pretendido.
   const campoAlvo = Object.keys(extras)[0];
   const formularios = [...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g)].map((match) => match[0]);
   const formulario = campoAlvo
