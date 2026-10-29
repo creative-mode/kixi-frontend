@@ -31,7 +31,7 @@ export function AuthShell({
   const landing = backToLanding ? landingHref() : null;
   const logo = <Logo size={28} wordmark />;
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
+    <main className="relative flex above-banner-min-h flex-col items-center justify-center gap-8 px-6 py-10">
       {landing ? (
         <a
           href={landing}

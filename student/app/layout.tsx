@@ -17,7 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Aplica a preferência de movimento guardados antes de pintar, para não piscar. */}
         <script dangerouslySetInnerHTML={{ __html: "try{var m=localStorage.getItem('kixi-reduce-motion');if(m)document.documentElement.setAttribute('data-reduce-motion',m)}catch(e){}" }} />
       </head>
-      <body>
+      {/* `--ck-banner-h` (#506): enquanto o banner de cookies estiver em baixo, o fim do documento
+       *  ganha esse espaço, para que nenhuma página acabe com ações por baixo dele. */}
+      <body className="pb-[var(--ck-banner-h,0px)]">
         {children}
         {/* #219: analítica mínima, só depois deste banner ser aceite. */}
         <CookieBanner landingOrigin={appOrigin()} />

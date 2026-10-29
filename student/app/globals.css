@@ -5,6 +5,15 @@
 @import '../styles/ds-theme.css';
 @import '../styles/theme.css';
 
+/* #506: ecrãs cheios que ficam por cima do banner de cookies. A altura do banner é medida em
+ * components/consent/Consent.tsx e publicada em `--ck-banner-h` (0px quando já há escolha). */
+@utility above-banner-h {
+  height: calc(100dvh - var(--ck-banner-h, 0px));
+}
+@utility above-banner-min-h {
+  min-height: calc(100dvh - var(--ck-banner-h, 0px));
+}
+
 .kixi-math-review { text-decoration: underline wavy #b45309; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .kixi-math-review-label { margin-inline-start: 0.35rem; color: #92400e; font-size: 0.72em; font-weight: 600; }
 .kixi-math-literal { white-space: pre-wrap; }
