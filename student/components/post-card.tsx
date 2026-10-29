@@ -43,6 +43,8 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [reading, startReading] = useTransition();
   const [reporting, setReporting] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [reportContext, setReportContext] = useState('');
+  const [reportError, setReportError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
   const [pending, startTransition] = useTransition();
   const card = useRef<HTMLElement>(null);
@@ -113,13 +115,23 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
 
   const sendReport = (e: React.FormEvent) => {
     e.preventDefault();
-    const reason = reportReason.trim();
+    const labels: Record<string, string> = {
+      spam: 'Spam ou publicidade',
+      offensive: 'Conteúdo ofensivo',
+      other: 'Outro motivo',
+    };
+    const reason = reportReason === 'other' && reportContext.trim()
+      ? `${labels.other}: ${reportContext.trim()}`
+      : labels[reportReason];
     if (!reason) return;
+    setReportError(null);
     startTransition(async () => {
       const result = await reportPostAction(post.id, reason);
       if (result.ok) {
         setReported(true);
         setReporting(false);
+      } else {
+        setReportError(result.message);
       }
     });
   };
@@ -214,14 +226,47 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
       )}
 
       {reporting && !reported && (
-        <form className="grid gap-2 pb-3" onSubmit={sendReport}>
-          <Input
-            value={reportReason} onChange={(e) => setReportReason(e.target.value)}
-            placeholder="Porque estás a denunciar esta publicação?" aria-label="Motivo da denúncia" autoFocus
-          />
+        <form className="grid gap-3 pb-3" onSubmit={sendReport}>
+          <fieldset className="grid gap-2" disabled={pending}>
+            <legend className="text-sm font-semibold">Porque queres denunciar esta publicação?</legend>
+            {[
+              ['spam', 'Spam ou publicidade'],
+              ['offensive', 'Conteúdo ofensivo'],
+              ['other', 'Outro motivo'],
+            ].map(([value, label]) => (
+              <label key={value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm hover:bg-secondary">
+                <input
+                  type="radio"
+                  name={`report-reason-${post.id}`}
+                  value={value}
+                  checked={reportReason === value}
+                  onChange={() => { setReportReason(value); setReportError(null); }}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          {reportReason === 'other' && (
+            <Input
+              value={reportContext}
+              onChange={(e) => { setReportContext(e.target.value); setReportError(null); }}
+              placeholder="Acrescenta um contexto (opcional)"
+              aria-label="Contexto da denúncia (opcional)"
+              maxLength={500}
+              disabled={pending}
+            />
+          )}
+          {reportError && (
+            <div className="grid gap-2">
+              <Alert variant="destructive">{reportError}</Alert>
+              <Button type="submit" variant="outline" size="sm" className="justify-self-start" disabled={pending || !reportReason}>
+                {pending ? 'A enviar…' : 'Tentar de novo'}
+              </Button>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setReporting(false)}>Cancelar</Button>
-            <Button type="submit" size="sm" variant="destructive" disabled={!reportReason.trim()}>Denunciar</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setReporting(false)} disabled={pending}>Cancelar</Button>
+            {!reportError && <Button type="submit" size="sm" variant="destructive" disabled={!reportReason || pending}>{pending ? 'A enviar…' : 'Denunciar'}</Button>}
           </div>
         </form>
       )}

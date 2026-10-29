@@ -89,10 +89,18 @@ export async function getCommentsAction(
   return readConversation(postId, page, limit);
 }
 
-export async function reportPostAction(postId: number, reason: string): Promise<{ ok: boolean }> {
-  if (!reason.trim()) return { ok: false };
+export async function reportPostAction(postId: number, reason: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!reason.trim()) return { ok: false, message: 'Escolhe um motivo para a denúncia.' };
   const result = await reportPost(postId, reason.trim());
-  return { ok: result.ok };
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.status === 429
+        ? 'Estás a enviar denúncias depressa demais. Espera um minuto e tenta de novo.'
+        : result.message,
+    };
+  }
+  return { ok: true };
 }
 
 /** Publica uma publicação construída. As regras repetem-se aqui para o servidor não depender do cliente. */
