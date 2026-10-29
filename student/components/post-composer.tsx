@@ -92,7 +92,7 @@ export function PostComposer({ classId, onOptimistic }: { classId: number; /** M
               return (
                 <Button key={a.label} type="button" aria-label={a.label} aria-pressed={type === a.type} variant="ghost" size="sm" className="shrink-0 text-primary" disabled={publishing} onClick={() => { setType(a.type); setText((current) => `${a.label}: ${current.replace(/^(Fazer uma pergunta|Dica de estudo): /, '')}`); }}><a.icon /><span className="hidden sm:inline">{a.label}</span><span className="sm:hidden">{a.short}</span></Button>
               );
-            ))}
+            })}
             <Button asChild variant="ghost" size="sm" className="shrink-0 text-primary">
               <Link href="/publicar" aria-label="Criar publicação com imagens e blocos"><LayoutTemplate /><span className="hidden sm:inline">Criar publicação</span><span className="sm:hidden">Criar</span></Link>
             </Button>
