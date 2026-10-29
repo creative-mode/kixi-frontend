@@ -124,7 +124,19 @@ function textoLegivel(html) {
 function camposDoForm(html, extras = {}) {
   const dados = new FormData();
   for (const [nome, valor] of Object.entries(extras)) dados.append(nome, valor);
-  for (const tag of html.matchAll(/<input[^>]*type="hidden"[^>]*>/g)) {
+
+  // Uma página pode ter mais do que uma Server Action (por exemplo, matrícula e
+  // terminar sessão no onboarding). Recolher todos os campos hidden da página mistura
+  // as referências das actions e submete a action errada. Quando há um campo extra,
+  // escolhe o form que contém esse campo; sem extras mantém o comportamento anterior.
+  const campoAlvo = Object.keys(extras)[0];
+  const formularios = [...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g)].map((match) => match[0]);
+  const formulario = campoAlvo
+    ? formularios.find((form) => new RegExp(`name="${campoAlvo}"`).test(form))
+    : formularios[0];
+  const fonte = formulario ?? html;
+
+  for (const tag of fonte.matchAll(/<input[^>]*type="hidden"[^>]*>/g)) {
     const nome = tag[0].match(/name="([^"]+)"/)?.[1];
     if (!nome || dados.has(nome)) continue;
     dados.append(nome, descodificar(tag[0].match(/value="([^"]*)"/)?.[1] ?? ''));
