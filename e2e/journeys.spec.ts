@@ -350,7 +350,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
     const falha = (mode: string) => page.evaluate(async (value) => {
-      const response = await fetch('/aluno/api/mock-fault', {
+      const response = await fetch('api/mock-fault', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: value }),
