@@ -117,6 +117,15 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
   else if (!started && toStart !== null) when = `Começa dentro de ${formatWait(toStart)} (${formatWhen(inv.startsAt)}).`;
   else when = phase === 'scheduled' ? 'O professor ainda não abriu a sala.' : 'À espera de o professor iniciar a prova.';
 
+  // Keep the visible countdown precise, but let screen readers hear only minute
+  // changes (and the transition at zero), not a new announcement every second.
+  let announcement = when;
+  if (phase === 'live' && toEnd !== null) {
+    announcement = toEnd === 0 ? 'A prova termina agora.' : `A prova termina dentro de ${Math.ceil(toEnd / 60)} min.`;
+  } else if (!started && toStart !== null) {
+    announcement = toStart === 0 ? 'A prova começa agora.' : `A prova começa dentro de ${Math.ceil(toStart / 60)} min.`;
+  }
+
   const action = joinActionOf(inv, phase, ended);
 
   return (
@@ -128,9 +137,10 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
         </div>
         <Badge variant={BADGE[ended && phase !== 'submitted' ? 'over' : phase].variant}>{BADGE[ended && phase !== 'submitted' ? 'over' : phase].label}</Badge>
       </div>
-      <p className="flex items-center gap-2 text-sm" role="status" aria-live="polite">
+      <p className="flex items-center gap-2 text-sm" role="status" aria-live="off">
         <Clock className="size-4 shrink-0 text-muted-foreground" aria-hidden />{when}
       </p>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
       {state?.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
       {action.kind === 'result' ? (
         <Button asChild variant="outline" className="justify-self-start">
