@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { entrarSalaAction } from '@/lib/exam-room-actions';
+import { RoomRefreshPoller } from '@/components/room-refresh-poller';
 import {
   clockOffset,
   formatWait,
@@ -68,6 +69,11 @@ export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0 }:
   return (
     <section id="salas" aria-labelledby="salas-title" className="grid gap-3">
       <h2 id="salas-title" className="flex items-center gap-2 text-lg font-bold"><DoorOpen className="size-5" aria-hidden /> Salas de prova</h2>
+      <RoomRefreshPoller enabled={list.some((inv) => {
+        const offset = receivedAt === null ? 0 : clockOffset(inv.serverTime, receivedAt);
+        const phase = now === null ? phaseOf(inv) : phaseOf(inv, now + offset);
+        return phase === 'lobby' || phase === 'scheduled';
+      })} />
       <ul className="grid gap-3">
         {list.map((inv) => (
           <li key={inv.roomId}>
