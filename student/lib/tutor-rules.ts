@@ -71,6 +71,47 @@ export function buildMessagePayload(content: string): Record<string, unknown> {
   return { content: content.trim() };
 }
 
+/**
+ * What the return button of the tutor opens, which is where the student came from.
+ *
+ * `?de=resultado&simulacao=<id>` is what the result screen sends, because "voltar à
+ * prova" used to drop the student on the paper's detail when they had come from a
+ * finished result — a different screen, and not the one the back button promised.
+ * Anything else — no parameter, an unknown value, an id that is not one — falls back
+ * to the detail: this comes from the address bar and must not become a free link.
+ */
+export function tutorBackLink(
+  params: { de?: string | string[]; simulacao?: string | string[] },
+  statementId: number,
+): { href: string; label: string } {
+  const de = Array.isArray(params.de) ? params.de[0] : params.de;
+  const raw = Array.isArray(params.simulacao) ? params.simulacao[0] : params.simulacao;
+  const simulationId = Number(raw);
+  if (de === 'resultado' && Number.isInteger(simulationId) && simulationId > 0) {
+    return { href: `/resultado?prova=${simulationId}`, label: 'Voltar ao resultado' };
+  }
+  return { href: `/prova/${statementId}/detalhe`, label: 'Voltar à prova' };
+}
+
+/**
+ * What the Enter key does in the tutor's box, given how wide the screen is.
+ *
+ * Below `md` (768 px) Enter is a newline: the return key of a phone keyboard is how
+ * the student writes the next line of a question, and sending from it cut the question
+ * in half. On a desktop, Enter still sends — that is what the box has always done —
+ * and Shift+Enter writes a newline. Ctrl/Cmd+Enter sends on both, so touch screens
+ * with a hardware keyboard keep a shortcut. Anything that is not Enter does nothing.
+ */
+export function composerAction(
+  key: { key: string; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean },
+  desktop: boolean,
+): 'send' | 'newline' | 'none' {
+  if (key.key !== 'Enter') return 'none';
+  if (key.ctrlKey || key.metaKey) return 'send';
+  if (!desktop || key.shiftKey) return 'newline';
+  return 'send';
+}
+
 /** How much of an answer a link carries, and how many. Well under the 2000 the
  *  turn itself accepts: the text is context for the explanation, not the essay. */
 const MAX_WRONG_ANSWER_IN_LINK = 500;

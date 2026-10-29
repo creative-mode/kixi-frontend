@@ -391,13 +391,23 @@ test.describe('jornadas críticas do Kixi', () => {
     await nav.getByRole('link', { name: /Salas de prova/ }).click();
     await expect(nav.getByRole('link', { name: /Salas de prova/ })).toHaveAttribute('aria-current', 'page');
 
+    // Sem prova, o tutor oferece as provas do próprio aluno (#491): é uma lista de
+    // onde se sai a estudar, não um cartão a mandar para o catálogo.
+    await page.goto('/aluno/tutor');
+    await expect(page.getByRole('link', { name: /Redes de Computadores/ })).toHaveAttribute('href', /statementId=1/);
+    // A prova a decorrer não entra: o tutor está fechado enquanto ela corre.
+    await expect(page.getByRole('link', { name: /Sistemas Operativos/ })).toHaveCount(0);
+
     await page.goto('/aluno/tutor?statementId=1');
     const conversa = page.getByRole('log');
     await expect(conversa).toHaveAttribute('aria-live', 'off');
     const respostaAnunciada = page.locator('[role="status"][aria-live="polite"][aria-atomic="true"]');
     const pergunta = page.getByLabel('Mensagem para o tutor');
     await pergunta.fill('Como resolvo a primeira questão?');
+    // No telemóvel o Enter muda de linha: quem envia é o botão.
     await pergunta.press('Enter');
+    await expect(pergunta).toHaveValue('Como resolvo a primeira questão?\n');
+    await page.getByRole('button', { name: 'Enviar' }).click();
     await expect(respostaAnunciada).toContainText('Resposta do tutor:', { timeout: 15_000 });
 
     await page.goto('/aluno/inicio');
@@ -506,8 +516,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // `getByRole('heading')`. O alvo estável é o `aria-label` que o card já traz.
     await expect(page.getByLabel('Revisão questão a questão')).toBeVisible();
     await page.getByRole('link', { name: 'Estudar os erros com o tutor' }).click();
-    await expect(page).toHaveURL(/\/aluno\/tutor\?statementId=/);
+    await expect(page).toHaveURL(/\/aluno\/tutor\?statementId=.*de=resultado/);
     await expect(page.getByRole('heading', { name: 'Tutor' })).toBeVisible();
+    // «Voltar» regressa ao resultado de onde o aluno veio (#491), não ao detalhe.
+    await page.getByRole('link', { name: 'Voltar ao resultado' }).click();
+    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
   });
 
   test('aluno: uma denúncia falhada conserva o motivo e pode ser repetida (#499)', async ({ page }) => {

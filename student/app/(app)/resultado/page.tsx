@@ -274,7 +274,9 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           {statementId != null && <RefazerSimulacao statementId={statementId} />}
           {statementId != null && hasMistakes && (
             <Button asChild>
-              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
+              {/* `de=resultado&simulacao=` diz ao tutor que «Voltar» tem de regressar
+                  a este resultado, e não ao detalhe da prova (#491). */}
+              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}&de=resultado&simulacao=${result.simulationId}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
