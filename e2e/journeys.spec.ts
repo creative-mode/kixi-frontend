@@ -510,6 +510,10 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByRole('alertdialog')).toContainText('Marcadas (1) para rever.');
     await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
+    // #492: a leitura da nota e as recompensas do servidor vêm logo a seguir à nota.
+    await expect(page.getByTestId('resultado-leitura')).toBeVisible();
+    await expect(page.getByLabel('O que ganhaste')).toContainText(/XP/);
+    await expect(page.getByLabel('O que ganhaste')).toContainText('sequência');
     // Entregar fecha a tentativa: as marcas locais dessa simulação desaparecem.
     await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kixi:marcadas:')).length)).toBe(0);
     // O `CardTitle` da revisão é um `div`, não um heading, por isso não aparece em
