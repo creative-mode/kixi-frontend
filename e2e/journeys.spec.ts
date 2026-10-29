@@ -397,7 +397,7 @@ test.describe('jornadas críticas do Kixi', () => {
     const respostaAnunciada = page.locator('[role="status"][aria-live="polite"][aria-atomic="true"]');
     const pergunta = page.getByLabel('Mensagem para o tutor');
     await pergunta.fill('Como resolvo a primeira questão?');
-    await page.getByRole('button', { name: 'Enviar' }).click();
+    await pergunta.press('Enter');
     await expect(respostaAnunciada).toContainText('Resposta do tutor:', { timeout: 15_000 });
 
     await page.goto('/aluno/inicio');
