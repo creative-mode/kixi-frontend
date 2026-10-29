@@ -363,6 +363,29 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
   });
 
+  test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    const usernameOrEmail = page.getByLabel('Utilizador ou email');
+    await expect(usernameOrEmail).not.toBeFocused();
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(usernameOrEmail).toBeFocused();
+    await expect(usernameOrEmail).toHaveAttribute('aria-invalid', 'true');
+    await expect(usernameOrEmail).toHaveAttribute('aria-describedby', 'usernameOrEmail-err');
+    await expect(page.locator('#usernameOrEmail-err')).toContainText('Indica o teu utilizador ou email.');
+
+    await page.goto('/aluno/cadastro');
+    const email = page.getByLabel('Email');
+    await expect(email).toHaveAttribute('inputmode', 'email');
+    await email.fill('email-invalido');
+    await email.blur();
+    await expect(page.locator('#email-err')).toContainText('Este email não parece válido.');
+
+    const password = page.locator('#password');
+    await password.fill('curta');
+    await password.blur();
+    await expect(page.locator('#password-err')).toContainText('Usa pelo menos 8 caracteres.');
+  });
+
   test('aluno: registo, onboarding, prova, resultado e tutor', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 12);
     await page.goto('/aluno/cadastro');
@@ -374,11 +397,16 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.locator('#confirm').fill(PASSWORD);
     await page.getByTestId('aluno-cadastro-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/onboarding/);
+    const code = page.getByLabel('Código de matrícula');
+    await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible();
+    await page.getByRole('button', { name: 'Entrar na turma' }).click();
+    await expect(page.locator('#codigo-err')).toContainText('Indica o código de matrícula que a tua escola te deu.');
+    await expect(code).toBeFocused();
 
     // Desde kixi#255 a auto-matrícula é só o código: a turma e o ano letivo vêm dele,
     // por isso o onboarding deixou de pedir escola/curso/turma. TESTE1234 é o código
     // da turma 12B que o mock semeia.
-    await page.getByLabel('Código de matrícula').fill('TESTE1234');
+    await code.fill('TESTE1234');
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     // Conta nova: o início abre sem o bloco «Começa por aqui» (saiu do início).

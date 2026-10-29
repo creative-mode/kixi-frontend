@@ -1,14 +1,15 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { CircleAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { matricularAction } from '@/lib/enrollment-actions';
+import { sairAction } from '@/lib/auth-actions';
 
 function Submit({ children }: { children: React.ReactNode }) {
   const { pending } = useFormStatus();
@@ -27,6 +28,18 @@ function Submit({ children }: { children: React.ReactNode }) {
  *  formulário também funciona sem JavaScript. */
 export function OnboardingForm() {
   const [state, action] = useActionState(matricularAction, undefined);
+  const [codeError, setCodeError] = useState('');
+
+  const validateCode = (value: string) => (value.trim() ? '' : 'Indica o código de matrícula que a tua escola te deu.');
+  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const form = event.currentTarget;
+    const error = validateCode(String(new FormData(form).get('codigo') ?? ''));
+    setCodeError(error);
+    if (error) {
+      event.preventDefault();
+      window.requestAnimationFrame(() => form.querySelector<HTMLInputElement>('#codigo')?.focus());
+    }
+  };
 
   return (
     <div className="grid gap-6">
@@ -44,7 +57,7 @@ export function OnboardingForm() {
         </Alert>
       )}
 
-      <form action={action} className="grid gap-6">
+      <form action={action} onSubmit={onSubmit} noValidate className="grid gap-6">
         <Field>
           <FieldLabel htmlFor="codigo">Código de matrícula</FieldLabel>
           <Input
@@ -56,7 +69,12 @@ export function OnboardingForm() {
             autoComplete="off"
             placeholder="Ex.: AB3DK9F2"
             className="font-mono uppercase tracking-wider"
+            aria-invalid={!!codeError}
+            aria-describedby={codeError ? 'codigo-err' : undefined}
+            onBlur={(event) => setCodeError(validateCode(event.currentTarget.value))}
+            onChange={() => setCodeError('')}
           />
+          <FieldError id="codigo-err">{codeError}</FieldError>
           <FieldDescription>
             O código que a tua escola te deu. É ele que decide a tua turma e o ano letivo.
           </FieldDescription>
@@ -64,9 +82,12 @@ export function OnboardingForm() {
         <Submit>Entrar na turma</Submit>
       </form>
 
-      <p className="text-sm text-muted-foreground">
-        Ainda não tens código? Pede-o à tua escola ou ao teu professor. É a escola que o emite.
-      </p>
+      <div className="grid gap-3 text-sm text-muted-foreground">
+        <p>Ainda não tens código? Pede-o à tua escola ou ao teu professor. É a escola que o emite.</p>
+        <form action={sairAction}>
+          <Button type="submit" variant="outline" className="w-full">Terminar sessão</Button>
+        </form>
+      </div>
     </div>
   );
 }
