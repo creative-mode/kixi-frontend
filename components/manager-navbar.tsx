@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, MotionConfig } from "framer-motion";
@@ -9,7 +9,8 @@ import {
   LogOut,
   X,
   Menu as MenuIcon,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   FilePen,
   ClipboardCheck,
   DoorOpen,
@@ -20,83 +21,33 @@ import {
   Gift,
   BadgeCheck,
   Flag,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
 import { resetTeacherScope } from "@/hooks/use-teacher-scope";
+import { activeHref, groupLinks } from "@/lib/nav-rules";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 
-const allNavLinks = [
-  {
-    href: "/",
-    label: "Dashboard",
-    description: "Visão geral e métricas",
-    icon: LayoutDashboard,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/exam-rooms",
-    label: "Salas de Prova",
-    description: "Provas ao vivo para a turma, com notas no fim",
-    icon: DoorOpen,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/tarefas",
-    label: "Tarefas das pautas",
-    description: "Correcções, validações e reclamações por fazer",
-    icon: ClipboardCheck,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/desempenho",
-    label: "Desempenho",
-    description: "Questões mais falhadas, alunos em risco e evolução",
-    icon: TrendingUp,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/exam-builder",
-    label: "Montar prova",
-    description: "Prova no modelo da escola, pronta a imprimir",
-    icon: FilePen,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/assign",
-    label: "Atribuir",
-    description: "Professor, turma e disciplina numa só tela",
-    icon: UserCheck,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/donations",
-    label: "Doações",
-    description: "Enunciados enviados pela página pública",
-    icon: Gift,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/verification",
-    label: "Verificação",
-    description: "Selo de verificação das escolas",
-    icon: BadgeCheck,
-    color: "bg-accent text-primary",
-  },
-  {
-    href: "/moderacao",
-    label: "Moderação",
-    description: "Denúncias de perfis e de escolas",
-    icon: Flag,
-    color: "bg-accent text-primary",
-  },
+type NavLink = { href: string; label: string; icon: LucideIcon };
+
+const allNavLinks: NavLink[] = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/exam-rooms", label: "Salas de Prova", icon: DoorOpen },
+  { href: "/tarefas", label: "Tarefas das pautas", icon: ClipboardCheck },
+  { href: "/desempenho", label: "Desempenho", icon: TrendingUp },
+  { href: "/exam-builder", label: "Montar prova", icon: FilePen },
+  { href: "/assign", label: "Atribuir", icon: UserCheck },
+  { href: "/donations", label: "Doações", icon: Gift },
+  { href: "/verification", label: "Verificação", icon: BadgeCheck },
+  { href: "/moderacao", label: "Moderação", icon: Flag },
   ...NAV_KEYS.map((k) => {
     const e = ENTITIES[k];
-    return { href: `/${e.path}`, label: e.plural, description: e.description, icon: e.icon, color: e.tone };
+    return { href: `/${e.path}`, label: e.plural, icon: e.icon };
   }),
 ];
 
@@ -104,25 +55,113 @@ const allNavLinks = [
 // lista mandava o professor de volta ao início.
 const TEACHER_HREFS = ["/desempenho", "/tarefas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
-const teacherHomeLink = {
-  href: "/professor",
-  label: "Início",
-  description: "Atalhos e resumo da sua atividade",
-  icon: Home,
-  color: "bg-accent text-primary",
-};
+const teacherHomeLink: NavLink = { href: "/professor", label: "Início", icon: Home };
 
 // FE-18 (#29): só do professor. O ADMIN não dá aulas; muda o estilo nas atribuições.
-const teacherTutorLink = {
-  href: "/professor/tutor",
-  label: "Estilo do tutor",
-  description: "Como o tutor de IA explica aos seus alunos",
-  icon: Sparkles,
-  color: "bg-accent text-primary",
-};
+const teacherTutorLink: NavLink = { href: "/professor/tutor", label: "Estilo do tutor", icon: Sparkles };
+
+/** Abaixo disto o menu é uma gaveta; daqui para cima é a barra lateral (`lg` no Tailwind). */
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+/** A barra lateral recolhida lembra-se entre visitas. O `<html>` leva o estado (data-nav) para o conteúdo se afastar da largura certa. */
+const COLLAPSE_KEY = "kixi.manager.nav.collapsed";
+const COLLAPSE_EVENT = "kixi:nav-collapse";
+
+function subscribeCollapsed(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(COLLAPSE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(COLLAPSE_EVENT, onChange);
+  };
+}
+
+function readCollapsed() {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(next: boolean) {
+  try {
+    window.localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+  } catch {
+    // Sem armazenamento (modo privado): a barra recolhe na mesma, só não se lembra.
+  }
+  window.dispatchEvent(new Event(COLLAPSE_EVENT));
+}
+
+function logout() {
+  resetTeacherScope();
+  logoutAction();
+}
+
+function NavList({
+  links,
+  pathname,
+  collapsed = false,
+  onNavigate,
+}: {
+  links: NavLink[];
+  pathname: string;
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
+  const { top, groups } = groupLinks(links);
+  const current = activeHref(pathname, links.map((l) => l.href));
+
+  const renderLink = ({ href, label, icon: Icon }: NavLink) => {
+    const active = href === current;
+    return (
+      <li key={href}>
+        <Link
+          href={href}
+          onClick={onNavigate}
+          aria-current={active ? "page" : undefined}
+          title={collapsed ? label : undefined}
+          className={cn(
+            "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+            collapsed && "justify-center px-0",
+            active ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+        >
+          <Icon size={18} aria-hidden="true" className="shrink-0" />
+          <span className={collapsed ? "sr-only" : "truncate"}>{label}</span>
+        </Link>
+      </li>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {top.length > 0 && <ul className="space-y-1">{top.map(renderLink)}</ul>}
+      {groups.map((group) => (
+        <section key={group.id} aria-labelledby={`nav-group-${group.id}`}>
+          <h2
+            id={`nav-group-${group.id}`}
+            className={cn(
+              "mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+              collapsed && "sr-only",
+            )}
+          >
+            {group.label}
+          </h2>
+          {collapsed && <hr className="mx-3 mb-2 border-border" aria-hidden="true" />}
+          <ul className="space-y-1">{group.items.map(renderLink)}</ul>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 export function ManagerNavbar({ roles }: { roles: string[] }) {
   const [isOpen, setIsOpen] = useState(false);
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const drawer = useRef<HTMLDivElement>(null);
+
   const isAdmin = roles.includes("ADMIN");
   const isTeacher = roles.includes("TEACHER");
   const navLinks = isTeacher && !isAdmin
@@ -133,21 +172,52 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
   // Don't render navbar on public pages (login)
   const isPublicPage = pathname === '/login' || pathname === '/403';
 
+  const closeMenu = () => {
+    setIsOpen(false);
+    menuButton.current?.focus();
+  };
+
+  // A largura que o conteúdo reserva à barra lateral (ver `--nav-width` em globals.css).
+  useEffect(() => {
+    document.documentElement.dataset.nav = collapsed ? "collapsed" : "expanded";
+  }, [collapsed]);
+
   // Close menu when route changes
   useEffect(() => {
     const task = window.setTimeout(() => setIsOpen(false), 0);
     return () => window.clearTimeout(task);
   }, [pathname]);
 
-  // Lock body scroll when menu is open
+  // Ao passar para o ecrã largo a gaveta deixa de existir: fecha, para não deixar o conteúdo inerte.
   useEffect(() => {
-    if (isOpen && !isPublicPage) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
+    const desktop = window.matchMedia(DESKTOP_QUERY);
+    const onChange = () => {
+      if (desktop.matches) setIsOpen(false);
+    };
+    desktop.addEventListener("change", onChange);
+    return () => desktop.removeEventListener("change", onChange);
+  }, []);
+
+  // Com a gaveta aberta: o conteúdo atrás fica inerte (sem foco nem leitor de ecrã), o
+  // scroll fica preso, o foco entra na gaveta e o Esc fecha-a e devolve o foco ao botão.
+  useEffect(() => {
+    if (!isOpen || isPublicPage) return;
+    const content = document.getElementById("conteudo");
+    content?.setAttribute("inert", "");
+    document.body.style.overflow = "hidden";
+    drawer.current?.querySelector<HTMLElement>("a, button")?.focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setIsOpen(false);
+      menuButton.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+
     return () => {
+      content?.removeAttribute("inert");
       document.body.style.overflow = "unset";
+      document.removeEventListener("keydown", onKey);
     };
   }, [isOpen, isPublicPage]);
 
@@ -156,7 +226,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
   return (
     <MotionConfig reducedMotion="user">
       <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="mx-auto flex h-16 items-center justify-between px-4">
           <Link
             href="/"
             className="text-xl font-bold tracking-tighter z-50 relative flex items-center gap-2"
@@ -170,119 +240,97 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
               <UserDisplay />
             </div>
             <button
+              ref={menuButton}
               onClick={() => setIsOpen(!isOpen)}
               aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
               aria-expanded={isOpen}
               aria-controls="manager-menu"
-              className="p-2 rounded-md border border-transparent hover:border-border hover:bg-accent transition-colors relative group"
+              className="flex size-11 items-center justify-center rounded-md border border-transparent transition-colors hover:border-border hover:bg-accent lg:hidden"
             >
-              <div className="relative w-6 h-6 flex items-center justify-center">
-                <AnimatePresence mode="wait">
-                  {isOpen ? (
-                    <motion.div
-                      key="close"
-                      initial={{ rotate: -90, opacity: 0 }}
-                      animate={{ rotate: 0, opacity: 1 }}
-                      exit={{ rotate: 90, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <X size={24} />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="menu"
-                      initial={{ rotate: 90, opacity: 0 }}
-                      animate={{ rotate: 0, opacity: 1 }}
-                      exit={{ rotate: -90, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <MenuIcon size={24} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              {isOpen ? <X size={24} aria-hidden="true" /> : <MenuIcon size={24} aria-hidden="true" />}
             </button>
           </div>
         </div>
       </header>
 
+      {/* Ecrã largo: a barra está sempre à vista, sem clique. */}
+      <aside
+        className={cn(
+          "fixed bottom-0 left-0 top-16 z-30 hidden flex-col border-r-2 border-border bg-card transition-[width] duration-150 lg:flex",
+          "w-(--nav-width)",
+        )}
+      >
+        <nav aria-label="Principal" className="flex-1 overflow-y-auto p-3">
+          <NavList links={navLinks} pathname={pathname} collapsed={collapsed} />
+        </nav>
+        <div className="space-y-2 border-t border-border p-3">
+          <button
+            type="button"
+            onClick={() => writeCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expandir o menu lateral" : "Recolher o menu lateral"}
+            title={collapsed ? "Expandir o menu lateral" : undefined}
+            className={cn(
+              "flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              collapsed && "justify-center px-0",
+            )}
+          >
+            {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+            {!collapsed && <span>Recolher</span>}
+          </button>
+          <Button
+            variant="destructive"
+            className={cn("min-h-11 w-full", collapsed && "px-0")}
+            onClick={logout}
+            aria-label="Sair do sistema"
+            title={collapsed ? "Sair do sistema" : undefined}
+          >
+            <LogOut size={18} aria-hidden="true" />
+            {!collapsed && "Sair"}
+          </Button>
+        </div>
+      </aside>
+
+      {/* Ecrã estreito: gaveta com a mesma navegação. */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            id="manager-menu"
-            initial={{ opacity: 0, y: "-100%" }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: "-100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-40 bg-background pt-24 pb-8 overflow-y-auto"
-          >
-            <div className="container mx-auto px-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto items-stretch">
-                {navLinks.map((link, index) => {
-                  const Icon = link.icon;
-                  const isActive = link.href === "/" ? pathname === "/" : pathname === link.href || pathname.startsWith(`${link.href}/`);
-
-                  return (
-                    <motion.div
-                      key={link.href}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 + 0.2 }}
-                      className="w-full h-full"
-                    >
-                      <Link
-                        href={link.href}
-                        className={cn(
-                          "group flex items-start gap-4 p-6 rounded-md border transition-colors duration-200 h-full",
-                          isActive
-                            ? "bg-accent border-primary"
-                            : "bg-card hover:bg-accent border-border hover:border-primary"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "p-3 rounded-md shrink-0",
-                            link.color
-                          )}
-                        >
-                          <Icon size={24} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-semibold text-lg">
-                              {link.label}
-                            </span>
-                            <ChevronRight
-                              size={16}
-                              className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-muted-foreground shrink-0"
-                            />
-                          </div>
-                          <p className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors min-h-[2.5rem] line-clamp-2">
-                            {link.description}
-                          </p>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
-                className="mt-12 max-w-6xl mx-auto border-t pt-8 flex justify-between items-center"
-              >
+          <div className="lg:hidden">
+            <motion.button
+              type="button"
+              tabIndex={-1}
+              aria-hidden="true"
+              onClick={closeMenu}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-x-0 bottom-0 top-16 z-40 bg-foreground/40"
+            />
+            <motion.div
+              ref={drawer}
+              id="manager-menu"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu principal"
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="fixed bottom-0 left-0 top-16 z-40 flex w-80 max-w-[85vw] flex-col border-r-2 border-border bg-card"
+            >
+              <nav aria-label="Principal" className="flex-1 overflow-y-auto p-3">
+                <NavList links={navLinks} pathname={pathname} />
+              </nav>
+              <div className="flex items-center justify-between gap-3 border-t border-border p-3">
                 <div className="md:hidden">
                   <UserDisplay />
                 </div>
-                <Button variant="destructive" size="lg" className="ml-auto" onClick={() => { resetTeacherScope(); logoutAction(); }}>
-                  <LogOut size={18} />
+                <Button variant="destructive" className="ml-auto min-h-11" onClick={logout}>
+                  <LogOut size={18} aria-hidden="true" />
                   Sair do sistema
                 </Button>
-              </motion.div>
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </MotionConfig>
