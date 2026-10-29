@@ -4,6 +4,7 @@ import { useEffect, useOptimistic, useRef, useState, useTransition } from 'react
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useOptimistic } from 'react';
 import { Page, PageHeader } from '@/components/page';
 import { RefreshError } from '@/components/refresh-error';
 import { PostCard } from '@/components/post-card';
