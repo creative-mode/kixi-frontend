@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
  * O menu da conta, no avatar da barra: abre o perfil e termina a sessão. É a única porta para o
  * perfil na barra (não há separador "Perfil" a duplicar), e o sítio onde se espera encontrar «Sair».
  */
-export function AccountMenu({ name, photo, placement }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top' }) {
+export function AccountMenu({ name, photo, placement, landingOrigin }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top'; landingOrigin: string | null }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -48,6 +48,12 @@ export function AccountMenu({ name, photo, placement }: { name: string; photo: s
           <Link role="menuitem" href="/perfil" className={item} onClick={() => setOpen(false)} autoFocus>
             <Ico name="user" size={22} />O meu perfil
           </Link>
+          <a role="menuitem" href={`${landingOrigin ?? ''}/privacidade`} className={item} onClick={() => setOpen(false)}>
+            Privacidade
+          </a>
+          <a role="menuitem" href={`${landingOrigin ?? ''}/cookies`} className={item} onClick={() => setOpen(false)}>
+            Cookies
+          </a>
           <form action={sairAction} className="border-t">
             <button role="menuitem" type="submit" className={cn(item, 'text-destructive')}>
               <Ico name="logout" size={22} />Terminar sessão

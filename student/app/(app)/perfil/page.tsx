@@ -6,6 +6,7 @@ import { getMyVisibility } from '@/lib/profiles';
 import { getProfile } from '@/lib/me';
 import { loadSocial } from '@/lib/social';
 import { ownPosts, profileTabOf } from '@/lib/social-rules';
+import { appOrigin } from '@/lib/origin';
 
 export const metadata = { title: 'Perfil · Kixi' };
 
@@ -42,6 +43,7 @@ export default async function PerfilPage({ searchParams }: { searchParams: Promi
 
   return (
     <PerfilView
+        landingOrigin={appOrigin()}
         me={me}
         visibility={visibility.ok ? visibility.data.visibility : 'school'}
         stats={social.stats}

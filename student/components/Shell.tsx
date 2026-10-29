@@ -28,7 +28,7 @@ const NO_RAIL = ['/tutor'];
  * A estrutura de rede social: barra lateral à esquerda (só ícones até `xl`), a coluna central de 600 px
  * e a coluna da direita (`rail`, vinda do servidor). No telemóvel: cabeçalho fino e barra de ícones em baixo.
  */
-export function Shell({ children, rail }: { children: React.ReactNode; rail?: React.ReactNode }) {
+export function Shell({ children, rail, landingOrigin }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null }) {
   const path = usePathname();
   const me = useMe();
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
@@ -65,12 +65,12 @@ export function Shell({ children, rail }: { children: React.ReactNode; rail?: Re
             ))}
           </nav>
         </div>
-        <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil' || path.startsWith('/perfil/')} placement="side" />
+        <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil' || path.startsWith('/perfil/')} placement="side" landingOrigin={landingOrigin} />
       </header>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur md:hidden">
-          <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil'} placement="top" />
+          <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil'} placement="top" landingOrigin={landingOrigin} />
           <Link href="/inicio" aria-label="Kixi, início" className="grid min-h-11 place-items-center px-2"><Logo size={22} wordmark /></Link>
           <Link href="/pesquisa" data-press aria-label="Pesquisar escolas, professores e alunos" title="Pesquisar" className="grid size-12 place-items-center rounded-full hover:bg-secondary"><Ico name="search" size={26} /></Link>
         </header>

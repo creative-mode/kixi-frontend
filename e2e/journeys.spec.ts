@@ -266,6 +266,38 @@ test.describe('jornadas críticas do Kixi', () => {
     await managerContext.close();
   });
 
+  test('cadastro: informa encarregado de educação e abre política de privacidade', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/cadastro');
+
+    await expect(page.getByText(/menos de 18 anos.*encarregado de educação/i)).toBeVisible();
+    const privacyLink = page.getByRole('link', { name: 'Política de Privacidade' });
+    await expect(privacyLink).toHaveAttribute('href', /\/privacidade$/);
+    await expect(privacyLink).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await privacyLink.click();
+    await expect(page).toHaveURL(/\/privacidade$/);
+    await expect(page.getByRole('heading', { name: 'Privacidade' })).toBeVisible();
+  });
+
+  test('aluno: encontra privacidade e cookies no menu da conta e no perfil', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.getByRole('button', { name: /Conta de/ }).click();
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toHaveAttribute('href', /\/privacidade$/);
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
+
+    await page.goto('/aluno/perfil');
+    await page.getByRole('tab', { name: 'Definições' }).click();
+    await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Privacidade' })).toHaveAttribute('href', /\/privacidade$/);
+    await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
+  });
+
   test('aluno: registo, onboarding, prova, resultado e tutor', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 12);
     await page.goto('/aluno/cadastro');
