@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Page, PageHeader } from '@/components/page';
+import { RefreshError } from '@/components/refresh-error';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
 import { SalasDeProva } from '@/components/salas-de-prova';
@@ -109,7 +110,7 @@ export function InicioFeed({
       {classId && <PostComposer classId={classId} onOptimistic={addOptimistic} />}
 
       {feedError ? (
-        <div className="p-4"><Alert variant="destructive">{feedError}</Alert></div>
+        <div className="p-4"><RefreshError title="Não foi possível carregar as publicações" message={feedError} /></div>
       ) : !classId ? (
         <EmptyState title="Matricula-te para veres o feed" message="As publicações da tua turma aparecem aqui depois da matrícula." />
       ) : shown.length === 0 ? (

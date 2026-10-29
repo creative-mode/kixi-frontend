@@ -78,7 +78,7 @@ export default async function PesquisaPage({ searchParams }: { searchParams: Pro
       <PageHeader title="Pesquisar" description="Encontra escolas, professores e alunos." />
       <form role="search" action="" className="flex gap-2">
         <label htmlFor="q" className="sr-only">Nome de uma escola, de um professor ou de um aluno</label>
-        <input id="q" name="q" type="search" defaultValue={q} minLength={MIN_QUERY} placeholder="Ex.: ITEL, Ana ou Prof. Costa" className="h-11 min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30" />
+        <input id="q" name="q" type="search" defaultValue={q} minLength={MIN_QUERY} placeholder="Ex.: ITEL, Ana ou Prof. Costa" className="h-11 min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 md:text-sm" />
         <button type="submit" className="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40">Pesquisar</button>
       </form>
 

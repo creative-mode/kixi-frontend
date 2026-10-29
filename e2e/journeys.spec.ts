@@ -127,10 +127,10 @@ test.beforeEach(async ({ page }) => {
   erros.length = 0;
   page.on('pageerror', (erro) => erros.push(erro));
   // O banner de cookies do aluno (kixi-frontend#219) fica fixo ao fundo do ecrã até
-  // haver escolha, e nalguns ecrãs mais curtos cobria ações reais (ex.: "Estudar os
-  // erros com o tutor" no resultado). Pré-semear a escolha é o que um visitante que já
-  // respondeu antes tem — não há banner nenhum para testar aqui, só as jornadas por
-  // baixo dele.
+  // haver escolha. Desde o #506 ele reserva espaço e sobe a barra inferior, por isso já
+  // não cobre ações; o teste próprio do banner está abaixo. Pré-semear a escolha continua
+  // a ser o que um visitante que já respondeu antes tem — aqui só interessam as jornadas
+  // por baixo dele, sem mais um clique em cada uma.
   await page.addInitScript(() => localStorage.setItem('kixi-consent', 'necessary'));
 });
 
@@ -139,6 +139,71 @@ test.afterEach(() => {
 });
 
 test.describe('jornadas críticas do Kixi', () => {
+  test('o banner de cookies não tapa a barra inferior e devolve o foco ao fechar (#506)', async ({ page }) => {
+    // Sem escolha semeada: é a primeira visita, e é o banner que aparece.
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/entrar');
+
+    const banner = page.getByRole('dialog', { name: 'Cookies' });
+    await expect(banner).toBeVisible();
+    // Recebe o foco ao aparecer, senão um leitor de ecrã lê a página e esquece o pedido.
+    await expect(banner).toBeFocused();
+
+    // Recusar e aceitar pesam o mesmo: mesmo fundo, contorno, peso de letra e tamanho.
+    const aparencia = (botao: Locator) =>
+      botao.evaluate((el) => {
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return [s.backgroundColor, s.borderTopColor, s.fontWeight, Math.round(r.width), Math.round(r.height)].join('|');
+      });
+    expect(await aparencia(banner.getByRole('button', { name: 'Só necessários' }))).toBe(
+      await aparencia(banner.getByRole('button', { name: 'Aceitar' })),
+    );
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const caixa = async (alvo: Locator) => {
+      const b = await alvo.boundingBox();
+      expect(b).not.toBeNull();
+      return b!;
+    };
+    // A barra inferior assenta por cima do banner, nunca tapada por ele.
+    const barra = page.locator('nav[aria-label="Principal"]:visible');
+    const [caixaBarra, caixaBanner] = [await caixa(barra), await caixa(banner)];
+    expect(Math.round(caixaBarra.y + caixaBarra.height)).toBeLessThanOrEqual(Math.round(caixaBanner.y));
+
+    // E o fim do conteúdo reserva a mesma altura: ao fundo, nenhuma ação fica por baixo.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    expect(
+      await page.evaluate(() => {
+        const topo = document.querySelector('[role="dialog"]')!.getBoundingClientRect().top;
+        return [...document.querySelectorAll('#conteudo a, #conteudo button, #conteudo input')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.height > 0 && r.top < innerHeight && r.bottom > topo;
+        }).length;
+      }),
+    ).toBe(0);
+
+    // Reabrir (o rodapé faz o mesmo) e fechar devolve o foco a quem o tinha, e a barra ao fundo.
+    await banner.getByRole('button', { name: 'Aceitar' }).click();
+    await expect(banner).toHaveCount(0);
+    const campo = page.locator('#conteudo a[href]').first();
+    await campo.focus();
+    await page.evaluate(() => {
+      localStorage.removeItem('kixi-consent');
+      window.dispatchEvent(new Event('kixi-consent-change'));
+    });
+    await expect(banner).toBeFocused();
+    await banner.getByRole('button', { name: 'Só necessários' }).click();
+    await expect(banner).toHaveCount(0);
+    await expect(campo).toBeFocused();
+    await expect(barra).toHaveCSS('bottom', '0px');
+  });
+
   test('o feed mostra o nome verdadeiro de quem publicou e a etiqueta de colega de turma', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -266,6 +331,81 @@ test.describe('jornadas críticas do Kixi', () => {
     await managerContext.close();
   });
 
+  test('cadastro: informa encarregado de educação e abre política de privacidade', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/cadastro');
+
+    await expect(page.getByText(/menos de 18 anos.*encarregado de educação/i)).toBeVisible();
+    const privacyLink = page.getByRole('link', { name: 'Política de Privacidade' });
+    await expect(privacyLink).toHaveAttribute('href', /\/privacidade$/);
+    await expect(privacyLink).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await privacyLink.click();
+    await expect(page).toHaveURL(/\/privacidade$/);
+    await expect(page.getByRole('heading', { name: 'Privacidade' })).toBeVisible();
+  });
+
+  test('aluno: menu da conta, tutor, comentários e navegação de provas são acessíveis (#500)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.getByRole('button', { name: /Conta de/ }).click();
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toHaveAttribute('href', /\/privacidade$/);
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
+
+    await page.goto('/aluno/perfil');
+    await page.getByRole('tab', { name: 'Definições' }).click();
+    await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Privacidade' })).toHaveAttribute('href', /\/privacidade$/);
+    await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
+
+    const trigger = page.locator('button[aria-haspopup="menu"]:visible').first();
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    const perfil = page.getByRole('menuitem', { name: 'O meu perfil' });
+    const terminar = page.getByRole('menuitem', { name: 'Terminar sessão' });
+    await expect(perfil).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(terminar).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(perfil).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+
+    await page.goto('/aluno/provas');
+    const nav = page.getByRole('navigation', { name: 'Provas' });
+    await expect(nav.getByRole('link', { name: 'Enunciados' })).toHaveAttribute('aria-current', 'page');
+    await expect(nav.getByRole('tab')).toHaveCount(0);
+    await nav.getByRole('link', { name: /Salas de prova/ }).click();
+    await expect(nav.getByRole('link', { name: /Salas de prova/ })).toHaveAttribute('aria-current', 'page');
+
+    await page.goto('/aluno/tutor?statementId=1');
+    const conversa = page.getByRole('log');
+    await expect(conversa).toHaveAttribute('aria-live', 'off');
+    const respostaAnunciada = page.locator('[role="status"][aria-live="polite"][aria-atomic="true"]');
+    const pergunta = page.getByLabel('Mensagem para o tutor');
+    await pergunta.fill('Como resolvo a primeira questão?');
+    await pergunta.press('Enter');
+    await expect(respostaAnunciada).toContainText('Resposta do tutor:', { timeout: 15_000 });
+
+    await page.goto('/aluno/inicio');
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+    await expect(page.getByLabel('Escrever um comentário')).toHaveCSS('height', '44px');
+    await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
+  });
+
   test('aluno: registo, onboarding, prova, resultado e tutor', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 12);
     await page.goto('/aluno/cadastro');
@@ -340,6 +480,44 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.getByRole('link', { name: 'Estudar os erros com o tutor' }).click();
     await expect(page).toHaveURL(/\/aluno\/tutor\?statementId=/);
     await expect(page.getByRole('heading', { name: 'Tutor' })).toBeVisible();
+  });
+
+  test('aluno: uma denúncia falhada conserva o motivo e pode ser repetida (#499)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const falha = (mode: string) => page.evaluate(async (value) => {
+      const response = await fetch('api/mock-fault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: value }),
+      });
+      if (!response.ok) throw new Error(`Não foi possível configurar a falha: ${response.status}`);
+    }, mode);
+    const post = page.getByRole('article').filter({ hasText: 'subnetting' }).first();
+    await falha('500');
+    await post.getByRole('button', { name: 'Denunciar publicação' }).click();
+
+    const spam = post.getByRole('radio', { name: 'Spam ou publicidade' });
+    const ofensivo = post.getByRole('radio', { name: 'Conteúdo ofensivo' });
+    const outro = post.getByRole('radio', { name: 'Outro motivo' });
+    await spam.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(ofensivo).toBeChecked();
+    await page.keyboard.press('ArrowDown');
+    await expect(outro).toBeChecked();
+    await page.keyboard.press('ArrowUp');
+    await expect(ofensivo).toBeChecked();
+    await post.getByRole('button', { name: 'Denunciar', exact: true }).click();
+
+    await expect(post.getByRole('alert')).toContainText('O servidor teve um problema. Tenta de novo daqui a pouco.');
+    await expect(ofensivo).toBeChecked();
+    await falha('');
+    await post.getByRole('button', { name: 'Tentar de novo' }).click();
+    await expect(post.getByText('Denúncia enviada. A equipa da escola vai rever.')).toBeVisible();
   });
 
   test('aluno: a resposta que não chegou ao servidor sobrevive a recarregar e é recuperada (#587)', async ({ page }) => {

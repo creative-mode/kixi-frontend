@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { CONSENT_EVENT, GA_ID, readConsent, writeConsent, type Consent } from '@/lib/consent';
 
@@ -55,6 +55,8 @@ function stopAnalytics() {
  *  — a página de cookies vive só na landing — e fica de fora em vez de ligar a um 404. */
 export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }) {
   const [choice, setChoice] = useState<Consent | null | undefined>(undefined);
+  const banner = useRef<HTMLElement>(null);
+  const focusedBefore = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const sync = () => setChoice(readConsent());
@@ -70,19 +72,50 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
     } else if (choice === 'necessary') stopAnalytics();
   }, [choice]);
 
+  // A altura real do banner fica em `--ck-banner-h` (#506). A barra inferior do `Shell` sobe por
+  // cima dele e o fim do conteúdo ganha o mesmo espaço, em vez de ficar tapado até haver escolha.
+  // Medida e não uma constante: o banner tem duas linhas no telemóvel e uma no portátil.
+  useEffect(() => {
+    const el = banner.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const reserve = () => root.style.setProperty('--ck-banner-h', `${el.getBoundingClientRect().height}px`);
+    reserve();
+    const observer = new ResizeObserver(reserve);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--ck-banner-h');
+    };
+  }, [choice]);
+
+  // Quem chega ouve o pedido de consentimento, e ao fechar o foco volta para onde estava (#506).
+  useEffect(() => {
+    if (choice !== null) return;
+    focusedBefore.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    banner.current?.focus();
+    return () => {
+      const before = focusedBefore.current;
+      if (before?.isConnected) before.focus();
+    };
+  }, [choice]);
+
   if (choice !== null) return null;
 
   return (
     <section
+      ref={banner}
       role="dialog"
       aria-labelledby="ck-title"
+      aria-describedby="ck-desc"
       aria-modal="false"
-      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background p-4 shadow-lg sm:p-6"
+      tabIndex={-1}
+      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background p-4 shadow-lg outline-none sm:p-6"
     >
       <div className="mx-auto flex max-w-3xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           <h2 id="ck-title" className="text-sm font-semibold text-foreground">Cookies</h2>
-          <p>
+          <p id="ck-desc">
             Usamos o necessário para o site funcionar. Com a tua permissão, usamos também estatísticas
             anónimas para melhorar o Kixi.
             {landingOrigin && (
@@ -93,11 +126,12 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
             )}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => writeConsent('necessary')}>
+        {/* As duas escolhas com o mesmo peso visual e a mesma largura (#506): recusar não é mais difícil do que aceitar. */}
+        <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+          <Button type="button" variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => writeConsent('necessary')}>
             Só necessários
           </Button>
-          <Button type="button" size="sm" onClick={() => writeConsent('all')}>
+          <Button type="button" variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => writeConsent('all')}>
             Aceitar
           </Button>
         </div>

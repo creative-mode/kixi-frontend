@@ -16,8 +16,8 @@ import type { Visibility } from '@/lib/profiles';
 import { ProfileEditor } from '@/components/profile-editor';
 import { EmptyState } from '@/components/states';
 import Link from 'next/link';
-import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { RefreshError } from '@/components/refresh-error';
 import { Badge as Pill } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -39,6 +39,7 @@ function Fact({ icon, children }: { icon: Parameters<typeof Ico>[0]['name']; chi
 
 /** O centro do perfil: cabeçalho, últimas simulações, sequência de estudo e separadores. */
 export function PerfilView({
+  landingOrigin,
   me,
   stats,
   badges,
@@ -52,6 +53,7 @@ export function PerfilView({
   visibility = 'school',
   experience = [],
 }: {
+  landingOrigin: string | null;
   experience?: ExperienceEntry[];
   me: Me;
   visibility?: Visibility;
@@ -116,7 +118,7 @@ export function PerfilView({
         <TabsContent value="Publicações" className="flex flex-col">
           {classId && <PostComposer classId={classId} />}
           {feedError ? (
-            <div className="p-4"><Alert variant="destructive">{feedError}</Alert></div>
+            <div className="p-4"><RefreshError title="Não foi possível carregar as publicações" message={feedError} /></div>
           ) : !classId ? (
             <EmptyState title="Matricula-te para publicares" message="As publicações da tua turma aparecem aqui depois da matrícula." />
           ) : posts.length === 0 ? (
@@ -190,6 +192,10 @@ export function PerfilView({
                 <Pill variant={me.accessibility_extra_time ? 'success' : 'secondary'}>{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</Pill>
               </div>
               <VisibilityPicker initial={visibility} />
+              <div className="grid gap-2 border-t py-3.5 text-[15px]">
+                <a href={`${landingOrigin ?? ''}/privacidade`} className="font-medium text-primary underline-offset-4 hover:underline">Privacidade</a>
+                <a href={`${landingOrigin ?? ''}/cookies`} className="font-medium text-primary underline-offset-4 hover:underline">Cookies</a>
+              </div>
               <form action={sairAction} className="pt-3.5 last:pb-0">
                 <Button type="submit" variant="outline" className="w-full text-destructive sm:w-auto"><Ico name="logout" size={20} />Terminar sessão</Button>
               </form>

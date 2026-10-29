@@ -522,14 +522,14 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
 
   if (!current) {
     return (
-      <div className="grid min-h-dvh place-items-center p-6 text-center">
+      <div className="grid above-banner-min-h place-items-center p-6 text-center">
         <p className="text-muted-foreground">Esta prova não tem questões.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex above-banner-min-h flex-col">
       <header className="sticky top-0 z-10 border-b bg-card">
         <div className="flex items-center gap-3 px-4 py-2.5 md:px-5">
           {/* A tentativa a decorrer não se abandona por um toque a mais: sai-se pelo

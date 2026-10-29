@@ -1,4 +1,4 @@
-import type { RankingMetric, RankingPeriod, RankingScope } from './ranking';
+import type { Leaderboard, RankingMetric, RankingPeriod, RankingScope } from './ranking';
 
 /** Regras de apresentação do ranking (#117/#121/#31), sem servidor e sem React.
  *  As notas e as posições já vêm prontas do backend - isto só formata. */
@@ -19,6 +19,22 @@ export function formatAverage(value: number | null): string {
 export function myPositionLabel(myPosition: number | null, totalStudents: number): string | null {
   if (myPosition == null) return null;
   return `${myPosition}.º de ${totalStudents}`;
+}
+
+/** Progresso até ao pódio, apenas quando o backend forneceu as duas pontuações. */
+export function podiumGap(board: Leaderboard, metric: RankingMetric): string | null {
+  if (board.myPosition == null || board.myPosition <= 3) return null;
+  const third = board.entries.find((entry) => entry.position === 3);
+  if (!third) return null;
+
+  if (metric === 'xp') {
+    const mine = board.entries.find((entry) => entry.me)?.xp;
+    if (mine == null || third.xp == null || third.xp <= mine) return null;
+    return `A ${third.xp - mine} XP do 3.º lugar`;
+  }
+
+  if (board.myAverage == null || third.average == null || third.average <= board.myAverage) return null;
+  return `A ${formatAverage(third.average - board.myAverage)} pontos do 3.º lugar`;
 }
 
 /** A regra de grupo pequeno (#117) esconde o pódio e corta as últimas posições:

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { Lightbulb } from 'lucide-react';
 import { Ico } from '@/components/ui/ico';
 import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
@@ -43,9 +44,13 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [reading, startReading] = useTransition();
   const [reporting, setReporting] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [reportContext, setReportContext] = useState('');
+  const [reportError, setReportError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
   const [pending, startTransition] = useTransition();
   const card = useRef<HTMLElement>(null);
+  const isPublishing = post.id < 0;
+  const studyTip = post.type === 'topic';
 
   useEffect(() => reactionController.subscribe(setReaction), [reactionController]);
   useEffect(() => reactionController.syncConfirmed(post.hasReacted), [post.hasReacted, reactionController]);
@@ -113,13 +118,23 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
 
   const sendReport = (e: React.FormEvent) => {
     e.preventDefault();
-    const reason = reportReason.trim();
+    const labels: Record<string, string> = {
+      spam: 'Spam ou publicidade',
+      offensive: 'Conteúdo ofensivo',
+      other: 'Outro motivo',
+    };
+    const reason = reportReason === 'other' && reportContext.trim()
+      ? `${labels.other}: ${reportContext.trim()}`
+      : labels[reportReason];
     if (!reason) return;
+    setReportError(null);
     startTransition(async () => {
       const result = await reportPostAction(post.id, reason);
       if (result.ok) {
         setReported(true);
         setReporting(false);
+      } else {
+        setReportError(result.message);
       }
     });
   };
@@ -154,6 +169,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
 
   const act = 'h-11 min-w-11 gap-1.5 px-3 text-muted-foreground aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
+  const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
 
   return (
     <article ref={card} className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
@@ -167,8 +183,10 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           )}
           {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
           {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={16} /></span>}
-          <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>
-          <span title={postTypeLabel(post.type)} role="img" aria-label={postTypeLabel(post.type)} className="ml-auto grid size-7 place-items-center rounded-full bg-secondary text-muted-foreground"><Ico name={post.type === 'doubt' ? 'chat' : post.type === 'simulation' || post.type === 'milestone' ? 'award' : post.type === 'challenge' ? 'flame' : 'file'} size={16} /></span>
+          {isPublishing
+            ? <span role="status" aria-live="polite" className="text-[14px] text-muted-foreground">· A publicar…</span>
+            : <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>}
+          <span title={typeLabel} role="img" aria-label={typeLabel} className="ml-auto grid size-7 place-items-center rounded-full bg-secondary text-muted-foreground">{studyTip ? <Lightbulb size={16} aria-hidden /> : <Ico name={post.type === 'doubt' ? 'chat' : post.type === 'simulation' || post.type === 'milestone' ? 'award' : post.type === 'challenge' ? 'flame' : 'file'} size={16} />}</span>
         </header>
         <div className="mt-1 grid gap-2.5">
           {post.title && <h3 className="font-semibold">{post.title}</h3>}
@@ -182,15 +200,15 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </div>
 
         <div className="-ml-3 mt-1 flex items-center gap-1 py-0.5">
-          <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
+          <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
             <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={24} className={cn(reaction.reacted && 'pop')} />
           </Button>
-          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
+          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
             <Ico name="chat" filled={open} size={24} /><span className="min-w-3 text-[14px] tabular-nums">{count}</span>
           </Button>
           <Button
             variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
-            aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={reported}
+            aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported}
             onClick={() => setReporting((v) => !v)}
           >
             <Ico name="flag" filled={reporting || reported} size={22} />
@@ -214,14 +232,47 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
       )}
 
       {reporting && !reported && (
-        <form className="grid gap-2 pb-3" onSubmit={sendReport}>
-          <Input
-            value={reportReason} onChange={(e) => setReportReason(e.target.value)}
-            placeholder="Porque estás a denunciar esta publicação?" aria-label="Motivo da denúncia" autoFocus
-          />
+        <form className="grid gap-3 pb-3" onSubmit={sendReport}>
+          <fieldset className="grid gap-2" disabled={pending}>
+            <legend className="text-sm font-semibold">Porque queres denunciar esta publicação?</legend>
+            {[
+              ['spam', 'Spam ou publicidade'],
+              ['offensive', 'Conteúdo ofensivo'],
+              ['other', 'Outro motivo'],
+            ].map(([value, label]) => (
+              <label key={value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm hover:bg-secondary">
+                <input
+                  type="radio"
+                  name={`report-reason-${post.id}`}
+                  value={value}
+                  checked={reportReason === value}
+                  onChange={() => { setReportReason(value); setReportError(null); }}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          {reportReason === 'other' && (
+            <Input
+              value={reportContext}
+              onChange={(e) => { setReportContext(e.target.value); setReportError(null); }}
+              placeholder="Acrescenta um contexto (opcional)"
+              aria-label="Contexto da denúncia (opcional)"
+              maxLength={500}
+              disabled={pending}
+            />
+          )}
+          {reportError && (
+            <div className="grid gap-2">
+              <Alert variant="destructive">{reportError}</Alert>
+              <Button type="submit" variant="outline" size="sm" className="justify-self-start" disabled={pending || !reportReason}>
+                {pending ? 'A enviar…' : 'Tentar de novo'}
+              </Button>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setReporting(false)}>Cancelar</Button>
-            <Button type="submit" size="sm" variant="destructive" disabled={!reportReason.trim()}>Denunciar</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setReporting(false)} disabled={pending}>Cancelar</Button>
+            {!reportError && <Button type="submit" size="sm" variant="destructive" disabled={!reportReason || pending}>{pending ? 'A enviar…' : 'Denunciar'}</Button>}
           </div>
         </form>
       )}
@@ -265,7 +316,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           </div>
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
             <UserAvatar name={myName} src={myPhoto} size={32} />
-            <Input className="h-9 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
+            <Input className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Ico name="send" size={22} /></Button>
           </form>
           {commentError && <Alert variant="destructive">{commentError}</Alert>}
