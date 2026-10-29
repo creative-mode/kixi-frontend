@@ -124,7 +124,9 @@ test.describe('ranking acessível (#498)', () => {
 
     const turma = page.getByRole('tab', { name: 'Turma' });
     const painel = page.getByRole('tabpanel');
-    await expect(turma).toHaveAttribute('aria-controls', await painel.getAttribute('id'));
+    const painelId = await painel.getAttribute('id');
+    expect(painelId).not.toBeNull();
+    await expect(turma).toHaveAttribute('aria-controls', painelId ?? '');
     await expect(painel).toHaveAttribute('aria-busy', 'false');
 
     await page.route('**/aluno/ranking', async (route) => {
