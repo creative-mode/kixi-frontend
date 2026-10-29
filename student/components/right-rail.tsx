@@ -91,7 +91,10 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
       {review.length > 0 && (
         <Module title="Para rever">
           <div className="grid gap-3">{review.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}</div>
-          <Button asChild variant="outline" size="sm" className="w-fit"><Link href="/tutor">Rever com o tutor</Link></Button>
+          {/* A prova mais fraca (`mastery` vem da mais fraca para a mais forte) é a que
+              há a rever primeiro. O link leva já o `statementId`: abrir o tutor vazio e
+              pedir ao aluno que escolha outra vez era o beco sem saída da issue #491. */}
+          <Button asChild variant="outline" size="sm" className="w-fit"><Link href={`/tutor?statementId=${review[0].id}`}>Rever com o tutor</Link></Button>
         </Module>
       )}
 

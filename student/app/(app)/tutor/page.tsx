@@ -1,35 +1,52 @@
 import { TutorChat } from '@/components/tutor-chat';
 import { TutorBloqueado } from '@/components/tutor-bloqueado';
+import { TutorPicker } from '@/components/tutor-picker';
 import { RefreshError } from '@/components/refresh-error';
 import { listSimulationsResult } from '@/lib/exam';
 import { tentativaViva } from '@/lib/integrity';
 import { getStatementQuestions, getStatementTitle } from '@/lib/statement-detail';
-import { parseQuestionNumbers, parseWrongAnswers, studyPrompt } from '@/lib/tutor-rules';
+import { loadTutorPapers } from '@/lib/tutor-papers';
+import { parseQuestionNumbers, parseWrongAnswers, studyPrompt, tutorBackLink } from '@/lib/tutor-rules';
 
 export const metadata = { title: 'Tutor · Kixi' };
 
 /**
- * The tutor, optionally about one paper.
+ * The tutor, about one paper — or the picker of which paper to study.
  *
  * `?statementId=X` is what the detail screen's "Estudo assistido" passes, and the
  * reason the CTA is not decorative: the tutor is about that paper. The backend agrees
  * — `ChatSessionRequest.statementId` is `@NotNull`, there is no session without a
- * statement — so a null or unreadable id is not an error here, just a tutor with no
- * paper behind it. It still works, it just does not claim to be about something.
+ * statement — so without one the screen is not a chat but a list of the student's own
+ * papers (#491). It used to be a card saying "choose a paper" that sent them to the
+ * catalog: a main tab that led nowhere.
  *
  * A bad id is deliberately not a 404: the student followed a link, and sending them to
  * an error page for it teaches nothing. The chat is the screen that matters.
+ *
+ * `?de=resultado&simulacao=X` is how the result screen says where the student came
+ * from, so "Voltar" returns there instead of always dropping them on the detail.
  */
 export default async function TutorPage({
   searchParams,
 }: {
-  searchParams: Promise<{ statementId?: string | string[]; questoes?: string | string[]; respostas?: string | string[] }>;
+  searchParams: Promise<{
+    statementId?: string | string[];
+    questoes?: string | string[];
+    respostas?: string | string[];
+    de?: string | string[];
+    simulacao?: string | string[];
+  }>;
 }) {
   const query = await searchParams;
   const raw = query.statementId;
   const parsed = Number(Array.isArray(raw) ? raw[0] : raw);
   const statementId = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  const paperTitle = statementId ? await getStatementTitle(statementId) : null;
+
+  if (statementId == null) {
+    return <TutorPicker lists={await loadTutorPapers()} />;
+  }
+
+  const paperTitle = await getStatementTitle(statementId);
 
   // O travão (#192): uma tentativa a decorrer da mesma prova fecha o tutor, para o
   // aluno não sair do modo Simular pela porta do estudo. Só a mesma prova, e só
@@ -40,29 +57,27 @@ export default async function TutorPage({
   // Uma falha a ler as tentativas NÃO é "não há nenhuma": era abrir a porta do tutor
   // exatamente quando não se sabe se a prova está a correr. Nesse caso o ecrã fecha
   // e oferece nova tentativa, e a lista vazia só conta depois de o servidor responder.
-  if (statementId) {
-    const attempts = await listSimulationsResult();
-    if (!attempts.ok) {
-      return (
-        <div className="mx-auto grid min-h-[60vh] max-w-[560px] place-items-center p-6">
-          <RefreshError
-            title="Não foi possível confirmar o estado da prova"
-            message="Para não abrir o tutor durante uma prova a decorrer, temos de confirmar se tens uma tentativa a correr. Tenta de novo dentro de instantes."
-            status={attempts.status}
-            back={{ href: `/prova/${statementId}`, label: 'Voltar à prova' }}
-          />
-        </div>
-      );
-    }
-    const live = tentativaViva(attempts.data, statementId, Date.now());
-    if (live) {
-      return <TutorBloqueado simulationId={live.id} statementId={statementId} paperTitle={paperTitle} />;
-    }
+  const attempts = await listSimulationsResult();
+  if (!attempts.ok) {
+    return (
+      <div className="mx-auto grid min-h-[60vh] max-w-[560px] place-items-center p-6">
+        <RefreshError
+          title="Não foi possível confirmar o estado da prova"
+          message="Para não abrir o tutor durante uma prova a decorrer, temos de confirmar se tens uma tentativa a correr. Tenta de novo dentro de instantes."
+          status={attempts.status}
+          back={{ href: `/prova/${statementId}`, label: 'Voltar à prova' }}
+        />
+      </div>
+    );
+  }
+  const live = tentativaViva(attempts.data, statementId, Date.now());
+  if (live) {
+    return <TutorBloqueado simulationId={live.id} statementId={statementId} paperTitle={paperTitle} />;
   }
 
   // The picker of "explicar questão" needs the paper's questions, and only this mode
   // uses them, so a failure here costs the picker and nothing else.
-  const questions = statementId ? await getStatementQuestions(statementId) : [];
+  const questions = await getStatementQuestions(statementId);
 
   // `?questoes=2,3` is how the result screen sends the student here to study the ones they
   // got wrong: the question is written in the box, ready to send.
@@ -83,6 +98,7 @@ export default async function TutorPage({
     <TutorChat
       statementId={statementId}
       paperTitle={paperTitle}
+      back={tutorBackLink({ de: query.de, simulacao: query.simulacao }, statementId)}
       initialDraft={draft}
       // Arriving with a resolved question to review means arriving to explain one,
       // with it already chosen — otherwise the drafted message would be sent in the
