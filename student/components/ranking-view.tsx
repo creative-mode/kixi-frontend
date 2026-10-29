@@ -3,12 +3,11 @@
 import { useState, useTransition } from 'react';
 import { Users } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
-import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { EmptyState } from '@/components/states';
+import { EmptyState, ErrorState } from '@/components/states';
 import { UserAvatar } from '@/components/user-avatar';
 import { fetchLeaderboardAction, setConsentAction } from '@/lib/ranking-actions';
 import { FriendsPanel } from '@/components/friends-panel';
@@ -139,7 +138,11 @@ export function RankingView({
                 <div><Button disabled={pending} onClick={() => consent(true)}>Quero participar</Button></div>
               </Card>
             ) : boardError ? (
-              <Alert variant="destructive">{boardError}</Alert>
+              <ErrorState
+                title="Não foi possível carregar o ranking"
+                message={boardError}
+                onRetry={() => load(scope, period, metric)}
+              />
             ) : !board || board.entries.length === 0 ? (
               <Card>
                 <EmptyState
