@@ -48,7 +48,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [pending, startTransition] = useTransition();
   const card = useRef<HTMLElement>(null);
   const isPublishing = post.id < 0;
-  const studyTip = post.type === 'topic' && post.content.startsWith('Dica de estudo: ');
+  const studyTip = post.type === 'topic';
 
   useEffect(() => reactionController.subscribe(setReaction), [reactionController]);
   useEffect(() => reactionController.syncConfirmed(post.hasReacted), [post.hasReacted, reactionController]);
