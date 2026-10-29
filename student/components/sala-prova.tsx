@@ -205,6 +205,64 @@ function SairDaProva({ href, onCancel }: { href: string; onCancel: () => void })
   );
 }
 
+/** The questions map: one cell per question, to jump between them. Below `lg` it got
+ *  pushed behind the statement, the images and the buttons of the room (M11, #488) —
+ *  a visit per question to touch it. The room keeps it inline on desktop and in the
+ *  bottom sheet of the fixed bar on phones; only one map exists in the DOM.
+ *
+ *  The cells ask for at least 44 px of a side: in `grid-cols-6`, a 320 px screen
+ *  gave ~35 px — below what a finger lands on without a retry. `auto-fill` grows
+ *  the cells as the map gains room (wide card, sheet) instead of adding columns. */
+function MapaQuestoes({
+  questions,
+  index,
+  answered,
+  flagged,
+  unsaved,
+  onSelect,
+}: {
+  questions: ExamQuestion[];
+  index: number;
+  answered: ReadonlySet<number>;
+  flagged: ReadonlySet<number>;
+  unsaved: ReadonlySet<number>;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <Card className="gap-4" aria-label="Questões">
+      <CardHeader><CardTitle>Questões</CardTitle></CardHeader>
+      <CardContent className="grid gap-3.5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2">
+          {questions.map((question, i) => {
+            const status = cellState(question.id, answered, flagged, unsaved);
+            return (
+              <button
+                key={question.id}
+                type="button"
+                aria-current={i === index}
+                aria-label={`Questão ${displayNumber(question)}, ${CELL_LABEL[status]}`}
+                onClick={() => onSelect(i)}
+                className={cn('grid aspect-square place-items-center rounded-md border text-[13px] font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=true]:outline-2 aria-[current=true]:outline-offset-1 aria-[current=true]:outline-primary', CELL[status])}
+              >
+                {displayNumber(question)}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
+          {(['done', 'flag', 'empty', 'unsaved'] as const).map((key) => (
+            <span key={key} className="inline-flex items-center gap-1.5">
+              <i className={cn('inline-block size-2.5 rounded-[3px] border', CELL[key])} aria-hidden />
+              {CELL_TEXT[key]}
+            </span>
+          ))}
+        </div>
+        <p className="text-[13px] text-muted-foreground">{answered.size} de {questions.length} respondidas</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 /** Debounce of an open answer: long enough not to send a request per keystroke,
  *  short enough that closing the lid right after typing loses little. */
 const TEXT_DEBOUNCE_MS = 800;
@@ -226,6 +284,16 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [, rerender] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  /** A barra fixa do mapa (#488): fechada, é o título «Questão X de Y»; aberta,
+   *  é a folha inferior com o mapa. Só existe abaixo de `lg` — no desktop o
+   *  card continua inline, ao lado da questão. */
+  const [mapaAberto, setMapaAberto] = useState(false);
+  const botaoMapa = useRef<HTMLButtonElement>(null);
+  const folhaMapa = useRef<HTMLDivElement>(null);
+  /** O enunciado recebe o foco quando a questão muda (#488): quem chega por
+   *  setas, folha ou mapa não queda em cima do mapa que acabou de sair de vista. */
+  const enunciado = useRef<HTMLParagraphElement>(null);
+  const primeiroRender = useRef(true);
   /** Abaixo de `lg` cabe uma coisa de cada vez: a questão para responder, ou a folha para a ler inteira.
    *  Em ecrã largo as duas estão lado a lado e esta escolha não conta. */
   const [view, setView] = useState<'questao' | 'folha'>('questao');
@@ -514,6 +582,63 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     setConfirming(true);
   }
 
+  /** Uma mudança de questão: o que está por enviar sai primeiro, como no rodapé.
+   *  Rodapé, folha, mapa e setas passam todos por aqui — e o foco segue no efeito
+   *  sobre `index`. Navegar para a própria questão não é mudança nenhuma. */
+  function irPara(target: number) {
+    if (target < 0 || target >= questions.length || target === index) return;
+    sairDaQuestao();
+    setIndex(target);
+  }
+
+  function fecharMapa() {
+    setMapaAberto(false);
+    botaoMapa.current?.focus();
+  }
+
+  function escolherPeloMapa(target: number) {
+    if (target === index) botaoMapa.current?.focus(); // sem mudança, o foco volta à barra…
+    else irPara(target); // …com mudança, o efeito sobre `index` leva-o ao enunciado
+    setMapaAberto(false);
+  }
+
+  // Setas ←/→ mudam de questão ao teclado (M11 #488). Três exclusões:
+  //  - o que se escreve — o textarea das abertas e o `fieldset` de rádio usam as
+  //    setas a sério (mover carreto, escolher opção): roubar-lhas era partir a
+  //    escrita;
+  //  - uma sobreposição aberta (entrega, sair, folha do mapa): saltar de questão
+  //    «atrás» do diálogo é uma mudança que o aluno não vê;
+  //  - modificadores, para não ficarmos com combinações do browser.
+  useEffect(() => {
+    function aoTeclar(event: KeyboardEvent) {
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+      if (confirming || exitConfirm || mapaAberto || view !== 'questao') return;
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const alvo = event.target instanceof Element ? event.target : null;
+      if (alvo?.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]')) return;
+      event.preventDefault();
+      irPara(event.key === 'ArrowLeft' ? index - 1 : index + 1);
+    }
+    document.addEventListener('keydown', aoTeclar);
+    return () => document.removeEventListener('keydown', aoTeclar);
+  }, [confirming, exitConfirm, mapaAberto, view, index]);
+
+  // Mudança de questão → o foco vai ao enunciado. O primeiro render não é mudança
+  // nenhuma: roubar o foco a quem abriu a prova seria pior que nenhum salto.
+  useEffect(() => {
+    if (primeiroRender.current) {
+      primeiroRender.current = false;
+      return;
+    }
+    enunciado.current?.focus();
+  }, [index]);
+
+  // A folha do mapa abre a receber o foco: quem a abriu por teclado vai entrar
+  // nas células, e o `role="dialog"` pega a narrar onde se está.
+  useEffect(() => {
+    if (mapaAberto) folhaMapa.current?.focus();
+  }, [mapaAberto]);
+
   /** Com JavaScript entrega-se aqui, não no `action` do form, para se poder apanhar
    *  a rejeição da server action. O `action` continua no form para o envio sem
    *  JavaScript (o fluxo testa-o) e para o `<form>` não ficar só no cliente. */
@@ -682,7 +807,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
         />
       )}
 
-      <div className="mx-auto grid w-full max-w-[1480px] flex-1 items-start gap-4 p-4 md:gap-6 md:p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div className="mx-auto grid w-full max-w-[1480px] flex-1 items-start gap-4 p-4 pb-24 md:gap-6 md:p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:pb-6">
         {/* Abaixo de lg: a questão ou a folha, à escolha. */}
         <div className="flex gap-1 rounded-lg border bg-card p-1 lg:hidden" role="group" aria-label="O que ver">
           {([['questao', 'Questão', ListChecks], ['folha', 'Folha da prova', FileText]] as const).map(([key, label, Icon]) => (
@@ -768,7 +893,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                 <p className="max-w-[60ch] text-[15px] leading-relaxed">{current.parentText}</p>
               </div>
             ) : null}
-            <p id="q-text" className="max-w-[60ch] text-[17px] leading-relaxed md:text-[19px]">
+            <p id="q-text" ref={enunciado} tabIndex={-1} className="max-w-[60ch] scroll-mt-16 text-[17px] leading-relaxed outline-none md:text-[19px]">
               {current.label ? <span className="mr-2 font-semibold text-muted-foreground">{current.label})</span> : null}
               {current.text}
             </p>
@@ -869,7 +994,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               <Button
                 variant="outline"
                 disabled={index === 0}
-                onClick={() => { sairDaQuestao(); setIndex((i) => Math.max(0, i - 1)); }}
+                onClick={() => irPara(index - 1)}
               >
                 <ChevronLeft />Anterior
               </Button>
@@ -882,47 +1007,80 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                 <Flag />{flagged.has(current.id) ? 'Marcada para rever' : 'Marcar para rever'}
               </Button>
               <span className="flex-1" />
-              <Button
-                disabled={index === questions.length - 1}
-                onClick={() => { sairDaQuestao(); setIndex((i) => Math.min(questions.length - 1, i + 1)); }}
-              >
-                Seguinte<ChevronRight />
-              </Button>
+              {/* Na última questão «Seguinte» ficava desactivado e a entrega só
+                  existia no cabeçalho, todo lá em cima (M11): aqui onde a leitura
+                  termina, o aluno fecha a prova. */}
+              {index === questions.length - 1 ? (
+                <Button onClick={openConfirm}><ListChecks aria-hidden />Rever e entregar</Button>
+              ) : (
+                <Button onClick={() => irPara(index + 1)}>Seguinte<ChevronRight /></Button>
+              )}
             </div>
           </Card>
         </div>
 
-        <Card className="gap-4" aria-label="Questões">
-          <CardHeader><CardTitle>Questões</CardTitle></CardHeader>
-          <CardContent className="grid gap-3.5">
-            <div className="grid grid-cols-6 gap-2">
-              {questions.map((question, i) => {
-                const status = cellState(question.id, answered, flagged, unsaved);
-                return (
-                  <button
-                    key={question.id}
-                    type="button"
-                    aria-current={i === index}
-                    aria-label={`Questão ${displayNumber(question)}, ${CELL_LABEL[status]}`}
-                    onClick={() => { sairDaQuestao(); setIndex(i); }}
-                    className={cn('grid aspect-square place-items-center rounded-md border text-[13px] font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=true]:outline-2 aria-[current=true]:outline-offset-1 aria-[current=true]:outline-primary', CELL[status])}
-                  >
-                    {displayNumber(question)}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
-              {(['done', 'flag', 'empty', 'unsaved'] as const).map((key) => (
-                <span key={key} className="inline-flex items-center gap-1.5">
-                  <i className={cn('inline-block size-2.5 rounded-[3px] border', CELL[key])} aria-hidden />
-                  {CELL_TEXT[key]}
-                </span>
-              ))}
-            </div>
-            <p className="text-[13px] text-muted-foreground">{answered.size} de {questions.length} respondidas</p>
-          </CardContent>
-        </Card>
+        {/* No desktop o mapa está logo ali, ao lado da questão. Abaixo de lg ele
+            vive na folha inferior da barra fixa — deixar os dois era dois mapas
+            no DOM e duas origens de foco a discutir entre si. */}
+        <div className="hidden lg:block">
+          <MapaQuestoes
+            questions={questions}
+            index={index}
+            answered={answered}
+            flagged={flagged}
+            unsaved={unsaved}
+            onSelect={irPara}
+          />
+        </div>
+        </div>
+      </div>
+
+      {/* Abaixo de lg, o mapa fica a um toque de qualquer ponto da página (M11
+          #488): a barra fixa mostra onde o aluno vai e a folha inferior traz o
+          mapa acima dela. Sem bloqueio nenhum — o scrim fecha ao toque e a
+          página continua a rolar; o Escape fecha para quem vem pelo teclado. */}
+      {mapaAberto && (
+        <div
+          className="fixed inset-0 z-20 bg-foreground/25 lg:hidden"
+          onClick={fecharMapa}
+          aria-hidden
+        />
+      )}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card lg:hidden" data-testid="sala-nav">
+        {mapaAberto && (
+          <div
+            ref={folhaMapa}
+            tabIndex={-1}
+            role="dialog"
+            aria-label="Mapa das questões"
+            className="max-h-[60dvh] overflow-y-auto border-b outline-none"
+            onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); fecharMapa(); } }}
+          >
+            <MapaQuestoes
+              questions={questions}
+              index={index}
+              answered={answered}
+              flagged={flagged}
+              unsaved={unsaved}
+              onSelect={escolherPeloMapa}
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-3 px-4 py-2.5">
+          <p className="text-[13px] font-medium">
+            Questão <span className="font-bold">{displayNumber(current)}</span> de {questions.length}
+          </p>
+          <Button
+            ref={botaoMapa}
+            type="button"
+            variant={mapaAberto ? 'default' : 'outline'}
+            size="sm"
+            className="ml-auto"
+            aria-expanded={mapaAberto}
+            onClick={() => (mapaAberto ? fecharMapa() : setMapaAberto(true))}
+          >
+            {mapaAberto ? 'Fechar mapa' : 'Ver questões'}
+          </Button>
         </div>
       </div>
     </div>
