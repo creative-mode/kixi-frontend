@@ -143,7 +143,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <FireEventOnce param="submetida" event="exam_submitted" />
             <ClearExamLocal simulationId={id} />
             <Column className="gap-5">
-              <PageHeader kicker="Resultado" title={view.title} />
+              <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
                 {correcao.kind === 'a-corrigir' && <ACorrigir />}
                 {correcao.kind === 'incompleta' && (
@@ -190,7 +190,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
       <FireEventOnce param="submetida" event="exam_submitted" />
       <ClearExamLocal simulationId={id} />
       <Column className="gap-5">
-        <PageHeader kicker="Resultado" title={view.title} />
+        <PageHeader kicker="Resultado" title={view.title} back="/provas" />
 
         <div className="flex flex-wrap items-end gap-x-3.5 gap-y-2">
           <span className="text-[52px] leading-[.95] font-bold tracking-tighter tabular-nums md:text-[64px]">{score ? <CountUp value={score} /> : '—'}</span>
