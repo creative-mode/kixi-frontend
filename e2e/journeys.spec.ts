@@ -374,6 +374,44 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Tutor' })).toBeVisible();
   });
 
+  test('aluno: uma denúncia falhada conserva o motivo e pode ser repetida (#499)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const falha = (mode: string) => page.evaluate(async (value) => {
+      const response = await fetch('api/mock-fault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: value }),
+      });
+      if (!response.ok) throw new Error(`Não foi possível configurar a falha: ${response.status}`);
+    }, mode);
+    const post = page.getByRole('article').filter({ hasText: 'subnetting' }).first();
+    await falha('500');
+    await post.getByRole('button', { name: 'Denunciar publicação' }).click();
+
+    const spam = post.getByRole('radio', { name: 'Spam ou publicidade' });
+    const ofensivo = post.getByRole('radio', { name: 'Conteúdo ofensivo' });
+    const outro = post.getByRole('radio', { name: 'Outro motivo' });
+    await spam.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(ofensivo).toBeChecked();
+    await page.keyboard.press('ArrowDown');
+    await expect(outro).toBeChecked();
+    await page.keyboard.press('ArrowUp');
+    await expect(ofensivo).toBeChecked();
+    await post.getByRole('button', { name: 'Denunciar', exact: true }).click();
+
+    await expect(post.getByRole('alert')).toContainText('O servidor teve um problema. Tenta de novo daqui a pouco.');
+    await expect(ofensivo).toBeChecked();
+    await falha('');
+    await post.getByRole('button', { name: 'Tentar de novo' }).click();
+    await expect(post.getByText('Denúncia enviada. A equipa da escola vai rever.')).toBeVisible();
+  });
+
   test('aluno: a resposta que não chegou ao servidor sobrevive a recarregar e é recuperada (#587)', async ({ page }) => {
     // Recarregar com respostas por confirmar pede confirmação ao browser: aceita-se, é o que o aluno faria.
     page.on('dialog', (dialogo) => void dialogo.accept());
