@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { Lightbulb } from 'lucide-react';
 import { Ico } from '@/components/ui/ico';
 import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
@@ -46,6 +47,8 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [reported, setReported] = useState(false);
   const [pending, startTransition] = useTransition();
   const card = useRef<HTMLElement>(null);
+  const isPublishing = post.id < 0;
+  const studyTip = post.type === 'topic' && post.content.startsWith('Dica de estudo: ');
 
   useEffect(() => reactionController.subscribe(setReaction), [reactionController]);
   useEffect(() => reactionController.syncConfirmed(post.hasReacted), [post.hasReacted, reactionController]);
@@ -154,6 +157,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
 
   const act = 'h-11 min-w-11 gap-1.5 px-3 text-muted-foreground aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
+  const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
 
   return (
     <article ref={card} className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
@@ -167,8 +171,10 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           )}
           {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
           {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={16} /></span>}
-          <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>
-          <span title={postTypeLabel(post.type)} role="img" aria-label={postTypeLabel(post.type)} className="ml-auto grid size-7 place-items-center rounded-full bg-secondary text-muted-foreground"><Ico name={post.type === 'doubt' ? 'chat' : post.type === 'simulation' || post.type === 'milestone' ? 'award' : post.type === 'challenge' ? 'flame' : 'file'} size={16} /></span>
+          {isPublishing
+            ? <span role="status" aria-live="polite" className="text-[14px] text-muted-foreground">· A publicar…</span>
+            : <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>}
+          <span title={typeLabel} role="img" aria-label={typeLabel} className="ml-auto grid size-7 place-items-center rounded-full bg-secondary text-muted-foreground">{studyTip ? <Lightbulb size={16} aria-hidden /> : <Ico name={post.type === 'doubt' ? 'chat' : post.type === 'simulation' || post.type === 'milestone' ? 'award' : post.type === 'challenge' ? 'flame' : 'file'} size={16} />}</span>
         </header>
         <div className="mt-1 grid gap-2.5">
           {post.title && <h3 className="font-semibold">{post.title}</h3>}
@@ -182,15 +188,15 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </div>
 
         <div className="-ml-3 mt-1 flex items-center gap-1 py-0.5">
-          <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
+          <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
             <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={24} className={cn(reaction.reacted && 'pop')} />
           </Button>
-          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
+          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
             <Ico name="chat" filled={open} size={24} /><span className="min-w-3 text-[14px] tabular-nums">{count}</span>
           </Button>
           <Button
             variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
-            aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={reported}
+            aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported}
             onClick={() => setReporting((v) => !v)}
           >
             <Ico name="flag" filled={reporting || reported} size={22} />
