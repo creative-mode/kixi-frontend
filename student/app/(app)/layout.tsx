@@ -8,6 +8,7 @@ import { RightRailSkeleton } from '@/components/right-rail-skeleton';
 import { loadSocial } from '@/lib/social';
 import type { Me } from '@/lib/types';
 import { Suspense } from 'react';
+import { appOrigin } from '@/lib/origin';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireStudent();
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <MeProvider me={profile.me}>
       <Shell
+        landingOrigin={appOrigin()}
         rail={profile.kind === 'ok'
           ? <Suspense fallback={<RightRailSkeleton />}><Rail me={profile.me} /></Suspense>
           : undefined}
