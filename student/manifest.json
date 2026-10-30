@@ -7,7 +7,7 @@
     "lang": "pt-AO",
     "display": "standalone",
     "theme_color": "#1f5a2c",
-    "background_color": "#ffffff",
+    "background_color": "#000000",
     "icons": [
         {
             "src": "/student/icon/icon-192x192.png",
