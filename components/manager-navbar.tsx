@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   FilePen,
   ClipboardCheck,
+  FileSpreadsheet,
   DoorOpen,
   TrendingUp,
   Home,
@@ -39,6 +40,7 @@ const allNavLinks: NavLink[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/exam-rooms", label: "Salas de Prova", icon: DoorOpen },
   { href: "/tarefas", label: "Tarefas das pautas", icon: ClipboardCheck },
+  { href: "/pautas", label: "Pautas", icon: FileSpreadsheet },
   { href: "/desempenho", label: "Desempenho", icon: TrendingUp },
   { href: "/exam-builder", label: "Montar prova", icon: FilePen },
   { href: "/assign", label: "Atribuir", icon: UserCheck },
@@ -53,7 +55,7 @@ const allNavLinks: NavLink[] = [
 
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
-const TEACHER_HREFS = ["/desempenho", "/tarefas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+const TEACHER_HREFS = ["/desempenho", "/tarefas", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink: NavLink = { href: "/professor", label: "Início", icon: Home };
 
