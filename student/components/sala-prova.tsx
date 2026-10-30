@@ -602,13 +602,6 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     setMapaAberto(false);
   }
 
-  // Setas ←/→ mudam de questão ao teclado (M11 #488). Três exclusões:
-  //  - o que se escreve — o textarea das abertas e o `fieldset` de rádio usam as
-  //    setas a sério (mover carreto, escolher opção): roubar-lhas era partir a
-  //    escrita;
-  //  - uma sobreposição aberta (entrega, sair, folha do mapa): saltar de questão
-  //    «atrás» do diálogo é uma mudança que o aluno não vê;
-  //  - modificadores, para não ficarmos com combinações do browser.
   useEffect(() => {
     function aoTeclar(event: KeyboardEvent) {
       if (event.ctrlKey || event.altKey || event.metaKey) return;
