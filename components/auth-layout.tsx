@@ -29,7 +29,11 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
       >
         Saltar para o conteudo
       </a>
-      <main id="conteudo" tabIndex={-1} className="pt-16 min-h-screen bg-background text-foreground outline-none">
+      <main
+        id="conteudo"
+        tabIndex={-1}
+        className="pt-16 min-h-screen bg-background text-foreground outline-none lg:pl-(--nav-width)"
+      >
         {children}
       </main>
     </>
