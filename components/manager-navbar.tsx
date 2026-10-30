@@ -260,7 +260,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
           "w-(--nav-width)",
         )}
       >
-        <nav aria-label="Principal" className="flex-1 overflow-y-auto p-3">
+        <nav aria-label="Principal" className="nav-scroll flex-1 overflow-y-auto p-3">
           <NavList links={navLinks} pathname={pathname} collapsed={collapsed} />
         </nav>
         <div className="space-y-2 border-t border-border p-3">
@@ -317,7 +317,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
               transition={{ duration: 0.15, ease: "easeOut" }}
               className="fixed bottom-0 left-0 top-16 z-40 flex w-80 max-w-[85vw] flex-col border-r-2 border-border bg-card"
             >
-              <nav aria-label="Principal" className="flex-1 overflow-y-auto p-3">
+              <nav aria-label="Principal" className="nav-scroll flex-1 overflow-y-auto p-3">
                 <NavList links={navLinks} pathname={pathname} />
               </nav>
               <div className="flex items-center justify-between gap-3 border-t border-border p-3">
