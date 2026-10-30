@@ -465,3 +465,84 @@ export function invalidDrafts(review: RoomReview, drafts: ScoreDrafts): number[]
   }
   return bad;
 }
+
+/**
+ * Igual à normalização do backend (`ExamRoomCorrectionService.normalize`): sem acentos,
+ * maiúsculas, pontuação nem espaços a mais. A pré-visualização tem de contar o mesmo que o servidor.
+ */
+export function normalizeAnswer(value: string | null | undefined): string {
+  if (!value) return '';
+  return value.normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+/** Em branco nunca coincide, tal como no backend. */
+export function matchesKey(answer: string | null | undefined, key: string | null | undefined): boolean {
+  const a = normalizeAnswer(answer);
+  return a !== '' && a === normalizeAnswer(key);
+}
+
+/**
+ * Quantas respostas «Corrigir pela chave» vai corrigir: as por corrigir, de questões com cotação,
+ * que coincidem com a chave e a que o professor não escreveu já uma nota (a nota à mão vence).
+ */
+export function keyMatchCount(review: RoomReview, drafts: ScoreDrafts): number {
+  let count = 0;
+  for (const q of review.questions) {
+    if (q.maxScore === null) continue;
+    for (const a of q.answers) {
+      if (a.status !== 'PENDING_REVIEW') continue;
+      if (parseScore(drafts[a.answerId], q.maxScore) !== null) continue;
+      if (matchesKey(a.answerText, q.modelAnswer)) count++;
+    }
+  }
+  return count;
+}
+
+export type ParticipantFilter = 'todos' | 'a-responder' | 'por-entrar' | 'entregaram';
+
+export const PARTICIPANT_FILTERS: { value: ParticipantFilter; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'a-responder', label: 'A responder' },
+  { value: 'por-entrar', label: 'Ainda não entraram' },
+  { value: 'entregaram', label: 'Entregaram' },
+];
+
+/** `NOT_STARTED` com hora de entrada é a sala de espera: já entrou, só falta a prova começar. */
+export function participantMatches(p: Pick<ParticipantProgress, 'status' | 'joinedAt'>, filter: ParticipantFilter): boolean {
+  if (filter === 'a-responder') return p.status === 'IN_PROGRESS';
+  if (filter === 'por-entrar') return p.status === 'NOT_STARTED' && !p.joinedAt;
+  if (filter === 'entregaram') return p.status === 'FINISHED';
+  return true;
+}
+
+export function participantCounts(participants: Pick<ParticipantProgress, 'status' | 'joinedAt'>[]): Record<ParticipantFilter, number> {
+  return {
+    todos: participants.length,
+    'a-responder': participants.filter((p) => participantMatches(p, 'a-responder')).length,
+    'por-entrar': participants.filter((p) => participantMatches(p, 'por-entrar')).length,
+    entregaram: participants.filter((p) => participantMatches(p, 'entregaram')).length,
+  };
+}
+
+/** O que o diálogo de encerrar diz: quantos ainda respondem e quantos nem entraram, em vez de um aviso genérico. */
+export function closeSummary(counts: Record<ParticipantFilter, number> | null): { title: string; description: string } {
+  const tail = 'As notas ficam lançadas. Não dá para reabrir.';
+  if (!counts) {
+    return { title: 'Encerrar a sala?', description: `Quem ainda estiver a responder é submetido automaticamente com o que respondeu. ${tail}` };
+  }
+  const answering = counts['a-responder'];
+  const notIn = counts['por-entrar'];
+  const parts: string[] = [];
+  if (answering > 0) {
+    parts.push(
+      answering === 1
+        ? '1 aluno ainda está a responder e será submetido automaticamente com o que respondeu.'
+        : `${answering} alunos ainda estão a responder e serão submetidos automaticamente com o que responderam.`,
+    );
+  } else {
+    parts.push('Ninguém está a responder neste momento.');
+  }
+  if (notIn > 0) parts.push(notIn === 1 ? '1 aluno ainda não entrou.' : `${notIn} alunos ainda não entraram.`);
+  parts.push(tail);
+  return { title: answering > 0 ? `Encerrar a sala? ${answering} ainda a responder` : 'Encerrar a sala?', description: parts.join(' ') };
+}

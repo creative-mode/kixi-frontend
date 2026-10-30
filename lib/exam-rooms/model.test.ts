@@ -7,6 +7,11 @@ import {
   formatWall,
   gradesCsv,
   gradesToSend,
+  keyMatchCount,
+  matchesKey,
+  normalizeAnswer,
+  closeSummary,
+  participantCounts,
   invalidDrafts,
   parseScore,
   luandaNowInput,
@@ -260,4 +265,70 @@ test('um evento que o gestor não conhece mostra o código, não um rótulo inve
   // código cru diz ao professor que há ali algo novo, em vez de o esconder.
   const s = summarizeIntegrity([{ id: 1, kind: 'NOVO_EVENTO', at: '2026-10-18T09:00:00', questionId: null }]);
   assert.equal(s.byKind[0].label, 'NOVO_EVENTO');
+});
+
+// ── pré-visualização da correção pela chave e resumo do encerrar (#536) ──
+
+const reviewOf = (answers: [string | null, string][], key = 'Luanda', maxScore: number | null = 2) => ({
+  pending: answers.length,
+  graded: 0,
+  questions: [{
+    questionId: 1, number: 1, label: null, parentId: null, text: 'Capital?', maxScore, modelAnswer: key,
+    answers: answers.map(([text, status], i) => ({
+      answerId: i + 1, accountId: i + 1, displayName: null, answerText: text, status: status as 'PENDING_REVIEW' | 'GRADED', scoreObtained: null,
+    })),
+  }],
+});
+
+test('a chave ignora maiúsculas, acentos, pontuação e espaços a mais', () => {
+  assert.equal(normalizeAnswer('  Café,  COM  leite! '), 'cafe com leite');
+  assert.ok(matchesKey('LUANDA.', 'luanda'));
+  assert.ok(matchesKey('São Tomé', 'sao tome'));
+  assert.ok(!matchesKey('Benguela', 'Luanda'));
+});
+
+test('uma resposta em branco nunca coincide, nem com uma chave em branco', () => {
+  assert.ok(!matchesKey('', ''));
+  assert.ok(!matchesKey('   ', 'Luanda'));
+  assert.ok(!matchesKey(null, null));
+});
+
+test('conta só as respostas por corrigir que coincidem com a chave', () => {
+  const r = reviewOf([['Luanda', 'PENDING_REVIEW'], ['luanda!', 'PENDING_REVIEW'], ['Benguela', 'PENDING_REVIEW'], ['Luanda', 'GRADED'], [null, 'PENDING_REVIEW']]);
+  assert.equal(keyMatchCount(r, {}), 2);
+});
+
+test('a nota escrita à mão vence a da chave e não conta', () => {
+  const r = reviewOf([['Luanda', 'PENDING_REVIEW'], ['Luanda', 'PENDING_REVIEW']]);
+  assert.equal(keyMatchCount(r, { 1: '1' }), 1);
+  assert.equal(keyMatchCount(r, { 1: '9' }), 2, 'uma nota inválida não conta como escrita');
+});
+
+test('sem cotação ou sem chave a correção pela chave não toca em nada', () => {
+  assert.equal(keyMatchCount(reviewOf([['Luanda', 'PENDING_REVIEW']], 'Luanda', null), {}), 0);
+  assert.equal(keyMatchCount(reviewOf([['Luanda', 'PENDING_REVIEW']], ''), {}), 0);
+});
+
+const p = (status: string, joinedAt: string | null = null) => ({ status, joinedAt });
+
+test('os participantes por estado: a sala de espera já entrou', () => {
+  const counts = participantCounts([p('IN_PROGRESS', '09:00'), p('NOT_STARTED'), p('NOT_STARTED'), p('NOT_STARTED', '08:55'), p('FINISHED', '09:00')]);
+  assert.deepEqual(counts, { todos: 5, 'a-responder': 1, 'por-entrar': 2, entregaram: 1 });
+});
+
+test('o encerrar diz quantos ainda respondem e quantos nem entraram', () => {
+  const one = closeSummary({ todos: 5, 'a-responder': 1, 'por-entrar': 4, entregaram: 0 });
+  assert.equal(one.title, 'Encerrar a sala? 1 ainda a responder');
+  assert.match(one.description, /1 aluno ainda está a responder e será submetido/);
+  assert.match(one.description, /4 alunos ainda não entraram/);
+  const many = closeSummary({ todos: 8, 'a-responder': 3, 'por-entrar': 1, entregaram: 4 });
+  assert.match(many.description, /3 alunos ainda estão a responder e serão submetidos/);
+  assert.match(many.description, /1 aluno ainda não entrou\./);
+});
+
+test('sem ninguém a responder o encerrar diz isso, e sem dados cai no aviso genérico', () => {
+  const none = closeSummary({ todos: 3, 'a-responder': 0, 'por-entrar': 0, entregaram: 3 });
+  assert.equal(none.title, 'Encerrar a sala?');
+  assert.match(none.description, /Ninguém está a responder/);
+  assert.match(closeSummary(null).description, /Quem ainda estiver a responder/);
 });
