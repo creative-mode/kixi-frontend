@@ -1,0 +1,23 @@
+{
+    "name": "Kixi - Estudar",
+    "short_name": "Kixi",
+    "description": "Aplicação de estudo para o aluno",
+    "start_url": "/aluno/inicio",
+    "scope": "/aluno/",
+    "lang": "pt-AO",
+    "display": "standalone",
+    "theme_color": "#1f5a2c",
+    "background_color": "#ffffff",
+    "icons": [
+        {
+            "src": "/student/icon/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/student/icon/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
