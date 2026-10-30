@@ -12,6 +12,10 @@ export type ResultView =
       title: string;
       totalMaxScore: number | null;
       comparison: Comparison | null;
+      /** Quando a tentativa começou e terminou, para saber que medalhas o servidor
+       *  atribuiu durante ela (#492). */
+      startedAt: string | null;
+      finishedAt: string | null;
     }
   /** Still IN_PROGRESS: the server answers 409 until the proof is handed in, and the
    *  student belongs in the room. */
@@ -54,5 +58,7 @@ export async function getResultView(simulationId: number): Promise<ResultView> {
       finalScore,
       attempts.map((a) => ({ id: Number(a.id), status: a.status, finalScore: a.finalScore })),
     ),
+    startedAt: simulation.ok ? (simulation.data.startedAt ?? null) : null,
+    finishedAt: simulation.ok ? (simulation.data.finishedAt ?? null) : null,
   };
 }
