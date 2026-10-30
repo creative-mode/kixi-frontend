@@ -831,6 +831,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const originalViewport = page.viewportSize() ?? { width: 1280, height: 900 };
     for (const width of [375, 390, 430, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
+      // Abaixo de `lg` a folha só se vê na vista «Pré-visualizar» (#537).
+      if (width < 1024) await page.getByRole('group', { name: 'Vista do construtor' }).getByRole('button', { name: 'Pré-visualizar' }).click();
       const geometry = await brace.evaluate((element) => {
         const braceRect = element.getBoundingClientRect();
         const list = element.parentElement?.querySelector('ol');
@@ -997,6 +999,47 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/manager');
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
+  });
+
+  test('construtor: o motivo dos botões desativados é texto e há Editar/Pré-visualizar no tablet (#537)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder');
+    const guardar = page.getByRole('button', { name: 'Guardar', exact: true });
+    const resumo = page.locator('#construtor-pendencias');
+
+    // O motivo é texto visível e fica ligado ao botão, em vez de viver só num `title`.
+    await expect(resumo).toContainText('Para guardar faltam:');
+    await expect(guardar).toBeDisabled();
+    await expect(guardar).toHaveAccessibleDescription(/Para guardar faltam/);
+    await expect(guardar).not.toHaveAttribute('title', /.+/);
+
+    // Em ecrã largo a folha está ao lado e o alternador não existe.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.getByRole('group', { name: 'Vista do construtor' })).toBeHidden();
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+
+    // Abaixo de `lg` mostra-se uma vista de cada vez, e a impressão continua a ter a folha.
+    await page.setViewportSize({ width: 768, height: 1024 });
+    const vista = page.getByRole('group', { name: 'Vista do construtor' });
+    await expect(vista).toBeVisible();
+    await expect(page.getByLabel('Título')).toBeVisible();
+    await expect(page.locator('#exam-sheet')).toBeHidden();
+    await vista.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(vista.getByRole('button', { name: 'Pré-visualizar' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+    await expect(page.getByLabel('Título')).toBeHidden();
+    await vista.getByRole('button', { name: 'Editar' }).click();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+    await page.emulateMedia({ media: 'screen' });
+
+    // Com a prova pronta o resumo desaparece e o botão deixa de ter descrição.
+    await escolherOpcao(page.getByLabel('Disciplina'));
+    await escolherOpcao(page.getByLabel(/^Turma/));
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    await expect(resumo).toHaveCount(0);
+    await expect(guardar).toBeEnabled();
   });
 
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
