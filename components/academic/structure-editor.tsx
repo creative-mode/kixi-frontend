@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, GraduationCap, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,6 +27,8 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
   const [opts, setOpts] = useState<Opts>({ subjects: [], teachers: [], years: [] });
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [pending, setPending] = useState(false);
+  const running = useRef(false);
 
   const load = useCallback(async () => {
     const res = await getStructure(institutionId);
@@ -50,16 +52,28 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
     return () => { alive = false; };
   }, []);
 
-  /** Corre uma escrita, mostra o erro do servidor tal como veio e recarrega. */
+  /**
+   * Corre uma escrita, mostra o erro do servidor tal como veio e recarrega. Só corre uma de cada vez:
+   * um segundo envio (duplo clique, Enter repetido) chega antes de o estado mudar, por isso a trava é um ref.
+   * Devolve `false` quando o recusa, e o formulário não limpa os campos.
+   */
   const act = useCallback(async (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => {
-    const r = await run();
-    if (!r.ok) {
-      toast.error(r.error ?? 'Não foi possível guardar.');
-      return false;
+    if (running.current) return false;
+    running.current = true;
+    setPending(true);
+    try {
+      const r = await run();
+      if (!r.ok) {
+        toast.error(r.error ?? 'Não foi possível guardar.');
+        return false;
+      }
+      toast.success(done);
+      await load();
+      return true;
+    } finally {
+      running.current = false;
+      setPending(false);
     }
-    toast.success(done);
-    await load();
-    return true;
   }, [load]);
 
   if (error) {
@@ -76,6 +90,7 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
   const yearId = data.schoolYear?.id;
 
   return (
+    <Pending.Provider value={pending}>
     <Shell title={`Estrutura · ${data.institution.name}`} subtitle={data.schoolYear ? `Ano letivo ${data.schoolYear.startYear}–${data.schoolYear.endYear}` : 'Sem ano letivo definido'}>
       {created ? (
         <p role="status" className="mb-4 rounded-md border border-primary/30 bg-accent p-3 text-sm">
@@ -114,10 +129,14 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
       <TeachersCard data={data} opts={opts} institutionId={institutionId} act={act} ask={setConfirm} />
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </Shell>
+    </Pending.Provider>
   );
 }
 
 type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => Promise<boolean>;
+
+/** Há uma escrita a correr: todos os formulários da estrutura ficam ocupados até ela acabar e a estrutura recarregar. */
+const Pending = createContext(false);
 
 function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -145,22 +164,23 @@ function StructureSkeleton() {
 function NewCourse({ institutionId, act }: { institutionId: number; act: Act }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
+  const pending = useContext(Pending);
+  const first = useRef<HTMLInputElement>(null);
   return (
     <form
       className="mb-4 grid gap-3 rounded-lg border border-dashed p-4 sm:grid-cols-[8rem_1fr_auto]"
       aria-label="Novo curso"
+      aria-busy={pending}
       onSubmit={async (e) => {
         e.preventDefault();
-        setBusy(true);
         const ok = await act(() => createRow('courses', { code: code.trim(), name: name.trim(), institutionId, description: '' }), 'Curso criado');
-        setBusy(false);
         if (ok) { setCode(''); setName(''); }
+        first.current?.focus();
       }}
     >
-      <Input aria-label="Código do curso" placeholder="Código (TISM)" value={code} onChange={(e) => setCode(e.target.value)} required minLength={2} maxLength={50} />
+      <Input ref={first} aria-label="Código do curso" placeholder="Código (TISM)" value={code} onChange={(e) => setCode(e.target.value)} required minLength={2} maxLength={50} />
       <Input aria-label="Nome do curso" placeholder="Nome do curso" value={name} onChange={(e) => setName(e.target.value)} required minLength={3} maxLength={255} />
-      <Button type="submit" disabled={busy || !code.trim() || !name.trim()}><Plus size={16} className="mr-1" /> Novo curso</Button>
+      <Button type="submit" disabled={pending || !code.trim() || !name.trim()}>{pending ? 'A criar…' : <><Plus size={16} className="mr-1" /> Novo curso</>}</Button>
     </form>
   );
 }
@@ -169,6 +189,8 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
   const [subjectId, setSubjectId] = useState('');
   const [grade, setGrade] = useState('');
   const g = grade === '' ? null : Number(grade);
+  const pending = useContext(Pending);
+  const firstSubject = useRef<HTMLSelectElement>(null);
   const addable = useMemo(() => subjectsToAdd(opts.subjects as { id: number; name: string; code: string }[], course.curriculum, g), [opts.subjects, course.curriculum, g]);
 
   return (
@@ -210,14 +232,15 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
               ))}
             </ul>
           )}
-          <form className="grid gap-2 sm:grid-cols-[1fr_11rem_auto]" aria-label={`Adicionar disciplina a ${course.code}`}
+          <form className="grid gap-2 sm:grid-cols-[1fr_11rem_auto]" aria-label={`Adicionar disciplina a ${course.code}`} aria-busy={pending}
             onSubmit={async (e) => {
               e.preventDefault();
               if (!subjectId) return;
               const ok = await act(() => addToCurriculum(course.id, Number(subjectId), g), 'Disciplina adicionada ao currículo');
               if (ok) setSubjectId('');
+              firstSubject.current?.focus();
             }}>
-            <NativeSelect aria-label="Disciplina" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+            <NativeSelect ref={firstSubject} aria-label="Disciplina" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
               <option value="">Disciplina…</option>
               {addable.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
             </NativeSelect>
@@ -225,7 +248,7 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
               <option value="">Todas as classes</option>
               {Array.from({ length: 13 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}.ª classe</option>)}
             </NativeSelect>
-            <Button type="submit" variant="outline" disabled={!subjectId}><Plus size={16} className="mr-1" /> Adicionar</Button>
+            <Button type="submit" variant="outline" disabled={pending || !subjectId}>{pending ? 'A adicionar…' : <><Plus size={16} className="mr-1" /> Adicionar</>}</Button>
           </form>
           {opts.subjects.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Não há disciplinas no sistema. <Link className="underline" href="/subjects/new">Criar disciplina</Link>.</p> : null}
         </div>
@@ -248,20 +271,23 @@ function NewClass({ courseId, courseCode, yearId, years, act }: { courseId: numb
   const [grade, setGrade] = useState('');
   const [year, setYear] = useState('');
   const chosenYear = year || (yearId ? String(yearId) : '');
+  const pending = useContext(Pending);
+  const first = useRef<HTMLInputElement>(null);
   return (
-    <form className="mt-3 grid gap-2 sm:grid-cols-[7rem_8rem_1fr_auto]" aria-label={`Nova turma de ${courseCode}`}
+    <form className="mt-3 grid gap-2 sm:grid-cols-[7rem_8rem_1fr_auto]" aria-label={`Nova turma de ${courseCode}`} aria-busy={pending}
       onSubmit={async (e) => {
         e.preventDefault();
         const ok = await act(() => createRow('classes', { code: code.trim(), grade: Number(grade), courseId, schoolYearId: Number(chosenYear) }), 'Turma criada');
         if (ok) { setCode(''); setGrade(''); }
+        first.current?.focus();
       }}>
-      <Input aria-label="Código da turma" placeholder="Turma (12B)" value={code} onChange={(e) => setCode(e.target.value)} required maxLength={50} />
+      <Input ref={first} aria-label="Código da turma" placeholder="Turma (12B)" value={code} onChange={(e) => setCode(e.target.value)} required maxLength={50} />
       <Input aria-label="Classe da turma" type="number" inputMode="numeric" min={1} max={13} placeholder="Classe" value={grade} onChange={(e) => setGrade(e.target.value)} required />
       <NativeSelect aria-label="Ano letivo" value={chosenYear} onChange={(e) => setYear(e.target.value)} required>
         <option value="">Ano letivo…</option>
         {years.map((y) => <option key={y.id} value={y.id}>{y.startYear}–{y.endYear}</option>)}
       </NativeSelect>
-      <Button type="submit" variant="outline" disabled={!code.trim() || !grade || !chosenYear}><Plus size={16} className="mr-1" /> Turma</Button>
+      <Button type="submit" variant="outline" disabled={pending || !code.trim() || !grade || !chosenYear}>{pending ? 'A criar…' : <><Plus size={16} className="mr-1" /> Turma</>}</Button>
     </form>
   );
 }
@@ -317,20 +343,23 @@ function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: 
 function AssignTeacher({ cls, subject, data, yearId, act }: { cls: StructureClass; subject: StructureClass['subjects'][number]; data: InstitutionStructure; yearId?: number; act: Act }) {
   const [teacherId, setTeacherId] = useState('');
   const options = teachersToAssign(data.teachers, subject);
+  const pending = useContext(Pending);
+  const first = useRef<HTMLSelectElement>(null);
   if (!yearId) return null;
   return (
-    <form className="flex gap-2" aria-label={`Atribuir professor a ${subject.name} em ${cls.code}`}
+    <form className="flex gap-2" aria-label={`Atribuir professor a ${subject.name} em ${cls.code}`} aria-busy={pending}
       onSubmit={async (e) => {
         e.preventDefault();
         if (!teacherId) return;
         const ok = await act(() => assignTeacher({ teacherId: Number(teacherId), classId: cls.id, subjectId: subject.subjectId, schoolYearId: yearId }), 'Professor atribuído');
         if (ok) setTeacherId('');
+        first.current?.focus();
       }}>
-      <NativeSelect aria-label={`Professor de ${subject.name}`} value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className="min-w-44">
+      <NativeSelect ref={first} aria-label={`Professor de ${subject.name}`} value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className="min-w-44">
         <option value="">{options.length ? 'Professor…' : 'Sem professores livres'}</option>
         {options.map((t) => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
       </NativeSelect>
-      <Button type="submit" size="sm" variant="outline" disabled={!teacherId}>Atribuir</Button>
+      <Button type="submit" size="sm" variant="outline" disabled={pending || !teacherId}>{pending ? 'A atribuir…' : 'Atribuir'}</Button>
     </form>
   );
 }
@@ -338,6 +367,8 @@ function AssignTeacher({ cls, subject, data, yearId, act }: { cls: StructureClas
 function TeachersCard({ data, opts, institutionId, act, ask }: { data: InstitutionStructure; opts: Opts; institutionId: number; act: Act; ask: (s: ConfirmState) => void }) {
   const [teacherId, setTeacherId] = useState('');
   const free = teachersToAffiliate(opts.teachers as { id: number; firstName: string; lastName: string }[], data.teachers);
+  const pending = useContext(Pending);
+  const first = useRef<HTMLSelectElement>(null);
   return (
     <Card className="mt-6" data-testid="teachers-card">
       <CardContent className="grid gap-3 p-4 md:p-5">
@@ -358,18 +389,19 @@ function TeachersCard({ data, opts, institutionId, act, ask }: { data: Instituti
             ))}
           </ul>
         )}
-        <form className="flex gap-2" aria-label="Afiliar professor"
+        <form className="flex gap-2" aria-label="Afiliar professor" aria-busy={pending}
           onSubmit={async (e) => {
             e.preventDefault();
             if (!teacherId) return;
             const ok = await act(() => setInstitutionLink(institutionId, 'teachers', Number(teacherId), true), 'Professor afiliado');
             if (ok) setTeacherId('');
+            first.current?.focus();
           }}>
-          <NativeSelect aria-label="Professor a afiliar" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
+          <NativeSelect ref={first} aria-label="Professor a afiliar" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
             <option value="">{free.length ? 'Afiliar professor…' : 'Todos os professores já estão aqui'}</option>
             {free.map((t) => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
           </NativeSelect>
-          <Button type="submit" variant="outline" disabled={!teacherId}>Afiliar</Button>
+          <Button type="submit" variant="outline" disabled={pending || !teacherId}>{pending ? 'A afiliar…' : 'Afiliar'}</Button>
         </form>
         {opts.teachers.length === 0 ? <p className="text-xs text-muted-foreground">Não há professores no sistema. <Link className="underline" href="/teachers/new">Criar professor</Link>.</p> : null}
       </CardContent>
