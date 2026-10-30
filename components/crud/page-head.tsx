@@ -22,26 +22,24 @@ export function PageHead({
   const heading = title ?? entity.plural;
   return (
     <div className="mb-8">
-      {back ? (
-        <nav aria-label="Navegação estrutural" className="mb-4">
-          <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-            {buildCrumbs({ label: entity.plural, href: back.href }, heading).map((crumb, index) => (
-              <li key={`${index}-${crumb.label}`} className="flex items-center gap-1.5">
-                {index > 0 ? <ChevronRight size={14} aria-hidden="true" /> : null}
-                {crumb.href ? (
-                  <Link href={crumb.href} className="inline-flex min-h-8 items-center transition-colors hover:text-foreground">
-                    {crumb.label}
-                  </Link>
-                ) : (
-                  <span aria-current="page" className="font-medium text-foreground">
-                    {crumb.label}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ol>
-        </nav>
-      ) : null}
+      <nav aria-label="Navegação estrutural" className="mb-4">
+        <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+          {buildCrumbs(back ? { label: entity.plural, href: back.href } : null, heading).map((crumb, index) => (
+            <li key={`${index}-${crumb.label}`} className="flex items-center gap-1.5">
+              {index > 0 ? <ChevronRight size={14} aria-hidden="true" /> : null}
+              {crumb.href ? (
+                <Link href={crumb.href} className="inline-flex min-h-8 items-center transition-colors hover:text-foreground">
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span aria-current="page" className="font-medium text-foreground">
+                  {crumb.label}
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </nav>
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <div className={`rounded-md p-2 ${entity.tone}`}>

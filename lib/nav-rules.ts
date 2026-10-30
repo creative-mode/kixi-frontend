@@ -87,7 +87,11 @@ export function activeHref(pathname: string, hrefs: string[]): string | null {
 
 export type Crumb = { label: string; href?: string };
 
-/** Início, lista e página atual, por esta ordem. A última não é ligação: é onde o utilizador já está. */
-export function buildCrumbs(parent: { label: string; href: string }, current: string): Crumb[] {
-  return [{ label: 'Início', href: '/' }, { label: parent.label, href: parent.href }, { label: current }];
+/**
+ * Início, lista e página atual, por esta ordem. A última não é ligação: é onde o utilizador já está.
+ * Sem `parent` (a própria lista de um módulo) ficam só Início e a página atual.
+ */
+export function buildCrumbs(parent: { label: string; href: string } | null, current: string): Crumb[] {
+  const home: Crumb = { label: 'Início', href: '/' };
+  return parent ? [home, { label: parent.label, href: parent.href }, { label: current }] : [home, { label: current }];
 }

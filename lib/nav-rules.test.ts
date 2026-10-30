@@ -62,3 +62,7 @@ test('os breadcrumbs vão do início à página atual, que não é ligação', (
   ]);
   assert.equal(crumbs[crumbs.length - 1].href, undefined);
 });
+
+test('na lista de um módulo os breadcrumbs são só Início e a página atual', () => {
+  assert.deepEqual(buildCrumbs(null, 'Cursos'), [{ label: 'Início', href: '/' }, { label: 'Cursos' }]);
+});
