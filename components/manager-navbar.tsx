@@ -227,18 +227,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
     <MotionConfig reducedMotion="user">
       <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card">
         <div className="mx-auto flex h-16 items-center justify-between px-4">
-          <Link
-            href="/"
-            className="text-xl font-bold tracking-tighter z-50 relative flex items-center gap-2"
-          >
-            <KixiLogo size={28} wordmark />
-            <span className="text-xs text-muted-foreground">Manager</span>
-          </Link>
-
-          <div className="flex items-center gap-4 z-50 relative">
-            <div className="hidden md:block">
-              <UserDisplay />
-            </div>
+          <div className="relative z-50 flex items-center gap-2">
             <button
               ref={menuButton}
               onClick={() => setIsOpen(!isOpen)}
@@ -249,6 +238,19 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
             >
               {isOpen ? <X size={24} aria-hidden="true" /> : <MenuIcon size={24} aria-hidden="true" />}
             </button>
+            <Link
+              href="/"
+              className="text-xl font-bold tracking-tighter z-50 relative flex items-center gap-2"
+            >
+              <KixiLogo size={28} wordmark />
+              <span className="text-xs text-muted-foreground">Manager</span>
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-4 z-50 relative">
+            <div className="hidden md:block">
+              <UserDisplay />
+            </div>
           </div>
         </div>
       </header>
