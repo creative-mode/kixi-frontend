@@ -17,6 +17,8 @@ import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
 import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { missingToSave, readinessSummary } from '@/lib/exam/readiness';
+import { cn } from '@/lib/utils';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
@@ -85,6 +87,8 @@ async function attachMissingFigures(statementId: number, figures: ReturnType<typ
 }
 
 export function ExamBuilder({ openImport = false, donationId = null }: { openImport?: boolean; donationId?: number | null }) {
+  /** Abaixo de `lg` a folha vem depois de sete cartões: o alternador mostra uma coisa de cada vez. */
+  const [view, setView] = useState<'editar' | 'previsualizar'>('editar');
   const [schools, setSchools] = useState<School[]>([]);
   const [subjectIds, setSubjectIds] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<ExamDraft>(EMPTY_DRAFT);
@@ -299,13 +303,18 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const problemas = problems(draft.items);
   const ready2print = !!school && !!subject && draft.items.some((i) => i.text.trim());
   const canSave = ready2print && classChosen;
+  /** O motivo dos botões desativados, em texto: um `title` não chega a quem usa toque ou teclado. */
+  const summary = readinessSummary(
+    missingToSave({ hasSchool: !!school, hasSubject: !!subject, hasClass: classChosen, hasQuestion: draft.items.some((i) => i.text.trim()) }),
+    problemas.length,
+  );
   /** Depois de guardar, gravar outra vez sem mexer em nada criava um duplicado: só volta a ser possível ao editar. */
   const unchangedSinceSave = saved !== null && saved.snapshot === JSON.stringify(draft);
   const toSave = canSave && !saving && !unchangedSinceSave && pendingPublication === null;
 
   return (
     <div className="mx-auto max-w-7xl p-6 md:p-8 lg:p-10">
-      <style>{`@media print{body *{visibility:hidden}#exam-sheet,#exam-sheet *{visibility:visible}#exam-sheet{position:absolute;left:0;top:0;width:100%;box-shadow:none}@page{size:A4;margin:10mm}}`}</style>
+      <style>{`@media print{body *{visibility:hidden}#exam-sheet,#exam-sheet *{visibility:visible}#exam-sheet{position:absolute;left:0;top:0;width:100%;box-shadow:none}.exam-preview{display:block!important}@page{size:A4;margin:10mm}}`}</style>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl leading-tight tracking-tight">Montar prova</h1>
@@ -315,10 +324,10 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           <Button variant="outline" onClick={() => setImportOpen((v) => !v)} aria-expanded={importOpen} disabled={pendingPublication !== null}>
             <ScanText aria-hidden /> Importar de imagem
           </Button>
-          <Button variant="outline" onClick={() => save(false)} disabled={!toSave} title={canSave ? undefined : 'Escolha a disciplina e a turma e escreva pelo menos uma questão'}>
+          <Button variant="outline" onClick={() => save(false)} disabled={!toSave} aria-describedby={summary.length > 0 ? 'construtor-pendencias' : undefined}>
             <Save aria-hidden /> Guardar
           </Button>
-          <Button onClick={() => save(true)} disabled={!toSave || problemas.length > 0} title={problemas.length > 0 ? 'A prova ainda não pode ser publicada' : canSave ? undefined : 'Escolha a disciplina e a turma e escreva pelo menos uma questão'}>
+          <Button onClick={() => save(true)} disabled={!toSave || problemas.length > 0} aria-describedby={summary.length > 0 ? 'construtor-pendencias' : undefined}>
             {saving ? <Spinner className="size-4" /> : <Check aria-hidden />}
             Publicar
           </Button>
@@ -328,8 +337,31 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
         </div>
       </div>
 
+      {summary.length > 0 && (
+        <div id="construtor-pendencias" className="mb-6 grid gap-0.5 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning print:hidden">
+          {summary.map((line) => <p key={line}>{line}</p>)}
+        </div>
+      )}
+
+      <div role="group" aria-label="Vista do construtor" className="mb-4 grid grid-cols-2 gap-1 rounded-lg border bg-muted p-1 lg:hidden print:hidden">
+        {([['editar', 'Editar'], ['previsualizar', 'Pré-visualizar']] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={view === value}
+            onClick={() => setView(value)}
+            className={cn(
+              'min-h-11 rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+              view === value ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 print:hidden">
+        <div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4 print:hidden', view !== 'editar' && 'max-lg:hidden')}>
           {saved && (
             <Card className="border-primary/40 bg-accent/40" role="status" aria-live="polite">
               <CardHeader>
@@ -526,7 +558,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           </Card>
         </div>
 
-        <div className="min-w-0 overflow-x-auto lg:sticky lg:top-24">
+        <div className={cn('exam-preview min-w-0 overflow-x-auto lg:sticky lg:top-24', view !== 'previsualizar' && 'max-lg:hidden')}>
           <ExamSheet school={school} draft={draft} />
         </div>
       </div>
