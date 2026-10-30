@@ -999,6 +999,43 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
 
+  test('admin: a estrutura da escola não envia duas vezes o mesmo formulário (#532)', async ({ page }) => {
+    const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/institutions/new');
+    await page.getByLabel('Código').fill(`E2E${id}`);
+    await page.getByLabel('Nome').fill(`Escola E2E ${id}`);
+    await page.getByLabel('Sigla').fill(`E${id}`);
+    await page.getByRole('button', { name: 'Criar instituição' }).click();
+    await expect(page).toHaveURL(/\/manager\/institutions\/\d+\/structure\?nova=1/);
+
+    const form = page.getByRole('form', { name: 'Novo curso' });
+    const code = form.getByLabel('Código do curso');
+    await code.fill(`C${id.slice(0, 5)}`);
+    await form.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
+
+    // Atrasa a gravação para que o segundo Enter chegue com o primeiro pedido ainda a correr.
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 600));
+      await route.continue();
+    });
+    const name = form.getByLabel('Nome do curso');
+    await name.press('Enter');
+    await name.press('Enter');
+    await name.press('Enter');
+
+    await expect(form).toHaveAttribute('aria-busy', 'true');
+    await expect(form.getByRole('button')).toHaveText('A criar…');
+    await expect(form.getByRole('button')).toBeDisabled();
+
+    // Um só curso, um só aviso, e o formulário volta a ficar livre com o foco no primeiro campo.
+    await expect(form).toHaveAttribute('aria-busy', 'false');
+    await expect(page.getByTestId(`course-C${id.slice(0, 5)}`)).toHaveCount(1);
+    await expect(page.getByText('Curso criado')).toHaveCount(1);
+    await expect(code).toBeFocused();
+    await expect(code).toHaveValue('');
+  });
+
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
     // Reproduz a #240: dois `TabsContent` com o mesmo `value` montam-se os dois, e
     // o aluno lê a mesma prova como se a tivesse feito duas vezes. Compila, passa o
