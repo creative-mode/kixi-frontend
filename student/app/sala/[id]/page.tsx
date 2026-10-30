@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
-import { requireStudent } from '@/lib/guard';
+import { entrarUrl, requireStudent } from '@/lib/guard';
 import { getMe } from '@/lib/me';
 import { getControlledRoom } from '@/lib/exam-room';
 import { formatWhen } from '@/lib/exam-room-rules';
@@ -29,7 +29,7 @@ export default async function SalaControladaPage({ params }: { params: Params })
   if (!Number.isInteger(roomId) || roomId <= 0) redirect('/provas');
 
   const room = await getControlledRoom(roomId);
-  if (room.kind === 'unauthorized') redirect('/entrar?reason=session-expired');
+  if (room.kind === 'unauthorized') redirect(await entrarUrl('session-expired'));
   if (room.kind === 'submitted') redirect(`/resultado?prova=${room.simulationId}`);
   if (room.kind === 'open') {
     const me = await getMe();

@@ -16,6 +16,9 @@ import { createRoom, roomContext, type RoomContext } from '@/app/actions/exam-ro
 import { ACTION_TIMEOUT_MS, TIMEOUT_MESSAGE, isTimeout, withDeadline } from '@/lib/timeout';
 import { draftProblem, formatWall, luandaNowInput, preselectFromStatement, statementFitsRoom, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
 import { RoomHead } from './room-head';
+import { useSessionAccount } from '@/components/session-account';
+import { clearFormDraft, clearStaleFormDrafts, loadFormDraft, saveFormDraft } from '@/lib/form-drafts';
+import { reportActionError } from '@/lib/notify-session-expired';
 
 /** Soma minutos a um valor de `datetime-local`, sem passar pelo fuso do browser. */
 function plusMinutes(input: string, minutes: number): string {
@@ -33,6 +36,10 @@ function nextSlot(): string {
 
 export function RoomWizard({ initialStatementId = null }: { initialStatementId?: string | null }) {
   const router = useRouter();
+  const accountId = useSessionAccount();
+  const formId = `exam-room:new:${initialStatementId ?? 'livre'}`;
+  const [draftReady, setDraftReady] = useState(false);
+  const [restored, setRestored] = useState(false);
   const [ctx, setCtx] = useState<RoomContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -43,6 +50,21 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
     return { classId: '', statementId: '', startsAt, endsAt: plusMinutes(startsAt, 100), durationMinutes: '90' };
   });
   const set = (patch: Partial<RoomDraft>) => setDraft((d) => ({ ...d, ...patch }));
+
+  useEffect(() => {
+    clearStaleFormDrafts(window.sessionStorage);
+    const saved = accountId === null ? null : loadFormDraft<Partial<RoomDraft>>(window.sessionStorage, formId, accountId);
+    if (saved) {
+      setDraft((d) => ({ ...d, ...saved }));
+      setRestored(true);
+    }
+    setDraftReady(true);
+  }, [accountId, formId]);
+
+  useEffect(() => {
+    if (!draftReady || accountId === null) return;
+    saveFormDraft(window.sessionStorage, formId, draft, accountId);
+  }, [accountId, draft, draftReady, formId]);
 
   useEffect(() => {
     let alive = true;
@@ -95,7 +117,8 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
     setSaving(true);
     const res = await createRoom(draft, inviteClass);
     setSaving(false);
-    if (!res.ok) return void toast.error(res.error);
+    if (!res.ok) return void reportActionError(res.error);
+    clearFormDraft(window.sessionStorage, formId);
     if (res.data.warning) toast.warning(res.data.warning);
     else toast.success('Sala criada. Abra-a quando a turma estiver pronta.');
     router.push(`/exam-rooms/${res.data.id}`);
@@ -108,6 +131,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
         subtitle="Escolha a prova, a janela e quem entra. A sala fica em rascunho até a abrir."
         back={{ href: '/exam-rooms', label: 'Voltar às salas' }}
       />
+      {restored ? <p role="status" className="mb-4 text-sm text-muted-foreground">Retomámos o que tinhas preenchido neste separador.</p> : null}
       {error ? (
         <Card>
           <CardContent role="status" className="flex flex-col items-center justify-center gap-3 py-12 text-center">

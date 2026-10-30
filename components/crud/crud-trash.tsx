@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -37,7 +38,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
     if (res.ok) {
       toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`);
       load();
-    } else toast.error(res.error);
+    } else reportActionError(res.error);
   }
   function askPurge(row: Row) {
     setConfirm({
@@ -50,7 +51,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
         if (res.ok) {
           toast.success('Eliminado definitivamente');
           load();
-        } else toast.error(res.error);
+        } else reportActionError(res.error);
       },
     });
   }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Archive, Edit, Network, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -98,7 +99,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
         if (res.ok) {
           toast.success(copy?.done ?? `${entity.singular} ${gender(entity, 'movido')} para a lixeira`);
           load();
-        } else toast.error(res.error);
+        } else reportActionError(res.error);
       },
     });
   }

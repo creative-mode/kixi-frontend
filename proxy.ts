@@ -4,6 +4,7 @@ import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
 import { canAccessManager, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
+import { appRelativePath, MANAGER_BASE_PATH, managerNext } from '@/lib/safe-next';
 
 /**
  * A origem de confiança, ou null quando não há nenhuma.
@@ -48,13 +49,29 @@ function rolesFromPayload(value: unknown): Role[] {
   return normalizeRoles(value);
 }
 
+/** O caminho público que o utilizador tentou abrir, para voltar a ele depois de entrar. */
+function requestedPath(request: NextRequest): string {
+  return `${request.nextUrl.pathname}${request.nextUrl.search}`;
+}
+
+function nextAfterLogin(request: NextRequest): string {
+  const next = managerNext(requestedPath(request));
+  return next ? appRelativePath(next, MANAGER_BASE_PATH) : '/';
+}
+
+function loginQuery(request: NextRequest, reason: string): Record<string, string> {
+  const next = managerNext(requestedPath(request));
+  return { reason, ...(next ? { next } : {}) };
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoginRoute = isRoute(pathname, '/login');
   const isForbiddenRoute = isRoute(pathname, '/403');
+  const isRecoveryRoute = isRoute(pathname, '/recuperar');
 
-  if (isLoginRoute || isForbiddenRoute) {
-    if (isForbiddenRoute) return NextResponse.next();
+  if (isLoginRoute || isForbiddenRoute || isRecoveryRoute) {
+    if (isForbiddenRoute || isRecoveryRoute) return NextResponse.next();
 
     const token = request.cookies.get('auth_token')?.value;
     if (!token) return NextResponse.next();
@@ -67,7 +84,7 @@ export async function proxy(request: NextRequest) {
         if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
           return NextResponse.redirect(redirectTo('/professor', request));
         }
-        return NextResponse.redirect(redirectTo('/', request));
+        return NextResponse.redirect(redirectTo(nextAfterLogin(request), request));
       }
 
       if (isStudentOnly(roles)) {
@@ -83,7 +100,7 @@ export async function proxy(request: NextRequest) {
 
   const token = request.cookies.get('auth_token')?.value;
   if (!token) {
-    return NextResponse.redirect(redirectTo('/login', request, { reason: 'required' }));
+    return NextResponse.redirect(redirectTo('/login', request, loginQuery(request, 'required')));
   }
 
   try {
@@ -96,7 +113,7 @@ export async function proxy(request: NextRequest) {
 
     if (!canAccessManager(roles)) {
       const response = NextResponse.redirect(
-        redirectTo('/login', request, { reason: 'invalid-session' }),
+        redirectTo('/login', request, loginQuery(request, 'invalid-session')),
       );
       response.cookies.delete('auth_token');
       response.cookies.delete('user_info');
@@ -120,7 +137,7 @@ export async function proxy(request: NextRequest) {
     response.headers.set('x-user-roles', JSON.stringify(roles));
     return response;
   } catch {
-    const response = NextResponse.redirect(redirectTo('/login', request, { reason: 'session-expired' }));
+    const response = NextResponse.redirect(redirectTo('/login', request, loginQuery(request, 'session-expired')));
     response.cookies.delete('auth_token');
     response.cookies.delete('user_info');
     return response;

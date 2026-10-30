@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useSyncExternalStore } from 'react';
 import { loginAction } from '@/app/actions/auth';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import { toast } from 'sonner';
 import { KixiLogo } from '@/components/kixi-logo';
 import { Eye, EyeOff, CircleAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { appRelativePath, MANAGER_BASE_PATH, managerNext } from '@/lib/safe-next';
 
 function noticeFor(reason: string | null) {
   if (reason === 'session-expired') return 'A tua sessão expirou. Entra novamente para continuar.';
@@ -30,7 +32,9 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [show, setShow] = useState(false);
   const router = useRouter();
-  const notice = noticeFor(useSearchParams().get('reason'));
+  const searchParams = useSearchParams();
+  const notice = noticeFor(searchParams.get('reason'));
+  const next = managerNext(searchParams.get('next'));
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -49,7 +53,7 @@ function LoginContent() {
 
         await new Promise((resolve) => setTimeout(resolve, 400));
 
-        router.push('/');
+        router.push(next ? appRelativePath(next, MANAGER_BASE_PATH) : '/');
         router.refresh();
       } else {
         toast.error(result.error || 'Credenciais inválidas', {
@@ -100,6 +104,11 @@ function LoginContent() {
               </button>
             </div>
           </div>
+          <p className="text-right text-sm">
+            <Link href="/recuperar" className="inline-flex min-h-11 items-center px-1 font-medium text-primary underline-offset-4 hover:underline">
+              Esqueci-me da palavra-passe
+            </Link>
+          </p>
 <Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated} data-testid="gestor-entrar-submeter">
             {isLoading ? (<><Spinner className="size-4" />A entrar...</>) : 'Entrar'}
           </Button>

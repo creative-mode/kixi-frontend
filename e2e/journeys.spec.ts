@@ -416,6 +416,45 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
   });
 
+  test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    // A recuperação não revela se a conta existe e diz com quem falar. Vem antes de
+    // entrar porque um aluno com sessão em /recuperar é mandado para o início.
+    await page.goto('/aluno/recuperar');
+    await page.getByLabel('Utilizador ou email').fill('nao-existe@kixi.ao');
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    const resposta = page.getByRole('status');
+    await expect(resposta).toContainText('Se estes dados corresponderem a uma conta');
+    await expect(resposta).toContainText('professor ou com a secretaria da escola');
+
+    await page.goto('/aluno/prova/2');
+    await expect(page).toHaveURL(/\/aluno\/entrar\?/);
+    // O destino vai no `next`, validado contra URLs externos (lib/safe-next.ts).
+    await expect(page).toHaveURL(/next=(?:%2Fprova%2F2|%2Faluno%2Fprova%2F2)/i);
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/2/);
+  });
+
+  test('gestor: sessão em falta regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    await page.goto('/manager/classes');
+    await expect(page).toHaveURL(/\/manager\/login\?/);
+    await expect(page).toHaveURL(/next=(?:%2Fclasses|%2Fmanager%2Fclasses)/i);
+
+    await page.getByLabel('Username ou email').fill(ADMIN_USERNAME);
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('gestor-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+
+    await page.goto('/manager/recuperar');
+    await page.getByLabel('Username ou email').fill('nao-existe@kixi.ao');
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    const resposta = page.getByRole('status');
+    await expect(resposta).toContainText('Se estes dados corresponderem a uma conta');
+    await expect(resposta).toContainText('professor ou a secretaria da escola');
+  });
+
   test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {
     await page.goto('/aluno/entrar');
     const usernameOrEmail = page.getByLabel('Utilizador ou email');

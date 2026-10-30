@@ -13,6 +13,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { createRow, getRow, listOptions, listRows, updateRow } from '@/app/actions/crud';
 import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
+import { useSessionAccount } from '@/components/session-account';
+import { clearFormDraft, clearStaleFormDrafts, loadFormDraft, saveFormDraft } from '@/lib/form-drafts';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { FormSkeleton } from './loading';
 
 type Errors = Record<string, string>;
@@ -47,7 +50,9 @@ function validate(fields: Field[], values: Row): Errors {
 export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string }) {
   const entity = ENTITIES[entityKey];
   const router = useRouter();
+  const accountId = useSessionAccount();
   const editing = id !== undefined;
+  const formId = useMemo(() => `crud:${entityKey}:${id ?? 'new'}`, [entityKey, id]);
   const fields = useMemo(() => entity.fields.filter((f) => !(editing && f.createOnly)), [entity, editing]);
 
   const [values, setValues] = useState<Row>({});
@@ -59,6 +64,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState<string>('');
+  const [restored, setRestored] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -96,11 +102,20 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       }
       if (!alive) return;
       setOptions(opts);
-      setValues(initial);
+      // O que ficou a meio neste separador volta quando o professor regressa (sessionStorage).
+      clearStaleFormDrafts(window.sessionStorage);
+      const saved = accountId === null ? null : loadFormDraft<Row>(window.sessionStorage, formId, accountId);
+      setValues(saved && Object.keys(saved).length > 0 ? { ...initial, ...saved } : initial);
+      setRestored(Boolean(saved && Object.keys(saved).length > 0));
       setLoading(false);
     })();
     return () => { alive = false; };
-  }, [entity, entityKey, editing, id]);
+  }, [accountId, entity, entityKey, editing, formId, id]);
+
+  useEffect(() => {
+    if (loading || accountId === null || Object.keys(values).length === 0) return;
+    saveFormDraft(window.sessionStorage, formId, values, accountId);
+  }, [accountId, formId, loading, values]);
 
   const set = (name: string, v: string) => {
     setValues((s) => ({ ...s, [name]: v }));
@@ -120,9 +135,10 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       toast.success(editing ? `${entity.singular} ${gender(entity, 'atualizado')}` : `${entity.singular} ${gender(entity, 'criado')}`);
       // Uma escola nova ainda está vazia: leva direto ao assistente de estrutura (cursos, turmas, professores).
       const createdId = !editing && entityKey === 'institutions' ? Number((res.data as Row | undefined)?.id) : NaN;
+      clearFormDraft(window.sessionStorage, formId);
       router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
       router.refresh();
-    } else toast.error(res.error);
+    } else reportActionError(res.error);
   }
 
   return (
@@ -141,6 +157,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
             <p className="py-8 text-center text-sm text-destructive">{loadError}</p>
           ) : (
             <form onSubmit={onSubmit} className="space-y-5" noValidate>
+              {restored ? <p role="status" className="text-sm text-muted-foreground">Retomámos o que tinhas escrito neste separador.</p> : null}
               {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
               {fields.map((f) => {
                 const err = errors[f.name];
