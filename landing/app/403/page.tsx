@@ -5,8 +5,6 @@ import { Header } from '@/components/sections/Header';
 import { LOGIN_URL } from '@/lib/content';
 import '@/components/forbidden/forbidden.css';
 
-import { getForbiddenReason, navigateAfterForbidden } from '@/lib/forbidden/reasons';
-
 export const metadata: Metadata = {
   title: '403 · Acesso não permitido',
   description: 'Área restrita do Kixi. A porta não abre para esta conta.',
@@ -31,13 +29,19 @@ function button(href: string, label: string) {
 export default async function ForbiddenPage({ searchParams }: PageProps) {
   const raw = (await searchParams).reason;
   const reason = Array.isArray(raw) ? raw[0] : raw;
-  const forbiddenReason = getForbiddenReason(reason ?? '');
-  const navigation = navigateAfterForbidden(forbiddenReason);
+  const wrongRole = reason === 'role';
 
-  const primary = button(navigation.primary.href, navigation.primary.label);
-  const secondary = button(navigation.secondary.href, navigation.secondary.label);
+  const primary = wrongRole
+    ? button('/manager/exam-builder', 'Voltar ao meu painel')
+    : button('/aluno/inicio', 'Ir para o caminho certo');
 
-  const hint = navigation.hint;
+  const secondary = wrongRole
+    ? button('/', 'Ver o site')
+    : button(LOGIN_URL, 'Entrar noutra conta');
+
+  const hint = wrongRole
+    ? 'Esta área é para quem gere o Kixi. O teu acesso chega até aqui.'
+    : 'O teu acesso é do lado dos alunos. Esta porta não abre para ti.';
 
   return (
     <ForbiddenScene header={<Header />} hint={hint} primary={primary} secondary={secondary} />
