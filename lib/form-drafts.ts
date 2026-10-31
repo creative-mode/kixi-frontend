@@ -137,8 +137,9 @@ export function loadChangedFormDraft<T>(
   formId: string,
   owner: number | null,
   baseline: T,
+  now: number = Date.now(),
 ): T | null {
-  const saved = loadFormDraft<{ baseline: T; values: T }>(storage, formId, owner);
+  const saved = loadFormDraft<{ baseline: T; values: T }>(storage, formId, owner, now);
   if (!saved) return null;
   if (stableValue(saved.baseline) !== stableValue(baseline)) {
     clearFormDraft(storage, formId);

@@ -74,8 +74,8 @@ test('não grava formulário intocado e descarta rascunho quando o registo mudou
   assert.equal(loadFormDraft(storage, 'crud:classes:5', 7, 1000), null);
 
   assert.equal(saveChangedFormDraft(storage, 'crud:classes:5', { ...original, name: 'Rascunho' }, original, 7, 1000), true);
-  assert.deepEqual(loadChangedFormDraft(storage, 'crud:classes:5', 7, original), { ...original, name: 'Rascunho' });
-  assert.equal(loadChangedFormDraft(storage, 'crud:classes:5', 7, { ...original, name: 'Alterada por outra pessoa' }), null);
+  assert.deepEqual(loadChangedFormDraft(storage, 'crud:classes:5', 7, original, 1000), { ...original, name: 'Rascunho' });
+  assert.equal(loadChangedFormDraft(storage, 'crud:classes:5', 7, { ...original, name: 'Alterada por outra pessoa' }, 1000), null);
   assert.equal(storage.getItem(formDraftKey('crud:classes:5')), null);
 });
 
