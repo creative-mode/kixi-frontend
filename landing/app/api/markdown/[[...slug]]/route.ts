@@ -18,6 +18,9 @@ const MARKDOWN = {
   // Os dois lados são Markdown gerado; o 404 já levava isto e o 200 ficava de fora.
   'X-Content-Type-Options': 'nosniff',
   Vary: 'Accept',
+  // Servido também no URL da página (via rewrite do proxy, #522): uma cache por URL
+  // não o distingue do HTML, por isso não se guarda em lado nenhum.
+  'Cache-Control': 'no-store, must-revalidate',
 } as const;
 
 /**

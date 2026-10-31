@@ -5,6 +5,9 @@ import { CookieSettings } from '@/components/consent/CookieSettings';
 const TITLE = 'Cookies · Kixi';
 const DESCRIPTION = 'Que cookies e armazenamento local o Kixi usa, para quê e por quanto tempo.';
 
+/** Cache partilhada (#522): HTML público igual para toda a gente. */
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,

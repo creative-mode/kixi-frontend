@@ -28,6 +28,9 @@ const NOT_NEGOTIABLE = [/^\/aluno(\/|$)/, /^\/manager(\/|$)/, /^\/api(\/|$)/, /^
  * <p>`no-store` e não `private`: `private` continua a deixar guardar no browser, e quem
  * recebe Markdown é um agente que vai guardá-lo para o volver a pedir. Guardar é
  * precisamente o que não pode acontecer a uma resposta que muda com o `Accept`.</p>
+ *
+ * <p>Desde a #522 isto vale só para o que varia com o pedido. O HTML público das
+ * páginas listadas vai para cache partilhada: está num URL que nunca serve Markdown.</p>
  */
 const NOT_SHARED_CACHE = 'no-store, must-revalidate';
 
@@ -84,10 +87,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  // HTML de uma rota negociada: não vai para um cache partilhado, para que ninguém
-  // receba HTML a pedir Markdown. Um `Vary` que não chegue não chega.
+  // HTML de uma rota negociada: só vai para um cache partilhado quando é igual para
+  // toda a gente. A raiz varia com a sessão e o resto (inexistente incluído) não se
+  // promete a nenhum CDN.
+  // Sem tocar no Cache-Control: o que aqui se põe numa resposta renderizada não
+  // sobrevive (medido: sai sempre o da config da rota). Cache desta landing
+  // decide-se por página, com `revalidate` (públicas) ou `dynamic` (a raiz, que
+  // varia com a sessão) — ver #522.
   const response = NextResponse.next();
-  response.headers.set('Cache-Control', NOT_SHARED_CACHE);
   return response;
 }
 
