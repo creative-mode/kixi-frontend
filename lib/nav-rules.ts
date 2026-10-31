@@ -18,6 +18,7 @@ const GROUP_OF: Record<string, NavGroupId> = {
   '/tarefas': 'ensino',
   '/pautas': 'ensino',
   '/planos': 'ensino',
+  '/coordenacao': 'ensino',
   '/desempenho': 'ensino',
   '/professor/tutor': 'ensino',
 

@@ -76,6 +76,7 @@ test('o coordenador entra no gestor e só abre o plano e as pautas', () => {
   assert.equal(isCoordinatorOnly(normalizeRoles(['ADMIN', 'COORDINATOR'])), false);
   assert.equal(coordinatorMayOpen('/planos'), true);
   assert.equal(coordinatorMayOpen('/pautas'), true);
+  assert.equal(coordinatorMayOpen('/coordenacao'), true);
   assert.equal(coordinatorMayOpen('/exam-rooms'), false);
   assert.equal(coordinatorMayOpen('/accounts'), false);
 });
