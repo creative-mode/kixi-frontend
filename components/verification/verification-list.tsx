@@ -22,6 +22,7 @@ import {
   VERIFICATION_FILTERS,
 } from '@/lib/verification/queue';
 import { listVerificationRequests, reviewVerification, revokeVerification } from '@/app/actions/verification';
+import { formatLuandaDateTime } from '@/lib/format';
 import {
   MAX_NOTE,
   STATUS_LABEL,
@@ -42,7 +43,7 @@ const VARIANT: Record<VerificationStatus, 'warning' | 'success' | 'outline' | 'i
   REVOKED: 'outline',
 };
 
-const when = (iso: string) => iso.slice(0, 16).replace('T', ' ');
+const when = (iso: string) => formatLuandaDateTime(iso);
 
 type Acting = { id: number; kind: 'approve' | 'reject' | 'revoke' } | null;
 

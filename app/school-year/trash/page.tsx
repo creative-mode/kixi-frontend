@@ -11,8 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { formatLuandaDateTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -139,7 +138,7 @@ export default function SchoolYearTrashPage() {
                     <TableCell className="text-muted-foreground">{year.endYear}</TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
                       {year.deletedAt
-                        ? format(new Date(year.deletedAt), "dd 'de' MMM yyyy, HH:mm", { locale: pt })
+                        ? formatLuandaDateTime(year.deletedAt)
                         : '—'}
                     </TableCell>
                     <TableCell className="text-right">

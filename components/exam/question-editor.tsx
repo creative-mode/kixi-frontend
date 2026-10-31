@@ -11,6 +11,8 @@ import { ItemEditor, LEAF_LABELS, LeafBody } from './item-editor';
 import { hasMathContent } from '@/student/lib/shared/math-content';
 import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
 import { FormulaInput } from './formula-input';
+import { useState } from 'react';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 
 const KIND_LABELS: Record<QuestionKind, string> = { ...LEAF_LABELS, group: 'Com alíneas' };
 
@@ -43,16 +45,21 @@ export function QuestionEditor({
   const n = index + 1;
   const kind = kindOf(item);
   const items = item.items ?? [];
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const setItems = (next: typeof items) => onChange({ items: next });
 
   function changeKind(next: QuestionKind) {
     // Largar as alíneas apaga o que o professor escreveu nelas: pergunta-se antes.
-    if (kind === 'group' && items.some((i) => i.text.trim()) && !window.confirm('Passar para outro tipo apaga as alíneas desta questão. Continuar?')) return;
+    if (kind === 'group' && items.some((i) => i.text.trim())) {
+      setConfirm({ title: 'Apagar alíneas?', description: 'Passar para outro tipo apaga as alíneas desta questão.', action: 'Continuar', destructive: true, run: () => { onChange(convertKind(item, next)); } });
+      return;
+    }
     onChange(convertKind(item, next));
   }
 
   return (
     <fieldset className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border p-3">
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
       <legend className="sr-only">Questão {n}</legend>
       <div className="flex min-w-0 flex-wrap items-start gap-2 sm:flex-nowrap">
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-[12px] font-bold text-accent-foreground">{n}</span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, DoorOpen, FileText, Gift, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction'
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   // O `<label>` envolve o controlo em vez de ser irmao: um label que envolve o
@@ -104,6 +105,17 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
   const [reading, setReading] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const resumeDraftOnClose = useRef(false);
+  const startupPrompt = useRef(false);
+  function closeConfirm() {
+    if (startupPrompt.current) {
+      if (!resumeDraftOnClose.current) clearDraft();
+      startupPrompt.current = false;
+      resumeDraftOnClose.current = false;
+    }
+    setConfirm(null);
+  }
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
@@ -112,17 +124,24 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     // formulário preenchido com a prova anterior, de outra escola ou de há semanas,
     // sem o ter pedido. Se houver trabalho por guardar, pergunta-se — e só nesse caso.
     const anterior = loadDraft();
-    const continuar = draftHasContent(anterior) && window.confirm('Tem um rascunho por guardar da última vez. Continuar esse rascunho? (Cancelar começa uma prova nova.)');
-    if (!continuar) clearDraft();
-    // `setDraft` vai dentro do timeout para não disparar em cima do efeito — a mesma
-    // razão pela qual já era adiado antes de a #362 existir.
-    const task = window.setTimeout(() => { if (continuar) setDraft(anterior); }, 0);
+    let promptTimer: number | undefined;
+    if (draftHasContent(anterior)) {
+      promptTimer = window.setTimeout(() => {
+        startupPrompt.current = true;
+        setConfirm({
+        title: 'Continuar rascunho?',
+        description: 'Há um rascunho por guardar da última vez. Se cancelar, começará uma prova nova.',
+        action: 'Continuar rascunho',
+        run: () => { resumeDraftOnClose.current = true; setDraft(anterior); },
+        });
+      }, 0);
+    } else clearDraft();
     myInstitutions().then((res) => {
       if (!res.ok) toast.error(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
       setReady(true);
     });
-    return () => window.clearTimeout(task);
+    return () => { if (promptTimer !== undefined) window.clearTimeout(promptTimer); };
   }, []);
   // Um rascunho vazio não se guarda: assim «começar do zero» deixa a chave mesmo
   // limpa, em vez de a reescrever vazia no instante a seguir ao aviso.
@@ -265,7 +284,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
    * O que o OCR leu vira rascunho. Não se guarda nada: o professor corrige aqui e só depois grava.
    * Substituir um rascunho com conteúdo pede confirmação, porque o OCR trocava tudo de uma vez.
    */
-  function applyImport(extraction: ExamExtraction, names: string): boolean {
+  function commitImport(extraction: ExamExtraction, names: string): boolean {
     const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] });
     if (imported.items.length === 0) {
       setNotes(imported.notes);
@@ -273,9 +292,6 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       toast.error('Não foi possível ler questões nesta imagem.');
       return false;
     }
-    // A mesma noção de «conteúdo» do aviso de arranque: o OCR substitui o cabeçalho
-    // inteiro, por isso mexer só na escola/disciplina/duração também se avisa.
-    if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return false;
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
     setFooterPreview(imported.footerPreview ?? null);
@@ -283,6 +299,18 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     setImportOpen(false);
     toast.success(`Prova lida (${names}): ${imported.items.length} questões. Reveja o que o OCR percebeu.`);
     return true;
+  }
+
+  function applyImport(extraction: ExamExtraction, names: string): boolean {
+    if (!draftHasContent(draft)) return commitImport(extraction, names);
+    setConfirm({
+      title: 'Substituir o rascunho?',
+      description: 'Importar substitui as questões e o cabeçalho que já escreveu.',
+      action: 'Substituir rascunho',
+      destructive: true,
+      run: () => { commitImport(extraction, names); },
+    });
+    return false;
   }
 
   /** O OCR sobre os ficheiros da doação: o mesmo caminho do importador, sem ficheiros novos. */
@@ -372,10 +400,10 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
               <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
             ) : null}
             {!pendingPublication ? <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button> : null}
-            <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
+            <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => setConfirm({ title: 'Começar uma prova nova?', description: 'O rascunho atual será limpo. A prova guardada não se perde.', action: 'Começar nova prova', destructive: true, run: () => { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
               // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
               // voltar a ser guardado — um aviso a mais no arranque seguinte.
-              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); setSaved(null); } }}>
+              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); setSaved(null); clearDraft(); } })}>
               <Plus aria-hidden />Nova prova
             </Button>
           </CardContent>
@@ -577,6 +605,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           <ExamSheet school={school} draft={draft} />
         </div>
       </div>
+      <Confirm state={confirm} onClose={closeConfirm} />
     </div>
   );
 }

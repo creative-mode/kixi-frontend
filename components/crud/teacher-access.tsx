@@ -9,12 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { grantTeacherAccess, revokeTeacherAccess } from '@/app/actions/crud';
 import type { Row } from '@/lib/crud/entities';
+import { Confirm, type ConfirmState } from './confirm';
 
 /** Gives a teacher a login (account with the TEACHER role) or takes it away. */
 export function TeacherAccess({ teacher, onChange }: { teacher: Row; onChange: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ username: '', email: teacher.email ?? '', password: '' });
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   async function grant(e: React.FormEvent) {
     e.preventDefault();
@@ -27,15 +29,18 @@ export function TeacherAccess({ teacher, onChange }: { teacher: Row; onChange: (
     setOpen(false);
     onChange();
   }
-  async function revoke() {
-    if (!confirm(`Retirar o acesso de ${teacher.firstName} ${teacher.lastName}?`)) return;
+  async function revoke(): Promise<boolean> {
     setBusy(true);
     const res = await revokeTeacherAccess(teacher.id);
     setBusy(false);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) { toast.error(res.error); return false; }
     toast.success('Acesso retirado');
     setOpen(false);
     onChange();
+    return true;
+  }
+  function askRevoke() {
+    setConfirm({ title: 'Retirar acesso?', description: `O professor ${teacher.firstName} ${teacher.lastName} deixa de poder entrar na plataforma.`, action: 'Retirar acesso', destructive: true, run: async () => { await revoke(); } });
   }
 
   return (
@@ -52,7 +57,7 @@ export function TeacherAccess({ teacher, onChange }: { teacher: Row; onChange: (
           {teacher.hasAccess ? (
             <div className="grid gap-3">
               <p className="text-sm">Este professor já tem acesso à plataforma.</p>
-              <Button variant="destructive" disabled={busy} onClick={revoke}>Retirar acesso</Button>
+              <Button variant="destructive" disabled={busy} onClick={askRevoke}>Retirar acesso</Button>
             </div>
           ) : (
             <form onSubmit={grant} className="grid gap-3">
@@ -64,6 +69,7 @@ export function TeacherAccess({ teacher, onChange }: { teacher: Row; onChange: (
           )}
         </DialogContent>
       </Dialog>
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </>
   );
 }

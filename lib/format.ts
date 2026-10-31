@@ -3,6 +3,39 @@ const decimal = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1, minim
 
 export const EMPTY = '—';
 
+const LUANDA = 'Africa/Luanda';
+const luandaDateTime = new Intl.DateTimeFormat('pt-PT', {
+  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: LUANDA,
+});
+
+/** Format an instant in Luanda, independent of the browser's timezone. */
+export function formatLuandaDateTime(value: string | Date | null | undefined): string {
+  if (!value) return EMPTY;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? EMPTY : luandaDateTime.format(date);
+}
+
+/** Convert an instant to the wall-clock value expected by datetime-local. */
+export function toLuandaDateTimeLocal(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: LUANDA, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+/** Interpret a datetime-local wall time as Luanda and return its ISO instant. */
+export function fromLuandaDateTimeLocal(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day, hour, minute] = match;
+  const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:00+01:00`);
+  if (Number.isNaN(date.getTime()) || toLuandaDateTimeLocal(date) !== value) return null;
+  return date.toISOString();
+}
+
 export function formatInt(value: number | null | undefined): string {
   return value == null ? EMPTY : int.format(value);
 }
