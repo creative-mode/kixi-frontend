@@ -11,6 +11,7 @@ test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enu
     '/exam-rooms/new',
     '/exam-rooms/12',
     '/tarefas',
+    '/pautas',
     '/tarefas/2251799813726180',
     '/desempenho',
     '/exam-builder',
@@ -62,4 +63,5 @@ test('isStructureEntity: a estrutura académica é só do ADMIN', async () => {
 
 test('o professor não abre uma tarefa que não é um número (a chave do Camunda)', () => {
   for (const p of ['/tarefas/abc', '/tarefas/12/outra', '/tarefas/']) assert.notEqual(teacherRoute(p), 'allow', p);
+  for (const p of ['/pautas/1', '/pautas/PT-1/editar']) assert.notEqual(teacherRoute(p), 'allow', p);
 });
