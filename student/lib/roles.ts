@@ -1,6 +1,6 @@
 // ⚠️ Espelho de lib/roles.ts (apps Next separadas, sem import partilhado).
 // Se alterares a regra de papéis aqui, altera lá também.
-export const ROLES = ['ADMIN', 'TEACHER', 'STUDENT'] as const;
+export const ROLES = ['ADMIN', 'TEACHER', 'COORDINATOR', 'STUDENT'] as const;
 
 export type Role = (typeof ROLES)[number];
 
@@ -14,7 +14,7 @@ export function hasRole(roles: readonly Role[], role: Role): boolean {
 }
 
 export function canAccessManager(roles: readonly Role[]): boolean {
-  return hasRole(roles, 'ADMIN') || hasRole(roles, 'TEACHER');
+  return hasRole(roles, 'ADMIN') || hasRole(roles, 'TEACHER') || hasRole(roles, 'COORDINATOR');
 }
 
 export function isStudentOnly(roles: readonly Role[]): boolean {
