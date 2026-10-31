@@ -32,7 +32,7 @@ function view(p: any) {
   }));
   return {
     id: p.id, classId: p.classId, className: klass?.code ?? String(p.classId), subjectId: p.subjectId, subjectName: subject?.name ?? String(p.subjectId),
-    termId: p.termId, termNumber: term?.number ?? 1, institutionId: klass?.institutionId ?? null, approved: !!p.approvedAt,
+    termId: p.termId, termNumber: term?.number ?? 1, institutionId: klass?.institutionId ?? null, approved: !!p.approvedAt, schedulingConcluded: !!p.concludedAt,
     readyForPauta: assessments.length > 0 && assessments.every((a: any) => a.status === 'GRADED' || a.status === 'DISPENSED'),
     pautaOpened: false, pautaRef: null, assessments,
   };
@@ -47,7 +47,7 @@ function viewer(auth: any) {
 }
 
 export async function termPlanRoutes({ method, path, auth, readBody }: MockContext): Promise<Response | undefined> {
-  const m = path.match(/^\/api\/v1\/term-plans(?:\/(reminders|\d+)(?:\/(?:assessments\/(\d+)(?:\/(done|dispense|reschedule))?|(approve)))?)?$/);
+  const m = path.match(/^\/api\/v1\/term-plans(?:\/(reminders|\d+)(?:\/(?:assessments\/(\d+)(?:\/(done|dispense|reschedule))?|(approve|conclude)))?)?$/);
   if (!m) return undefined;
   const who = viewer(auth);
   const can = (p: any) => who.admin || who.coordinator || who.teaches(p.classId, p.subjectId);
@@ -82,6 +82,13 @@ export async function termPlanRoutes({ method, path, auth, readBody }: MockConte
   if (!can(plan)) return problem(403, 'Not allowed to read this term plan');
   const assessment = m[2] ? plan.assessments.find((a: any) => a.id === Number(m[2])) : null;
   if (method === 'GET' && !m[2] && !m[4]) return json(200, view(plan));
+  if (m[4] === 'conclude' && method === 'POST') {
+    if (!plan.assessments.some((a: any) => a.kind === 'P1' && a.statementId) || !plan.assessments.some((a: any) => a.kind === 'P2' && a.statementId)) {
+      return problem(409, 'P1 and P2 need a statement before the scheduling is concluded');
+    }
+    plan.concludedAt = plan.concludedAt ?? new Date().toISOString();
+    return json(200, view(plan));
+  }
   if (m[4] && method === 'POST') {
     if (!who.admin && !who.coordinator) return problem(403, 'Only the coordinator of the institution approves or dispenses');
     plan.approvedAt = new Date().toISOString();
