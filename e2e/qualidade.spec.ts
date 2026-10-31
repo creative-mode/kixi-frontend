@@ -415,37 +415,61 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
   }
 
-  /** Mostra um ecrã para medir o desenho, não a lógica de passos: os três
-   *  fieldsets vêm no HTML, só um sem `hidden` de cada vez. */
-  async function revelar(page: Page, passo: number) {
-    await page.evaluate((i) => {
-      document.querySelectorAll('fieldset.dn-screen').forEach((f, j) => {
-        (f as HTMLElement).hidden = j !== i;
-      });
-    }, passo);
+  /** Avança o passo 0 com um PDF: não passa pela análise de imagem, entra limpo. */
+  async function carregarPdf(page: Page) {
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'enunciado.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF'),
+    });
+    await expect(page.getByText('enunciado.pdf')).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await expect(page.getByLabel('Instituição')).toBeVisible();
   }
 
-  /** Controlos do ecrã, sem a armadilha anti-robôs (invisível de propósito). */
-  function controlos(page: Page, passo: number) {
-    return page
-      .locator('fieldset.dn-screen')
-      .nth(passo)
-      .locator('input:not([name="website"]):not([type="hidden"]), select, textarea, button');
+  /** Preenche o passo 1 e avança para o envio. */
+  async function irParaEnvio(page: Page) {
+    await carregarPdf(page);
+    await page.getByLabel('Instituição').fill('Escola E2E');
+    await page.getByLabel('Disciplina').fill('Matemática');
+    await page.getByLabel('Tipo de prova').selectOption('Teste');
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await expect(page.getByLabel(/Tenho direito/)).toBeVisible();
   }
 
-  async function alcancaveis(page: Page, passo: number, onde: string) {
-    const els = controlos(page, passo);
+  /** Controlos do ecrã atual, sem a armadilha anti-robôs (invisível de propósito). */
+  function controlos(page: Page) {
+    return page.locator(
+      'fieldset.dn-screen:not([hidden]) input:not([name="website"]):not([type="hidden"]), ' +
+        'fieldset.dn-screen:not([hidden]) select, ' +
+        'fieldset.dn-screen:not([hidden]) textarea, ' +
+        'fieldset.dn-screen:not([hidden]) button',
+    );
+  }
+
+  async function alcancaveis(page: Page, onde: string) {
+    const els = controlos(page);
     const n = await els.count();
-    expect(n, `controlos no ecrã ${passo} em ${onde}`).toBeGreaterThan(0);
+    expect(n, `controlos em ${onde}`).toBeGreaterThan(0);
     for (let i = 0; i < n; i++) {
       const el = els.nth(i);
       await el.scrollIntoViewIfNeeded();
-      await expect(el, `controlo ${i} do ecrã ${passo} em ${onde}`).toBeVisible();
+      await expect(el, `controlo ${i} em ${onde}`).toBeVisible();
     }
     const transborda = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     );
     expect(transborda, `scroll horizontal em ${onde}`).toBe(false);
+  }
+
+  async function botaoAcimaDoBanner(page: Page, nome: string) {
+    const botao = page.getByRole('button', { name: nome, exact: true });
+    await expect(botao, nome).toBeVisible();
+    const bnn = page.locator('section.ck');
+    await expect(bnn).toBeVisible();
+    const [cta, caixa] = await Promise.all([botao.boundingBox(), bnn.boundingBox()]);
+    expect((cta?.y ?? Infinity) + (cta?.height ?? 0), `${nome} tapado`).toBeLessThanOrEqual(caixa!.y);
   }
 
   test('zoom 200%: todos os campos e botões são alcançáveis', async ({ page }) => {
@@ -456,43 +480,35 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await page.evaluate(() => {
       (document.documentElement.style as unknown as { zoom: string }).zoom = '2';
     });
-    for (const passo of [0, 1, 2]) {
-      await revelar(page, passo);
-      await alcancaveis(page, passo, 'zoom 200%');
-    }
-    // Os botões da barra vivem fora dos ecrãs: Continuar, Voltar e Doar.
-    await revelar(page, 1);
+    await alcancaveis(page, 'passo 0 em zoom 200%');
+    await botaoAcimaDoBanner(page, 'Continuar');
+    await carregarPdf(page);
+    await alcancaveis(page, 'passo 1 em zoom 200%');
     for (const nome of ['Voltar', 'Continuar']) {
       const botao = page.getByRole('button', { name: nome });
       await botao.scrollIntoViewIfNeeded();
       await expect(botao, `${nome} em zoom 200%`).toBeVisible();
     }
-    await revelar(page, 2);
-    const doar = page.getByRole('button', { name: 'Doar', exact: true });
-    await doar.scrollIntoViewIfNeeded();
-    await expect(doar, 'Doar em zoom 200%').toBeVisible();
+    await irParaEnvio(page);
+    await alcancaveis(page, 'passo 2 em zoom 200%');
+    await botaoAcimaDoBanner(page, 'Doar');
   });
 
   test('o banner nunca cobre Continuar nem Doar', async ({ page }) => {
+    // Precisa do banner compacto da #546: sem ele o botão fica por baixo.
     await page.setViewportSize({ width: 390, height: 844 });
     await semEscolha(page);
     await page.goto('/doar');
-    const bnn = page.locator('section.ck');
-    await expect(bnn).toBeVisible();
-    for (const [passo, nome] of [[0, 'Continuar'], [2, 'Doar']] as const) {
-      await revelar(page, passo);
-      const botao = page.getByRole('button', { name: nome, exact: true });
-      await expect(botao).toBeVisible();
-      const [cta, caixa] = await Promise.all([botao.boundingBox(), bnn.boundingBox()]);
-      expect((cta?.y ?? Infinity) + (cta?.height ?? 0), `${nome} tapado`).toBeLessThanOrEqual(caixa!.y);
-    }
+    await botaoAcimaDoBanner(page, 'Continuar');
+    await irParaEnvio(page);
+    await botaoAcimaDoBanner(page, 'Doar');
   });
 
   test('o texto de privacidade é visível no mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await semEscolha(page);
     await page.goto('/doar');
-    await revelar(page, 2);
+    await irParaEnvio(page);
     // Era `display: none` abaixo de 899 px: doar sem se identificar é uma
     // promessa que o telemóvel também tem de ler.
     await expect(page.getByText('Podes doar sem dizer quem és')).toBeVisible();
