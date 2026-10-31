@@ -1096,7 +1096,9 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await page.goto('/manager/statements?filtro=rever');
     const antes = Number((await page.getByRole('tab', { name: /^Para rever \(/ }).innerText()).match(/\((\d+)\)/)![1]);
-    expect(antes, 'a fila precisa de pelo menos dois enunciados por rever').toBeGreaterThanOrEqual(2);
+    // Aprova exatamente dois e deixa sempre sobras: o teste não depende de a fila ter o tamanho de uma execução limpa,
+    // por isso uma repetição (retry do CI) a seguir a uma tentativa que já aprovou alguns continua a servir.
+    expect(antes, 'a fila precisa de pelo menos três enunciados por rever').toBeGreaterThanOrEqual(3);
     const primeiro = await page.locator('tbody tr').first().getByRole('link', { name: 'Ver questões' }).getAttribute('href');
     await page.goto(`${primeiro}?rever=1`);
     await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
@@ -1124,26 +1126,33 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialogo).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Aprovar e ir para o seguinte' })).toBeVisible();
+
+    // O interruptor desliga os atalhos (WCAG 2.1.4): com eles desligados J e A não fazem nada, e a escolha fica guardada.
+    const interruptor = page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' });
+    await expect(interruptor).toBeChecked();
+    await interruptor.uncheck();
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await page.keyboard.press('j');
+    await expect(dialogo).toHaveCount(0);
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' })).not.toBeChecked();
+    await page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' }).check();
 
     // Aprovar e ir para o seguinte: abre o próximo já em revisão, com a fila uma mais curta.
+    await expect(page.getByRole('button', { name: 'Aprovar e ir para o seguinte' })).toBeVisible();
     await page.getByRole('button', { name: 'Aprovar e ir para o seguinte' }).click();
     await expect(page.getByText(`Fila de revisão: 1 de ${antes - 1}`)).toBeVisible();
     await expect(page).not.toHaveURL(new RegExp(`${primeiro}\\?rever=1$`));
     await expect(page.getByRole('heading', { name: 'Rever enunciado' })).toBeVisible();
 
-    // O último da fila já não tem «seguinte»: aprova-se e volta-se ao detalhe, sem o `?rever=1` no endereço.
-    if (antes === 2) {
-      await expect(page.getByRole('button', { name: 'Aprovar e ir para o seguinte' })).toHaveCount(0);
-      await page.getByRole('heading', { level: 1 }).click();
-      await page.keyboard.press('a');
-      await expect(dialogo).toContainText('Aprovar e publicar?');
-      await dialogo.getByRole('button', { name: 'Aprovar e publicar' }).click();
-      await expect(page.getByRole('heading', { name: 'Rever enunciado' })).toHaveCount(0);
-      await expect(page).not.toHaveURL(/rever=1/);
-      await page.goto('/manager/statements');
-      await expect(page.getByRole('tab', { name: /^Para rever \(0\)$/ })).toBeVisible();
-    }
+    // O atalho A faz o mesmo, depois de confirmar; como ainda sobram enunciados, continua a ser «e passar ao seguinte».
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await expect(dialogo).toContainText('Aprovar e passar ao seguinte?');
+    await dialogo.getByRole('button', { name: 'Aprovar e seguinte' }).click();
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes - 2}`)).toBeVisible();
   });
 
   test('verificação: os filtros têm contagens, vivem no endereço, paginam e os atalhos respeitam os campos (#535)', async ({ page }) => {

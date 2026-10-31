@@ -114,6 +114,13 @@ add('statements', {
   title: 'P2 · Física (a rever)', examType: 'P2', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
   source: 'OCR', ocrConfidence: 0.92, ocrRequestId: 'req-2', schoolYearId: sy.id, termId: 2, subjectId: 1, classId: cls.id, questions: [],
 });
+// Mais enunciados por rever, para a fila ter folga: o teste que os aprova consome dois e uma repetição (retry do CI) ainda encontra fila.
+for (let n = 3; n <= 6; n++) {
+  add('statements', {
+    title: `P${n} · Química (a rever)`, examType: 'P2', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
+    source: 'OCR', ocrConfidence: 0.9, ocrRequestId: `req-${n}`, schoolYearId: sy.id, termId: 2, subjectId: 1, classId: cls.id, questions: [],
+  });
+}
 
   const itel = add('institutions', { code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: '/manager/exam/itel.png' });
   // A escola da turma é herdada do curso (como no backend): o seed liga-os aqui.
