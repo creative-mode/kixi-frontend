@@ -6,9 +6,15 @@ import { appOrigin } from '@/lib/origin';
 export const metadata: Metadata = {
   title: 'Kixi',
   description: 'Provas, simulações e tutor para estudar com a tua turma.',
+  manifest: '/aluno/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Kixi',
+  },
   icons: [
-    { rel: 'apple-touch-icon', sizes: '180x180', url: '/student/icon/icon-192x192.png' },
-    { rel: 'icon', type: 'image/x-icon', sizes: '32x32', url: '/student/icon/icon-192x192.png' },
+    { rel: 'apple-touch-icon', sizes: '180x180', url: '/aluno/icon/icon-192x192.png' },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', url: '/aluno/icon/icon-192x192.png' },
   ],
 };
 
@@ -16,13 +22,16 @@ export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt" data-theme="light" data-reduce-motion="false" suppressHydrationWarning>
+    <html lang="pt-AO" data-theme="light" data-reduce-motion="false" suppressHydrationWarning>
       <head>
         {/* Aplica a preferência de movimento guardados antes de pintar, para não piscar. */}
         <script dangerouslySetInnerHTML={{ __html: "try{var m=localStorage.getItem('kixi-reduce-motion');if(m)document.documentElement.setAttribute('data-reduce-motion',m)}catch(e){}" }} />
       </head>
+      {/* `--ck-banner-h` (#506): enquanto o banner de cookies estiver em baixo, o fim do documento
+       *  ganha esse espaço, para que nenhuma página acabe com ações por baixo dele. */}
       <body className="pb-[var(--ck-banner-h,0px)]">
         {children}
+        {/* #219: analítica mínima, só depois deste banner ser aceite. */}
         <CookieBanner landingOrigin={appOrigin()} />
       </body>
     </html>
