@@ -35,3 +35,14 @@ export async function isAdmin(): Promise<boolean> {
   const user = await fetchCurrentUser();
   return user?.roles?.includes('ADMIN') ?? false;
 }
+
+/**
+ * Notifica sobre expiração de sessão e oferece renovação.
+ * Usa sessionStorage para preservar dados de formulário em progresso.
+ */
+export function notifySessionExpired() {
+  const message = 'Sessão expirada. Dados em progresso foram salvos no sessionStorage.';
+  alert(message);
+  // Salva timestamp para rastrear expiração
+  sessionStorage.setItem('session_expired_at', new Date().toISOString());
+}

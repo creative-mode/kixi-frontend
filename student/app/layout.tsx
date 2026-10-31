@@ -10,6 +10,7 @@ export const metadata: Metadata = {
     { rel: 'apple-touch-icon', sizes: '180x180', url: '/student/icon/icon-192x192.png' },
     { rel: 'icon', type: 'image/x-icon', sizes: '32x32', url: '/student/icon/icon-192x192.png' },
   ],
+  manifest: '/student/manifest.json',
 };
 
 export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width', initialScale: 1 };
