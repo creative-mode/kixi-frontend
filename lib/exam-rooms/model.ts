@@ -498,29 +498,37 @@ export function keyMatchCount(review: RoomReview, drafts: ScoreDrafts): number {
   return count;
 }
 
-export type ParticipantFilter = 'todos' | 'a-responder' | 'por-entrar' | 'entregaram';
+export type ParticipantFilter = 'todos' | 'a-responder' | 'na-espera' | 'por-entrar' | 'entregaram';
 
 export const PARTICIPANT_FILTERS: { value: ParticipantFilter; label: string }[] = [
   { value: 'todos', label: 'Todos' },
   { value: 'a-responder', label: 'A responder' },
+  { value: 'na-espera', label: 'Na sala de espera' },
   { value: 'por-entrar', label: 'Ainda não entraram' },
   { value: 'entregaram', label: 'Entregaram' },
 ];
 
-/** `NOT_STARTED` com hora de entrada é a sala de espera: já entrou, só falta a prova começar. */
+/**
+ * `NOT_STARTED` com hora de entrada é a sala de espera (já entrou, só falta a prova começar); sem ela, ainda não
+ * entrou. `EXPIRED` (tempo esgotado) conta como entregue: a prova foi submetida. Cada aluno cai em exatamente um
+ * filtro além de «Todos», salvo estados que o gestor não conhece.
+ */
 export function participantMatches(p: Pick<ParticipantProgress, 'status' | 'joinedAt'>, filter: ParticipantFilter): boolean {
   if (filter === 'a-responder') return p.status === 'IN_PROGRESS';
+  if (filter === 'na-espera') return p.status === 'NOT_STARTED' && !!p.joinedAt;
   if (filter === 'por-entrar') return p.status === 'NOT_STARTED' && !p.joinedAt;
-  if (filter === 'entregaram') return p.status === 'FINISHED';
+  if (filter === 'entregaram') return p.status === 'FINISHED' || p.status === 'EXPIRED';
   return true;
 }
 
 export function participantCounts(participants: Pick<ParticipantProgress, 'status' | 'joinedAt'>[]): Record<ParticipantFilter, number> {
+  const count = (filter: ParticipantFilter) => participants.filter((p) => participantMatches(p, filter)).length;
   return {
     todos: participants.length,
-    'a-responder': participants.filter((p) => participantMatches(p, 'a-responder')).length,
-    'por-entrar': participants.filter((p) => participantMatches(p, 'por-entrar')).length,
-    entregaram: participants.filter((p) => participantMatches(p, 'entregaram')).length,
+    'a-responder': count('a-responder'),
+    'na-espera': count('na-espera'),
+    'por-entrar': count('por-entrar'),
+    entregaram: count('entregaram'),
   };
 }
 
@@ -531,6 +539,7 @@ export function closeSummary(counts: Record<ParticipantFilter, number> | null): 
     return { title: 'Encerrar a sala?', description: `Quem ainda estiver a responder é submetido automaticamente com o que respondeu. ${tail}` };
   }
   const answering = counts['a-responder'];
+  const waiting = counts['na-espera'];
   const notIn = counts['por-entrar'];
   const parts: string[] = [];
   if (answering > 0) {
@@ -542,6 +551,7 @@ export function closeSummary(counts: Record<ParticipantFilter, number> | null): 
   } else {
     parts.push('Ninguém está a responder neste momento.');
   }
+  if (waiting > 0) parts.push(waiting === 1 ? '1 aluno está na sala de espera.' : `${waiting} alunos estão na sala de espera.`);
   if (notIn > 0) parts.push(notIn === 1 ? '1 aluno ainda não entrou.' : `${notIn} alunos ainda não entraram.`);
   parts.push(tail);
   return { title: answering > 0 ? `Encerrar a sala? ${answering} ainda a responder` : 'Encerrar a sala?', description: parts.join(' ') };
