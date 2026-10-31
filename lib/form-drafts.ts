@@ -27,7 +27,14 @@ export const DRAFT_TTL_MS = 12 * 60 * 60 * 1000;
 /** Um formulário maior do que isto não é trabalho normal: não se guarda para não encher a quota. */
 const MAX_DRAFT_BYTES = 512 * 1024;
 /** Campos que nunca vão para o armazenamento, mesmo que o chamador os passe por engano. */
-const SENSITIVE_KEY = /(pass(word)?|senha|token|secret|authorization|credential|api[-_]?key|cookie|jwt)/i;
+const SENSITIVE_KEY = /(^|_)(password|passwd|senha|token|secret|authorization|credential|api_key|cookie|jwt)(_|$)/i;
+
+function isSensitiveKey(key: string): boolean {
+  // Separe camelCase e hífen para apanhar `authToken`/`api-key`, sem bloquear
+  // campos legítimos como `passingScore`, `passMark` ou `compass`.
+  const normalized = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/-/g, '_');
+  return SENSITIVE_KEY.test(normalized);
+}
 
 export interface FormDraft<T> {
   v: typeof VERSION;
@@ -49,7 +56,7 @@ export function sanitizeDraft(value: unknown, depth = 0): unknown {
   if (typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      if (SENSITIVE_KEY.test(key)) continue;
+      if (isSensitiveKey(key)) continue;
       const clean = sanitizeDraft(item, depth + 1);
       if (clean !== undefined) out[key] = clean;
     }
@@ -113,6 +120,47 @@ export function loadFormDraft<T>(
     remove(storage, key);
     return null;
   }
+}
+
+function stableValue(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${stableValue(object[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+/** Restaura só se o registo base ainda for o mesmo que quando o rascunho foi criado. */
+export function loadChangedFormDraft<T>(
+  storage: DraftStorage,
+  formId: string,
+  owner: number | null,
+  baseline: T,
+): T | null {
+  const saved = loadFormDraft<{ baseline: T; values: T }>(storage, formId, owner);
+  if (!saved) return null;
+  if (stableValue(saved.baseline) !== stableValue(baseline)) {
+    clearFormDraft(storage, formId);
+    return null;
+  }
+  return saved.values;
+}
+
+/** Não cria um rascunho até haver alterações reais face ao formulário carregado. */
+export function saveChangedFormDraft<T>(
+  storage: DraftStorage,
+  formId: string,
+  values: T,
+  baseline: T,
+  owner: number | null,
+  now: number = Date.now(),
+): boolean {
+  if (stableValue(values) === stableValue(baseline)) {
+    clearFormDraft(storage, formId);
+    return false;
+  }
+  return saveFormDraft(storage, formId, { baseline, values }, owner, now);
 }
 
 export function clearFormDraft(storage: DraftStorage, formId: string): void {

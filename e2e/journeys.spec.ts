@@ -417,14 +417,10 @@ test.describe('jornadas críticas do Kixi', () => {
   });
 
   test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
-    // A recuperação não revela se a conta existe e diz com quem falar. Vem antes de
-    // entrar porque um aluno com sessão em /recuperar é mandado para o início.
+    // Sem endpoint de recuperação, a página dá instruções úteis sem simular um pedido.
     await page.goto('/aluno/recuperar');
-    await page.getByLabel('Utilizador ou email').fill('nao-existe@kixi.ao');
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    const resposta = page.getByRole('status');
-    await expect(resposta).toContainText('Se estes dados corresponderem a uma conta');
-    await expect(resposta).toContainText('professor ou com a secretaria da escola');
+    await expect(page.getByRole('note')).toContainText('Contacta o teu professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
 
     await page.goto('/aluno/prova/2');
     await expect(page).toHaveURL(/\/aluno\/entrar\?/);
@@ -448,11 +444,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page).toHaveURL(/\/manager\/classes$/);
 
     await page.goto('/manager/recuperar');
-    await page.getByLabel('Username ou email').fill('nao-existe@kixi.ao');
-    await page.getByRole('button', { name: 'Continuar' }).click();
-    const resposta = page.getByRole('status');
-    await expect(resposta).toContainText('Se estes dados corresponderem a uma conta');
-    await expect(resposta).toContainText('professor ou a secretaria da escola');
+    await expect(page.getByRole('note')).toContainText('Contacta o professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
   });
 
   test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {

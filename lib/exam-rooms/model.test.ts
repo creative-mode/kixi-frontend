@@ -7,6 +7,7 @@ import {
   formatWall,
   gradesCsv,
   gradesToSend,
+  hasFutureRoomStart,
   invalidDrafts,
   parseScore,
   luandaNowInput,
@@ -33,6 +34,13 @@ test('a hora de parede não passa pelo fuso do browser', () => {
 
 test('agora em Luanda é UTC+1', () => {
   assert.equal(luandaNowInput(new Date('2026-10-12T23:30:00Z')), '2026-10-13T00:30');
+});
+
+test('não restaura um rascunho de sala com hora de abertura passada ou inválida', () => {
+  assert.equal(hasFutureRoomStart('2026-10-12T09:00', '2026-10-12T09:00'), false);
+  assert.equal(hasFutureRoomStart('2026-10-12T08:59', '2026-10-12T09:00'), false);
+  assert.equal(hasFutureRoomStart('lixo', '2026-10-12T09:00'), false);
+  assert.equal(hasFutureRoomStart('2026-10-12T09:01', '2026-10-12T09:00'), true);
 });
 
 test('contagem decrescente', () => {

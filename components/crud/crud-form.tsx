@@ -14,7 +14,7 @@ import { createRow, getRow, listOptions, listRows, updateRow } from '@/app/actio
 import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
 import { PageHead } from './page-head';
 import { useSessionAccount } from '@/components/session-account';
-import { clearFormDraft, clearStaleFormDrafts, loadFormDraft, saveFormDraft } from '@/lib/form-drafts';
+import { clearFormDraft, clearStaleFormDrafts, loadChangedFormDraft, saveChangedFormDraft } from '@/lib/form-drafts';
 import { reportActionError } from '@/lib/notify-session-expired';
 import { FormSkeleton } from './loading';
 
@@ -56,6 +56,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const fields = useMemo(() => entity.fields.filter((f) => !(editing && f.createOnly)), [entity, editing]);
 
   const [values, setValues] = useState<Row>({});
+  const [baseline, setBaseline] = useState<Row>({});
   const [options, setOptions] = useState<Record<string, { value: number; label: string }[]>>({});
   // full rows of deriveFrom entities (to build derived payloads, e.g. year from class)
   const [lookups, setLookups] = useState<Record<string, Map<number, Row>>>({});
@@ -104,7 +105,8 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       setOptions(opts);
       // O que ficou a meio neste separador volta quando o professor regressa (sessionStorage).
       clearStaleFormDrafts(window.sessionStorage);
-      const saved = accountId === null ? null : loadFormDraft<Row>(window.sessionStorage, formId, accountId);
+      setBaseline(initial);
+      const saved = accountId === null ? null : loadChangedFormDraft<Row>(window.sessionStorage, formId, accountId, initial);
       setValues(saved && Object.keys(saved).length > 0 ? { ...initial, ...saved } : initial);
       setRestored(Boolean(saved && Object.keys(saved).length > 0));
       setLoading(false);
@@ -114,8 +116,8 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
 
   useEffect(() => {
     if (loading || accountId === null || Object.keys(values).length === 0) return;
-    saveFormDraft(window.sessionStorage, formId, values, accountId);
-  }, [accountId, formId, loading, values]);
+    saveChangedFormDraft(window.sessionStorage, formId, values, baseline, accountId);
+  }, [accountId, baseline, formId, loading, values]);
 
   const set = (name: string, v: string) => {
     setValues((s) => ({ ...s, [name]: v }));
@@ -138,7 +140,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       clearFormDraft(window.sessionStorage, formId);
       router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
       router.refresh();
-    } else reportActionError(res.error);
+    } else reportActionError(res.error, res.code);
   }
 
   return (

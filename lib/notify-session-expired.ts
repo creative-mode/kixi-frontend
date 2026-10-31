@@ -32,7 +32,7 @@ export function notifySessionExpired(): void {
 }
 
 /** Mostra o erro habitual ou, se for de sessão, o aviso persistente com a ação de entrar. */
-export function reportActionError(message: string | null | undefined): void {
-  if (isSessionExpiredError(message)) notifySessionExpired();
+export function reportActionError(message: string | null | undefined, code?: unknown): void {
+  if (isSessionExpiredError(message, code)) notifySessionExpired();
   else if (message) toast.error(message);
 }

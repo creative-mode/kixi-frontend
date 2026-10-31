@@ -14,7 +14,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { FormSkeleton } from '@/components/crud/loading';
 import { createRoom, roomContext, type RoomContext } from '@/app/actions/exam-rooms';
 import { ACTION_TIMEOUT_MS, TIMEOUT_MESSAGE, isTimeout, withDeadline } from '@/lib/timeout';
-import { draftProblem, formatWall, luandaNowInput, preselectFromStatement, statementFitsRoom, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
+import { draftProblem, formatWall, hasFutureRoomStart, luandaNowInput, preselectFromStatement, statementFitsRoom, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
 import { RoomHead } from './room-head';
 import { useSessionAccount } from '@/components/session-account';
 import { clearFormDraft, clearStaleFormDrafts, loadFormDraft, saveFormDraft } from '@/lib/form-drafts';
@@ -39,6 +39,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
   const accountId = useSessionAccount();
   const formId = `exam-room:new:${initialStatementId ?? 'livre'}`;
   const [draftReady, setDraftReady] = useState(false);
+  const [userChanged, setUserChanged] = useState(false);
   const [restored, setRestored] = useState(false);
   const [ctx, setCtx] = useState<RoomContext | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,17 +55,20 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
   useEffect(() => {
     clearStaleFormDrafts(window.sessionStorage);
     const saved = accountId === null ? null : loadFormDraft<Partial<RoomDraft>>(window.sessionStorage, formId, accountId);
-    if (saved) {
+    if (saved && saved.startsAt && hasFutureRoomStart(saved.startsAt, luandaNowInput())) {
       setDraft((d) => ({ ...d, ...saved }));
       setRestored(true);
+    } else if (saved) {
+      // Uma sala restaurada com a hora de início no passado não pode ser criada por engano.
+      clearFormDraft(window.sessionStorage, formId);
     }
     setDraftReady(true);
   }, [accountId, formId]);
 
   useEffect(() => {
-    if (!draftReady || accountId === null) return;
+    if (!draftReady || !userChanged || accountId === null) return;
     saveFormDraft(window.sessionStorage, formId, draft, accountId);
-  }, [accountId, draft, draftReady, formId]);
+  }, [accountId, draft, draftReady, formId, userChanged]);
 
   useEffect(() => {
     let alive = true;
@@ -105,6 +109,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
   const windowMinutes = (wallMinutes(draft.endsAt) ?? 0) - (wallMinutes(draft.startsAt) ?? 0);
 
   function chooseStatement(id: string) {
+    setUserChanged(true);
     const st = statements.find((s) => String(s.id) === id);
     const duration = st?.durationMinutes && st.durationMinutes > 0 ? st.durationMinutes : Number(draft.durationMinutes) || 90;
     // A janela acompanha a duração da prova, com 10 minutos para todos entrarem.
@@ -117,7 +122,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
     setSaving(true);
     const res = await createRoom(draft, inviteClass);
     setSaving(false);
-    if (!res.ok) return void reportActionError(res.error);
+    if (!res.ok) return void reportActionError(res.error, res.code);
     clearFormDraft(window.sessionStorage, formId);
     if (res.data.warning) toast.warning(res.data.warning);
     else toast.success('Sala criada. Abra-a quando a turma estiver pronta.');
@@ -157,7 +162,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
               <CardContent className="grid gap-5">
                 <div className="grid gap-2">
                   <Label htmlFor="room-class">Turma</Label>
-                  <NativeSelect id="room-class" value={draft.classId} onChange={(e) => set({ classId: e.target.value, statementId: '' })} required>
+                  <NativeSelect id="room-class" value={draft.classId} onChange={(e) => { setUserChanged(true); set({ classId: e.target.value, statementId: '' }); }} required>
                     <option value="">Escolha a turma…</option>
                     {ctx.classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </NativeSelect>
@@ -187,15 +192,15 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
               <CardContent className="grid gap-5 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="room-start">Abre às</Label>
-                  <Input id="room-start" type="datetime-local" value={draft.startsAt} onChange={(e) => set({ startsAt: e.target.value })} required />
+                  <Input id="room-start" type="datetime-local" value={draft.startsAt} onChange={(e) => { setUserChanged(true); set({ startsAt: e.target.value }); }} required />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="room-end">Fecha às</Label>
-                  <Input id="room-end" type="datetime-local" value={draft.endsAt} min={draft.startsAt} onChange={(e) => set({ endsAt: e.target.value })} required />
+                  <Input id="room-end" type="datetime-local" value={draft.endsAt} min={draft.startsAt} onChange={(e) => { setUserChanged(true); set({ endsAt: e.target.value }); }} required />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="room-duration">Duração da prova (min)</Label>
-                  <Input id="room-duration" type="number" inputMode="numeric" min={1} step={1} value={draft.durationMinutes} onChange={(e) => set({ durationMinutes: e.target.value })} required />
+                  <Input id="room-duration" type="number" inputMode="numeric" min={1} step={1} value={draft.durationMinutes} onChange={(e) => { setUserChanged(true); set({ durationMinutes: e.target.value }); }} required />
                 </div>
                 <p className="self-end text-xs text-muted-foreground sm:pb-3">
                   Hora de Luanda. Cada aluno tem a duração a partir do momento em que entra, sem passar a hora de fecho.
@@ -207,7 +212,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
               <CardHeader><CardTitle className="text-base">3 · Quem entra</CardTitle></CardHeader>
               <CardContent>
                 <label className="flex items-start gap-3 text-sm">
-                  <Checkbox checked={inviteClass} onCheckedChange={(v) => setInviteClass(v === true)} className="mt-0.5" />
+                  <Checkbox checked={inviteClass} onCheckedChange={(v) => { setUserChanged(true); setInviteClass(v === true); }} className="mt-0.5" />
                   <span>
                     <span className="font-medium">Convidar toda a turma</span>
                     <span className="block text-muted-foreground">Todos os alunos matriculados recebem a sala. Pode convidar mais tarde, no ecrã da sala.</span>

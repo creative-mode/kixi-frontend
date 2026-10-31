@@ -15,3 +15,9 @@ test('não confunde erros de permissão ou de validação com sessão expirada',
     assert.equal(isSessionExpiredError(msg), false, String(msg));
   }
 });
+
+test('prefere o código estruturado da ação à mensagem traduzida', () => {
+  assert.equal(isSessionExpiredError('Sessão expirada. Inicie sessão novamente.', 'SESSION_EXPIRED'), true);
+  assert.equal(isSessionExpiredError('Sessão expirada. Inicie sessão novamente.', 'VALIDATION'), false);
+  assert.equal(isSessionExpiredError('Erro 401 sem texto reconhecido', 'SESSION_EXPIRED'), true);
+});

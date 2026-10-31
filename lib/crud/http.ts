@@ -6,9 +6,10 @@ import { TIMEOUT_MESSAGE, isTimeout, timeoutSignal, withDeadline } from '@/lib/t
 import { friendlyMessage } from './messages';
 
 /** Result of a server action: never throws across the boundary, so the UI can show the message. */
-export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
+export type ActionErrorCode = 'SESSION_EXPIRED';
+export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string; code?: ActionErrorCode };
 export const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
-export const fail = (error: string): Result<never> => ({ ok: false, error });
+export const fail = (error: string, code?: ActionErrorCode): Result<never> => ({ ok: false, error, ...(code ? { code } : {}) });
 
 export async function message(res: Response): Promise<string> {
   return friendlyMessage(res.status, await res.text().catch(() => ''));

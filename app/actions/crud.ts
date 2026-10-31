@@ -10,10 +10,10 @@ import { friendlyMessage } from '@/lib/crud/messages';
 import { mergeCurricula } from '@/lib/exam/curriculum';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
-export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
+export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string; code?: 'SESSION_EXPIRED' };
 
 const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
-const fail = (error: string): Result<never> => ({ ok: false, error });
+const fail = (error: string, code?: 'SESSION_EXPIRED'): Result<never> => ({ ok: false, error, ...(code ? { code } : {}) });
 
 async function message(res: Response): Promise<string> {
   return friendlyMessage(res.status, await res.text().catch(() => ''));
@@ -49,7 +49,7 @@ export async function listRows(key: string, trash = false): Promise<Result<Row[]
   return guard(async () => {
     const e = entity(key);
     const res = await call(`${e.api}${trash ? '/trash' : ''}`);
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     return ok((await res.json()) as Row[]);
   });
 }
@@ -57,7 +57,7 @@ export async function listRows(key: string, trash = false): Promise<Result<Row[]
 export async function getRow(key: string, id: string | number): Promise<Result<Row>> {  return guard(async () => {
     const e = entity(key);
     const res = await call(`${e.api}/${safeId(id)}`);
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     return ok((await res.json()) as Row);
   });
 }
@@ -96,7 +96,7 @@ export async function createRow(key: string, values: Row): Promise<Result<Row>> 
     const e = entity(key);
     if (!e.canCreate) return fail('Esta entidade não pode ser criada aqui.');
     const res = await call(e.api, { method: 'POST', body: JSON.stringify(body(key, values)) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });
@@ -107,7 +107,7 @@ export async function updateRow(key: string, id: string | number, values: Row): 
     const e = entity(key);
     if (!e.canEdit) return fail('Esta entidade não pode ser editada.');
     const res = await call(`${e.api}/${safeId(id)}`, { method: 'PUT', body: JSON.stringify(body(key, values)) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });

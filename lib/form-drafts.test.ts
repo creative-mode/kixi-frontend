@@ -6,8 +6,10 @@ import {
   clearStaleFormDrafts,
   DRAFT_TTL_MS,
   formDraftKey,
+  loadChangedFormDraft,
   loadFormDraft,
   sanitizeDraft,
+  saveChangedFormDraft,
   saveFormDraft,
   type DraftStorage,
 } from './form-drafts.ts';
@@ -47,6 +49,9 @@ test('campos sensíveis e dados não serializáveis ficam de fora', () => {
     username: 'professor',
     password: 'segredo',
     passwordConfirm: 'segredo',
+    passingScore: 70,
+    passMark: 50,
+    compass: 'direção',
     authToken: 'abc',
     api_key: 'xyz',
     nested: { senha: '123', turma: '12A' },
@@ -54,9 +59,24 @@ test('campos sensíveis e dados não serializáveis ficam de fora', () => {
   });
   assert.deepEqual(limpo, {
     username: 'professor',
+    passingScore: 70,
+    passMark: 50,
+    compass: 'direção',
     nested: { turma: '12A' },
     notas: [1, 2, null],
   });
+});
+
+test('não grava formulário intocado e descarta rascunho quando o registo mudou', () => {
+  const storage = new MemoryStorage();
+  const original = { name: 'Turma A', passingScore: 70 };
+  assert.equal(saveChangedFormDraft(storage, 'crud:classes:5', original, original, 7, 1000), false);
+  assert.equal(loadFormDraft(storage, 'crud:classes:5', 7, 1000), null);
+
+  assert.equal(saveChangedFormDraft(storage, 'crud:classes:5', { ...original, name: 'Rascunho' }, original, 7, 1000), true);
+  assert.deepEqual(loadChangedFormDraft(storage, 'crud:classes:5', 7, original), { ...original, name: 'Rascunho' });
+  assert.equal(loadChangedFormDraft(storage, 'crud:classes:5', 7, { ...original, name: 'Alterada por outra pessoa' }), null);
+  assert.equal(storage.getItem(formDraftKey('crud:classes:5')), null);
 });
 
 test('limpa o rascunho depois de concluir', () => {

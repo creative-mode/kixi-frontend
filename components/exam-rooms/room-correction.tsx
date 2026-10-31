@@ -79,7 +79,7 @@ export function RoomCorrection({ roomId, onChanged }: { roomId: number; onChange
     setBusy(true);
     const res = await gradeRoom(roomId, toSend, byKey);
     setBusy(false);
-    if (!res.ok) return void reportActionError(res.error);
+    if (!res.ok) return void reportActionError(res.error, res.code);
     const { graded, byKey: viaKey, failed } = res.data;
     if (failed.length) toast.error(`${failed.length} nota(s) não foram gravadas: ${[...new Set(failed.map((f) => f.message))].join(' · ')}`);
     if (graded > 0) toast.success(viaKey > 0 ? `${graded} resposta(s) corrigida(s), ${viaKey} pela chave.` : `${graded} nota(s) gravada(s).`);

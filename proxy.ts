@@ -3,12 +3,8 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
- fix/503-recuperacao-password-regresso-destino
-import { canAccessManager, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
 import { appRelativePath, MANAGER_BASE_PATH, managerNext } from '@/lib/safe-next';
-
 import { canAccessManager, coordinatorMayOpen, isCoordinatorOnly, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
- DEV
 
 /**
  * A origem de confiança, ou null quando não há nenhuma.
@@ -58,9 +54,12 @@ function requestedPath(request: NextRequest): string {
   return `${request.nextUrl.pathname}${request.nextUrl.search}`;
 }
 
-function nextAfterLogin(request: NextRequest): string {
-  const next = managerNext(requestedPath(request));
-  return next ? appRelativePath(next, MANAGER_BASE_PATH) : '/';
+function nextAfterLogin(request: NextRequest, roles: Role[]): string {
+  const next = managerNext(request.nextUrl.searchParams.get('next'));
+  const relative = next ? appRelativePath(next, MANAGER_BASE_PATH) : '/';
+  if (isCoordinatorOnly(roles) && !coordinatorMayOpen(relative)) return '/planos';
+  if (roles.includes('TEACHER') && !roles.includes('ADMIN') && teacherRoute(relative) !== 'allow') return '/professor';
+  return relative;
 }
 
 function loginQuery(request: NextRequest, reason: string): Record<string, string> {
@@ -86,12 +85,12 @@ export async function proxy(request: NextRequest) {
 
       if (canAccessManager(roles)) {
         if (isCoordinatorOnly(roles)) {
-          return NextResponse.redirect(redirectTo('/planos', request));
+          return NextResponse.redirect(redirectTo(nextAfterLogin(request, roles), request));
         }
         if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
-          return NextResponse.redirect(redirectTo('/professor', request));
+          return NextResponse.redirect(redirectTo(nextAfterLogin(request, roles), request));
         }
-        return NextResponse.redirect(redirectTo(nextAfterLogin(request), request));
+        return NextResponse.redirect(redirectTo(nextAfterLogin(request, roles), request));
       }
 
       if (isStudentOnly(roles)) {

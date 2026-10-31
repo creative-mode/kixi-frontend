@@ -148,7 +148,7 @@ export async function createRoom(draft: RoomDraft, inviteClass: boolean): Promis
         durationMinutes: Number(draft.durationMinutes),
       }),
     });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     const room = (await res.json()) as ExamRoom;
     let warning: string | null = null;
     if (inviteClass) {
@@ -200,7 +200,7 @@ export async function roomReview(id: number): Promise<Result<RoomReview>> {
 export async function gradeRoom(id: number, grades: { answerId: number; score: number }[], byKey: boolean): Promise<Result<BulkGradeResult>> {
   return guard(async () => {
     const res = await call(`${BASE}/${safeId(id)}/grade`, { method: 'POST', body: JSON.stringify({ grades, byKey }) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath('/exam-rooms');
     return ok((await res.json()) as BulkGradeResult);
   });
