@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DoorOpen, Play, Square, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -11,12 +11,17 @@ import { DetailSkeleton } from '@/components/crud/loading';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { changeRoomStatus, getRoom, inviteRoomClass, type StatementChoice } from '@/app/actions/exam-rooms';
 import {
+  closeSummary,
   formatCountdown,
   formatWall,
   luandaNowInput,
+  PARTICIPANT_FILTERS,
   PARTICIPANT_LABEL,
+  participantCounts,
+  participantMatches,
   participantName,
   roomActions,
+  type ParticipantFilter,
   type ExamRoom,
   type RoomAction,
 } from '@/lib/exam-rooms/model';
@@ -36,9 +41,10 @@ const CONFIRM: Record<RoomAction, Omit<ConfirmState, 'run'>> = {
     description: 'Os alunos que entrarem a partir de agora começam a responder, com o tempo a contar.',
     action: 'Iniciar prova',
   },
+  // O texto do encerrar depende de quantos ainda respondem: ver `closeSummary` em `ask`.
   close: {
     title: 'Encerrar a sala?',
-    description: 'Quem ainda estiver a responder é submetido automaticamente com o que respondeu, e as notas ficam lançadas. Não dá para reabrir.',
+    description: '',
     action: 'Encerrar',
     destructive: true,
   },
@@ -50,7 +56,8 @@ export function RoomConsole({ id }: { id: number }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  /** A ação à espera de confirmação; o texto do diálogo calcula-se a cada render, para acompanhar a sala ao vivo. */
+  const [asking, setAsking] = useState<RoomAction | null>(null);
   const [now, setNow] = useState(() => luandaNowInput());
 
   const load = useCallback(async () => {
@@ -92,19 +99,24 @@ export function RoomConsole({ id }: { id: number }) {
   const title = statement?.title ?? `Enunciado ${room.statementId}`;
   const year = new Date().getFullYear();
 
-  function ask(action: RoomAction) {
-    setConfirm({
-      ...CONFIRM[action],
-      run: async () => {
-        setBusy(true);
-        const res = await changeRoomStatus(id, action);
-        setBusy(false);
-        if (!res.ok) return void toast.error(res.error);
-        toast.success(action === 'close' ? 'Sala encerrada. As notas estão abaixo.' : action === 'start' ? 'Prova iniciada.' : 'Sala aberta.');
-        setData((d) => (d ? { ...d, room: res.data } : d));
-      },
-    });
+  async function perform(action: RoomAction) {
+    setBusy(true);
+    const res = await changeRoomStatus(id, action);
+    setBusy(false);
+    if (!res.ok) return void toast.error(res.error);
+    toast.success(action === 'close' ? 'Sala encerrada. As notas estão abaixo.' : action === 'start' ? 'Prova iniciada.' : 'Sala aberta.');
+    setData((d) => (d ? { ...d, room: res.data } : d));
   }
+
+  const ask = (action: RoomAction) => setAsking(action);
+  const participants = live.snapshot?.participants;
+  const confirm: ConfirmState | null = asking
+    ? {
+        ...CONFIRM[asking],
+        ...(asking === 'close' ? closeSummary(participants ? participantCounts(participants) : null) : {}),
+        run: () => perform(asking),
+      }
+    : null;
 
   async function invite() {
     if (room.classId == null) return;
@@ -180,13 +192,16 @@ export function RoomConsole({ id }: { id: number }) {
         </div>
       ) : null}
 
-      <Confirm state={confirm} onClose={() => setConfirm(null)} />
+      <Confirm state={confirm} onClose={() => setAsking(null)} />
     </div>
   );
 }
 
 function LivePanel({ live, running }: { live: ReturnType<typeof useRoomLive>; running: boolean }) {
   const s = live.snapshot;
+  const [filter, setFilter] = useState<ParticipantFilter>('todos');
+  const counts = useMemo(() => participantCounts(s?.participants ?? []), [s]);
+  const shown = (s?.participants ?? []).filter((p) => participantMatches(p, filter));
   return (
     <section aria-labelledby="live-title" className="grid gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -204,6 +219,17 @@ function LivePanel({ live, running }: { live: ReturnType<typeof useRoomLive>; ru
         <Stat label="Progresso" value={s ? `${Math.round(s.progressPercentage)}%` : '…'} />
       </div>
 
+      {s && s.participants.length > 0 ? (
+        <div role="group" aria-label="Filtrar alunos" className="flex flex-wrap gap-2">
+          {PARTICIPANT_FILTERS.map((f) => (
+            <Button key={f.value} type="button" variant="outline" size="sm" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)}
+              className={filter === f.value ? 'border-primary bg-accent' : undefined}>
+              {f.label} ({counts[f.value]})
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           <Table>
@@ -220,8 +246,10 @@ function LivePanel({ live, running }: { live: ReturnType<typeof useRoomLive>; ru
                 <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">A receber o estado da sala…</TableCell></TableRow>
               ) : s.participants.length === 0 ? (
                 <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">Ninguém convidado. Use “Convidar turma”.</TableCell></TableRow>
+              ) : shown.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">Nenhum aluno neste filtro.</TableCell></TableRow>
               ) : (
-                s.participants.map((p) => {
+                shown.map((p) => {
                   const pct = p.totalQuestions ? Math.round((p.answeredQuestions / p.totalQuestions) * 100) : 0;
                   return (
                     <TableRow key={p.accountId}>
