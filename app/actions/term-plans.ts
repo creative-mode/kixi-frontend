@@ -118,6 +118,10 @@ export async function reschedule(planId: number, assessmentId: number, date: str
   return act(`${BASE}/${safeId(planId)}/assessments/${safeId(assessmentId)}/reschedule`, send('POST', { date, reason: reason.trim() }));
 }
 
+export async function concludeScheduling(planId: number): Promise<Result<TermPlan>> {
+  return act(`${BASE}/${safeId(planId)}/conclude`, send('POST'));
+}
+
 export async function approvePlan(planId: number): Promise<Result<TermPlan>> {
   return act(`${BASE}/${safeId(planId)}/approve`, send('POST'));
 }

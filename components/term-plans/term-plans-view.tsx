@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { approvePlan, createPlan, dispense, linkRoom, markDone, planContext, reschedule, type PlanContext, type RoomChoice } from '@/app/actions/term-plans';
+import { approvePlan, concludeScheduling, createPlan, dispense, linkRoom, markDone, planContext, reschedule, type PlanContext, type RoomChoice } from '@/app/actions/term-plans';
 import { ACTION_TIMEOUT_MS, withDeadline } from '@/lib/timeout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -189,17 +189,20 @@ function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: A
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{done}/{total} concluídas</Badge>
             {plan.approved && <Badge>Aprovado</Badge>}
-            {plan.pautaOpened ? <Badge variant="secondary">Pauta aberta</Badge> : plan.readyForPauta ? <Badge variant="secondary">Pronto para a pauta</Badge> : null}
+            {plan.pautaOpened ? <Badge variant="secondary">Pauta aberta</Badge> : plan.schedulingConcluded ? <Badge variant="secondary">Agendamento concluído</Badge> : null}
           </div>
         </div>
         <CardDescription>
-          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: acompanhe-a em Pautas.' : plan.readyForPauta ? 'Tudo corrigido ou dispensado: a pauta abre em instantes.' : 'A pauta abre quando todas as avaliações estiverem corrigidas ou dispensadas.'}
+          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? 'Agendamento concluído: a pauta abre em instantes.' : 'Ligue o enunciado da P1 e da P2 e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <ul className="flex flex-col divide-y">
           {plan.assessments.map((a) => <AssessmentRow key={a.id} plan={plan} a={a} mine={mine} ctx={ctx} act={act} />)}
         </ul>
+        {(mine || ctx.canDecide) && !plan.schedulingConcluded && !plan.pautaOpened && (
+          <div><Button onClick={() => void act(() => concludeScheduling(plan.id), 'Agendamento concluído: a pauta vai abrir.')}>Concluir o agendamento</Button></div>
+        )}
         {ctx.canDecide && !plan.approved && (
           <div><Button variant="outline" onClick={() => void act(() => approvePlan(plan.id), 'Plano aprovado.')}>Aprovar o plano</Button></div>
         )}
