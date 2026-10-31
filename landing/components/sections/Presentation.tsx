@@ -75,16 +75,23 @@ export function Presentation() {
   // 1800 ecrãs — é decidido pelo CSS com `@media (prefers-reduced-motion)`,
   // que já vale na primeira tinta; por JS chegava tarde e a página saltava.
   const [reduced, setReduced] = useState(false);
+  // Espelho para o `onScroll` (efeito de montagem, sem `reduced` nas deps): em
+  // modo reduzido o progresso não muda nada no desenho, por isso nem se mede.
+  const reducedRef = useRef(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const upd = () => setReduced(mq.matches);
+    const upd = () => {
+      reducedRef.current = mq.matches;
+      setReduced(mq.matches);
+    };
     upd();
     mq.addEventListener('change', upd);
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
+        if (reducedRef.current) return;
         const el = ref.current;
         if (!el) return;
         const r = el.getBoundingClientRect();

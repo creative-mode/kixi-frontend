@@ -129,6 +129,11 @@ a { color: inherit; }
   .pres__hero { position: static; }
   .pres__text { display: block; }
   .pres__scene { align-items: center; margin-top: clamp(28px, 7svh, 72px); }
+  /* Primeira tinta (#513): o `reduced` nasce `false` no JS, por isso o SSR pinta as
+     cenas com `opacity: 0` ainda o CSS as empilha visíveis. O `!important` ganha ao
+     estilo inline até à hidratação decidir. O `inert` fica até lá: visível mas sem
+     Tab antes do JS chegar. */
+  .pres__scene { opacity: 1 !important; transform: none !important; }
   .pres__art { height: auto; }
   .pres__art .gb, .pres__block, .pres__art .pres__art--cart { display: none; }
   .pres__art .pres__cart--flat { display: block; position: static; width: 100%; max-width: 560px; margin: clamp(28px, 7svh, 72px) auto 0; padding: 24px; background: var(--lcd-0); }
