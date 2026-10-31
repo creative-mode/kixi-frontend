@@ -311,7 +311,13 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText(/\d+\s*professor/)).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Professores' })).toBeVisible();
     await page.getByRole('tab', { name: 'Enunciados' }).click();
-    await expect(page.getByRole('tabpanel').getByRole('link').first()).toBeVisible();
+    // #494: o enunciado da escola abre o detalhe, como no catálogo, e não a sala.
+    await page.getByRole('tabpanel').getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+\/detalhe/);
+    await expect(page.getByRole('heading', { name: 'Como é esta prova' })).toBeVisible();
+    // E o «Voltar» do detalhe leva às provas, de onde se abre o catálogo.
+    await page.getByRole('link', { name: 'Voltar às provas' }).click();
+    await expect(page).toHaveURL(/\/aluno\/provas/);
   });
 
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
