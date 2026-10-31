@@ -407,3 +407,125 @@ test.describe('404 da landing (#544)', () => {
     });
   });
 });
+
+/** O CTA de registo da landing (#512): antes o 1.º ecrã só tinha "Entrar" e o
+ *  "Começar a estudar" morava ~18 ecrãs abaixo, com a barra de scroll escondida. */
+test.describe('CTA de registo da landing (#512)', () => {
+  const FRASE = 'Estuda o que vai mesmo sair';
+
+  async function semEscolha(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  /** O clique no CTA sai da landing para /aluno: um array em memória morria com
+   *  a página, por isso o stub manda cada chamada `gtag` por sendBeacon para
+   *  uma rota que o teste intercepta. */
+  async function apanharCta(page: Page) {
+    const eventos: unknown[][] = [];
+    await page.route('**/__cta-teste', async (route) => {
+      eventos.push(route.request().postDataJSON() as unknown[]);
+      await route.fulfill({ status: 200, body: 'ok' });
+    });
+    await page.addInitScript(() => {
+      (window as unknown as { gtag?: unknown }).gtag = (...args: unknown[]) => {
+        void navigator.sendBeacon('/__cta-teste', JSON.stringify(args));
+      };
+    });
+    return eventos;
+  }
+
+  test('telemóvel 360x640: Criar conta e Entrar visíveis sem scroll', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await semEscolha(page);
+    await page.goto('/');
+    const cabecalho = page.locator('header.site-header');
+    const criar = cabecalho.getByRole('link', { name: 'Criar conta' });
+    await expect(criar).toBeInViewport();
+    await expect(criar).toHaveAttribute('href', '/aluno/cadastro');
+    await expect(cabecalho.getByRole('link', { name: 'Entrar' })).toBeInViewport();
+  });
+
+  test('portátil 1366x768: registo, âncoras e herói com valor e saída', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await semEscolha(page);
+    await page.goto('/');
+    const cabecalho = page.locator('header.site-header');
+    await expect(cabecalho.getByRole('link', { name: 'Criar conta' })).toBeInViewport();
+    const solucao = cabecalho.getByRole('link', { name: 'Solução' });
+    await expect(solucao).toBeVisible();
+    await expect(solucao).toHaveAttribute('href', '#solucao');
+    await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+    await expect(page.getByText(FRASE)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Saltar a apresentação' })).toBeVisible();
+  });
+
+  test('saltar a apresentação a rato', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
+    await expect(page).toHaveURL(/#modulos/);
+    await expect(page.locator('#modulos h2')).toBeInViewport();
+  });
+
+  test('saltar a apresentação a teclado', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/');
+    const salto = page.getByRole('link', { name: 'Saltar a apresentação' });
+    await salto.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#modulos/);
+    await expect(page.locator('#modulos h2')).toBeInViewport();
+  });
+
+  test.describe('no telemóvel', () => {
+    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+    test('saltar a apresentação ao toque', async ({ page }) => {
+      await semEscolha(page);
+      await page.goto('/');
+      await page.getByRole('link', { name: 'Saltar a apresentação' }).tap();
+      await expect(page).toHaveURL(/#modulos/);
+      await expect(page.locator('#modulos h2')).toBeInViewport();
+    });
+  });
+
+  test.describe('movimento reduzido', () => {
+    // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('herói com valor e salto, sem animação', async ({ page }) => {
+      await semEscolha(page);
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+      await expect(page.getByText(FRASE)).toBeVisible();
+      await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
+      await expect(page).toHaveURL(/#modulos/);
+    });
+  });
+
+  test('o clique regista a origem: header, outro e faq', async ({ page }) => {
+    await semEscolha(page);
+    const eventos = await apanharCta(page);
+    await page.goto('/');
+
+    await page.locator('header.site-header').getByRole('link', { name: 'Criar conta' }).click();
+    await expect.poll(() => eventos.length, 'clique no header').toBe(1);
+    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header' }]);
+    await page.goBack();
+
+    // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
+    await expect(outro).toBeVisible();
+    await outro.click();
+    await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
+    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro' }]);
+    await page.goBack();
+
+    const faq = page.locator('#perguntas').getByRole('link', { name: 'Começar a estudar' });
+    await faq.scrollIntoViewIfNeeded();
+    await faq.click();
+    await expect.poll(() => eventos.length, 'clique no faq').toBe(3);
+    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq' }]);
+  });
+});

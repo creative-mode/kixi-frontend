@@ -10,7 +10,9 @@ export default function Loading() {
           <span className="site-header__nav" aria-hidden="true">
             <i className="lp-sk" style={{ width: 64, height: 14 }} /><i className="lp-sk" style={{ width: 80, height: 14 }} /><i className="lp-sk" style={{ width: 56, height: 14 }} />
           </span>
-          <i className="lp-sk site-header__cta" style={{ width: 88, height: 40 }} aria-hidden="true" />
+          <span className="site-header__actions" aria-hidden="true">
+            <i className="lp-sk" style={{ width: 104, height: 36 }} /><i className="lp-sk" style={{ width: 72, height: 36 }} />
+          </span>
         </div>
       </header>
       <main role="status" aria-label="A carregar">
