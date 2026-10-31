@@ -407,3 +407,96 @@ test.describe('404 da landing (#544)', () => {
     });
   });
 });
+
+/** Foco, setas e movimento reduzido na apresentação (#513): o CTA do fim era
+ *  focável invisível, as setas estavam sequestradas e o modo parado chegava
+ *  depois da hidratação, com a página a saltar de 1800 ecrãs para uma lista. */
+test.describe('foco e movimento da apresentação (#513)', () => {
+  async function semEscolha(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  test('o CTA do fim só é focável quando está visível', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/');
+    // Por DOM e não por papel: apagada (`aria-hidden` + `inert`), a cena sai da
+    // árvore de acessibilidade — que é exatamente o que se quer provar.
+    const outro = page.locator('#solucao').locator('a', { hasText: 'Começar a estudar' });
+    // No topo a cena do fim está apagada: focar é pedir e não receber.
+    const noTopo = await outro.evaluate((el) => {
+      (el as HTMLElement).focus();
+      return document.activeElement === el;
+    });
+    expect(noTopo, 'CTA invisível não recebe foco').toBe(false);
+    // No fim da história a cena acende e o botão entra no Tab.
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
+    await expect(cenaOutro, 'a cena do fim acende').toHaveAttribute('aria-hidden', 'false', { timeout: 15000 });
+    await expect(outro).toBeVisible();
+    const noFim = await outro.evaluate((el) => {
+      (el as HTMLElement).focus();
+      return document.activeElement === el;
+    });
+    expect(noFim, 'CTA visível recebe foco').toBe(true);
+  });
+
+  test('as setas mantêm o passo nativo', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const antes = await page.evaluate(() => window.scrollY);
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(400);
+    const delta = (await page.evaluate(() => window.scrollY)) - antes;
+    expect(delta, 'a seta desce').toBeGreaterThan(0);
+    // O passo nativo anda cerca de uma linha; o sequestro andava meio ecrã.
+    expect(delta, 'passo nativo, não meio ecrã').toBeLessThan(200);
+  });
+
+  test.describe('movimento reduzido', () => {
+    // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('sem salto de layout e sem os 1800 ecrãs', async ({ page }) => {
+      await page.addInitScript(() => {
+        (window as unknown as { __cls?: number }).__cls = 0;
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            const e = entry as unknown as { hadRecentInput?: boolean; value?: number };
+            if (!e.hadRecentInput) (window as unknown as { __cls?: number }).__cls! += e.value ?? 0;
+          }
+        }).observe({ type: 'layout-shift', buffered: true });
+      });
+      await semEscolha(page);
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      await page.evaluate(() => document.fonts.ready);
+      // O `reduced` só existe depois da hidratação: sem ele as cenas continuam
+      // `aria-hidden` e a árvore de acessibilidade vem vazia.
+      const secao = page.locator('#solucao');
+      await expect
+        .poll(() => secao.locator('[aria-hidden="false"]').count(), { message: 'hidratação do modo reduzido', timeout: 30000 })
+        .toBeGreaterThan(0);
+      await page.waitForTimeout(2000);
+      // A apresentação nasce compacta: herói, cenas empilhadas e cartucho parado.
+      const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
+      const ecra = await page.evaluate(() => window.innerHeight);
+      expect(altura, 'sem os 1800 ecrãs').toBeLessThan(8 * ecra);
+      await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible();
+      // O colapso de 1800 ecrãs para lista pontuava muito acima de 1; a troca
+      // de webfont (`font-display: swap`, decisão de produto) mexe ~0.1 e não
+      // é o salto que este teste vigia.
+      const cls = await page.evaluate(() => (window as unknown as { __cls?: number }).__cls ?? 0);
+      expect(cls, 'sem salto de layout').toBeLessThan(0.15);
+      // Duas instâncias do cartucho no DOM (a animada escondida e a parada
+      // visível), zero ids repetidos: com ids fixos o `url(#…)` resolvia para a
+      // escondida e a visível perdia hachuras e filtro.
+      const ids = await page.evaluate(() => {
+        const todos = [...document.querySelectorAll('[id^="kx-"]')].map((el) => el.id);
+        return { total: todos.length, unicos: new Set(todos).size };
+      });
+      expect(ids.total, 'há cartuchos com ids').toBeGreaterThan(0);
+      expect(ids.unicos, 'ids repetidos no SVG').toBe(ids.total);
+    });
+  });
+});
