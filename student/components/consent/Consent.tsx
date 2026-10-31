@@ -52,11 +52,14 @@ function stopAnalytics() {
 
 /** O banner de cookies. Aceitar liga a analítica, "só necessários" não pede nada a terceiros.
  *  `landingOrigin` vem do servidor (APP_ORIGIN): sem ele, "Saber mais" não tem onde apontar
- *  — a página de cookies vive só na landing — e fica de fora em vez de ligar a um 404. */
+ *  — a página de cookies vive só na landing — e fica de fora em vez de ligar a um 404.
+ *  Compacto em ecrã estreito (#545): frase curta em largura total e os dois botões do
+ *  mesmo peso por baixo, sem cortar texto — o consentimento tem de ser informado. */
 export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }) {
   const [choice, setChoice] = useState<Consent | null | undefined>(undefined);
   const banner = useRef<HTMLElement>(null);
-  const focusedBefore = useRef<HTMLElement | null>(null);
+  /** Onde o foco estava antes do banner aparecer: a escolha e o Esc devolvem-no lá. */
+  const antes = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const sync = () => setChoice(readConsent());
@@ -90,17 +93,39 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
   }, [choice]);
 
   // Quem chega ouve o pedido de consentimento, e ao fechar o foco volta para onde estava (#506).
+  // Quem já está a escrever (o entrar tem autoFocus no campo do utilizador) não é
+  // interrompido: o banner fica só no fluxo do Tab (#545).
   useEffect(() => {
     if (choice !== null) return;
-    focusedBefore.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const atual = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    antes.current = atual;
+    if (
+      atual instanceof HTMLInputElement ||
+      atual instanceof HTMLTextAreaElement ||
+      atual instanceof HTMLSelectElement
+    ) {
+      return;
+    }
     banner.current?.focus();
     return () => {
-      const before = focusedBefore.current;
-      if (before?.isConnected) before.focus();
+      const before = antes.current;
+      if (before && before !== document.body && before.isConnected) before.focus();
     };
   }, [choice]);
 
   if (choice !== null) return null;
+
+  /** O banner não é modal: ninguém fica preso nele. Sem destino válido (o caso
+   *  normal é o body, que não é focável), tirar o foco do banner chega à página. */
+  const devolverFoco = () => {
+    const alvo = antes.current;
+    if (alvo && alvo !== document.body && document.contains(alvo)) alvo.focus();
+    else banner.current?.blur();
+  };
+  const escolher = (c: Consent) => {
+    writeConsent(c);
+    devolverFoco();
+  };
 
   return (
     <section
@@ -110,14 +135,16 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
       aria-describedby="ck-desc"
       aria-modal="false"
       tabIndex={-1}
-      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background p-4 shadow-lg outline-none sm:p-6"
+      onKeyDown={(e) => e.key === 'Escape' && devolverFoco()}
+      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background shadow-lg"
     >
-      <div className="mx-auto flex max-w-3xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-muted-foreground">
+      {/* Texto em largura total e botões por baixo: sem corte, lê-se tudo (#545).
+          O "necessário para funcionar" fica só na página de cookies. */}
+      <div className="mx-auto flex max-w-3xl flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:gap-3 sm:px-6 sm:py-4">
+        <div className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground sm:text-sm">
           <h2 id="ck-title" className="text-sm font-semibold text-foreground">Cookies</h2>
           <p id="ck-desc">
-            Usamos o necessário para o site funcionar. Com a tua permissão, usamos também estatísticas
-            anónimas para melhorar o Kixi.
+            Só usamos estatísticas anónimas para melhorar o Kixi se aceitares.
             {landingOrigin && (
               <>
                 {' '}
@@ -126,12 +153,14 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
             )}
           </p>
         </div>
-        {/* As duas escolhas com o mesmo peso visual e a mesma largura (#506): recusar não é mais difícil do que aceitar. */}
-        <div className="flex w-full shrink-0 gap-2 sm:w-auto">
-          <Button type="button" variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => writeConsent('necessary')}>
+        {/* Mesmo peso visual nos dois (também #506): a escolha é do aluno, não empurrada.
+            No telemóvel os botões são h-9: o h-11 de omissão não cabia nos 12% com o
+            texto por cima. */}
+        <div className="flex shrink-0 gap-2">
+          <Button type="button" variant="secondary" size="sm" className="h-9 flex-1 sm:flex-none" onClick={() => escolher('necessary')}>
             Só necessários
           </Button>
-          <Button type="button" variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => writeConsent('all')}>
+          <Button type="button" variant="secondary" size="sm" className="h-9 flex-1 sm:flex-none" onClick={() => escolher('all')}>
             Aceitar
           </Button>
         </div>
