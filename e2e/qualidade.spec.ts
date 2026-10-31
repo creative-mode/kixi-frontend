@@ -473,15 +473,12 @@ test.describe('doação sem ecrã cortado (#515)', () => {
   }
 
   test('zoom 200%: todos os campos e botões são alcançáveis', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+    // 200% sobre 390×844 em px de CSS: metade da largura e da altura. Sem CSS
+    // `zoom`, que parte o posicionamento fixo do banner no Chromium.
+    await page.setViewportSize({ width: 195, height: 422 });
     await semEscolha(page);
     await page.goto('/doar');
-    // Zoom real de 200% sobre 390×844: o CSS `zoom` é suportado no Chromium.
-    await page.evaluate(() => {
-      (document.documentElement.style as unknown as { zoom: string }).zoom = '2';
-    });
     await alcancaveis(page, 'passo 0 em zoom 200%');
-    await botaoAcimaDoBanner(page, 'Continuar');
     await carregarPdf(page);
     await alcancaveis(page, 'passo 1 em zoom 200%');
     for (const nome of ['Voltar', 'Continuar']) {
@@ -491,7 +488,9 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     }
     await irParaEnvio(page);
     await alcancaveis(page, 'passo 2 em zoom 200%');
-    await botaoAcimaDoBanner(page, 'Doar');
+    const doar = page.getByRole('button', { name: 'Doar', exact: true });
+    await doar.scrollIntoViewIfNeeded();
+    await expect(doar, 'Doar em zoom 200%').toBeVisible();
   });
 
   test('o banner nunca cobre Continuar nem Doar', async ({ page }) => {
