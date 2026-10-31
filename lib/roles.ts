@@ -23,7 +23,7 @@ export function isCoordinatorOnly(roles: readonly Role[]): boolean {
 }
 
 export function coordinatorMayOpen(pathname: string): boolean {
-  return pathname === '/planos' || pathname === '/pautas';
+  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao';
 }
 
 export function isStudentOnly(roles: readonly Role[]): boolean {

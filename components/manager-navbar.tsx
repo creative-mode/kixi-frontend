@@ -12,6 +12,7 @@ import {
   ChevronRight,
   FilePen,
   ClipboardCheck,
+  Building2,
   CalendarCheck,
   FileSpreadsheet,
   DoorOpen,
@@ -59,6 +60,13 @@ const allNavLinks = [
     label: "Plano do trimestre",
     description: "P1, P2 e avaliações de MAC, com datas e lembretes",
     icon: CalendarCheck,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/coordenacao",
+    label: "Salas da instituição",
+    description: "Acompanhar as provas e as notas da instituição (só leitura)",
+    icon: Building2,
     color: "bg-accent text-primary",
   },
   {
@@ -118,6 +126,8 @@ const allNavLinks = [
 
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
+// O coordenador só vê o plano, as pautas e as salas da instituição (o proxy fecha o resto: `coordinatorMayOpen`).
+const COORDINATOR_HREFS = ["/planos", "/pautas", "/coordenacao"];
 const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink = {
@@ -141,7 +151,10 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const isAdmin = roles.includes("ADMIN");
   const isTeacher = roles.includes("TEACHER");
-  const navLinks = isTeacher && !isAdmin
+  const coordinatorOnly = roles.includes("COORDINATOR") && !isAdmin && !isTeacher;
+  const navLinks = coordinatorOnly
+    ? allNavLinks.filter((l) => COORDINATOR_HREFS.includes(l.href))
+    : isTeacher && !isAdmin
     ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
     : allNavLinks;
   const pathname = usePathname();
