@@ -12,36 +12,11 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { createRow, getRow, listOptions, listRows, updateRow } from '@/app/actions/crud';
 import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
+import { errorSummary, fieldError, validate, type FieldErrors } from '@/lib/crud/validation';
 import { PageHead } from './page-head';
 import { FormSkeleton } from './loading';
 
-type Errors = Record<string, string>;
-
-function validate(fields: Field[], values: Row): Errors {
-  const errors: Errors = {};
-  for (const f of fields) {
-    const v = values[f.name];
-    const empty = v === undefined || v === null || String(v).trim() === '';
-    if (f.required && empty) {
-      errors[f.name] = 'Campo obrigatório';
-      continue;
-    }
-    if (empty) continue;
-    const s = String(v).trim();
-    if (f.type === 'number') {
-      const n = Number(s);
-      if (!Number.isFinite(n) || !Number.isInteger(n)) errors[f.name] = 'Introduza um número inteiro';
-      else if (f.min != null && n < f.min) errors[f.name] = `Mínimo ${f.min}`;
-      else if (f.max != null && n > f.max) errors[f.name] = `Máximo ${f.max}`;
-    } else if (f.type === 'email') {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) errors[f.name] = 'Email inválido';
-    } else if (f.type !== 'select') {
-      if (f.min != null && s.length < f.min) errors[f.name] = `Mínimo ${f.min} caracteres`;
-      if (f.max != null && s.length > f.max) errors[f.name] = `Máximo ${f.max} caracteres`;
-    }
-  }
-  return errors;
-}
+const blankValues = (fields: Field[]): Row => Object.fromEntries(fields.map((f) => [f.name, '']));
 
 /** Generic create/edit form built from the entity's field list. */
 export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string }) {
@@ -54,7 +29,9 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const [options, setOptions] = useState<Record<string, { value: number; label: string }[]>>({});
   // full rows of deriveFrom entities (to build derived payloads, e.g. year from class)
   const [lookups, setLookups] = useState<Record<string, Map<number, Row>>>({});
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<FieldErrors>({});
+  /** Só depois de um envio inválido: o resumo não aparece enquanto o utilizador ainda está a preencher. */
+  const [attempted, setAttempted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -92,7 +69,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
         initial = entity.toForm ? entity.toForm(res.data) : res.data;
         setTitle(entity.titleOf(res.data));
       } else {
-        for (const f of entity.fields) initial[f.name] = '';
+        initial = blankValues(entity.fields);
       }
       if (!alive) return;
       setOptions(opts);
@@ -107,23 +84,45 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
     if (errors[name]) setErrors((e) => ({ ...e, [name]: '' }));
   };
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  /** Ao sair do campo diz-se logo o que está mal, em vez de deixar tudo para o envio. */
+  const checkOnBlur = (f: Field) => setErrors((e) => ({ ...e, [f.name]: fieldError(f, values[f.name]) }));
+
+  const firstField = fields.find((f) => f.type !== 'image');
+  const focusField = (name: string | undefined) => { if (name) document.getElementById(name)?.focus(); };
+  const summary = attempted ? errorSummary(fields, errors) : null;
+
+  async function save(another: boolean) {
     const errs = validate(fields, values);
     setErrors(errs);
-    if (Object.values(errs).some(Boolean)) return;
+    const invalid = errorSummary(fields, errs);
+    setAttempted(invalid !== null);
+    if (invalid) return focusField(invalid.first);
     setSaving(true);
     const payload = entity.toPayload ? entity.toPayload(values, lookups) : values;
     const res = editing ? await updateRow(entityKey, id!, payload) : await createRow(entityKey, payload);
     setSaving(false);
     if (res.ok) {
       toast.success(editing ? `${entity.singular} ${gender(entity, 'atualizado')}` : `${entity.singular} ${gender(entity, 'criado')}`);
+      if (another) {
+        // Fica no formulário: limpo, sem erros e com o foco no primeiro campo, pronto para o registo seguinte.
+        setValues(blankValues(entity.fields));
+        setErrors({});
+        setAttempted(false);
+        router.refresh();
+        requestAnimationFrame(() => focusField(firstField?.name));
+        return;
+      }
       // Uma escola nova ainda está vazia: leva direto ao assistente de estrutura (cursos, turmas, professores).
       const createdId = !editing && entityKey === 'institutions' ? Number((res.data as Row | undefined)?.id) : NaN;
       router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
       router.refresh();
     } else toast.error(res.error);
   }
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void save(false);
+  };
 
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-8">
@@ -140,11 +139,14 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
           ) : loadError && editing && Object.keys(values).length === 0 ? (
             <p className="py-8 text-center text-sm text-destructive">{loadError}</p>
           ) : (
-            <form onSubmit={onSubmit} className="space-y-5" noValidate>
+            <form onSubmit={onSubmit} className="space-y-5" noValidate aria-busy={saving}>
               {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
+              {summary ? <p role="alert" className="rounded-md border border-destructive/40 bg-danger-soft px-3 py-2 text-sm text-destructive">{summary.text}</p> : null}
               {fields.map((f) => {
                 const err = errors[f.name];
-                const common = { id: f.name, name: f.name, 'aria-invalid': !!err, disabled: saving } as const;
+                const hintId = f.hint ? `${f.name}-dica` : undefined;
+                const describedBy = err ? `${f.name}-erro` : hintId;
+                const common = { id: f.name, name: f.name, 'aria-invalid': !!err, 'aria-describedby': describedBy, disabled: saving, onBlur: () => checkOnBlur(f) } as const;
                 return (
                   <div key={f.name} className="space-y-1.5">
                     <Label htmlFor={f.name}>
@@ -169,19 +171,24 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
                       <Input
                         {...common}
                         type={f.type === 'number' ? 'number' : f.type === 'datetime' ? 'datetime-local' : f.type}
-                        inputMode={f.type === 'number' ? 'numeric' : undefined}
+                        inputMode={f.type === 'number' ? (f.step !== undefined && !Number.isInteger(f.step) ? 'decimal' : 'numeric') : undefined}
+                        step={f.type === 'number' ? (f.step ?? 1) : undefined}
+                        min={f.type === 'number' ? f.min : undefined}
+                        max={f.type === 'number' ? f.max : undefined}
                         autoComplete={f.type === 'password' ? 'new-password' : 'off'}
                         value={values[f.name] ?? ''}
                         onChange={(e) => set(f.name, e.target.value)}
                         placeholder={f.placeholder}
                       />
                     )}
-                    {err ? <p className="text-xs text-destructive">{err}</p> : f.hint ? <p className="text-xs text-muted-foreground">{f.hint}</p> : null}
+                    {err ? <p id={`${f.name}-erro`} className="text-xs text-destructive">{err}</p> : f.hint ? <p id={hintId} className="text-xs text-muted-foreground">{f.hint}</p> : null}
                   </div>
                 );
               })}
-              <div className="flex justify-end gap-3 pt-2">
+              {/* O rato não tira o foco ao campo: senão o blur insere o erro, o botão desce e o clique perde-se. */}
+              <div className="flex justify-end gap-3 pt-2" onMouseDown={(e) => e.preventDefault()}>
                 <Button type="button" variant="outline" onClick={() => router.push(`/${entity.path}`)} disabled={saving}>Cancelar</Button>
+                {!editing ? <Button type="button" variant="outline" onClick={() => void save(true)} disabled={saving}>Guardar e criar outro</Button> : null}
                 <Button type="submit" disabled={saving}>{saving ? 'A guardar…' : editing ? 'Guardar alterações' : `Criar ${entity.singular.toLowerCase()}`}</Button>
               </div>
             </form>

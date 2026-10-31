@@ -1049,6 +1049,45 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
 
+  test('gestor: o formulário valida ao sair do campo e permite guardar e criar outro (#533)', async ({ page }) => {
+    const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/subjects/new');
+    const code = page.locator('#code');
+    const name = page.locator('#name');
+
+    // Ao sair de um campo obrigatório vazio o erro aparece ligado a ele.
+    await code.focus();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#code-erro')).toHaveText('Campo obrigatório');
+    await expect(code).toHaveAttribute('aria-invalid', 'true');
+    await expect(code).toHaveAccessibleDescription('Campo obrigatório');
+    await expect(page.locator('#name-erro')).toHaveCount(0);
+
+    // Um envio inválido resume o que falta e põe o foco no primeiro campo com erro.
+    // O clique tem de chegar ao botão mesmo com o foco num campo vazio.
+    await name.focus();
+    await page.getByRole('button', { name: /^Criar/ }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveText('Há 2 campos por corrigir: Código, Nome.');
+    await expect(code).toBeFocused();
+
+    // Guardar e criar outro: cria, limpa o formulário e deixa o foco no primeiro campo.
+    await code.fill(`S${id}`);
+    await name.fill(`Disciplina ${id}`);
+    await page.getByRole('button', { name: 'Guardar e criar outro' }).click();
+    await expect(page.getByText(/criada/).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/manager\/subjects\/new$/);
+    await expect(code).toHaveValue('');
+    await expect(name).toHaveValue('');
+    await expect(code).toBeFocused();
+    await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveCount(0);
+    await expect(page.locator('[id$="-erro"]')).toHaveCount(0);
+
+    // A disciplina criada está na lista.
+    await page.goto('/manager/subjects');
+    await expect(page.getByText(`S${id}`)).toBeVisible();
+  });
+
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
     // Reproduz a #240: dois `TabsContent` com o mesmo `value` montam-se os dois, e
     // o aluno lê a mesma prova como se a tivesse feito duas vezes. Compila, passa o
