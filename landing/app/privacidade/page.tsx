@@ -5,6 +5,9 @@ import { CONTACT_EMAIL } from '@/lib/content';
 const TITLE = 'Privacidade · Kixi';
 const DESCRIPTION = 'Que dados do Kixi recolhemos, porquê, por quanto tempo os guardamos e como exerces os teus direitos.';
 
+/** Cache partilhada (#522): HTML público igual para toda a gente. */
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
