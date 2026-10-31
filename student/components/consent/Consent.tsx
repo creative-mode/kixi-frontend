@@ -144,7 +144,10 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
         <div className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground sm:text-sm">
           <h2 id="ck-title" className="text-sm font-semibold text-foreground sr-only sm:not-sr-only">Cookies</h2>
           <p id="ck-desc">
-            Só usamos estatísticas anónimas para melhorar o Kixi se aceitares.
+            {/* Título visível só no telemóvel (o h2 chega aí escondido): sem ele o
+                diálogo não tinha rótulo à vista. Escondido da árvore, que já ouve o h2. */}
+            <strong aria-hidden="true" className="sm:hidden">Cookies.</strong> Só usamos estatísticas
+            anónimas para melhorar o Kixi se aceitares.
             {landingOrigin && (
               <>
                 {' '}
