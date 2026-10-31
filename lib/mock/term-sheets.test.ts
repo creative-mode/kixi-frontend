@@ -1,14 +1,14 @@
 // O mock das pautas segue o contrato de kixi#506:  node --test lib/mock/term-sheets.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTermSheets, canReadSheet, ownSheets, statisticsOf, summaryOf, visibleSheets, type MockWorld, type Viewer } from './term-sheets.ts';
+import { buildTermSheets, canReadSheet, lookupSheet, ownSheets, statisticsOf, summaryOf, visibleSheets, type MockWorld, type Viewer } from './term-sheets.ts';
 
 const year = { startYear: 2025, endYear: 2026 };
 const world: MockWorld = {
   classes: [
-    { id: 1, code: '12B', grade: 12, course: { code: 'TISM' }, schoolYear: year },
-    { id: 2, code: '11A', grade: 11, course: { code: 'TISM' }, schoolYear: year },
-    { id: 3, code: '10A', grade: 10, course: { code: 'TISM' }, schoolYear: year },
+    { id: 1, code: '12B', grade: 12, course: { code: 'TISM', name: 'Técnico de Informática e Sistemas Multimédia' }, schoolYear: year },
+    { id: 2, code: '11A', grade: 11, course: { code: 'TISM', name: 'Técnico de Informática e Sistemas Multimédia' }, schoolYear: year },
+    { id: 3, code: '10A', grade: 10, course: { code: 'TISM', name: 'Técnico de Informática e Sistemas Multimédia' }, schoolYear: year },
   ],
   subjects: [{ id: 1, code: 'RED', name: 'Redes' }, { id: 2, code: 'SO', name: 'Sistemas Operativos' }, { id: 4, code: 'OGI', name: 'Organização' }],
   studentAccountId: 3, studentName: 'Abner Ede',
@@ -55,7 +55,7 @@ test('a MT é a média das três componentes e o estado vem dela', () => {
   assert.ok(sheets.some((s) => s.rows.some((r) => r.status === 'NEGATIVA')), 'o mock tem de mostrar uma negativa');
 });
 
-test('o ADMIN vê todas as pautas', () => assert.equal(visibleSheets(admin, sheets).length, sheets.length));
+test('o ADMIN vê todas as pautas, menos as anuladas', () => assert.equal(visibleSheets(admin, sheets).length, sheets.filter((s) => s.status !== 'ANULADA').length));
 
 test('o professor só vê a turma e a disciplina que lecciona', () => {
   const dela = visibleSheets(helena, sheets);
@@ -75,4 +75,30 @@ test('o aluno vê só a sua linha, só de pautas fechadas e só da sua turma', (
   assert.ok(!minhas.some((m) => m.termNumber === 3 && m.subjectCode === 'RED'), 'a registada não aparece');
   for (const m of minhas) assert.deepEqual(Object.keys(m.row).sort(), ['mac', 'mt', 'p1', 'p2', 'status']);
   assert.deepEqual(ownSheets(helena, sheets), []);
+});
+
+test('o curso é o nome do curso e a classe é o número (12)', () => {
+  for (const s of sheets) {
+    assert.equal(s.course, 'Técnico de Informática e Sistemas Multimédia');
+    assert.ok(Number.isInteger(s.grade) && s.grade >= 10 && s.grade <= 12);
+  }
+});
+
+test('uma pauta anulada existe no mock mas nunca aparece a ninguém', () => {
+  const anulada = sheets.find((s) => s.status === 'ANULADA');
+  assert.ok(anulada, 'o mock tem de ter uma anulada para o provar');
+  for (const v of [admin, helena]) assert.ok(!visibleSheets(v, sheets).some((s) => s.status === 'ANULADA'));
+  assert.ok(!ownSheets(aluno, sheets).some((m) => m.sheetId === anulada.sheetId));
+  assert.deepEqual(lookupSheet(admin, sheets, anulada.sheetId), { status: 404 });
+});
+
+test('o detalhe: o professor recebe 403 numa pauta alheia e numa que não existe; o administrador 404 numa que não existe', () => {
+  const alheia = sheets.find((s) => s.classId === 2)!.sheetId;
+  const propria = sheets.find((s) => s.classId === 1 && s.subjectId === 1 && s.status === 'FECHADA')!;
+  assert.deepEqual(lookupSheet(helena, sheets, alheia), { status: 403 });
+  assert.deepEqual(lookupSheet(helena, sheets, 'PT-NAO-EXISTE'), { status: 403 });
+  assert.deepEqual(lookupSheet(admin, sheets, 'PT-NAO-EXISTE'), { status: 404 });
+  assert.deepEqual(lookupSheet(admin, sheets, alheia), { sheet: sheets.find((s) => s.sheetId === alheia) });
+  assert.deepEqual(lookupSheet(helena, sheets, propria.sheetId), { sheet: propria });
+  assert.deepEqual(lookupSheet(aluno, sheets, propria.sheetId), { status: 403 });
 });

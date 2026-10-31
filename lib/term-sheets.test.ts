@@ -1,7 +1,7 @@
 // Regras de apresentação das pautas:  node --test lib/term-sheets.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyFilters, filterOptions, formatGrade, isNegative, NO_FILTERS, sheetTitle, SEM_NOTA, wasAbsent } from './term-sheets.ts';
+import { applyFilters, filterOptions, formatGrade, isNegative, isUnavailableStatus, NO_FILTERS, parseDetail, sheetTitle, SEM_NOTA, wasAbsent } from './term-sheets.ts';
 
 const sheet = (over: Record<string, unknown>) => ({
   sheetId: 'PT-1', status: 'FECHADA', termNumber: 1, schoolYear: '2025/2026', classId: 1, className: 'M', grade: 12, course: 'SI',
@@ -52,4 +52,22 @@ test('os filtros combinam-se e a ordem é ano, trimestre, disciplina', () => {
 
 test('o título da pauta diz disciplina, turma e trimestre', () => {
   assert.equal(sheetTitle(sheet({})), 'Redes · 12.ª M · 1.º trimestre');
+});
+
+test('o detalhe do backend vem aninhado ({ sheet, rows }) e junta-se numa só pauta', () => {
+  const rows = [{ accountId: 1, number: 1, name: 'Ana', mac: 15, p1: 20, p2: 20, mt: 18, status: 'POSITIVA', adjusted: false }];
+  const d = parseDetail({ sheet: sheet({ sheetId: 'PT-9' }), rows });
+  assert.equal(d.sheetId, 'PT-9');
+  assert.equal(d.statistics.media, 13);
+  assert.deepEqual(d.rows, rows);
+});
+
+test('um detalhe sem a forma {sheet, rows} é recusado', () => {
+  for (const body of [null, {}, { sheet: sheet({}) }, { rows: [] }, { ...(sheet({}) as object), rows: [] }, 'x']) assert.throws(() => parseDetail(body), /inválida/);
+});
+
+test('403 e 404 da pauta são o mesmo caso para o ecrã; o resto não', () => {
+  assert.equal(isUnavailableStatus(403), true);
+  assert.equal(isUnavailableStatus(404), true);
+  for (const s of [200, 401, 500]) assert.equal(isUnavailableStatus(s), false);
 });
