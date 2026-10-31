@@ -28,6 +28,7 @@ export interface TermPlan {
   termNumber: number;
   institutionId: number | null;
   approved: boolean;
+  schedulingConcluded: boolean;
   readyForPauta: boolean;
   pautaOpened: boolean;
   pautaRef: string | null;
