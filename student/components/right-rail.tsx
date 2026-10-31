@@ -4,9 +4,8 @@ import { Mastery } from '@/components/mastery';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { phaseOf, sortInvitations, type Invitation } from '@/lib/exam-room-rules';
-import { parseServerTime } from '@/lib/exam-rules';
 import { levelProgress } from '@/lib/gamification-rules';
+import { upcomingInvitations } from '@/lib/home-rules';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { formatAverage } from '@/lib/ranking-rules';
 import type { SocialData } from '@/lib/social';
@@ -27,22 +26,6 @@ function Module({ title, href, linkLabel = 'Ver tudo', children }: { title: stri
 
 const Empty = ({ children }: { children: React.ReactNode }) => <p className="text-[14px] text-muted-foreground">{children}</p>;
 
-function upcoming(invitations: Invitation[]) {
-  return sortInvitations(invitations)
-    .filter((inv) => ['scheduled', 'lobby', 'live'].includes(phaseOf(inv)))
-    .slice(0, 3)
-    .map((inv) => {
-      const when = new Date(parseServerTime(inv.startsAt));
-      return {
-        key: inv.roomId,
-        day: String(when.getDate()),
-        month: when.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', ''),
-        title: inv.statementTitle ?? 'Sala de prova',
-        meta: `${when.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })} · ${inv.durationMinutes} min`,
-      };
-    });
-}
-
 /**
  * A coluna da direita, global e curta: o progresso do aluno, próximas provas, o que rever, a turma e os amigos.
  * O que já tem ecrã próprio (medalhas, atividade, disciplinas, escolas) fica nesse ecrã. Tudo vem de `loadSocial`, lido uma vez no layout.
@@ -51,7 +34,7 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
   const { stats } = data;
   const name = fullName(me) || 'Aluno';
   const context = contextLine(me);
-  const soon = upcoming(data.invitations.ok ? data.invitations.data : []);
+  const soon = upcomingInvitations(data.invitations.ok ? data.invitations.data : []);
   const review = data.performance.mastery.slice(0, 4);
 
   return (

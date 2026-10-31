@@ -12,6 +12,11 @@ let nextAssessment = 1;
 const today = () => new Date().toISOString().slice(0, 10);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
+/** A sala está ligada a uma avaliação de um plano do trimestre: a correção é da IA no fluxo, não do professor (kixi#542). */
+export function isPlanRoom(roomId: number): boolean {
+  return plans.some((p) => p.assessments.some((a: any) => a.roomId === roomId));
+}
+
 function status(a: any) {
   if (a.dispensedAt) return 'DISPENSED';
   if (a.roomId) {
@@ -32,7 +37,7 @@ function view(p: any) {
   }));
   return {
     id: p.id, classId: p.classId, className: klass?.code ?? String(p.classId), subjectId: p.subjectId, subjectName: subject?.name ?? String(p.subjectId),
-    termId: p.termId, termNumber: term?.number ?? 1, institutionId: klass?.institutionId ?? null, approved: !!p.approvedAt,
+    termId: p.termId, termNumber: term?.number ?? 1, institutionId: klass?.institutionId ?? null, approved: !!p.approvedAt, schedulingConcluded: !!p.concludedAt,
     readyForPauta: assessments.length > 0 && assessments.every((a: any) => a.status === 'GRADED' || a.status === 'DISPENSED'),
     pautaOpened: false, pautaRef: null, assessments,
   };
@@ -47,7 +52,7 @@ function viewer(auth: any) {
 }
 
 export async function termPlanRoutes({ method, path, auth, readBody }: MockContext): Promise<Response | undefined> {
-  const m = path.match(/^\/api\/v1\/term-plans(?:\/(reminders|\d+)(?:\/(?:assessments\/(\d+)(?:\/(done|dispense))?|(approve)))?)?$/);
+  const m = path.match(/^\/api\/v1\/term-plans(?:\/(reminders|\d+)(?:\/(?:assessments\/(\d+)(?:\/(done|dispense|reschedule))?|(approve|conclude)))?)?$/);
   if (!m) return undefined;
   const who = viewer(auth);
   const can = (p: any) => who.admin || who.coordinator || who.teaches(p.classId, p.subjectId);
@@ -82,13 +87,29 @@ export async function termPlanRoutes({ method, path, auth, readBody }: MockConte
   if (!can(plan)) return problem(403, 'Not allowed to read this term plan');
   const assessment = m[2] ? plan.assessments.find((a: any) => a.id === Number(m[2])) : null;
   if (method === 'GET' && !m[2] && !m[4]) return json(200, view(plan));
+  if (m[4] === 'conclude' && method === 'POST') {
+    if (!plan.assessments.some((a: any) => a.kind === 'P1' && a.statementId) || !plan.assessments.some((a: any) => a.kind === 'P2' && a.statementId)) {
+      return problem(409, 'P1 and P2 need a statement before the scheduling is concluded');
+    }
+    plan.concludedAt = plan.concludedAt ?? new Date().toISOString();
+    return json(200, view(plan));
+  }
   if (m[4] && method === 'POST') {
     if (!who.admin && !who.coordinator) return problem(403, 'Only the coordinator of the institution approves or dispenses');
     plan.approvedAt = new Date().toISOString();
     return json(200, view(plan));
   }
+  if (assessment && m[3] === 'reschedule' && method === 'POST') {
+    if (!who.admin && !who.coordinator) return problem(403, 'Only the coordinator of the institution approves or dispenses');
+    const b = readBody();
+    if (assessment.kind === 'MAC') return problem(400, 'Only P1 and P2 can be rescheduled');
+    if (!String(b.reason ?? '').trim()) return problem(400, 'A reason is required to reschedule an assessment');
+    Object.assign(assessment, { plannedDate: b.date, statementId: null, roomId: null, manualDone: false, dispensedAt: null, dispensedReason: null });
+    return json(200, view(plan));
+  }
   if (assessment && m[3] === 'dispense' && method === 'POST') {
     if (!who.admin && !who.coordinator) return problem(403, 'Only the coordinator of the institution approves or dispenses');
+    if (assessment.kind !== 'MAC') return problem(409, 'P1 and P2 cannot be dispensed: reschedule them');
     const reason = String(readBody().reason ?? '').trim();
     if (!reason) return problem(400, 'A reason is required to dispense an assessment');
     assessment.dispensedAt = new Date().toISOString();

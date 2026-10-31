@@ -112,6 +112,16 @@ export async function dispense(planId: number, assessmentId: number, reason: str
   return act(`${BASE}/${safeId(planId)}/assessments/${safeId(assessmentId)}/dispense`, send('POST', { reason: reason.trim() }));
 }
 
+export async function reschedule(planId: number, assessmentId: number, date: string, reason: string): Promise<Result<TermPlan>> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail('Escolha a nova data.');
+  if (!reason.trim()) return fail('Diga o motivo.');
+  return act(`${BASE}/${safeId(planId)}/assessments/${safeId(assessmentId)}/reschedule`, send('POST', { date, reason: reason.trim() }));
+}
+
+export async function concludeScheduling(planId: number): Promise<Result<TermPlan>> {
+  return act(`${BASE}/${safeId(planId)}/conclude`, send('POST'));
+}
+
 export async function approvePlan(planId: number): Promise<Result<TermPlan>> {
   return act(`${BASE}/${safeId(planId)}/approve`, send('POST'));
 }

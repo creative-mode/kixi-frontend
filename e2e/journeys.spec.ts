@@ -311,7 +311,13 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText(/\d+\s*professor/)).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Professores' })).toBeVisible();
     await page.getByRole('tab', { name: 'Enunciados' }).click();
-    await expect(page.getByRole('tabpanel').getByRole('link').first()).toBeVisible();
+    // #494: o enunciado da escola abre o detalhe, como no catálogo, e não a sala.
+    await page.getByRole('tabpanel').getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+\/detalhe/);
+    await expect(page.getByRole('heading', { name: 'Como é esta prova' })).toBeVisible();
+    // E o «Voltar» do detalhe leva às provas, de onde se abre o catálogo.
+    await page.getByRole('link', { name: 'Voltar às provas' }).click();
+    await expect(page).toHaveURL(/\/aluno\/provas/);
   });
 
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
@@ -831,6 +837,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const originalViewport = page.viewportSize() ?? { width: 1280, height: 900 };
     for (const width of [375, 390, 430, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
+      // Abaixo de `lg` a folha só se vê na vista «Pré-visualizar» (#537).
+      if (width < 1024) await page.getByRole('group', { name: 'Vista do construtor' }).getByRole('button', { name: 'Pré-visualizar' }).click();
       const geometry = await brace.evaluate((element) => {
         const braceRect = element.getBoundingClientRect();
         const list = element.parentElement?.querySelector('ol');
@@ -1214,6 +1222,76 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByRole('tab', { name: /^Decididas \(/ })).toHaveAttribute('aria-selected', 'true');
     await expect(linhas).toHaveCount(decididas - 10);
     await expect(page.getByRole('button', { name: /^Ignorar/ })).toHaveCount(0);
+  });
+
+  test('construtor: o motivo dos botões desativados é texto e há Editar/Pré-visualizar no tablet (#537)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder');
+    const guardar = page.getByRole('button', { name: 'Guardar', exact: true });
+    const resumo = page.locator('#construtor-pendencias');
+
+    // O motivo é texto visível e fica ligado ao botão, em vez de viver só num `title`.
+    await expect(resumo).toContainText('Para guardar faltam:');
+    await expect(guardar).toBeDisabled();
+    await expect(guardar).toHaveAccessibleDescription(/Para guardar faltam/);
+    await expect(guardar).not.toHaveAttribute('title', /.+/);
+
+    // Em ecrã largo a folha está ao lado e o alternador não existe.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.getByRole('group', { name: 'Vista do construtor' })).toBeHidden();
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+
+    // Abaixo de `lg` mostra-se uma vista de cada vez, e a impressão continua a ter a folha.
+    await page.setViewportSize({ width: 768, height: 1024 });
+    const vista = page.getByRole('group', { name: 'Vista do construtor' });
+    await expect(vista).toBeVisible();
+    await expect(page.getByLabel('Título')).toBeVisible();
+    await expect(page.locator('#exam-sheet')).toBeHidden();
+    await vista.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(vista.getByRole('button', { name: 'Pré-visualizar' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+    await expect(page.getByLabel('Título')).toBeHidden();
+    await vista.getByRole('button', { name: 'Editar' }).click();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+    await page.emulateMedia({ media: 'screen' });
+
+    // Com a prova pronta o resumo desaparece e o botão deixa de ter descrição.
+    await escolherOpcao(page.getByLabel('Disciplina'));
+    await escolherOpcao(page.getByLabel(/^Turma/));
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    await expect(resumo).toHaveCount(0);
+    await expect(guardar).toBeEnabled();
+  });
+
+  test('construtor: o aviso de prova guardada vê-se na vista Pré-visualizar e cada botão lê só o seu motivo (#537)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto('/manager/exam-builder');
+    const guardar = page.getByRole('button', { name: 'Guardar', exact: true });
+    const publicar = page.getByRole('button', { name: 'Publicar', exact: true });
+    await escolherOpcao(page.getByLabel('Disciplina'));
+    await escolherOpcao(page.getByLabel(/^Turma/));
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+
+    // Falta a cotação: dá para guardar, e «Guardar» não lê o problema que só trava «Publicar».
+    await expect(guardar).toBeEnabled();
+    await expect(guardar).toHaveAccessibleDescription('');
+    await expect(publicar).toBeDisabled();
+    await expect(publicar).toHaveAccessibleDescription(/Para publicar, corrija 1 ponto/);
+
+    // Guarda-se na vista Pré-visualizar: o aviso tem de se ver e ouvir mesmo com o painel Editar escondido.
+    const vista = page.getByRole('group', { name: 'Vista do construtor' });
+    await vista.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(page.getByLabel('Título')).toBeHidden();
+    await guardar.click();
+    await expect(page.getByRole('status').filter({ hasText: 'Prova guardada' })).toBeVisible();
+
+    // Já guardada, sem alterações: os botões dizem porque estão desativados.
+    await expect(guardar).toBeDisabled();
+    await expect(page.locator('#construtor-estado')).toContainText('já está guardada');
+    await expect(guardar).toHaveAccessibleDescription(/já está guardada/);
   });
 
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
