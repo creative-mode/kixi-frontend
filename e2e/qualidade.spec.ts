@@ -351,6 +351,52 @@ test.describe('auditoria de UX do aluno', () => {
   });
 });
 
+/** O início no telemóvel (#493): a coluna da direita só existe a partir de `lg`,
+ *  por isso o progresso e os atalhos passam a ter um cartão próprio em baixo. */
+test.describe('progresso do aluno no telemóvel (#493)', () => {
+  test.describe('a 375 px', () => {
+    test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+
+    test('mostra nível, XP, streak, para rever e próximas provas sem abrir o perfil', async ({ page }) => {
+      await alunoLogin(page);
+      await page.goto('/aluno/inicio');
+
+      const cartao = page.getByTestId('mobile-progresso');
+      await expect(cartao).toBeVisible();
+      await expect(cartao.getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
+      await expect(cartao.getByText('Nível 1')).toBeVisible();
+      await expect(cartao.getByText('120 XP no total')).toBeVisible();
+      await expect(cartao.getByText(/1 dia de sequência/)).toBeVisible();
+      await expect(page.locator('aside[aria-label="Destaques"]')).toBeHidden();
+
+      // As secções nascem recolhidas; abrir «Para rever» mostra o tema e o tutor.
+      const rever = page.getByTestId('mobile-para-rever');
+      await expect(rever).toBeVisible();
+      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeHidden();
+      await rever.locator('summary').click();
+      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeVisible();
+
+      const proximas = page.getByTestId('mobile-proximas-provas');
+      await expect(proximas).toBeVisible();
+      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeHidden();
+      await proximas.locator('summary').click();
+      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeVisible();
+
+      const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      expect(transborda, 'scroll horizontal no início do telemóvel').toBe(false);
+    });
+  });
+
+  test('em ecrã grande só a coluna da direita mostra o progresso', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await alunoLogin(page);
+    await page.goto('/aluno/inicio');
+    await expect(page.getByTestId('mobile-progresso')).toBeHidden();
+    await expect(page.locator('aside[aria-label="Destaques"]')).toBeVisible();
+    await expect(page.locator('aside[aria-label="Destaques"]').getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
+  });
+});
+
 /** O 404 da landing (#544): endereço partido devolve "Esta página não existe" em
  *  português, na marca do site, com saída clara - e o banner de cookies nunca por
  *  cima de nada. Antes era o 404 de omissão do Next: inglês, sem marca, sem saída. */
