@@ -12,7 +12,7 @@ export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt" data-theme="light" data-reduce-motion="false" suppressHydrationWarning>
+    <html lang="pt-AO" data-theme="light" data-reduce-motion="false" suppressHydrationWarning>
       <head>
         {/* Aplica a preferência de movimento guardados antes de pintar, para não piscar. */}
         <script dangerouslySetInnerHTML={{ __html: "try{var m=localStorage.getItem('kixi-reduce-motion');if(m)document.documentElement.setAttribute('data-reduce-motion',m)}catch(e){}" }} />

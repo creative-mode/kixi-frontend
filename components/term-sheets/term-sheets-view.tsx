@@ -75,7 +75,7 @@ export function TermSheetsView() {
       {all && all.length > 0 ? (
         <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Filtrar pautas" onSubmit={(e) => e.preventDefault()}>
           <div className="grid gap-1.5">
-            <Label htmlFor="f-ano">Ano lectivo</Label>
+            <Label htmlFor="f-ano">Ano letivo</Label>
             <NativeSelect id="f-ano" value={filters.schoolYear} onChange={set('schoolYear')}>
               <option value="">Todos</option>
               {options.schoolYears.map((y) => <option key={y} value={y}>{y}</option>)}

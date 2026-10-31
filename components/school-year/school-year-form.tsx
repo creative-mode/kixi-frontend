@@ -57,7 +57,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
         if (user) {
           setIsReady(true);
         } else {
-          toast.error('Você precisa estar logado para realizar esta ação.');
+          toast.error('É necessário iniciar sessão para realizar esta ação.');
           router.push('/login');
         }
       } catch (error) {
@@ -113,7 +113,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
       }, 1000);
     } else {
       setError();
-      toast.error(result.error || 'Erro ao salvar ano letivo.');
+      toast.error(result.error || 'Erro ao guardar o ano letivo.');
     }
   };
 
@@ -145,9 +145,9 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
         columns={1}
         gap="md"
         submitText={initialData ? 'Atualizar Ano Letivo' : 'Adicionar Ano Letivo'}
-        loadingText={initialData ? 'Atualizando...' : 'Adicionando...'}
+        loadingText={initialData ? 'A atualizar...' : 'A adicionar...'}
         successMessage={initialData ? 'Ano letivo atualizado!' : 'Ano letivo adicionado!'}
-        errorMessage="Erro ao salvar ano letivo."
+        errorMessage="Erro ao guardar o ano letivo."
         validationMode="inline-reaction"
         validateDebounce={300}
         inputBorderRadius="md"
