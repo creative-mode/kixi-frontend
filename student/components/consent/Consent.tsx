@@ -142,7 +142,7 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
           O "necessário para funcionar" fica só na página de cookies. */}
       <div className="mx-auto flex max-w-3xl flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:gap-3 sm:px-6 sm:py-4">
         <div className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground sm:text-sm">
-          <h2 id="ck-title" className="text-sm font-semibold text-foreground">Cookies</h2>
+          <h2 id="ck-title" className="text-sm font-semibold text-foreground sr-only sm:not-sr-only">Cookies</h2>
           <p id="ck-desc">
             Só usamos estatísticas anónimas para melhorar o Kixi se aceitares.
             {landingOrigin && (
