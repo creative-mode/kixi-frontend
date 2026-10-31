@@ -269,9 +269,45 @@ export function examRooms(w: RoomWorld) {
     );
   }
 
+  /**
+   * As respostas abertas da sala por questão (`GET /exam-rooms/{id}/review`). Numa sala de um plano a correção é da IA: as
+   * respostas por corrigir esperam por ela e as corrigidas trazem a nota, o nível e a observação, só para leitura.
+   */
+  function review(id: number, caller: number, admin: boolean, planLinked: boolean): Outcome<any> {
+    const r = room(id);
+    if (!r || !(admin || r.teacherAccountId === caller)) return no(403, 'Only the room owner or ADMIN can view it');
+    const statement = db.statements.find((s: any) => s.id === r.statementId);
+    const sims = new Map<number, any>(participantsOf(id).filter((p: any) => p.simulationId).map((p: any) => [p.simulationId, p]));
+    const answers = db['simulation-answers'].filter((a: any) => !a.deletedAt && sims.has(a.simulationId));
+    let pending = 0;
+    let graded = 0;
+    let aiGraded = 0;
+    const questions: any[] = [];
+    for (const q of (statement?.questions ?? []).filter((x: any) => !x.deletedAt)) {
+      const rows = answers.filter((a: any) => a.questionId === q.id && ['PENDING_REVIEW', 'GRADED', 'AI_GRADED'].includes(a.reviewStatus));
+      if (rows.length === 0) continue;
+      for (const a of rows) {
+        if (a.reviewStatus === 'PENDING_REVIEW') pending += 1;
+        else if (a.reviewStatus === 'AI_GRADED') aiGraded += 1;
+        else graded += 1;
+      }
+      questions.push({
+        questionId: q.id, number: q.number ?? null, label: q.label ?? null, parentId: q.parentId ?? null, text: q.text,
+        maxScore: q.maxScore ?? null, modelAnswer: q.modelAnswer ?? null,
+        answers: rows.map((a: any) => ({
+          answerId: a.id, accountId: sims.get(a.simulationId).accountId, displayName: null, answerText: a.answerText ?? null,
+          status: a.reviewStatus, scoreObtained: a.reviewStatus === 'PENDING_REVIEW' ? null : (a.scoreObtained ?? null),
+          aiFeedback: a.aiFeedback ?? null, aiLevel: a.aiLevel ?? null, aiConfidence: a.aiConfidence ?? null,
+        })),
+      });
+    }
+    return ok({ questions, pending, graded, aiGraded, planLinked });
+  }
+
   return {
     create,
     addParticipant,
+    review,
     transition,
     join,
     live,

@@ -18,6 +18,8 @@ const fmt = (n: number | null, digits = 1) =>
 export function RoomResults({ roomId, title, totalMaxScore }: { roomId: number; title: string; totalMaxScore: number | null }) {
   const [grades, setGrades] = useState<Grade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** A sala é de um plano do trimestre: a correção é da IA, não do professor. */
+  const [planLinked, setPlanLinked] = useState(false);
   const max = totalMaxScore && totalMaxScore > 0 ? totalMaxScore : 20;
 
   const load = useCallback(async () => {
@@ -71,11 +73,12 @@ export function RoomResults({ roomId, title, totalMaxScore }: { roomId: number; 
 
       {summary && summary.pendingReview > 0 ? (
         <p role="status" className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
-          {summary.pendingReview === 1 ? '1 aluno tem' : `${summary.pendingReview} alunos têm`} respostas abertas por corrigir: a nota final ainda pode subir.
+          {summary.pendingReview === 1 ? '1 aluno tem' : `${summary.pendingReview} alunos têm`}{' '}
+          {planLinked ? 'respostas abertas a aguardar a correção automática da IA: a nota final ainda pode subir.' : 'respostas abertas por corrigir: a nota final ainda pode subir.'}
         </p>
       ) : null}
 
-      {summary && summary.graded > 0 ? <RoomCorrection roomId={roomId} onChanged={() => void load()} /> : null}
+      {summary && summary.graded > 0 ? <RoomCorrection roomId={roomId} onChanged={() => void load()} onPlanLinked={setPlanLinked} /> : null}
 
       {summary && summary.graded > 0 ? (
         <Card>
