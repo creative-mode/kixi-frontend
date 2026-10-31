@@ -12,6 +12,7 @@ import {
   ChevronRight,
   FilePen,
   ClipboardCheck,
+  CalendarCheck,
   FileSpreadsheet,
   DoorOpen,
   TrendingUp,
@@ -51,6 +52,13 @@ const allNavLinks = [
     label: "Tarefas das pautas",
     description: "Correcções, validações e reclamações por fazer",
     icon: ClipboardCheck,
+    color: "bg-accent text-primary",
+  },
+  {
+    href: "/planos",
+    label: "Plano do trimestre",
+    description: "P1, P2 e avaliações de MAC, com datas e lembretes",
+    icon: CalendarCheck,
     color: "bg-accent text-primary",
   },
   {
@@ -110,7 +118,7 @@ const allNavLinks = [
 
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
-const TEACHER_HREFS = ["/desempenho", "/tarefas", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink = {
   href: "/professor",

@@ -1,7 +1,7 @@
 // Testes das rotas do professor no gestor:  node --test lib/roles.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { teacherRoute } from './roles.ts';
+import { coordinatorMayOpen, isCoordinatorOnly, normalizeRoles, canAccessManager, teacherRoute } from './roles.ts';
 
 test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enunciado', () => {
   for (const p of [
@@ -12,6 +12,7 @@ test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enu
     '/exam-rooms/12',
     '/tarefas',
     '/pautas',
+    '/planos',
     '/tarefas/2251799813726180',
     '/desempenho',
     '/exam-builder',
@@ -64,4 +65,17 @@ test('isStructureEntity: a estrutura académica é só do ADMIN', async () => {
 test('o professor não abre uma tarefa que não é um número (a chave do Camunda)', () => {
   for (const p of ['/tarefas/abc', '/tarefas/12/outra', '/tarefas/']) assert.notEqual(teacherRoute(p), 'allow', p);
   for (const p of ['/pautas/1', '/pautas/PT-1/editar']) assert.notEqual(teacherRoute(p), 'allow', p);
+});
+
+test('o coordenador entra no gestor e só abre o plano e as pautas', () => {
+  const roles = normalizeRoles(['COORDINATOR']);
+  assert.deepEqual(roles, ['COORDINATOR']);
+  assert.equal(canAccessManager(roles), true);
+  assert.equal(isCoordinatorOnly(roles), true);
+  assert.equal(isCoordinatorOnly(normalizeRoles(['COORDINATOR', 'TEACHER'])), false);
+  assert.equal(isCoordinatorOnly(normalizeRoles(['ADMIN', 'COORDINATOR'])), false);
+  assert.equal(coordinatorMayOpen('/planos'), true);
+  assert.equal(coordinatorMayOpen('/pautas'), true);
+  assert.equal(coordinatorMayOpen('/exam-rooms'), false);
+  assert.equal(coordinatorMayOpen('/accounts'), false);
 });

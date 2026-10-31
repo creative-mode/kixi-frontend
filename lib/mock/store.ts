@@ -270,7 +270,9 @@ export function authorize(auth: any, method: string, path: string) {
   if (/^\/api\/v1\/subjects\/[^/]+\/offerings$/.test(path)) return has('ADMIN') ? 200 : 403;
   if (/^\/api\/v1\/donations(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   // kixi#506: as pautas lêem-se por papel (o âmbito de cada uma decide-o o handler); o aluno só pelo seu `/me`.
-  if (/^\/api\/v1\/term-sheets(\/|$)/.test(path)) return has('ADMIN', 'TEACHER') ? 200 : 403;
+  if (/^\/api\/v1\/term-sheets(\/|$)/.test(path)) return has('ADMIN', 'TEACHER', 'COORDINATOR') ? 200 : 403;
+  // kixi#523: o plano do trimestre é do professor, do coordenador e do administrador; o handler decide o que cada um faz.
+  if (/^\/api\/v1\/term-plans(\/|$)/.test(path)) return has('ADMIN', 'TEACHER', 'COORDINATOR') ? 200 : 403;
   if (path === '/api/v1/me/term-sheets') return has('STUDENT') ? 200 : 403;
   // Como no backend: a lista de atribuições é de ADMIN; o `/me` é o único
   // ponto que um professor pode ler.
