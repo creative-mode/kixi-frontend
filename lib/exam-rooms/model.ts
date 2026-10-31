@@ -401,8 +401,13 @@ export interface ReviewAnswer {
   accountId: number;
   displayName: string | null;
   answerText: string | null;
-  status: 'PENDING_REVIEW' | 'GRADED';
+  /** `AI_GRADED`: corrigida pela IA no fluxo do motor (provas de um plano do trimestre), só para leitura. */
+  status: 'PENDING_REVIEW' | 'GRADED' | 'AI_GRADED';
   scoreObtained: number | null;
+  /** Só nas respostas corrigidas pela IA. */
+  aiFeedback?: string | null;
+  aiLevel?: 'TOTAL' | 'PARCIAL' | 'MINIMA' | 'NULA' | null;
+  aiConfidence?: number | null;
 }
 
 /** Uma questão aberta da sala, com a chave (resposta modelo) e as respostas dos alunos. */
@@ -421,6 +426,22 @@ export interface RoomReview {
   questions: ReviewQuestion[];
   pending: number;
   graded: number;
+  /** Respostas corrigidas pela IA (salas de um plano). */
+  aiGraded?: number;
+  /** A sala é de uma avaliação de um plano do trimestre: a correção é da IA no fluxo e o professor só lê. */
+  planLinked?: boolean;
+}
+
+export const AI_LEVEL_LABEL: Record<string, string> = {
+  TOTAL: 'Resposta completa',
+  PARCIAL: 'Resposta parcial',
+  MINIMA: 'Resposta mínima',
+  NULA: 'Sem pontuação',
+};
+
+/** O que o professor lê numa resposta de uma sala de plano: corrigida pela IA, ou ainda à espera dela. */
+export function aiStateLabel(answer: Pick<ReviewAnswer, 'status'>): string {
+  return answer.status === 'PENDING_REVIEW' ? 'A aguardar correção automática' : 'Corrigida pela IA';
 }
 
 export interface BulkGradeResult {
