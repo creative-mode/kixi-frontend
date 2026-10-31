@@ -2,7 +2,6 @@
 
 import { TechifyUIProvider } from '@techify/ui'
 import type React from 'react'
-import { useServiceWorker } from '@/hooks/use-service-worker'
 
 const UI_CONFIG = {
     loading: { mode: 'blur', showText: false },
@@ -20,9 +19,6 @@ const UI_CONFIG = {
 } as const
 
 export function Providers({ children }: { children: React.ReactNode }) {
-    // Register service worker for PWA
-    useServiceWorker()
-
     return (
         <TechifyUIProvider
             config={UI_CONFIG}
@@ -31,4 +27,3 @@ export function Providers({ children }: { children: React.ReactNode }) {
         </TechifyUIProvider>
     )
 }
-
