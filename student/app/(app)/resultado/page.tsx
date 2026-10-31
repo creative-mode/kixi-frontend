@@ -16,7 +16,7 @@ import { getResultView } from '@/lib/result';
 import { getCommunityStats } from '@/lib/community';
 import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
-import { ACorrigir } from '@/components/a-corrigir';
+import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
 import { listInvitations } from '@/lib/exam-room';
 import { comCorrecao, eSimulacaoLivre } from '@/lib/schoolops/correcao-rules';
 import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
@@ -30,6 +30,7 @@ import {
   formatScore,
   givenAnswers,
   inOrder,
+  observation,
   optionTag,
   verdict,
   type ResultQuestion,
@@ -97,7 +98,7 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
         <div className="grid gap-1.5 pl-[46px] text-sm">
           <p><span className="text-muted-foreground">A tua resposta: </span>{question.answerText?.trim() || 'Sem resposta'}</p>
           {question.modelAnswer && <p><span className="text-muted-foreground">Resposta esperada: </span>{question.modelAnswer}</p>}
-          {v === 'pending' && <p className="text-muted-foreground">Esta resposta é corrigida pelo professor.</p>}
+          {v === 'pending' && <p className="text-muted-foreground">Esta resposta ainda está a ser corrigida.</p>}
         </div>
       )}
 
@@ -106,7 +107,7 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
           {formatScore(question.scoreObtained)} de {formatScore(question.maxScore)} valores
         </p>
       )}
-      {question.feedback && <p className="pl-[46px] text-[13px] text-muted-foreground">{question.feedback}</p>}
+      {observation(question) && <p className="pl-[46px] text-[13px] text-muted-foreground">{observation(question)}</p>}
     </li>
   );
 }
@@ -148,7 +149,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <Column className="gap-5">
               <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
-                {correcao.kind === 'a-corrigir' && <ACorrigir />}
+                {correcao.kind === 'a-corrigir' && <CorrecaoEmCurso />}
                 {correcao.kind === 'incompleta' && (
                   <p role="status" className="text-sm">
                     {correcao.semGabarito
@@ -156,9 +157,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                       : 'Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.'}
                   </p>
                 )}
-                {correcao.kind === 'falhou' && (
-                  <p role="status" className="text-sm">A correcção demorou mais do que o esperado. A tua prova está guardada: volta a abrir o resultado daqui a pouco.</p>
-                )}
+                {/* O motor atrasou-se: para o aluno é só mais tempo, com a prova guardada. Nunca um erro. */}
+                {correcao.kind === 'falhou' && <CorrecaoEmCurso desdeMs={3 * 60_000} />}
               </Card>
               <div className="flex flex-wrap items-start gap-2.5">
                 {statementId != null && <RefazerSimulacao statementId={statementId} />}
@@ -225,7 +225,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         </div>
         {pending > 0 && (
           <p className="-mt-2 text-sm text-muted-foreground" role="status">
-            {pending === 1 ? '1 resposta aberta ainda' : `${pending} respostas abertas ainda`} por corrigir pelo professor: a nota pode mudar.
+            {pending === 1 ? '1 resposta aberta ainda está' : `${pending} respostas abertas ainda estão`} a ser corrigida{pending === 1 ? '' : 's'}: a nota pode mudar quando terminar.
+            Não precisas de esperar aqui, esta página atualiza-se quando voltares.
           </p>
         )}
 

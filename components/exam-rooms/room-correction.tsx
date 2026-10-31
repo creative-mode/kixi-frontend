@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { gradeRoom, roomReview } from '@/app/actions/exam-rooms';
-import { gradesToSend, invalidDrafts, keyMatchCount, type ReviewQuestion, type RoomReview, type ScoreDrafts } from '@/lib/exam-rooms/model';
+import { AI_LEVEL_LABEL, aiStateLabel, gradesToSend, invalidDrafts, keyMatchCount, type ReviewQuestion, type RoomReview, type ScoreDrafts } from '@/lib/exam-rooms/model';
 
 const fmt = (n: number | null) => (n === null ? '—' : new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(n));
 const labelOf = (q: ReviewQuestion) => `${q.number ?? ''}${q.label ?? ''}`;
@@ -20,7 +20,7 @@ const labelOf = (q: ReviewQuestion) => `${q.number ?? ''}${q.label ?? ''}`;
  * e uma nota por aluno. "Corrigir pela chave" dá a cotação inteira às respostas que coincidem com a chave;
  * o resto fica para o professor, e tudo se grava de uma vez.
  */
-export function RoomCorrection({ roomId, onChanged }: { roomId: number; onChanged: () => void }) {
+export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: number; onChanged: () => void; onPlanLinked?: (planLinked: boolean) => void }) {
   const [review, setReview] = useState<RoomReview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<ScoreDrafts>({});
@@ -33,11 +33,12 @@ export function RoomCorrection({ roomId, onChanged }: { roomId: number; onChange
     const res = await roomReview(roomId);
     if (res.ok) {
       setReview(res.data);
+      onPlanLinked?.(res.data.planLinked === true);
       setError(null);
     } else {
       setError(res.error);
     }
-  }, [roomId]);
+  }, [roomId, onPlanLinked]);
 
   useEffect(() => {
     const task = window.setTimeout(() => void load(), 0);
@@ -52,6 +53,8 @@ export function RoomCorrection({ roomId, onChanged }: { roomId: number; onChange
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!review) return <div className="flex justify-center py-6"><Spinner /></div>;
   if (review.questions.length === 0) return null;
+  // As provas de um plano do trimestre são corrigidas pela IA no fluxo do motor: o professor só lê (kixi#542).
+  if (review.planLinked) return <AiCorrection review={review} />;
 
   async function run(byKey: boolean) {
     if (invalid.size > 0) return void toast.error('Há notas inválidas: use um número entre 0 e a cotação da questão.');
@@ -197,4 +200,55 @@ function moveBetweenScores(event: React.KeyboardEvent<HTMLInputElement>) {
   event.preventDefault();
   next.focus();
   next.select();
+}
+
+/**
+ * A correção de uma sala de um plano do trimestre, só para leitura: a nota e a observação que a IA deu no fluxo do motor.
+ * Não há campos de edição nem «Guardar»: quem quiser mudar uma nota apresenta uma reclamação (o único controlo humano),
+ * e a sala já não fica à espera do professor para a pauta avançar.
+ */
+function AiCorrection({ review }: { review: RoomReview }) {
+  const waiting = review.pending;
+  return (
+    <Card>
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
+        <CardTitle className="text-base">Correção das respostas abertas</CardTitle>
+        <Badge variant={waiting === 0 ? 'success' : 'secondary'}>
+          {waiting === 0 ? 'Corrigida pela IA' : `${waiting} a aguardar correção automática`}
+        </Badge>
+      </CardHeader>
+      <CardContent className="grid gap-6">
+        <p className="text-sm text-muted-foreground">
+          Esta prova é de um plano do trimestre: a correção das respostas abertas é feita pela IA no fluxo da pauta, sem passar
+          pelo professor. Aqui lê o que ela deu a cada aluno; a nota só muda por reclamação.
+        </p>
+        {review.questions.map((q) => (
+          <section key={q.questionId} className="grid gap-3 rounded-lg border p-4" aria-label={`Questão ${labelOf(q)}`}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h3 className="font-semibold">Questão {labelOf(q)}</h3>
+              <span className="text-sm text-muted-foreground">Cotação: {fmt(q.maxScore)}</span>
+            </div>
+            <p className="whitespace-pre-wrap text-sm">{q.text}</p>
+            <ul className="divide-y">
+              {q.answers.map((a) => (
+                <li key={a.answerId} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
+                  <div className="min-w-0">
+                    <b className="text-sm">{a.displayName ?? `Aluno ${a.accountId}`}</b>
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">{a.answerText?.trim() ? a.answerText : 'Sem resposta'}</p>
+                  </div>
+                  <div className="grid gap-1">
+                    <Badge variant={a.status === 'PENDING_REVIEW' ? 'secondary' : 'success'} className="justify-self-start">
+                      {aiStateLabel(a)}{a.status !== 'PENDING_REVIEW' ? `: ${fmt(a.scoreObtained)}` : ''}
+                    </Badge>
+                    {a.aiLevel ? <span className="text-xs text-muted-foreground">{AI_LEVEL_LABEL[a.aiLevel] ?? a.aiLevel}</span> : null}
+                    {a.aiFeedback ? <p className="whitespace-pre-wrap text-sm">{a.aiFeedback}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </CardContent>
+    </Card>
+  );
 }

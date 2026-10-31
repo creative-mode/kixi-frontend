@@ -134,7 +134,7 @@ a { color: inherit; }
 @media (min-width: 900px) { .aud { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
 .aud__col { --step: 8px; position: relative; display: flex; flex-direction: column; gap: 24px; min-height: 280px; padding: 32px 28px 36px; background: var(--lcd-0); color: var(--lcd-3); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
 .aud__col::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(60deg, rgba(15,56,15,.22) 0 1px, transparent 1px 6px); -webkit-mask-image: linear-gradient(160deg, transparent 45%, #000); mask-image: linear-gradient(160deg, transparent 45%, #000); }
-.aud__title { margin: 0; font: 400 13px/18px var(--font-pixel); color: var(--lcd-2); }
+.aud__title { margin: 0; font: 400 13px/18px var(--font-pixel); color: var(--lcd-3); } /* 6,02:1 sobre o lcd-0 (#520): 13 px precisa de 4,5 */
 .aud__line { position: relative; z-index: 1; margin: 0; font: 800 clamp(26px, 2.8vw, 34px)/1.08 var(--font-sans); letter-spacing: -0.03em; max-width: 12ch; text-wrap: balance; }
 
 .aud__list { position: relative; z-index: 1; margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; font: 500 15px/1.45 var(--font-sans); }
@@ -197,7 +197,7 @@ a { color: inherit; }
 /* the console */
 .gb { --hs: .1; --ht: 50svh; transform-origin: 50% 0; transform: translateY(calc(var(--hero, 0) * (var(--ht) - 72px))) translateY(calc(var(--ej, 0) * 40%)) scale(calc((1 + var(--big, 1) * var(--hs)) * (1 - var(--ej, 0) * 0.12))); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
 .gb__body { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-2); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
+.gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-3); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
   position: absolute; left: 20.67%; top: 10.57%; width: 58.67%; height: 32.19%; overflow: hidden; background: var(--lcd-0); box-shadow: inset 4px 4px 0 rgba(15,56,15,.4); }
 /* power-off: the picture squeezes into a bright line, then the glass goes dark */
 .gb__lcd > svg { transform-origin: 50% 50%; transform: scaleY(calc(1 - var(--off, 0) * 0.97)); filter: brightness(calc(1 + var(--off, 0) * 0.6)); }
