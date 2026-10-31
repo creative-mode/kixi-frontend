@@ -1,8 +1,12 @@
-/* Doação de enunciados: um único ecrã (sem scroll da página) com um só foco, o cartucho Kixi desenhado a traço e hachura como o da landing. */
-html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
-.dn-stage { height: 100svh; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
+/* Doação de enunciados: um ecrã com um só foco quando cabe, página com scroll quando não cabe (#515).
+   Com altura fixa e scroll escondido, zoom 200%, teclado virtual ou paisagem deixavam campos,
+   erros e consentimento fora de vista (WCAG 1.4.10). Agora o palco cresce e a página rola. */
+.dn-stage { min-height: 100svh; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
 .dn-top { display: flex; align-items: center; padding-inline: var(--gutter); }
 .dn-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: clamp(10px, 2.5svh, 24px); padding: 0 var(--gutter) clamp(18px, 4svh, 40px); outline: none; }
+/* O banner de cookies é fixo e mora no fundo (#515, também #545): sem esta folga o
+   "Continuar"/"Doar" ficava por baixo dele, e esta página nem sempre faz scroll. */
+.dn-main { padding-bottom: calc(clamp(18px, 4svh, 40px) + 112px); }
 
 /* título: duas linhas e mais nada */
 .dn-pitch { display: flex; flex-direction: column; justify-content: center; }
@@ -19,10 +23,13 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-pips span { width: 12px; height: 12px; border: 2px solid var(--lp-ink); }
 .dn-pips .is-on { background: var(--lp-ink); }
 
-/* o ecrã: único bloco a cores; só ele pode rolar, e só em ecrãs muito baixos */
+/* o ecrã: único bloco a cores; rola por dentro quando o conteúdo passa da moldura, com
+   barra visível (#515) - sem sinal de scroll ninguém adivinha que há mais formulário. */
 .dn-screenwrap { min-height: 0; display: grid; padding: 2px; background: var(--lp-ink); clip-path: var(--kx-clip); }
-.dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 16px; color: var(--lcd-3); background: var(--lcd-0); clip-path: var(--kx-clip); scrollbar-width: none; }
-.dn-lcd::-webkit-scrollbar { display: none; }
+.dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 16px; color: var(--lcd-3); background: var(--lcd-0); clip-path: var(--kx-clip); scrollbar-width: thin; scrollbar-color: var(--lcd-3) var(--lcd-1); }
+.dn-lcd::-webkit-scrollbar { width: 8px; }
+.dn-lcd::-webkit-scrollbar-thumb { background: var(--lcd-3); }
+.dn-lcd::-webkit-scrollbar-track { background: var(--lcd-1); }
 .dn-screen { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 10px; align-content: start; }
 .dn-screen[hidden] { display: none; }
 .dn-legend { padding: 0; margin: 0 0 4px; font: 400 clamp(11px, 1.6svh + 3px, 14px)/1.3 var(--font-pixel); outline: none; text-transform: uppercase; }
@@ -46,9 +53,8 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-drop__input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .dn-count { margin: 0; font: 400 10px/1.4 var(--font-pixel); }
 .dn-files { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 22svh; overflow-y: auto; scrollbar-width: thin; }
-.dn-files__item { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 2px 4px 2px 10px; background: var(--lcd-1); border: 2px solid var(--lcd-3); font-size: 13px; }
+.dn-files__item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 2px 4px 2px 10px; background: var(--lcd-1); border: 2px solid var(--lcd-3); font-size: 13px; }
 .dn-drop__tip { margin-top: 2px; font-size: 12px; font-weight: 700; opacity: .75; }
-.dn-files__item { grid-template-columns: 1fr auto auto; }
 .dn-files__item--bad { background: #c9d98a; border-color: #5c0d0a; }
 .dn-files__note { grid-column: 1 / -1; padding: 0 0 6px; font-size: 12px; font-weight: 800; line-height: 1.3; }
 .dn-files__item--bad .dn-files__note { color: #5c0d0a; }
@@ -82,7 +88,8 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 
 @media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } .dn-lcd { padding: 10px; } }
 @media (max-width: 899px) {
-  .dn-screen .dn-help:not(.dn-help--small) { display: none; }
+  /* A ajuda de privacidade fica sempre visível (#515): doar sem se identificar é
+     uma promessa que o telemóvel também tem de ler. */
   .dn-field textarea { min-height: 44px; }
   .dn-consent__row { font-size: 12px; line-height: 1.3; }
   .dn-lcd { padding: 12px; }
