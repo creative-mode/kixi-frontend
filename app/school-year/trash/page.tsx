@@ -60,7 +60,7 @@ export default function SchoolYearTrashPage() {
   }
 
   async function handlePurge(year: SchoolYearResponse) {
-    if (!confirm(`Tem certeza que deseja ELIMINAR PERMANENTEMENTE o ano letivo ${year.startYear}–${year.endYear}? Esta ação não pode ser desfeita.`)) {
+    if (!confirm(`Confirma a eliminação permanente do ano letivo ${year.startYear}–${year.endYear}? Esta ação não pode ser desfeita.`)) {
       return;
     }
 

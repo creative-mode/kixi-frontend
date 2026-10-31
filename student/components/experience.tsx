@@ -21,7 +21,7 @@ export function Experience({ entries, teacher, own }: { entries: ExperienceEntry
   const [pending, start] = useTransition();
 
   if (groups.length === 0) {
-    return <EmptyState title={teacher ? 'Sem experiência de ensino registada' : 'Sem percurso registado'} message={teacher ? 'Os anos lectivos e as escolas onde ensina aparecem aqui.' : 'As escolas e as classes por onde passa aparecem aqui, ano a ano.'} />;
+    return <EmptyState title={teacher ? 'Sem experiência de ensino registada' : 'Sem percurso registado'} message={teacher ? 'Os anos letivos e as escolas onde ensina aparecem aqui.' : 'As escolas e as classes por onde passa aparecem aqui, ano a ano.'} />;
   }
 
   const toggle = (key: string, yearId: number | null) => {
@@ -52,7 +52,7 @@ export function Experience({ entries, teacher, own }: { entries: ExperienceEntry
         return (
           <li key={key} className="rise relative grid gap-2 pb-5 pl-0" style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
             {canOpen ? (
-              <button type="button" aria-expanded={expanded} aria-label={`Ano lectivo ${g.schoolYear}: ver o teu histórico académico`} onClick={() => toggle(key, g.schoolYearId)} className="flex min-h-12 items-center gap-3 rounded-lg text-left outline-none hover:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/40">{head}</button>
+              <button type="button" aria-expanded={expanded} aria-label={`Ano letivo ${g.schoolYear}: ver o teu histórico académico`} onClick={() => toggle(key, g.schoolYearId)} className="flex min-h-12 items-center gap-3 rounded-lg text-left outline-none hover:bg-secondary/60 focus-visible:ring-[3px] focus-visible:ring-ring/40">{head}</button>
             ) : (
               <div className="flex min-h-12 items-center gap-3">{head}</div>
             )}
@@ -74,7 +74,7 @@ export function Experience({ entries, teacher, own }: { entries: ExperienceEntry
                 ) : typeof detail === 'string' ? (
                   <p className="py-3 text-sm text-destructive" role="alert">{detail}</p>
                 ) : detail && detail.records.length === 0 ? (
-                  <p className="py-3 text-sm text-muted-foreground">Sem provas entregues neste ano lectivo.</p>
+                  <p className="py-3 text-sm text-muted-foreground">Sem provas entregues neste ano letivo.</p>
                 ) : detail ? (
                   <div className="grid gap-2 py-2">
                     {detail.average !== null && <p className="text-sm text-muted-foreground">Média do ano <b className="text-lg text-foreground tabular-nums">{formatAverage(detail.average)}</b></p>}

@@ -55,7 +55,7 @@ export default async function RootLayout({
 }>) {
   const user = await getCurrentUser()
   return (
-    <html lang="pt" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
+    <html lang="pt-AO" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
       <body
         className={`${jakarta.variable} ${mono.variable} font-sans antialiased`}
       >

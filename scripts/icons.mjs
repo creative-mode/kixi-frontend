@@ -94,7 +94,7 @@ async function main() {
             // A cor de fundo do app (`viewport.themeColor`), não branco puro.
             background_color: FUNDO,
             theme_color: '#f6f8f5',
-            lang: 'pt-PT',
+            lang: 'pt-AO',
             icons: [
               { src: `${raiz}/icon/icon-192x192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
               { src: `${raiz}/icon/icon-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },

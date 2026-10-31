@@ -365,7 +365,7 @@ export function DonationForm() {
               {fieldError('classGrade')}
             </div>
             <div className="dn-field">
-              <label htmlFor={id('schoolYear')}>Ano lectivo</label>
+              <label htmlFor={id('schoolYear')}>Ano letivo</label>
               <input id={id('schoolYear')} data-field="schoolYear" name="schoolYear" maxLength={9} placeholder="2024/2025" inputMode="numeric"
                 aria-describedby={describe('schoolYear')} aria-invalid={errors.schoolYear ? true : undefined} />
               {fieldError('schoolYear')}

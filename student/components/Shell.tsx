@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 const ITEMS: { href: string; label: string; ariaLabel?: string; icon: IcoName; also: string[]; desktopOnly?: boolean }[] = [
   { href: '/inicio', label: 'Início', icon: 'home', also: [] },
   { href: '/provas', label: 'Provas', icon: 'file', also: ['/prova', '/resultado', '/sala'] },
-  { href: '/ranking', label: 'Liga', icon: 'trophy', also: [] },
+  { href: '/ranking', label: 'Ranking', icon: 'trophy', also: [] },
   { href: '/pautas', label: 'Pautas', icon: 'award', also: [] },
   { href: '/tutor', label: 'Tutor', icon: 'chat', also: [] },
   { href: '/pesquisa', label: 'Pesquisar', ariaLabel: 'Pesquisar escolas, professores e alunos', icon: 'search', also: [], desktopOnly: true },
@@ -43,7 +43,7 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
         href="#conteudo"
         className="sr-only left-3 top-3 z-50 rounded-md bg-card px-4 py-3 text-[15px] font-semibold shadow-md focus:not-sr-only focus:absolute"
       >
-        Saltar para o conteudo
+        Saltar para o conteúdo
       </a>
 
       <header className="sticky top-0 hidden above-banner-h w-[72px] shrink-0 flex-col items-center justify-between border-r py-3 md:flex">
@@ -89,10 +89,12 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
       </div>
 
       {/* `--ck-banner-h` (#506): com o banner de cookies em baixo, a barra sobe por cima dele em vez de ficar tapada. */}
-      <nav aria-label="Principal" className="fixed inset-x-0 bottom-[var(--ck-banner-h,0px)] z-30 grid grid-cols-4 border-t bg-background/95 px-1 pt-1 pb-[calc(4px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+      <nav aria-label="Principal" className="fixed inset-x-0 bottom-[var(--ck-banner-h,0px)] z-30 grid grid-cols-5 border-t bg-background/95 px-1 pt-1 pb-[calc(4px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         {ITEMS.filter((it) => !it.desktopOnly).map((it) => (
-          <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} aria-label={it.label} title={it.label} className="grid min-h-14 place-items-center text-muted-foreground aria-[current=page]:text-primary">
-            <Ico name={it.icon} filled={on(it)} size={28} />
+          <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} aria-label={it.label} title={it.label} className="grid min-h-14 min-w-0 place-items-center gap-0.5 rounded-md px-0.5 text-muted-foreground aria-[current=page]:bg-primary/10 aria-[current=page]:font-semibold aria-[current=page]:text-primary">
+            <Ico name={it.icon} filled={on(it)} size={24} />
+            <span className="max-w-full truncate text-[10px] leading-tight">{it.label}</span>
+            {on(it) && <span className="sr-only">, página atual</span>}
           </Link>
         ))}
       </nav>
