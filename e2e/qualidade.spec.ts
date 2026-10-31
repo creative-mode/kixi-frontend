@@ -422,7 +422,10 @@ test.describe('doação sem ecrã cortado (#515)', () => {
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF'),
     });
-    await expect(page.getByText('enunciado.pdf')).toBeVisible();
+    // O nome leva ellipsis e a 195 px pode ter área zero: o que prova o upload é
+    // a linha do ficheiro e a contagem, não o nome.
+    await expect(page.locator('.dn-files__item')).toHaveCount(1);
+    await expect(page.getByText(/1 folha/)).toBeVisible();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: 'Continuar' }).click();
     await expect(page.getByLabel('Instituição')).toBeVisible();
