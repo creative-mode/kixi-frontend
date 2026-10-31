@@ -3,6 +3,7 @@
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { displayNumber, isGroup } from '@/lib/exam/display';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, ChevronDown, ChevronUp, Eye, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,7 @@ import {
   createStatementQuestion,
   deleteStatementQuestion,
   getStatementForReview,
+  listStatements,
   listOptions,
   myInstitutions,
   reorderStatementQuestions,
@@ -29,9 +31,13 @@ import { fetchCurrentUser } from '@/lib/auth';
 import { answerKeyIssues, gabaritosEmFalta, sumOfScores } from '@/lib/crud/answer-key';
 import type { Row } from '@/lib/crud/entities';
 import { removeQuestionBlock } from '@/lib/crud/question-remove';
+import { queuePlace, reviewQueue } from '@/lib/crud/review-queue';
+import { statementInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
+import { QueueShortcuts } from './queue-shortcuts';
+import { ShortcutsHint } from './shortcuts-hint';
 import { QuestionImages } from './question-images';
 import { MathText } from '@/student/lib/shared/math-text';
 import { hasMathContent } from '@/student/lib/shared/math-content';
@@ -174,6 +180,10 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   const [global, setGlobal] = useState<Record<string, ReviewChoice[]>>({});
   const [choices, setChoices] = useState<ReviewChoices | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const router = useRouter();
+  const scope = useTeacherScope();
+  /** Os enunciados por rever que este utilizador pode abrir, pela ordem da lista: dá o «seguinte» e a posição na fila. */
+  const [queue, setQueue] = useState<number[] | null>(null);
   const setH = (patch: Partial<HeaderDraft>) => setHeader((h) => (h ? { ...h, ...patch } : h));
 
   /** Lê do servidor. `keep` são rascunhos de questões que falharam ao gravar: ficam por cima. */
@@ -235,6 +245,17 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
     };
   }, [institutionId, admin]);
 
+  useEffect(() => {
+    if (!scope) return;
+    let alive = true;
+    listStatements('review').then((res) => {
+      if (alive) setQueue(res.ok ? reviewQueue(res.data.filter((r) => statementInScope(scope, r))) : []);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [scope]);
+
   if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
   if (!header || !questions || !original || admin == null) return <DetailSkeleton />;
 
@@ -288,7 +309,11 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
     return true;
   }
 
-  async function approveAndPublish() {
+  const place = queue ? queuePlace(queue, id) : null;
+  const nextId = place?.next ?? null;
+
+  /** `goNext`: depois de publicar, abre-se logo o seguinte da fila (já em revisão) em vez de voltar ao detalhe. */
+  async function approveAndPublish(goNext: boolean) {
     if (issues.length > 0) {
       toast.error('Resolva as pendências do gabarito antes de publicar.');
       return;
@@ -311,7 +336,34 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
       return;
     }
     toast.success('Prova aprovada e publicada no catálogo do aluno.');
+    if (goNext && nextId !== null) return router.push(`/statements/${nextId}?rever=1`);
+    if (goNext) toast.message('Não há mais enunciados por rever.');
     onExit();
+  }
+
+  /** Andar pela fila sem aprovar: sair de uma revisão por gravar pergunta primeiro, como o «Voltar». */
+  function goTo(target: number) {
+    const open = () => router.push(`/statements/${target}?rever=1`);
+    if (!dirty) return open();
+    setConfirm({
+      title: 'Sair sem gravar?',
+      description: 'As alterações que fez nesta revisão perdem-se.',
+      action: 'Sair sem gravar',
+      destructive: true,
+      run: open,
+    });
+  }
+
+  /** O atalho «A» não aprova de imediato: abre a confirmação, como um clique deliberado no botão. */
+  function askApprove() {
+    if (issues.length > 0) return void toast.error('Resolva as pendências do gabarito antes de publicar.');
+    const next = nextId !== null;
+    setConfirm({
+      title: next ? 'Aprovar e passar ao seguinte?' : 'Aprovar e publicar?',
+      description: `«${header?.title ?? ''}» fica aprovado e publicado no catálogo do aluno.${next ? ' Abre-se depois o seguinte da fila.' : ''}`,
+      action: next ? 'Aprovar e seguinte' : 'Aprovar e publicar',
+      run: () => approveAndPublish(next),
+    });
   }
 
   function leave() {
@@ -427,6 +479,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
           <ArrowLeft size={14} /> Voltar
         </Button>
         <h1 className="text-xl font-bold tracking-tight">Rever enunciado</h1>
+        {place?.position ? <p className="text-sm text-muted-foreground">Fila de revisão: {place.position} de {place.total}</p> : null}
         <div className="ml-auto flex flex-wrap gap-2">
           {meta.needsReview ? <Badge variant="secondary">A rever</Badge> : <Badge variant="default">Revista</Badge>}
           {meta.visible ? <Badge variant="default">Publicada</Badge> : <Badge variant="outline">Oculta</Badge>}
@@ -591,11 +644,26 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
           {saving ? <Spinner className="size-4" /> : <Check size={16} />}
           Guardar revisão
         </Button>
-        <Button onClick={approveAndPublish} disabled={saving} data-testid="gestor-statements-publicar" title={issues.length > 0 ? 'Resolva as pendências do gabarito' : dirty ? 'Guarda as alterações, aprova e publica no catálogo do aluno' : 'Aprovar e publicar no catálogo do aluno'}>
+        <Button variant={nextId !== null ? 'outline' : 'default'} onClick={() => void approveAndPublish(false)} disabled={saving} aria-keyshortcuts={nextId === null ? 'A' : undefined} data-testid="gestor-statements-publicar" title={issues.length > 0 ? 'Resolva as pendências do gabarito' : dirty ? 'Guarda as alterações, aprova e publica no catálogo do aluno' : 'Aprovar e publicar no catálogo do aluno'}>
           <Eye size={16} />
           {dirty ? 'Guardar, aprovar e publicar' : 'Aprovar e publicar'}
         </Button>
+        {nextId !== null ? (
+          <Button onClick={() => void approveAndPublish(true)} disabled={saving} aria-keyshortcuts="A" data-testid="gestor-statements-publicar-seguinte">
+            <Eye size={16} />
+            {dirty ? 'Guardar, aprovar e ir para o seguinte' : 'Aprovar e ir para o seguinte'}
+          </Button>
+        ) : null}
       </div>
+      <ShortcutsHint items={[...(place && place.total > 1 ? [{ keys: ['K', 'J'], label: 'anterior / seguinte da fila' }] : []), { keys: ['A'], label: nextId !== null ? 'aprovar e ir para o seguinte' : 'aprovar e publicar' }]} />
+      <QueueShortcuts
+        handlers={{
+          j: () => (place?.following != null ? goTo(place.following) : toast.message('Este é o último da fila.')),
+          k: () => (place?.previous != null ? goTo(place.previous) : toast.message('Este é o primeiro da fila.')),
+          a: askApprove,
+        }}
+        enabled={!saving}
+      />
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
