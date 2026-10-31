@@ -139,6 +139,7 @@ export function RoomCorrection({ roomId, onChanged }: { roomId: number; onChange
                             value={drafts[a.answerId] ?? ''}
                             data-nota
                             onChange={(e) => setDrafts((d) => ({ ...d, [a.answerId]: e.target.value }))}
+                            onFocus={(e) => revealBelowBar(e.currentTarget)}
                             onKeyDown={moveBetweenScores}
                           />
                           {q.maxScore != null ? (
@@ -167,14 +168,33 @@ export function RoomCorrection({ roomId, onChanged }: { roomId: number; onChange
   );
 }
 
-/** Enter e a seta para baixo passam à nota seguinte, a seta para cima à anterior, pela ordem do ecrã (já com o filtro aplicado). */
+/**
+ * A barra de ações é fixa: um campo que o browser considera «à vista» pode estar escondido atrás dela (o browser
+ * só rola quando o campo sai da janela). Ao receber o foco, por teclado ou rato, afasta-se o campo da barra.
+ */
+function revealBelowBar(field: HTMLElement) {
+  requestAnimationFrame(() => {
+    const bar = field.closest('[data-slot="card"]')?.querySelector<HTMLElement>('[data-slot="card-header"]');
+    if (!bar) return;
+    const hidden = bar.getBoundingClientRect().bottom + 8 - field.getBoundingClientRect().top;
+    if (hidden > 0) window.scrollBy({ top: -hidden });
+  });
+}
+
+/**
+ * Enter e a seta para baixo passam à nota seguinte, a seta para cima à anterior, pela ordem do ecrã (já com o
+ * filtro aplicado). Só se trava a tecla quando há para onde ir: na última nota, ou com a seguinte desativada,
+ * o Enter fica como estava. Durante uma composição (IME) não se mexe.
+ */
 function moveBetweenScores(event: React.KeyboardEvent<HTMLInputElement>) {
+  if (event.nativeEvent.isComposing) return;
   const step = event.key === 'Enter' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
   if (step === 0) return;
   const scope = event.currentTarget.closest('[data-slot="card"]');
-  const inputs = Array.from(scope?.querySelectorAll<HTMLInputElement>('input[data-nota]') ?? []);
+  const inputs = Array.from(scope?.querySelectorAll<HTMLInputElement>('input[data-nota]:not(:disabled)') ?? []);
   const next = inputs[inputs.indexOf(event.currentTarget) + step];
+  if (!next) return;
   event.preventDefault();
-  next?.focus();
-  next?.select();
+  next.focus();
+  next.select();
 }
