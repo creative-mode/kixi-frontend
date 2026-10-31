@@ -532,22 +532,28 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
   });
 
   test('o banner não rouba o foco de quem está a escrever', async ({ page }) => {
+    // Foco antes da hidratação: o input é SSR, os scripts (e o efeito do banner)
+    // vêm depois. Se o guarda funciona, o foco fica no campo e o banner aparece.
     await semEscolha(page);
-    // O entrar tem autoFocus no campo do utilizador: o foco fica lá.
-    await page.goto('/aluno/entrar');
+    await page.goto('/aluno/entrar', { waitUntil: 'commit' });
+    await page.locator('#usernameOrEmail').waitFor({ state: 'attached' });
+    await page.evaluate(() => document.getElementById('usernameOrEmail')?.focus());
     await expect(banner(page)).toBeVisible();
     await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
   });
 
-  test('escolher uma das opções fecha o banner e devolve o foco ao campo', async ({ page }) => {
+  test('escolher uma das opções fecha o banner e devolve o foco ao corpo', async ({ page }) => {
     await semEscolha(page);
     await page.goto('/aluno/entrar');
     await expect(banner(page)).toBeVisible();
     await banner(page).getByRole('button', { name: 'Só necessários' }).click();
     await expect(banner(page)).toHaveCount(0);
-    await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
+    // Sem autofocus no formulário, o destino honesto é o corpo: foco em lado nenhum visível.
+    await expect
+      .poll(() => page.evaluate(() => (document.activeElement as HTMLElement)?.tagName))
+      .toBe('BODY');
   });
 });
 
