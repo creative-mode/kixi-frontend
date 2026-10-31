@@ -453,3 +453,71 @@ test.describe('404 da landing (#544)', () => {
     });
   });
 });
+
+/** Contraste do LCD (#520): o verde médio sobre verde claro ficava nos 3:1, longe
+ *  dos 4,5 do texto pequeno. O axe não via: com hachuras e máscaras por cima, o
+ *  fundo é ambíguo e a regra cala-se. Por isso trava-se o par de tokens. */
+test.describe('contraste do LCD (#520)', () => {
+  /** WCAG 2.x: luminância relativa e rácio, os mesmos do axe. */
+  function razao(a: string, b: string) {
+    const lum = (hex: string) => {
+      const h = hex.replace('#', '');
+      const [r, g, bl] = [0, 2, 4].map((i) => {
+        const c = parseInt(h.slice(i, i + 2), 16) / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const [claro, escuro] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (claro + 0.05) / (escuro + 0.05);
+  }
+
+  async function tokens(page: Page) {
+    return page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const ler = (nome: string) => cs.getPropertyValue(nome).trim();
+      return { fundo: ler('--lcd-0'), fundoAlt: ler('--lcd-1'), texto: ler('--lcd-3') };
+    });
+  }
+
+  test('texto pequeno do LCD com pelo menos 4,5:1 nos dois fundos', async ({ page }) => {
+    await page.goto('/');
+    const t = await tokens(page);
+    expect(t.texto, 'token do texto').toMatch(/^#[0-9a-f]{6}$/);
+    expect(razao(t.texto, t.fundo), 'texto sobre lcd-0').toBeGreaterThanOrEqual(4.5);
+    expect(razao(t.texto, t.fundoAlt), 'texto sobre lcd-1').toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('axe sem falta de contraste nas zonas LCD', async ({ page }) => {
+    // Apontado às zonas desta issue (o axe cala-se onde o fundo é ambíguo;
+    // a página inteira já é coberta pelos testes de acessibilidade).
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      const { violations } = await new AxeBuilder({ page })
+        .include('.aud')
+        .include('.pres__art')
+        .withRules(['color-contrast'])
+        .analyze();
+      expect(violations.map((v) => v.id), `${viewport.width}px`).toEqual([]);
+    }
+  });
+
+  test.describe('movimento reduzido', () => {
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('axe sem falta de contraste no modo still', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      const { violations } = await new AxeBuilder({ page })
+        .include('.aud')
+        .withRules(['color-contrast'])
+        .analyze();
+      expect(violations.map((v) => v.id), 'still').toEqual([]);
+      // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
+      // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
+      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
+    });
+  });
+});
