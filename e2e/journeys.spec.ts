@@ -1049,6 +1049,104 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
 
+  test('admin: a estrutura da escola não envia duas vezes o mesmo formulário (#532)', async ({ page }) => {
+    const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/institutions/new');
+    await page.getByLabel('Código').fill(`E2E${id}`);
+    await page.getByLabel('Nome').fill(`Escola E2E ${id}`);
+    await page.getByLabel('Sigla').fill(`E${id}`);
+    await page.getByRole('button', { name: 'Criar instituição' }).click();
+    await expect(page).toHaveURL(/\/manager\/institutions\/\d+\/structure\?nova=1/);
+
+    const form = page.getByRole('form', { name: 'Novo curso' });
+    const code = form.getByLabel('Código do curso');
+    await code.fill(`C${id.slice(0, 5)}`);
+    await form.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
+
+    // Atrasa a gravação para que o segundo Enter chegue com o primeiro pedido ainda a correr.
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 600));
+      await route.continue();
+    });
+    const name = form.getByLabel('Nome do curso');
+    await name.press('Enter');
+    await name.press('Enter');
+    await name.press('Enter');
+
+    await expect(form).toHaveAttribute('aria-busy', 'true');
+    await expect(form.getByRole('button')).toHaveText('A criar…');
+    await expect(form.getByRole('button')).toBeDisabled();
+
+    // Um só curso, um só aviso, e o formulário volta a ficar livre com o foco no primeiro campo.
+    await expect(form).toHaveAttribute('aria-busy', 'false');
+    await expect(page.getByTestId(`course-C${id.slice(0, 5)}`)).toHaveCount(1);
+    await expect(page.getByText('Curso criado')).toHaveCount(1);
+    await expect(code).toBeFocused();
+    await expect(code).toHaveValue('');
+  });
+
+  test('admin: atribuir e afiliar só ocupam o seu formulário e travam as ações destrutivas (#532)', async ({ page }) => {
+    const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    const curso = `C${id.slice(0, 5)}`;
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/institutions/new');
+    await page.getByLabel('Código').fill(`E2E${id}`);
+    await page.getByLabel('Nome').fill(`Escola E2E ${id}`);
+    await page.getByLabel('Sigla').fill(`E${id}`);
+    await page.getByRole('button', { name: 'Criar instituição' }).click();
+    await expect(page).toHaveURL(/\/manager\/institutions\/\d+\/structure\?nova=1/);
+
+    // Monta o mínimo: um curso com uma disciplina, uma turma e um professor afiliado.
+    const novoCurso = page.getByRole('form', { name: 'Novo curso' });
+    await novoCurso.getByLabel('Código do curso').fill(curso);
+    await novoCurso.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
+    await novoCurso.getByRole('button').click();
+    const cartao = page.getByTestId(`course-${curso}`);
+    await expect(cartao).toBeVisible();
+    const currículo = cartao.getByRole('form', { name: /Adicionar disciplina/ });
+    await currículo.getByLabel('Disciplina').selectOption({ index: 1 });
+    await currículo.getByRole('button', { name: 'Adicionar' }).click();
+    await expect(page.getByText('Disciplina adicionada ao currículo')).toBeVisible();
+    const novaTurma = cartao.getByRole('form', { name: /Nova turma/ });
+    await novaTurma.getByLabel('Código da turma').fill('9Z');
+    await novaTurma.getByLabel('Classe da turma').fill('9');
+    const ano = novaTurma.getByLabel('Ano letivo');
+    if (!(await ano.inputValue())) await ano.selectOption({ index: 1 });
+    await novaTurma.getByRole('button').click();
+    await expect(page.getByTestId('class-9Z')).toBeVisible();
+
+    // Afiliar: o foco fica no seletor, pronto para o professor seguinte.
+    const afiliar = page.getByRole('form', { name: 'Afiliar professor' });
+    await afiliar.getByLabel('Professor a afiliar').selectOption({ index: 1 });
+    await afiliar.getByRole('button', { name: 'Afiliar' }).click();
+    await expect(page.getByText('Professor afiliado')).toBeVisible();
+    await expect(afiliar.getByLabel('Professor a afiliar')).toBeFocused();
+
+    // Atribuir, com a gravação atrasada: só este formulário diz «A atribuir…»; as ações destrutivas ficam
+    // desativadas em vez de aceitar um clique que a gravação em curso deixaria cair em silêncio.
+    await page.getByTestId('class-9Z').locator('summary').click();
+    const atribuir = page.getByTestId('class-9Z').getByRole('form', { name: /Atribuir professor/ }).first();
+    await atribuir.locator('select').selectOption({ index: 1 });
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 700));
+      await route.continue();
+    });
+    await atribuir.getByRole('button').click();
+    await expect(atribuir).toHaveAttribute('aria-busy', 'true');
+    await expect(atribuir.getByRole('button')).toHaveText('A atribuir…');
+    await expect(novoCurso).toHaveAttribute('aria-busy', 'false');
+    await expect(novoCurso.getByRole('button')).toHaveText('Novo curso');
+    await expect(afiliar).toHaveAttribute('aria-busy', 'false');
+    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Apagar turma 9Z' })).toBeDisabled();
+
+    await expect(page.getByText('Professor atribuído')).toBeVisible();
+    await expect(atribuir).toHaveAttribute('aria-busy', 'false');
+    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeEnabled();
+    await expect(page.getByTestId('class-9Z').locator('select').first()).toBeFocused();
+  });
+
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
     // Reproduz a #240: dois `TabsContent` com o mesmo `value` montam-se os dois, e
     // o aluno lê a mesma prova como se a tivesse feito duas vezes. Compila, passa o

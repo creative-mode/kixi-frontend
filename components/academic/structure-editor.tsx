@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, GraduationCap, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,6 +27,8 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
   const [opts, setOpts] = useState<Opts>({ subjects: [], teachers: [], years: [] });
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [pending, setPending] = useState(false);
+  const running = useRef(false);
 
   const load = useCallback(async () => {
     const res = await getStructure(institutionId);
@@ -50,16 +52,32 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
     return () => { alive = false; };
   }, []);
 
-  /** Corre uma escrita, mostra o erro do servidor tal como veio e recarrega. */
+  /**
+   * Corre uma escrita, mostra o erro do servidor tal como veio e recarrega. Só corre uma de cada vez:
+   * um segundo envio (duplo clique, Enter repetido) chega antes de o estado mudar, por isso a trava é um ref.
+   * Devolve `false` quando o recusa, e o formulário não limpa os campos.
+   */
   const act = useCallback(async (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => {
-    const r = await run();
-    if (!r.ok) {
-      toast.error(r.error ?? 'Não foi possível guardar.');
+    if (running.current) {
+      // Uma ação destrutiva confirmada com outra gravação a meio não pode cair em silêncio.
+      toast.message('Há outra gravação em curso. Aguarde um instante e tente de novo.');
       return false;
     }
-    toast.success(done);
-    await load();
-    return true;
+    running.current = true;
+    setPending(true);
+    try {
+      const r = await run();
+      if (!r.ok) {
+        toast.error(r.error ?? 'Não foi possível guardar.');
+        return false;
+      }
+      toast.success(done);
+      await load();
+      return true;
+    } finally {
+      running.current = false;
+      setPending(false);
+    }
   }, [load]);
 
   if (error) {
@@ -76,6 +94,7 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
   const yearId = data.schoolYear?.id;
 
   return (
+    <Pending.Provider value={pending}>
     <Shell title={`Estrutura · ${data.institution.name}`} subtitle={data.schoolYear ? `Ano letivo ${data.schoolYear.startYear}–${data.schoolYear.endYear}` : 'Sem ano letivo definido'}>
       {created ? (
         <p role="status" className="mb-4 rounded-md border border-primary/30 bg-accent p-3 text-sm">
@@ -114,10 +133,31 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
       <TeachersCard data={data} opts={opts} institutionId={institutionId} act={act} ask={setConfirm} />
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </Shell>
+    </Pending.Provider>
   );
 }
 
 type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => Promise<boolean>;
+
+/** Há uma escrita a correr: todos os formulários e ações da estrutura ficam desativados até ela acabar e a estrutura recarregar. */
+const Pending = createContext(false);
+
+/**
+ * Qual formulário está a gravar: só esse mostra «A criar…» e `aria-busy`; os outros ficam apenas desativados
+ * (pelo `Pending` global), em vez de todos dizerem que estão a gravar.
+ */
+function useOwnPending() {
+  const [own, setOwn] = useState(false);
+  const track = useCallback(async <T,>(task: () => Promise<T>): Promise<T> => {
+    setOwn(true);
+    try {
+      return await task();
+    } finally {
+      setOwn(false);
+    }
+  }, []);
+  return [own, track] as const;
+}
 
 function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -145,22 +185,24 @@ function StructureSkeleton() {
 function NewCourse({ institutionId, act }: { institutionId: number; act: Act }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
+  const busy = useContext(Pending);
+  const [own, track] = useOwnPending();
+  const first = useRef<HTMLInputElement>(null);
   return (
     <form
       className="mb-4 grid gap-3 rounded-lg border border-dashed p-4 sm:grid-cols-[8rem_1fr_auto]"
       aria-label="Novo curso"
+      aria-busy={own}
       onSubmit={async (e) => {
         e.preventDefault();
-        setBusy(true);
-        const ok = await act(() => createRow('courses', { code: code.trim(), name: name.trim(), institutionId, description: '' }), 'Curso criado');
-        setBusy(false);
+        const ok = await track(() => act(() => createRow('courses', { code: code.trim(), name: name.trim(), institutionId, description: '' }), 'Curso criado'));
         if (ok) { setCode(''); setName(''); }
+        first.current?.focus();
       }}
     >
-      <Input aria-label="Código do curso" placeholder="Código (TISM)" value={code} onChange={(e) => setCode(e.target.value)} required minLength={2} maxLength={50} />
+      <Input ref={first} aria-label="Código do curso" placeholder="Código (TISM)" value={code} onChange={(e) => setCode(e.target.value)} required minLength={2} maxLength={50} />
       <Input aria-label="Nome do curso" placeholder="Nome do curso" value={name} onChange={(e) => setName(e.target.value)} required minLength={3} maxLength={255} />
-      <Button type="submit" disabled={busy || !code.trim() || !name.trim()}><Plus size={16} className="mr-1" /> Novo curso</Button>
+      <Button type="submit" disabled={busy || !code.trim() || !name.trim()}>{own ? 'A criar…' : <><Plus size={16} className="mr-1" /> Novo curso</>}</Button>
     </form>
   );
 }
@@ -169,6 +211,9 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
   const [subjectId, setSubjectId] = useState('');
   const [grade, setGrade] = useState('');
   const g = grade === '' ? null : Number(grade);
+  const busy = useContext(Pending);
+  const [own, track] = useOwnPending();
+  const firstSubject = useRef<HTMLSelectElement>(null);
   const addable = useMemo(() => subjectsToAdd(opts.subjects as { id: number; name: string; code: string }[], course.curriculum, g), [opts.subjects, course.curriculum, g]);
 
   return (
@@ -179,7 +224,7 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
             <div className="rounded-md bg-accent p-2 text-primary"><GraduationCap size={18} /></div>
             <div><h2 className="font-semibold">{course.name}</h2><p className="font-mono text-xs text-muted-foreground">{course.code}</p></div>
           </div>
-          <Button variant="ghost" size="sm" aria-label={`Apagar curso ${course.code}`} className="hover:bg-danger-soft hover:text-destructive"
+          <Button variant="ghost" size="sm" aria-label={`Apagar curso ${course.code}`} disabled={busy} className="hover:bg-danger-soft hover:text-destructive"
             onClick={() => ask({
               title: 'Apagar este curso?', destructive: true, action: 'Apagar',
               description: `O curso «${course.name}» sai da escola. Só é possível se não tiver turmas com alunos ou professores.`,
@@ -198,7 +243,7 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
               {course.curriculum.map((e) => (
                 <li key={e.linkId} className="inline-flex items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-3 text-sm">
                   {curriculumLabel(e)}
-                  <button type="button" aria-label={`Tirar ${e.name} do currículo`} className="rounded-full p-1 text-muted-foreground hover:bg-danger-soft hover:text-destructive"
+                  <button type="button" aria-label={`Tirar ${e.name} do currículo`} disabled={busy} className="rounded-full p-1 text-muted-foreground hover:bg-danger-soft hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
                     onClick={() => ask({
                       title: 'Tirar do currículo?', destructive: true, action: 'Tirar',
                       description: `${e.name} deixa de fazer parte de ${course.name} (${gradeLabel(e.grade)}). Falha se houver professores atribuídos.`,
@@ -210,14 +255,15 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
               ))}
             </ul>
           )}
-          <form className="grid gap-2 sm:grid-cols-[1fr_11rem_auto]" aria-label={`Adicionar disciplina a ${course.code}`}
+          <form className="grid gap-2 sm:grid-cols-[1fr_11rem_auto]" aria-label={`Adicionar disciplina a ${course.code}`} aria-busy={own}
             onSubmit={async (e) => {
               e.preventDefault();
               if (!subjectId) return;
-              const ok = await act(() => addToCurriculum(course.id, Number(subjectId), g), 'Disciplina adicionada ao currículo');
+              const ok = await track(() => act(() => addToCurriculum(course.id, Number(subjectId), g), 'Disciplina adicionada ao currículo'));
               if (ok) setSubjectId('');
+              firstSubject.current?.focus();
             }}>
-            <NativeSelect aria-label="Disciplina" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+            <NativeSelect ref={firstSubject} aria-label="Disciplina" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
               <option value="">Disciplina…</option>
               {addable.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
             </NativeSelect>
@@ -225,7 +271,7 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
               <option value="">Todas as classes</option>
               {Array.from({ length: 13 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}.ª classe</option>)}
             </NativeSelect>
-            <Button type="submit" variant="outline" disabled={!subjectId}><Plus size={16} className="mr-1" /> Adicionar</Button>
+            <Button type="submit" variant="outline" disabled={busy || !subjectId}>{own ? 'A adicionar…' : <><Plus size={16} className="mr-1" /> Adicionar</>}</Button>
           </form>
           {opts.subjects.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Não há disciplinas no sistema. <Link className="underline" href="/subjects/new">Criar disciplina</Link>.</p> : null}
         </div>
@@ -248,25 +294,30 @@ function NewClass({ courseId, courseCode, yearId, years, act }: { courseId: numb
   const [grade, setGrade] = useState('');
   const [year, setYear] = useState('');
   const chosenYear = year || (yearId ? String(yearId) : '');
+  const busy = useContext(Pending);
+  const [own, track] = useOwnPending();
+  const first = useRef<HTMLInputElement>(null);
   return (
-    <form className="mt-3 grid gap-2 sm:grid-cols-[7rem_8rem_1fr_auto]" aria-label={`Nova turma de ${courseCode}`}
+    <form className="mt-3 grid gap-2 sm:grid-cols-[7rem_8rem_1fr_auto]" aria-label={`Nova turma de ${courseCode}`} aria-busy={own}
       onSubmit={async (e) => {
         e.preventDefault();
-        const ok = await act(() => createRow('classes', { code: code.trim(), grade: Number(grade), courseId, schoolYearId: Number(chosenYear) }), 'Turma criada');
+        const ok = await track(() => act(() => createRow('classes', { code: code.trim(), grade: Number(grade), courseId, schoolYearId: Number(chosenYear) }), 'Turma criada'));
         if (ok) { setCode(''); setGrade(''); }
+        first.current?.focus();
       }}>
-      <Input aria-label="Código da turma" placeholder="Turma (12B)" value={code} onChange={(e) => setCode(e.target.value)} required maxLength={50} />
+      <Input ref={first} aria-label="Código da turma" placeholder="Turma (12B)" value={code} onChange={(e) => setCode(e.target.value)} required maxLength={50} />
       <Input aria-label="Classe da turma" type="number" inputMode="numeric" min={1} max={13} placeholder="Classe" value={grade} onChange={(e) => setGrade(e.target.value)} required />
       <NativeSelect aria-label="Ano letivo" value={chosenYear} onChange={(e) => setYear(e.target.value)} required>
         <option value="">Ano letivo…</option>
         {years.map((y) => <option key={y.id} value={y.id}>{y.startYear}–{y.endYear}</option>)}
       </NativeSelect>
-      <Button type="submit" variant="outline" disabled={!code.trim() || !grade || !chosenYear}><Plus size={16} className="mr-1" /> Turma</Button>
+      <Button type="submit" variant="outline" disabled={busy || !code.trim() || !grade || !chosenYear}>{own ? 'A criar…' : <><Plus size={16} className="mr-1" /> Turma</>}</Button>
     </form>
   );
 }
 
 function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: InstitutionStructure; yearId?: number; act: Act; ask: (s: ConfirmState) => void }) {
+  const busy = useContext(Pending);
   const missing = cls.subjects.filter((s) => s.teachers.length === 0).length;
   return (
     <details className="rounded-md border" data-testid={`class-${cls.code}`}>
@@ -274,7 +325,7 @@ function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: 
         <strong>{cls.code}</strong>
         <span className="text-muted-foreground">{cls.grade}.ª classe · {cls.studentCount} {cls.studentCount === 1 ? 'aluno' : 'alunos'}</span>
         {cls.subjects.length === 0 ? <span className="text-warning">sem disciplinas (currículo vazio para esta classe)</span> : missing > 0 ? <span className="text-warning">{missing} sem professor</span> : <span className="text-success">completa</span>}
-        <Button type="button" variant="ghost" size="sm" className="ml-auto hover:bg-danger-soft hover:text-destructive" aria-label={`Apagar turma ${cls.code}`}
+        <Button type="button" variant="ghost" size="sm" className="ml-auto hover:bg-danger-soft hover:text-destructive" aria-label={`Apagar turma ${cls.code}`} disabled={busy}
           onClick={(e) => {
             e.preventDefault();
             ask({
@@ -296,7 +347,7 @@ function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: 
                 {s.teachers.map((t) => (
                   <span key={t.assignmentId} className="inline-flex items-center gap-1 rounded-full bg-accent py-0.5 pr-1 pl-2.5 text-xs">
                     {t.firstName} {t.lastName}
-                    <button type="button" aria-label={`Retirar ${t.firstName} ${t.lastName} de ${s.name}`} className="rounded-full p-0.5 hover:bg-danger-soft hover:text-destructive"
+                    <button type="button" aria-label={`Retirar ${t.firstName} ${t.lastName} de ${s.name}`} disabled={busy} className="rounded-full p-0.5 hover:bg-danger-soft hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
                       onClick={() => ask({
                         title: 'Retirar o professor?', destructive: true, action: 'Retirar',
                         description: `${t.firstName} ${t.lastName} deixa de dar ${s.name} na turma ${cls.code}.`,
@@ -317,20 +368,27 @@ function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: 
 function AssignTeacher({ cls, subject, data, yearId, act }: { cls: StructureClass; subject: StructureClass['subjects'][number]; data: InstitutionStructure; yearId?: number; act: Act }) {
   const [teacherId, setTeacherId] = useState('');
   const options = teachersToAssign(data.teachers, subject);
+  const busy = useContext(Pending);
+  const [own, track] = useOwnPending();
+  const first = useRef<HTMLSelectElement>(null);
   if (!yearId) return null;
   return (
-    <form className="flex gap-2" aria-label={`Atribuir professor a ${subject.name} em ${cls.code}`}
+    <form className="flex gap-2" aria-label={`Atribuir professor a ${subject.name} em ${cls.code}`} aria-busy={own}
       onSubmit={async (e) => {
         e.preventDefault();
         if (!teacherId) return;
-        const ok = await act(() => assignTeacher({ teacherId: Number(teacherId), classId: cls.id, subjectId: subject.subjectId, schoolYearId: yearId }), 'Professor atribuído');
+        // A estrutura recarrega e este formulário pode desaparecer (a disciplina deixa de poder receber mais um
+        // professor): guarda-se onde estava para o foco cair na turma, e não no corpo da página.
+        const row = e.currentTarget.closest('details');
+        const ok = await track(() => act(() => assignTeacher({ teacherId: Number(teacherId), classId: cls.id, subjectId: subject.subjectId, schoolYearId: yearId }), 'Professor atribuído'));
         if (ok) setTeacherId('');
+        (first.current ?? row?.querySelector<HTMLElement>('summary'))?.focus();
       }}>
-      <NativeSelect aria-label={`Professor de ${subject.name}`} value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className="min-w-44">
+      <NativeSelect ref={first} aria-label={`Professor de ${subject.name}`} value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className="min-w-44">
         <option value="">{options.length ? 'Professor…' : 'Sem professores livres'}</option>
         {options.map((t) => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
       </NativeSelect>
-      <Button type="submit" size="sm" variant="outline" disabled={!teacherId}>Atribuir</Button>
+      <Button type="submit" size="sm" variant="outline" disabled={busy || !teacherId}>{own ? 'A atribuir…' : 'Atribuir'}</Button>
     </form>
   );
 }
@@ -338,6 +396,9 @@ function AssignTeacher({ cls, subject, data, yearId, act }: { cls: StructureClas
 function TeachersCard({ data, opts, institutionId, act, ask }: { data: InstitutionStructure; opts: Opts; institutionId: number; act: Act; ask: (s: ConfirmState) => void }) {
   const [teacherId, setTeacherId] = useState('');
   const free = teachersToAffiliate(opts.teachers as { id: number; firstName: string; lastName: string }[], data.teachers);
+  const busy = useContext(Pending);
+  const [own, track] = useOwnPending();
+  const first = useRef<HTMLSelectElement>(null);
   return (
     <Card className="mt-6" data-testid="teachers-card">
       <CardContent className="grid gap-3 p-4 md:p-5">
@@ -348,7 +409,7 @@ function TeachersCard({ data, opts, institutionId, act, ask }: { data: Instituti
             {data.teachers.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
                 <span><strong>{t.firstName} {t.lastName}</strong> <span className="text-muted-foreground">· {t.assignments} {t.assignments === 1 ? 'disciplina' : 'disciplinas'} nesta escola</span></span>
-                <Button variant="ghost" size="sm" className="hover:bg-danger-soft hover:text-destructive" aria-label={`Desafiliar ${t.firstName} ${t.lastName}`} disabled={t.assignments > 0} title={t.assignments > 0 ? 'Retire primeiro as atribuições' : undefined}
+                <Button variant="ghost" size="sm" className="hover:bg-danger-soft hover:text-destructive" aria-label={`Desafiliar ${t.firstName} ${t.lastName}`} disabled={busy || t.assignments > 0} title={t.assignments > 0 ? 'Retire primeiro as atribuições' : undefined}
                   onClick={() => ask({
                     title: 'Desafiliar o professor?', destructive: true, action: 'Desafiliar',
                     description: `${t.firstName} ${t.lastName} deixa de pertencer a esta escola (continua nas outras).`,
@@ -358,18 +419,19 @@ function TeachersCard({ data, opts, institutionId, act, ask }: { data: Instituti
             ))}
           </ul>
         )}
-        <form className="flex gap-2" aria-label="Afiliar professor"
+        <form className="flex gap-2" aria-label="Afiliar professor" aria-busy={own}
           onSubmit={async (e) => {
             e.preventDefault();
             if (!teacherId) return;
-            const ok = await act(() => setInstitutionLink(institutionId, 'teachers', Number(teacherId), true), 'Professor afiliado');
+            const ok = await track(() => act(() => setInstitutionLink(institutionId, 'teachers', Number(teacherId), true), 'Professor afiliado'));
             if (ok) setTeacherId('');
+            first.current?.focus();
           }}>
-          <NativeSelect aria-label="Professor a afiliar" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
+          <NativeSelect ref={first} aria-label="Professor a afiliar" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
             <option value="">{free.length ? 'Afiliar professor…' : 'Todos os professores já estão aqui'}</option>
             {free.map((t) => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
           </NativeSelect>
-          <Button type="submit" variant="outline" disabled={!teacherId}>Afiliar</Button>
+          <Button type="submit" variant="outline" disabled={busy || !teacherId}>{own ? 'A afiliar…' : 'Afiliar'}</Button>
         </form>
         {opts.teachers.length === 0 ? <p className="text-xs text-muted-foreground">Não há professores no sistema. <Link className="underline" href="/teachers/new">Criar professor</Link>.</p> : null}
       </CardContent>
