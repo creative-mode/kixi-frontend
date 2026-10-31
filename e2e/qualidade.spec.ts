@@ -41,7 +41,7 @@ async function graves(page: Page) {
 }
 
 const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
-const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms'];
+const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
 const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
 
 for (const vp of VIEWPORTS) {
