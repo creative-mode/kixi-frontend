@@ -30,7 +30,7 @@ export function progress(plan: Pick<TermPlan, 'assessments'>): { done: number; t
   return { done: plan.assessments.filter(isCleared).length, total: plan.assessments.length };
 }
 
-/** «dd/mm/aaaa» sem passar por fusos horários: a data do backend é uma data civil. */
+/** dia/mês/ano sem passar por fusos horários: a data do backend é uma data civil. */
 export function formatDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
