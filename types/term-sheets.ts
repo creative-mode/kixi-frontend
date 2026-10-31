@@ -43,6 +43,13 @@ export interface TermSheetRow {
   adjusted: boolean;
 }
 
+/** O que o backend devolve em `GET /term-sheets/{id}`: o resumo e as linhas lado a lado, não misturados. */
+export interface TermSheetDetailResponse {
+  sheet: TermSheetSummary;
+  rows: TermSheetRow[];
+}
+
+/** O detalhe como o ecrã o usa: o resumo com as linhas dentro (sai do `TermSheetDetailResponse` por `parseDetail`). */
 export interface TermSheetDetail extends TermSheetSummary {
   rows: TermSheetRow[];
 }

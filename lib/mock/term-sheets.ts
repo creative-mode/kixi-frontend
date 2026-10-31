@@ -10,7 +10,7 @@ export type MockSheet = {
   course: string; subjectId: number; subjectName: string; subjectCode: string; updatedAt: string; rows: MockSheetRow[];
 };
 export type MockWorld = {
-  classes: { id: number; code: string; grade: number; course: { code: string }; schoolYear: { startYear: number; endYear: number } }[];
+  classes: { id: number; code: string; grade: number; course: { code: string; name?: string }; schoolYear: { startYear: number; endYear: number } }[];
   subjects: { id: number; code: string; name: string }[];
   /** A conta do aluno semeado, que aparece como o Nº 1 das pautas da sua turma. */
   studentAccountId: number;
@@ -55,6 +55,8 @@ export function buildTermSheets(w: MockWorld): MockSheet[] {
     { classCode: '12B', subjectCode: 'RED', term: 3, status: 'REGISTADA', withStudent: true, shift: 0 },
     // Uma negativa: o Bruno e o Carlos ficam abaixo de 10.
     { classCode: '12B', subjectCode: 'OGI', term: 1, status: 'FECHADA', withStudent: true, shift: -3 },
+    // Anulada pelo motor: nunca se mostra a ninguém, nem ao administrador.
+    { classCode: '12B', subjectCode: 'OGI', term: 2, status: 'ANULADA', withStudent: true, shift: 0 },
     { classCode: '11A', subjectCode: 'SO', term: 1, status: 'FECHADA', withStudent: false, shift: 0 },
     { classCode: '10A', subjectCode: 'RED', term: 1, status: 'FECHADA', withStudent: false, shift: 0 },
   ];
@@ -70,7 +72,7 @@ export function buildTermSheets(w: MockWorld): MockSheet[] {
     }
     sheets.push({
       sheetId: `PT-MOCK${String(i + 1).padStart(4, '0')}`, status: p.status, termNumber: p.term, schoolYear: `${k.schoolYear.startYear}/${k.schoolYear.endYear}`,
-      classId: k.id, className: k.code, grade: k.grade, course: k.course.code, subjectId: s.id, subjectName: s.name, subjectCode: s.code,
+      classId: k.id, className: k.code, grade: k.grade, course: k.course.name ?? k.course.code, subjectId: s.id, subjectName: s.name, subjectCode: s.code,
       updatedAt: `2026-0${p.term + 1}-1${i}T10:00:00`, rows,
     });
   }
@@ -98,13 +100,26 @@ export function canReadSheet(v: Viewer, s: Pick<MockSheet, 'classId' | 'subjectI
   return v.assignments.some((a) => a.teacherId === v.teacherId && a.classId === s.classId && a.subjectId === s.subjectId);
 }
 
-export const visibleSheets = (v: Viewer, sheets: readonly MockSheet[]) => sheets.filter((s) => canReadSheet(v, s));
+/** Uma pauta anulada não se mostra a ninguém (kixi#506). */
+export const isListable = (s: Pick<MockSheet, 'status'>) => s.status !== 'ANULADA';
+
+export const visibleSheets = (v: Viewer, sheets: readonly MockSheet[]) => sheets.filter((s) => isListable(s) && canReadSheet(v, s));
+
+/**
+ * O detalhe de uma pauta, com as respostas do contrato: o professor que não a pode ver recebe 403 quer ela exista ou não (para não
+ * revelar as pautas de outras turmas); o administrador numa pauta inexistente (ou anulada) recebe 404.
+ */
+export function lookupSheet(v: Viewer, sheets: readonly MockSheet[], sheetId: string): { sheet: MockSheet } | { status: 403 | 404 } {
+  const found = sheets.find((s) => s.sheetId === sheetId && isListable(s));
+  if (has(v.roles, 'ADMIN')) return found ? { sheet: found } : { status: 404 };
+  return found && canReadSheet(v, found) ? { sheet: found } : { status: 403 };
+}
 
 /** `/me/term-sheets`: só a linha do próprio aluno, só em pautas fechadas, e só da sua turma. */
 export function ownSheets(v: Viewer, sheets: readonly MockSheet[]) {
   if (!has(v.roles, 'STUDENT')) return [];
   return sheets
-    .filter((s) => s.status === 'FECHADA' && s.classId === v.enrolledClassId)
+    .filter((s) => isListable(s) && s.status === 'FECHADA' && s.classId === v.enrolledClassId)
     .flatMap((s) => {
       const row = s.rows.find((r) => r.accountId === v.accountId);
       return row ? [{ sheetId: s.sheetId, termNumber: s.termNumber, schoolYear: s.schoolYear, subjectName: s.subjectName, subjectCode: s.subjectCode, className: s.className, row: { mac: row.mac, p1: row.p1, p2: row.p2, mt: row.mt, status: row.status } }] : [];

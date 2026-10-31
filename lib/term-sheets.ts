@@ -1,4 +1,4 @@
-import type { RowStatus, SheetStatus, TermSheetRow, TermSheetSummary } from '@/types/term-sheets';
+import type { RowStatus, SheetStatus, TermSheetDetail, TermSheetRow, TermSheetSummary } from '@/types/term-sheets';
 
 /** Regras de apresentação das pautas, sem React: ficam testáveis com `node --test`. */
 
@@ -75,4 +75,20 @@ export const isFinal = (s: Pick<TermSheetSummary, 'status'>): boolean => s.statu
 /** A frase que resume a pauta, para leitores de ecrã e para o cartão da lista. */
 export function sheetTitle(s: TermSheetSummary): string {
   return `${s.subjectName} · ${s.grade}.ª ${s.className} · ${termLabel(s.termNumber)}`;
+}
+
+/**
+ * Para o professor, uma pauta que não existe e uma que não é das suas turmas dão ambas 403 (o backend não revela que existem);
+ * o administrador numa pauta inexistente recebe 404. O ecrã trata as duas respostas por igual.
+ */
+export const SHEET_UNAVAILABLE = 'Pauta não encontrada ou sem acesso.';
+export const isUnavailableStatus = (status: number): boolean => status === 403 || status === 404;
+
+/** `GET /term-sheets/{id}` devolve `{ sheet, rows }`; o ecrã trabalha com o resumo e as linhas juntos. Lança se a forma não for essa. */
+export function parseDetail(body: unknown): TermSheetDetail {
+  const b = body as { sheet?: unknown; rows?: unknown } | null;
+  if (!b || typeof b !== 'object' || !b.sheet || typeof b.sheet !== 'object' || !Array.isArray(b.rows)) {
+    throw new Error('Resposta da pauta inválida.');
+  }
+  return { ...(b.sheet as TermSheetSummary), rows: b.rows as TermSheetRow[] };
 }
