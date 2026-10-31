@@ -156,8 +156,22 @@ export function FormulaBuilderModal({
     setDisplay(template.displayDefault ?? false);
   }
 
+  const editing = !!initialFormula?.trim();
+  const dirty = formula.trim() !== (initialFormula ?? '').trim();
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const editorArea = useRef<HTMLElement>(null);
+
+  /** Esc, o X e o clique fora passam todos por aqui: uma fórmula por inserir nunca se perde sem aviso. */
   function handleOpenChange(next: boolean) {
-    onOpenChange(next);
+    if (next) return onOpenChange(true);
+    if (confirmingDiscard) return keepEditing();
+    if (dirty) return setConfirmingDiscard(true);
+    onOpenChange(false);
+  }
+
+  function keepEditing() {
+    setConfirmingDiscard(false);
+    requestAnimationFrame(() => editorArea.current?.querySelector<HTMLElement>('math-field, textarea')?.focus());
   }
 
   return (
@@ -175,13 +189,10 @@ export function FormulaBuilderModal({
                 <Sigma size={21} aria-hidden />
               </span>
               <div>
-                <DialogTitle>Inserir fórmula</DialogTitle>
+                <DialogTitle>{editing ? 'Editar fórmula' : 'Inserir fórmula'}</DialogTitle>
                 <DialogDescription>Edite a fórmula directamente e encaixe estruturas umas dentro das outras.</DialogDescription>
               </div>
             </div>
-            <Button type="button" size="sm" aria-label="Inserir fórmula" disabled={!formula.trim()} onClick={() => onInsert(formula, display)}>
-              Inserir
-            </Button>
           </div>
         </DialogHeader>
 
@@ -206,7 +217,7 @@ export function FormulaBuilderModal({
               ))}
             </div>
 
-            <section className="mt-6 rounded-xl border bg-card p-4" aria-labelledby="mathlive-editor-title">
+            <section ref={editorArea} className="mt-6 rounded-xl border bg-card p-4" aria-labelledby="mathlive-editor-title">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 id="mathlive-editor-title" className="text-sm font-semibold">Área de edição</h3>
@@ -225,10 +236,24 @@ export function FormulaBuilderModal({
         </div>
 
         <DialogFooter className="border-t bg-muted/20 px-6 py-4">
-          <Button type="button" disabled={!formula.trim()} onClick={() => onInsert(formula, display)}>
-            <Check size={16} aria-hidden />
-            Inserir fórmula
-          </Button>
+          {confirmingDiscard ? (
+            <div role="alert" className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium">Descartar a fórmula que ainda não inseriu?</p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" autoFocus onClick={keepEditing}>
+                  Continuar a editar
+                </Button>
+                <Button type="button" variant="destructive" onClick={() => onOpenChange(false)}>
+                  Descartar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button type="button" disabled={!formula.trim()} onClick={() => onInsert(formula, display)}>
+              <Check size={16} aria-hidden />
+              {editing ? 'Substituir fórmula' : 'Inserir fórmula'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

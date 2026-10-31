@@ -180,3 +180,45 @@ test('o /live termina quando a sala fecha', async () => {
   for (let i = 0; i < 5 && !done; i++) done = (await reader.read()).done;
   assert.equal(done, true);
 });
+
+test('review: numa sala de um plano as respostas vêm com a nota e a observação da IA, só para leitura (kixi#542)', () => {
+  const { rooms, db } = world();
+  db.statements[0].questions = [{ id: 1, number: 1, text: 'Explique.', maxScore: 6, modelAnswer: 'chave' }];
+  db['exam-rooms'] = [{ id: 50, statementId: 1, classId: 7, teacherAccountId: TEACHER, status: 'CLOSED', startsAt: '2026-10-12T10:00:00', endsAt: '2026-10-12T12:00:00', durationMinutes: 90 }];
+  db['exam-room-participants'] = [{ examRoomId: 50, accountId: S1, simulationId: 900 }, { examRoomId: 50, accountId: S2, simulationId: 901 }];
+  db['simulation-answers'] = [
+    { id: 1, simulationId: 900, questionId: 1, answerText: 'a', reviewStatus: 'AI_GRADED', scoreObtained: 4, aiFeedback: 'Falta o tempo de vida.', aiLevel: 'PARCIAL', aiConfidence: 0.8, deletedAt: null },
+    { id: 2, simulationId: 901, questionId: 1, answerText: 'b', reviewStatus: 'PENDING_REVIEW', scoreObtained: null, deletedAt: null },
+  ];
+
+  const r = rooms.review(50, TEACHER, false, true);
+
+  assert.ok(r.ok);
+  assert.equal(r.body.planLinked, true);
+  assert.equal(r.body.aiGraded, 1);
+  assert.equal(r.body.pending, 1);
+  const [first, second] = r.body.questions[0].answers;
+  assert.equal(first.status, 'AI_GRADED');
+  assert.equal(first.aiFeedback, 'Falta o tempo de vida.');
+  assert.equal(first.scoreObtained, 4);
+  assert.equal(second.status, 'PENDING_REVIEW');
+  assert.equal(second.scoreObtained, null);
+
+  // outra pessoa não vê a sala
+  const other = rooms.review(50, OTHER_TEACHER, false, true);
+  assert.equal(!other.ok && other.problem.status, 403);
+});
+
+test('review: numa sala livre continua a ser do professor (planLinked falso)', () => {
+  const { rooms, db } = world();
+  db.statements[0].questions = [{ id: 1, number: 1, text: 'Explique.', maxScore: 6 }];
+  db['exam-rooms'] = [{ id: 51, statementId: 1, classId: 7, teacherAccountId: TEACHER, status: 'CLOSED', startsAt: '2026-10-12T10:00:00', endsAt: '2026-10-12T12:00:00', durationMinutes: 90 }];
+  db['exam-room-participants'] = [{ examRoomId: 51, accountId: S1, simulationId: 910 }];
+  db['simulation-answers'] = [{ id: 3, simulationId: 910, questionId: 1, answerText: 'a', reviewStatus: 'PENDING_REVIEW', deletedAt: null }];
+
+  const r = rooms.review(51, TEACHER, false, false);
+
+  assert.ok(r.ok);
+  assert.equal(r.body.planLinked, false);
+  assert.equal(r.body.pending, 1);
+});

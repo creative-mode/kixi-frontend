@@ -92,6 +92,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const summary = attempted ? errorSummary(fields, errors) : null;
 
   async function save(another: boolean) {
+    if (saving) return;
     const errs = validate(fields, values);
     setErrors(errs);
     const invalid = errorSummary(fields, errs);
@@ -188,7 +189,8 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
               {/* O rato não tira o foco ao campo: senão o blur insere o erro, o botão desce e o clique perde-se. */}
               <div className="flex justify-end gap-3 pt-2" onMouseDown={(e) => e.preventDefault()}>
                 <Button type="button" variant="outline" onClick={() => router.push(`/${entity.path}`)} disabled={saving}>Cancelar</Button>
-                {!editing ? <Button type="button" variant="outline" onClick={() => void save(true)} disabled={saving}>Guardar e criar outro</Button> : null}
+                {/* Uma escola nova leva ao assistente da estrutura: não há «criar outro» para ela. */}
+                {!editing && entityKey !== 'institutions' ? <Button type="button" variant="outline" onClick={() => void save(true)} disabled={saving}>Guardar e criar outro</Button> : null}
                 <Button type="submit" disabled={saving}>{saving ? 'A guardar…' : editing ? 'Guardar alterações' : `Criar ${entity.singular.toLowerCase()}`}</Button>
               </div>
             </form>
