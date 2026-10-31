@@ -351,6 +351,52 @@ test.describe('auditoria de UX do aluno', () => {
   });
 });
 
+/** O início no telemóvel (#493): a coluna da direita só existe a partir de `lg`,
+ *  por isso o progresso e os atalhos passam a ter um cartão próprio em baixo. */
+test.describe('progresso do aluno no telemóvel (#493)', () => {
+  test.describe('a 375 px', () => {
+    test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+
+    test('mostra nível, XP, streak, para rever e próximas provas sem abrir o perfil', async ({ page }) => {
+      await alunoLogin(page);
+      await page.goto('/aluno/inicio');
+
+      const cartao = page.getByTestId('mobile-progresso');
+      await expect(cartao).toBeVisible();
+      await expect(cartao.getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
+      await expect(cartao.getByText('Nível 1')).toBeVisible();
+      await expect(cartao.getByText('120 XP no total')).toBeVisible();
+      await expect(cartao.getByText(/1 dia de sequência/)).toBeVisible();
+      await expect(page.locator('aside[aria-label="Destaques"]')).toBeHidden();
+
+      // As secções nascem recolhidas; abrir «Para rever» mostra o tema e o tutor.
+      const rever = page.getByTestId('mobile-para-rever');
+      await expect(rever).toBeVisible();
+      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeHidden();
+      await rever.locator('summary').click();
+      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeVisible();
+
+      const proximas = page.getByTestId('mobile-proximas-provas');
+      await expect(proximas).toBeVisible();
+      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeHidden();
+      await proximas.locator('summary').click();
+      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeVisible();
+
+      const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      expect(transborda, 'scroll horizontal no início do telemóvel').toBe(false);
+    });
+  });
+
+  test('em ecrã grande só a coluna da direita mostra o progresso', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await alunoLogin(page);
+    await page.goto('/aluno/inicio');
+    await expect(page.getByTestId('mobile-progresso')).toBeHidden();
+    await expect(page.locator('aside[aria-label="Destaques"]')).toBeVisible();
+    await expect(page.locator('aside[aria-label="Destaques"]').getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
+  });
+});
+
 /** O 404 da landing (#544): endereço partido devolve "Esta página não existe" em
  *  português, na marca do site, com saída clara - e o banner de cookies nunca por
  *  cima de nada. Antes era o 404 de omissão do Next: inglês, sem marca, sem saída. */
@@ -404,6 +450,74 @@ test.describe('404 da landing (#544)', () => {
       expect((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0), 'o botão acaba antes do banner').toBeLessThanOrEqual(caixa!.y);
       // E o título da conversa é o primeiro que se vê.
       await expect(page.getByRole('heading', { name: 'Esta página não existe' })).toBeInViewport();
+    });
+  });
+});
+
+/** Contraste do LCD (#520): o verde médio sobre verde claro ficava nos 3:1, longe
+ *  dos 4,5 do texto pequeno. O axe não via: com hachuras e máscaras por cima, o
+ *  fundo é ambíguo e a regra cala-se. Por isso trava-se o par de tokens. */
+test.describe('contraste do LCD (#520)', () => {
+  /** WCAG 2.x: luminância relativa e rácio, os mesmos do axe. */
+  function razao(a: string, b: string) {
+    const lum = (hex: string) => {
+      const h = hex.replace('#', '');
+      const [r, g, bl] = [0, 2, 4].map((i) => {
+        const c = parseInt(h.slice(i, i + 2), 16) / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const [claro, escuro] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (claro + 0.05) / (escuro + 0.05);
+  }
+
+  async function tokens(page: Page) {
+    return page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const ler = (nome: string) => cs.getPropertyValue(nome).trim();
+      return { fundo: ler('--lcd-0'), fundoAlt: ler('--lcd-1'), texto: ler('--lcd-3') };
+    });
+  }
+
+  test('texto pequeno do LCD com pelo menos 4,5:1 nos dois fundos', async ({ page }) => {
+    await page.goto('/');
+    const t = await tokens(page);
+    expect(t.texto, 'token do texto').toMatch(/^#[0-9a-f]{6}$/);
+    expect(razao(t.texto, t.fundo), 'texto sobre lcd-0').toBeGreaterThanOrEqual(4.5);
+    expect(razao(t.texto, t.fundoAlt), 'texto sobre lcd-1').toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('axe sem falta de contraste nas zonas LCD', async ({ page }) => {
+    // Apontado às zonas desta issue (o axe cala-se onde o fundo é ambíguo;
+    // a página inteira já é coberta pelos testes de acessibilidade).
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      const { violations } = await new AxeBuilder({ page })
+        .include('.aud')
+        .include('.pres__art')
+        .withRules(['color-contrast'])
+        .analyze();
+      expect(violations.map((v) => v.id), `${viewport.width}px`).toEqual([]);
+    }
+  });
+
+  test.describe('movimento reduzido', () => {
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('axe sem falta de contraste no modo still', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      const { violations } = await new AxeBuilder({ page })
+        .include('.aud')
+        .withRules(['color-contrast'])
+        .analyze();
+      expect(violations.map((v) => v.id), 'still').toEqual([]);
+      // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
+      // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
+      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
     });
   });
 });

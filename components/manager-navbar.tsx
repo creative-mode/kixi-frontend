@@ -13,6 +13,9 @@ import {
   PanelLeftOpen,
   FilePen,
   ClipboardCheck,
+  Building2,
+  CalendarCheck,
+  FileSpreadsheet,
   DoorOpen,
   TrendingUp,
   Home,
@@ -39,6 +42,9 @@ const allNavLinks: NavLink[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/exam-rooms", label: "Salas de Prova", icon: DoorOpen },
   { href: "/tarefas", label: "Tarefas das pautas", icon: ClipboardCheck },
+  { href: "/planos", label: "Plano do trimestre", icon: CalendarCheck },
+  { href: "/coordenacao", label: "Salas da instituição", icon: Building2 },
+  { href: "/pautas", label: "Pautas", icon: FileSpreadsheet },
   { href: "/desempenho", label: "Desempenho", icon: TrendingUp },
   { href: "/exam-builder", label: "Montar prova", icon: FilePen },
   { href: "/assign", label: "Atribuir", icon: UserCheck },
@@ -53,7 +59,9 @@ const allNavLinks: NavLink[] = [
 
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
-const TEACHER_HREFS = ["/desempenho", "/tarefas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+// O coordenador só vê o plano, as pautas e as salas da instituição (o proxy fecha o resto: `coordinatorMayOpen`).
+const COORDINATOR_HREFS = ["/planos", "/pautas", "/coordenacao"];
+const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
 
 const teacherHomeLink: NavLink = { href: "/professor", label: "Início", icon: Home };
 
@@ -164,7 +172,10 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
 
   const isAdmin = roles.includes("ADMIN");
   const isTeacher = roles.includes("TEACHER");
-  const navLinks = isTeacher && !isAdmin
+  const coordinatorOnly = roles.includes("COORDINATOR") && !isAdmin && !isTeacher;
+  const navLinks = coordinatorOnly
+    ? allNavLinks.filter((l) => COORDINATOR_HREFS.includes(l.href))
+    : isTeacher && !isAdmin
     ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
     : allNavLinks;
   const pathname = usePathname();

@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
-import { canAccessManager, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
+import { canAccessManager, coordinatorMayOpen, isCoordinatorOnly, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
 
 /**
  * A origem de confiança, ou null quando não há nenhuma.
@@ -64,6 +64,9 @@ export async function proxy(request: NextRequest) {
       const roles = rolesFromPayload(payload.roles);
 
       if (canAccessManager(roles)) {
+        if (isCoordinatorOnly(roles)) {
+          return NextResponse.redirect(redirectTo('/planos', request));
+        }
         if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
           return NextResponse.redirect(redirectTo('/professor', request));
         }
@@ -101,6 +104,11 @@ export async function proxy(request: NextRequest) {
       response.cookies.delete('auth_token');
       response.cookies.delete('user_info');
       return response;
+    }
+
+    // O coordenador também: só o plano e as pautas (a decisão e os testes estão em `lib/roles.ts`).
+    if (isCoordinatorOnly(roles) && !coordinatorMayOpen(pathname)) {
+      return NextResponse.redirect(redirectTo('/planos', request));
     }
 
     // O professor tem uma lista fechada de rotas (`teacherRoute`, com testes): a
