@@ -84,7 +84,12 @@ export function Presentation() {
         const el = ref.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
-        setP(clamp(-r.top / (r.height - window.innerHeight)));
+        // Quantizado e com saída: `setState` só quando a casa muda (#514). Scrolls,
+        // resizes e jitter de sub-pixel que não mexem a casa não re-renderizam nada,
+        // porque o React descarta estado igual. Em movimento o valor muda na mesma a
+        // cada frame - tirar isso exigia passar a geometria toda para fora do React.
+        const next = Math.round(clamp(-r.top / (r.height - window.innerHeight)) * 2000) / 2000;
+        setP((prev) => (prev === next ? prev : next));
       });
     };
     onScroll();

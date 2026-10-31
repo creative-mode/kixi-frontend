@@ -407,3 +407,73 @@ test.describe('404 da landing (#544)', () => {
     });
   });
 });
+
+/** Apresentação sem derreter o telemóvel (#514): o scroll alimentava um `setState`
+ *  por frame e a demo do herói nunca parava. */
+test.describe('apresentação sem derreter (#514)', () => {
+  test('o h1 vem no HTML inicial, sem JS', async ({ request }) => {
+    const res = await request.get('/');
+    expect(res.ok()).toBeTruthy();
+    const html = await res.text();
+    expect(html).toContain('id="hero-title"');
+    expect(html).toContain('E se estudar fosse');
+  });
+
+  test('a demo do herói congela após 5 segundos', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForLoadState('networkidle');
+    // Passados os 5 s o intervalo pára: dois fotogramas com 1,2 s de distância
+    // (17 ticks a 70 ms) têm de ser pixel a pixel iguais.
+    await page.waitForTimeout(6000);
+    const lcd = page.locator('.gb__lcd');
+    await expect(lcd).toBeVisible();
+    const a = await lcd.screenshot();
+    await page.waitForTimeout(1200);
+    const b = await lcd.screenshot();
+    expect(a.equals(b), 'a demo continua a mexer').toBe(true);
+  });
+
+  test('scroll de uma ponta à outra sem tarefas longas em CPU fraca', async ({ page, context }) => {
+    // Moto G4 aproximado: CPU 4× mais lenta. Aproximação ao INP p75 < 200 ms —
+    // o p75 real é dado de campo; aqui trava-se o mecanismo (fio principal livre).
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.goto('/');
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
+    // Só a partir daqui: o que o carregamento (compiles, fontes) pesou antes
+    // não é scroll e não entra na conta.
+    const medida = await page.evaluate(() => new Promise<{ gaps: number[]; longas: number[] }>((done) => {
+      const gaps: number[] = [];
+      const longas: number[] = [];
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) longas.push((e as PerformanceEntry & { duration: number }).duration);
+      }).observe({ type: 'longtask' });
+      const ts: number[] = [];
+      const t0 = performance.now();
+      const tick = (t: number) => {
+        if (ts.length) gaps.push(t - ts[ts.length - 1]);
+        ts.push(t);
+        if (t - t0 < 8000) requestAnimationFrame(tick);
+        else done({ gaps, longas });
+      };
+      requestAnimationFrame(tick);
+      let i = 0;
+      const passo = () => {
+        if (i++ < 40) {
+          window.scrollBy(0, window.innerHeight / 4);
+          setTimeout(passo, 100);
+        }
+      };
+      passo();
+    }));
+    const ordenados = [...medida.gaps].sort((a, b) => a - b);
+    const p75 = ordenados[Math.floor(ordenados.length * 0.75)] ?? 0;
+    expect(ordenados.length, 'houve frames com scroll').toBeGreaterThan(40);
+    expect(Math.round(p75), 'p75 do intervalo entre frames').toBeLessThan(200);
+    const maxima = medida.longas.length ? Math.max(...medida.longas) : 0;
+    expect(Math.round(maxima), 'tarefa mais longa no scroll').toBeLessThan(200);
+  });
+});
