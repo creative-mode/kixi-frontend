@@ -471,9 +471,14 @@ test.describe('foco e movimento da apresentação (#513)', () => {
       await page.goto('/');
       await page.waitForLoadState('networkidle');
       await page.evaluate(() => document.fonts.ready);
+      // O `reduced` só existe depois da hidratação: sem ele as cenas continuam
+      // `aria-hidden` e a árvore de acessibilidade vem vazia.
+      const secao = page.locator('#solucao');
+      await expect
+        .poll(() => secao.locator('[aria-hidden="false"]').count(), { message: 'hidratação do modo reduzido', timeout: 30000 })
+        .toBeGreaterThan(0);
       await page.waitForTimeout(2000);
       // A apresentação nasce compacta: herói, cenas empilhadas e cartucho parado.
-      const secao = page.locator('#solucao');
       const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
       const ecra = await page.evaluate(() => window.innerHeight);
       expect(altura, 'sem os 1800 ecrãs').toBeLessThan(8 * ecra);
@@ -483,6 +488,15 @@ test.describe('foco e movimento da apresentação (#513)', () => {
       // é o salto que este teste vigia.
       const cls = await page.evaluate(() => (window as unknown as { __cls?: number }).__cls ?? 0);
       expect(cls, 'sem salto de layout').toBeLessThan(0.15);
+      // Duas instâncias do cartucho no DOM (a animada escondida e a parada
+      // visível), zero ids repetidos: com ids fixos o `url(#…)` resolvia para a
+      // escondida e a visível perdia hachuras e filtro.
+      const ids = await page.evaluate(() => {
+        const todos = [...document.querySelectorAll('[id^="kx-"]')].map((el) => el.id);
+        return { total: todos.length, unicos: new Set(todos).size };
+      });
+      expect(ids.total, 'há cartuchos com ids').toBeGreaterThan(0);
+      expect(ids.unicos, 'ids repetidos no SVG').toBe(ids.total);
     });
   });
 });
