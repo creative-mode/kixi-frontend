@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { approvePlan, createPlan, dispense, linkRoom, markDone, planContext, type PlanContext, type RoomChoice } from '@/app/actions/term-plans';
+import { approvePlan, concludeScheduling, createPlan, dispense, linkRoom, markDone, planContext, reschedule, type PlanContext, type RoomChoice } from '@/app/actions/term-plans';
 import { ACTION_TIMEOUT_MS, withDeadline } from '@/lib/timeout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -189,17 +189,20 @@ function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: A
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{done}/{total} concluídas</Badge>
             {plan.approved && <Badge>Aprovado</Badge>}
-            {plan.pautaOpened ? <Badge variant="secondary">Pauta aberta</Badge> : plan.readyForPauta ? <Badge variant="secondary">Pronto para a pauta</Badge> : null}
+            {plan.pautaOpened ? <Badge variant="secondary">Pauta aberta</Badge> : plan.schedulingConcluded ? <Badge variant="secondary">Agendamento concluído</Badge> : null}
           </div>
         </div>
         <CardDescription>
-          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: acompanhe-a em Pautas.' : plan.readyForPauta ? 'Tudo corrigido ou dispensado: a pauta abre em instantes.' : 'A pauta abre quando todas as avaliações estiverem corrigidas ou dispensadas.'}
+          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? 'Agendamento concluído: a pauta abre em instantes.' : 'Ligue o enunciado da P1 e da P2 e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <ul className="flex flex-col divide-y">
           {plan.assessments.map((a) => <AssessmentRow key={a.id} plan={plan} a={a} mine={mine} ctx={ctx} act={act} />)}
         </ul>
+        {(mine || ctx.canDecide) && !plan.schedulingConcluded && !plan.pautaOpened && (
+          <div><Button onClick={() => void act(() => concludeScheduling(plan.id), 'Agendamento concluído: a pauta vai abrir.')}>Concluir o agendamento</Button></div>
+        )}
         {ctx.canDecide && !plan.approved && (
           <div><Button variant="outline" onClick={() => void act(() => approvePlan(plan.id), 'Plano aprovado.')}>Aprovar o plano</Button></div>
         )}
@@ -212,8 +215,10 @@ function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessm
   const [room, setRoom] = useState('');
   const [reason, setReason] = useState('');
   const [asking, setAsking] = useState(false);
+  const [newDate, setNewDate] = useState('');
+  const isExam = a.kind !== 'MAC';
   const rooms = useMemo<RoomChoice[]>(() => ctx.rooms.filter((r) => r.classId === plan.classId), [ctx.rooms, plan.classId]);
-  const open = !DONE_TONE.has(a.status);
+  const open = !DONE_TONE.has(a.status) || (ctx.canDecide && a.kind !== 'MAC' && !plan.pautaOpened && a.status === 'GRADED');
   return (
     <li className="flex flex-col gap-2 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -237,11 +242,14 @@ function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessm
           {mine && a.kind === 'MAC' && a.roomId === null && (
             <Button size="sm" variant="outline" onClick={() => void act(() => markDone(plan.id, a.id), 'Avaliação concluída.')}>Marcar concluída</Button>
           )}
-          {ctx.canDecide && !asking && <Button size="sm" variant="ghost" onClick={() => setAsking(true)}>Dispensar…</Button>}
+          {ctx.canDecide && !asking && <Button size="sm" variant="ghost" onClick={() => setAsking(true)}>{isExam ? 'Reagendar…' : 'Dispensar…'}</Button>}
           {ctx.canDecide && asking && (
             <>
-              <Input aria-label="Motivo da dispensa" placeholder="Motivo" value={reason} onChange={(e) => setReason(e.target.value)} className="max-w-64" />
-              <Button size="sm" disabled={!reason.trim()} onClick={() => void act(() => dispense(plan.id, a.id, reason), 'Avaliação dispensada.')}>Dispensar</Button>
+              {isExam && <Input aria-label="Nova data" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="max-w-40" />}
+              <Input aria-label={isExam ? 'Motivo do reagendamento' : 'Motivo da dispensa'} placeholder="Motivo" value={reason} onChange={(e) => setReason(e.target.value)} className="max-w-64" />
+              {isExam
+                ? <Button size="sm" disabled={!reason.trim() || !newDate} onClick={() => void act(() => reschedule(plan.id, a.id, newDate, reason), 'Prova reagendada.')}>Reagendar</Button>
+                : <Button size="sm" disabled={!reason.trim()} onClick={() => void act(() => dispense(plan.id, a.id, reason), 'Avaliação dispensada.')}>Dispensar</Button>}
               <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancelar</Button>
             </>
           )}
