@@ -23,6 +23,7 @@ import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction'
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
+import { useUnsavedChanges } from '@/components/crud/use-unsaved-changes';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   // O `<label>` envolve o controlo em vez de ser irmao: um label que envolve o
@@ -104,6 +105,8 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
   const [reading, setReading] = useState(false);
+  const builderDirty = ready && draftHasContent(draft) && (saved === null || saved.snapshot !== JSON.stringify(draft));
+  const { dialog: unsavedDialog } = useUnsavedChanges(builderDirty);
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
@@ -577,6 +580,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           <ExamSheet school={school} draft={draft} />
         </div>
       </div>
+      {unsavedDialog}
     </div>
   );
 }

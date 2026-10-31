@@ -42,6 +42,7 @@ import { QuestionImages } from './question-images';
 import { MathText } from '@/student/lib/shared/math-text';
 import { hasMathContent } from '@/student/lib/shared/math-content';
 import { mathContentFields, mathNeedsReview, type MathContentFields } from '@/student/lib/shared/math-types';
+import { useUnsavedChanges } from './use-unsaved-changes';
 
 // O tipo tem várias grafias no backend (OCR escreve `development`, o exam builder `open`).
 const QUESTION_TYPES: Record<string, string> = { MULTIPLE_CHOICE: 'Escolha múltipla', GROUP: 'Com alíneas', TRUE_FALSE: 'Verdadeiro/falso', OPEN: 'Resposta aberta', SHORT_ANSWER: 'Resposta curta', ESSAY: 'Desenvolvimento', DEVELOPMENT: 'Desenvolvimento' };
@@ -185,6 +186,8 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   /** Os enunciados por rever que este utilizador pode abrir, pela ordem da lista: dá o «seguinte» e a posição na fila. */
   const [queue, setQueue] = useState<number[] | null>(null);
   const setH = (patch: Partial<HeaderDraft>) => setHeader((h) => (h ? { ...h, ...patch } : h));
+  const dirtyDraft = !!header && !!questions && !!original && JSON.stringify({ header, questions }) !== JSON.stringify(original);
+  const { dialog: unsavedDialog } = useUnsavedChanges(dirtyDraft);
 
   /** Lê do servidor. `keep` são rascunhos de questões que falharam ao gravar: ficam por cima. */
   const load = useCallback(async (keep: QuestionDraft[] = []) => {
@@ -268,7 +271,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   // Aviso, não pendência: aprova-se sem gabarito, mas o SchoolOps não corrige a questão e a simulação do aluno fica sem nota nela.
   const semGabarito = gabaritosEmFalta(questions.map((q) => ({ ...q, maxScore: score(q.maxScore) })));
   const lowConfidence = meta.ocrConfidence != null && meta.ocrConfidence < 0.9;
-  const dirty = JSON.stringify({ header, questions }) !== JSON.stringify(original);
+  const dirty = dirtyDraft;
 
   /** Grava e recarrega do servidor. Devolve se tudo ficou gravado. */
   async function save(): Promise<boolean> {
@@ -665,6 +668,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
         enabled={!saving}
       />
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
+      {unsavedDialog}
     </div>
   );
 }

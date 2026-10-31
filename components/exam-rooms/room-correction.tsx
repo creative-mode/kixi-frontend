@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { gradeRoom, roomReview } from '@/app/actions/exam-rooms';
 import { AI_LEVEL_LABEL, aiStateLabel, gradesToSend, invalidDrafts, keyMatchCount, type ReviewQuestion, type RoomReview, type ScoreDrafts } from '@/lib/exam-rooms/model';
+import { useUnsavedChanges } from '@/components/crud/use-unsaved-changes';
 
 const fmt = (n: number | null) => (n === null ? '—' : new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(n));
 const labelOf = (q: ReviewQuestion) => `${q.number ?? ''}${q.label ?? ''}`;
@@ -28,6 +29,7 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
   const [onlyPending, setOnlyPending] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const noteId = useId();
+  const { dialog: unsavedDialog } = useUnsavedChanges(Object.keys(drafts).length > 0);
 
   const load = useCallback(async () => {
     const res = await roomReview(roomId);
@@ -167,6 +169,7 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
         ))}
       </CardContent>
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
+      {unsavedDialog}
     </Card>
   );
 }
