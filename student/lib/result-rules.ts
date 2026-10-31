@@ -40,6 +40,15 @@ export interface ResultQuestion extends MathContentFields {
   ocrConfidence?: number | null;
   /** A justificação da nota de uma dissertativa corrigida pelo SchoolOps. */
   feedback?: string | null;
+  /** O que a IA disse de uma resposta aberta de uma prova de um plano do trimestre, corrigida no fluxo (kixi#542). */
+  aiFeedback?: string | null;
+  aiLevel?: string | null;
+}
+
+/** A observação a mostrar por baixo da nota: a do SchoolOps (simulações livres) ou a da IA (provas de um plano). */
+export function observation(q: Pick<ResultQuestion, 'feedback' | 'aiFeedback'>): string | null {
+  const text = (q.feedback ?? q.aiFeedback ?? '').trim();
+  return text.length > 0 ? text : null;
 }
 
 export interface SimulationResult {
