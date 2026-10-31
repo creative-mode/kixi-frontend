@@ -876,8 +876,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     await page.emulateMedia({ media: 'screen' });
 
-    const renderedQuestion = page.getByLabel('Enunciado comum da questão 1');
-    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    // Por CSS: com o modal aberto o fundo sai da árvore de acessibilidade e o getByRole deixa de o ver.
+    const renderedQuestion = page.locator('[role="group"][aria-label="Enunciado comum da questão 1"]');
+    // Desenhado, o enunciado deixa de ser um «textbox» morto: cada fórmula é um botão (#531).
+    await expect(renderedQuestion).toHaveAttribute('role', 'group');
+    await expect(renderedQuestion.getByRole('button', { name: /^Editar fórmula/ })).toHaveCount(1);
     await expect(renderedQuestion.locator('.katex')).toBeVisible();
     const formulaToggle = page.getByRole('button', { name: 'Inserir fórmula' }).first();
     await formulaToggle.click();
@@ -886,7 +889,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const systemButton = formulaDialog.getByRole('button', { name: 'Inserir modelo Sistema' });
     await expect(vectorButton.locator('.katex')).toBeVisible();
     await expect(systemButton.locator('.katex')).toBeVisible();
-    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion).toHaveAttribute('role', 'group');
 
     const formulaEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/formula-picker-rendered-symbols.png');
     await page.locator('body').screenshot({ path: formulaEvidencePath });
@@ -897,7 +900,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await vectorButton.click();
     await expect.poll(async () => formulaDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\vec{v}');
     await formulaDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
-    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion).toHaveAttribute('role', 'group');
     await expect(renderedQuestion.locator('.katex')).toHaveCount(2);
 
     await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
@@ -906,6 +909,53 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect.poll(async () => systemDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\begin{cases}');
     await systemDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
     await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
+  });
+
+  test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder');
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Sendo $x^{2}$ e $y$, calcule.');
+    await page.getByRole('button', { name: 'Ver fórmula renderizada' }).first().click();
+
+    // Cada fórmula é alcançável por Tab e tem um nome próprio.
+    const group = page.getByRole('group', { name: 'Questão 1' });
+    const second = group.getByRole('button', { name: 'Editar fórmula 2' });
+    await expect(group.getByRole('button', { name: /^Editar fórmula/ })).toHaveCount(2);
+    await group.getByRole('button', { name: 'Editar fórmula 1' }).focus();
+    await page.keyboard.press('Tab');
+    await expect(second).toBeFocused();
+
+    // Enter abre o editor com o LaTeX dessa fórmula, e não vazio.
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: 'Editar fórmula' });
+    const mathfield = dialog.locator('math-field');
+    const latex = () => mathfield.evaluate((element) => (element as HTMLElement & { value: string }).value);
+    await expect.poll(latex).toBe('y');
+
+    // Sem alterar nada, Esc fecha logo.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+
+    // Com a fórmula alterada, Esc pede confirmação e não perde o trabalho.
+    await second.click();
+    await expect.poll(latex).toBe('y');
+    await mathfield.evaluate((element) => {
+      const field = element as HTMLElement & { setValue: (value: string) => void };
+      field.setValue('z^{3}');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.keyboard.press('Escape');
+    await expect(dialog.getByRole('alert')).toContainText('Descartar a fórmula');
+    await expect(dialog.getByRole('button', { name: 'Continuar a editar' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Continuar a editar' }).click();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await expect.poll(latex).toBe('z^{3}');
+
+    // Substituir troca só essa fórmula, no mesmo sítio do texto.
+    await dialog.getByRole('button', { name: 'Substituir fórmula' }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
+    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Sendo $x^{2}$ e $z^{3}$, calcule.');
   });
 
   test('construtor: falha do MathLive mantém edição de fórmula em LaTeX', async ({ page }, testInfo) => {
