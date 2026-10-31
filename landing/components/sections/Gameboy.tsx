@@ -1,15 +1,18 @@
 /**
  * The original Game Boy (DMG-01), drawn as flat shapes with the same dark outline as the rest of the drawings.
  * Everything that is not the screen is SVG; the screen is an HTML box laid over the bezel so the story can play on it.
+ *
+ * Progresso da apresentação (eject/off/hero/center) entra só por CSS vars no nó
+ * `[data-pres-gb]`, para o scroll não forçar re-render React (#514).
  */
 const INK = '#121c15';
 const SHELL = '#cbc8ba';
 const BEZEL = '#5b596e';
 const BUTTON = '#1f5a2c';
 
-export function Gameboy({ children, eject = 0, off = 0, hero = 0, center = 0, label }: { children: React.ReactNode; eject?: number; off?: number; hero?: number; center?: number; label: string }) {
+export function Gameboy({ children, label }: { children: React.ReactNode; label: string }) {
   return (
-    <div className="gb" style={{ ['--ej' as string]: eject, ['--ctr' as string]: center, ['--off' as string]: off, ['--hero' as string]: hero, opacity: 1 - eject }}>
+    <div className="gb" data-pres-gb>
       <svg className="gb__body" viewBox="0 0 300 492" aria-hidden="true" focusable="false">
         {/* hard shadow, like the pixel buttons */}
         <path d="M18 14H292Q304 14 304 26V440A62 62 0 0 1 242 502H18Q6 502 6 490V26Q6 14 18 14Z" fill={INK} />

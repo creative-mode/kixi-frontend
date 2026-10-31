@@ -72,6 +72,7 @@ export function GameDemo({ paused = false }: { paused?: boolean }) {
   const [s, setS] = useState<State>(() => wave(1, 0));
 
   useEffect(() => {
+    // WCAG 2.2.2 / #514: sem intervalo se pausado ou se o SO pede menos movimento.
     if (paused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const id = window.setInterval(() => setS((x) => step(x)), 70);
     return () => window.clearInterval(id);

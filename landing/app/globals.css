@@ -78,7 +78,7 @@ a { color: inherit; }
 .pres__prolog .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pres__stick { position: sticky; top: 0; height: 100svh; width: 100%; max-width: calc(var(--page) + 2 * var(--gutter)); margin: 0 auto; padding: 72px var(--gutter) 0; display: grid; grid-template-rows: 44% 56%; align-items: center; }
 .pres__text { display: grid; align-self: end; text-align: center; padding-bottom: 8px; }
-.pres__scene { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; will-change: opacity, transform; }
+.pres__scene { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; pointer-events: none; will-change: opacity, transform; }
 .pres__art { position: relative; width: 100%; height: 100%; }
 .pres__cart, .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pres__cart { transform-origin: 50% 55%; }
@@ -122,6 +122,30 @@ a { color: inherit; }
 .pres__list { list-style: none; margin: 0; padding: 0; max-width: 640px; width: 100%; text-align: left; border-top: 1.6px solid var(--lp-ink); }
 .pres__list li { display: grid; gap: 4px; padding: 20px 0; border-bottom: 1.6px solid var(--lp-ink); }
 .pres__list strong { font: 400 12px/16px var(--font-pixel); }
+
+.pres__cart--flat { display: none; }
+.pres__pause {
+  position: absolute; z-index: 4; left: 50%; bottom: clamp(16px, 4svh, 40px);
+  transform: translateX(-50%); margin: 0; padding: 8px 12px;
+  font: 600 12px/1 var(--font-sans); color: var(--lp-ink); background: var(--paper-3);
+  border: 2px solid var(--lp-ink); cursor: pointer;
+}
+.pres__pause:focus-visible { outline: 2px solid var(--lp-ink); outline-offset: 3px; }
+.pres__pause[hidden] { display: none; }
+.pres:not([data-phase="demo"]) .pres__pause { display: none; }
+
+/* movimento reduzido: desenho compacto na primeira tinta (sem salto pós-hidratação). */
+@media (prefers-reduced-motion: reduce) {
+  .pres { height: auto; margin-top: 0; }
+  .pres__stick { position: static; height: auto; display: block; padding: calc(72px + clamp(24px, 6svh, 72px)) var(--gutter) clamp(24px, 6svh, 72px); text-align: center; }
+  .pres__hero { position: static; }
+  .pres__text { display: block; }
+  .pres__scene { align-items: center; margin-top: clamp(28px, 7svh, 72px); opacity: 1; pointer-events: auto; transform: none; }
+  .pres__art { height: auto; }
+  .pres__art .gb, .pres__block, .pres__art .pres__art--cart, .pres__pause { display: none; }
+  .pres__art .pres__cart--flat { display: block; position: static; width: 100%; max-width: 560px; margin: clamp(28px, 7svh, 72px) auto 0; padding: 24px; background: var(--lcd-0); }
+  .pres__art .pres__cart--flat .pres__svg { height: auto; }
+}
 
 /* the drawing */
 .cart { display: block; overflow: hidden; }
@@ -188,14 +212,15 @@ a { color: inherit; }
 .pres__block { --step: 16px; position: absolute; inset: 4% 0 4% 6%; background: var(--lcd-0); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
 .pres__block::after, .gb__lcd::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 100% 4px, linear-gradient(90deg, rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 4px 100%; }
 /* the cartridge itself: shell grey, with the brand green on the layer in focus */
-.pres__art--cart, .still-plate { --lp-ink: #121c15; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; }
+.pres__art--cart, .pres__cart--flat, .still-plate { --lp-ink: #121c15; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; }
 .still-plate { position: relative; width: 100%; max-width: 560px; padding: 24px; background: var(--lcd-0); }
 .pres__art .pres__cart { z-index: 1; }
 /* the drawing is clipped by its own box: give it exactly the green screen's box, so layers leave the frame at its edge and never cut off in mid-air above or below it */
 @media (min-width: 960px) { .pres__art .pres__cart { inset: 4% 0 4% 6%; width: auto; height: auto; } }
 
 /* the console */
-.gb { --hs: .1; --ht: 50svh; transform-origin: 50% 0; transform: translateY(calc(var(--hero, 0) * (var(--ht) - 72px))) translateY(calc(var(--ej, 0) * 40%)) scale(calc((1 + var(--big, 1) * var(--hs)) * (1 - var(--ej, 0) * 0.12))); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
+.gb { --hs: .1; --ht: 50svh; --ej: 0; --off: 0; --hero: 1; --ctr: 0; opacity: calc(1 - var(--ej)); transform-origin: 50% 0; transform: translateY(calc(var(--hero) * (var(--ht) - 72px))) translateY(calc(var(--ej) * 40%)) scale(calc((1 + var(--big, 1) * var(--hs)) * (1 - var(--ej) * 0.12))); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
+.gb[hidden] { display: none; }
 .gb__body { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-2); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
   position: absolute; left: 20.67%; top: 10.57%; width: 58.67%; height: 32.19%; overflow: hidden; background: var(--lcd-0); box-shadow: inset 4px 4px 0 rgba(15,56,15,.4); }
@@ -204,7 +229,7 @@ a { color: inherit; }
 .gb__lcd::before { content: ''; position: absolute; inset: 0; background: var(--lcd-3); opacity: clamp(0, calc((var(--off, 0) - 0.55) * 2.2), 1); z-index: 1; pointer-events: none; }
 .gb__lcd .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* wide screens: the console takes the middle of the stage while the story plays, then the text comes back beside it */
-@media (min-width: 960px) { .gb { --hs: .5; --ht: 40svh; transform: translateX(calc(var(--ctr, 0) * -56% + var(--big, 1) * -12%)) translateY(calc(var(--hero, 0) * (var(--ht) - 92px))) translateY(calc(var(--ej, 0) * 40%)) scale(calc((1 + var(--big, 1) * var(--hs)) * (1 - var(--ej, 0) * 0.12))); } }
+@media (min-width: 960px) { .gb { --hs: .5; --ht: 40svh; transform: translateX(calc(var(--ctr) * -56% + var(--big, 1) * -12%)) translateY(calc(var(--hero) * (var(--ht) - 92px))) translateY(calc(var(--ej) * 40%)) scale(calc((1 + var(--big, 1) * var(--hs)) * (1 - var(--ej) * 0.12))); } }
 @media (prefers-reduced-motion: reduce) { .gb { transform: none !important; } }
 
 .kx-btn--a { --face: var(--btn); --edge: var(--btn-edge); --txt: #fff; }
