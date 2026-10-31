@@ -41,7 +41,7 @@ export async function MobileInicio({ me }: { me: Me }) {
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-[17px] font-bold tracking-tight">O teu progresso</h2>
-          <Link href="/perfil" className="shrink-0 text-[13px] font-semibold text-primary hover:underline">Perfil</Link>
+          <Link href="/perfil" className="inline-flex min-h-11 shrink-0 items-center text-[13px] font-semibold text-primary hover:underline">Perfil</Link>
         </div>
         {stats ? (
           <div className="mt-3 grid gap-2">
