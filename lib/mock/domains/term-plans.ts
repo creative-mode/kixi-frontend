@@ -47,7 +47,7 @@ function viewer(auth: any) {
 }
 
 export async function termPlanRoutes({ method, path, auth, readBody }: MockContext): Promise<Response | undefined> {
-  const m = path.match(/^\/api\/v1\/term-plans(?:\/(reminders|\d+)(?:\/(?:assessments\/(\d+)(?:\/(done|dispense))?|(approve)))?)?$/);
+  const m = path.match(/^\/api\/v1\/term-plans(?:\/(reminders|\d+)(?:\/(?:assessments\/(\d+)(?:\/(done|dispense|reschedule))?|(approve)))?)?$/);
   if (!m) return undefined;
   const who = viewer(auth);
   const can = (p: any) => who.admin || who.coordinator || who.teaches(p.classId, p.subjectId);
@@ -87,8 +87,17 @@ export async function termPlanRoutes({ method, path, auth, readBody }: MockConte
     plan.approvedAt = new Date().toISOString();
     return json(200, view(plan));
   }
+  if (assessment && m[3] === 'reschedule' && method === 'POST') {
+    if (!who.admin && !who.coordinator) return problem(403, 'Only the coordinator of the institution approves or dispenses');
+    const b = readBody();
+    if (assessment.kind === 'MAC') return problem(400, 'Only P1 and P2 can be rescheduled');
+    if (!String(b.reason ?? '').trim()) return problem(400, 'A reason is required to reschedule an assessment');
+    Object.assign(assessment, { plannedDate: b.date, statementId: null, roomId: null, manualDone: false, dispensedAt: null, dispensedReason: null });
+    return json(200, view(plan));
+  }
   if (assessment && m[3] === 'dispense' && method === 'POST') {
     if (!who.admin && !who.coordinator) return problem(403, 'Only the coordinator of the institution approves or dispenses');
+    if (assessment.kind !== 'MAC') return problem(409, 'P1 and P2 cannot be dispensed: reschedule them');
     const reason = String(readBody().reason ?? '').trim();
     if (!reason) return problem(400, 'A reason is required to dispense an assessment');
     assessment.dispensedAt = new Date().toISOString();
