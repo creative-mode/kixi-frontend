@@ -470,7 +470,8 @@ test.describe('contraste do LCD (#520)', () => {
         .analyze();
       expect(violations.map((v) => v.id), 'still').toEqual([]);
       // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
-      await expect(page.locator('#solucao').getByText('Fotografa a prova.', { exact: true })).toBeVisible();
+      // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
+      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
     });
   });
 });
