@@ -683,3 +683,113 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
       .toBe('BODY');
   });
 });
+
+/** Doação sem ecrã cortado (#515): com altura fixa e scroll escondido, zoom, teclado
+ *  virtual ou paisagem deixavam campos e botões fora de vista. */
+test.describe('doação sem ecrã cortado (#515)', () => {
+  async function semEscolha(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  /** Mostra um ecrã para medir o desenho, não a lógica de passos: os três
+   *  fieldsets vêm no HTML, só um sem `hidden` de cada vez. */
+  async function revelar(page: Page, passo: number) {
+    await page.evaluate((i) => {
+      document.querySelectorAll('fieldset.dn-screen').forEach((f, j) => {
+        (f as HTMLElement).hidden = j !== i;
+      });
+    }, passo);
+  }
+
+  /** Controlos do ecrã, sem a armadilha anti-robôs (invisível de propósito). */
+  function controlos(page: Page, passo: number) {
+    return page
+      .locator('fieldset.dn-screen')
+      .nth(passo)
+      .locator('input:not([name="website"]):not([type="hidden"]), select, textarea, button');
+  }
+
+  async function alcancaveis(page: Page, passo: number, onde: string) {
+    const els = controlos(page, passo);
+    const n = await els.count();
+    expect(n, `controlos no ecrã ${passo} em ${onde}`).toBeGreaterThan(0);
+    for (let i = 0; i < n; i++) {
+      const el = els.nth(i);
+      await el.scrollIntoViewIfNeeded();
+      await expect(el, `controlo ${i} do ecrã ${passo} em ${onde}`).toBeVisible();
+    }
+    const transborda = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    );
+    expect(transborda, `scroll horizontal em ${onde}`).toBe(false);
+  }
+
+  test('zoom 200%: todos os campos e botões são alcançáveis', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await semEscolha(page);
+    await page.goto('/doar');
+    // Zoom real de 200% sobre 390×844: o CSS `zoom` é suportado no Chromium.
+    await page.evaluate(() => {
+      (document.documentElement.style as unknown as { zoom: string }).zoom = '2';
+    });
+    for (const passo of [0, 1, 2]) {
+      await revelar(page, passo);
+      await alcancaveis(page, passo, 'zoom 200%');
+    }
+    // Os botões da barra vivem fora dos ecrãs: Continuar, Voltar e Doar.
+    await revelar(page, 1);
+    for (const nome of ['Voltar', 'Continuar']) {
+      const botao = page.getByRole('button', { name: nome });
+      await botao.scrollIntoViewIfNeeded();
+      await expect(botao, `${nome} em zoom 200%`).toBeVisible();
+    }
+    await revelar(page, 2);
+    const doar = page.getByRole('button', { name: 'Doar', exact: true });
+    await doar.scrollIntoViewIfNeeded();
+    await expect(doar, 'Doar em zoom 200%').toBeVisible();
+  });
+
+  test('o banner nunca cobre Continuar nem Doar', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await semEscolha(page);
+    await page.goto('/doar');
+    const bnn = page.locator('section.ck');
+    await expect(bnn).toBeVisible();
+    for (const [passo, nome] of [[0, 'Continuar'], [2, 'Doar']] as const) {
+      await revelar(page, passo);
+      const botao = page.getByRole('button', { name: nome, exact: true });
+      await expect(botao).toBeVisible();
+      const [cta, caixa] = await Promise.all([botao.boundingBox(), bnn.boundingBox()]);
+      expect((cta?.y ?? Infinity) + (cta?.height ?? 0), `${nome} tapado`).toBeLessThanOrEqual(caixa!.y);
+    }
+  });
+
+  test('o texto de privacidade é visível no mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await semEscolha(page);
+    await page.goto('/doar');
+    await revelar(page, 2);
+    // Era `display: none` abaixo de 899 px: doar sem se identificar é uma
+    // promessa que o telemóvel também tem de ler.
+    await expect(page.getByText('Podes doar sem dizer quem és')).toBeVisible();
+  });
+
+  test('320×568: o primeiro ecrã é utilizável', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await semEscolha(page);
+    await page.goto('/doar');
+    await expect(page.getByRole('heading', { name: /Cada prova antiga/ })).toBeVisible();
+    await expect(page.getByText('Toca para escolher fotos ou PDF')).toBeVisible();
+    const continuar = page.getByRole('button', { name: 'Continuar' });
+    await continuar.scrollIntoViewIfNeeded();
+    await expect(continuar).toBeVisible();
+    const bnn = page.locator('section.ck');
+    await expect(bnn).toBeVisible();
+    const [cta, caixa] = await Promise.all([continuar.boundingBox(), bnn.boundingBox()]);
+    expect((cta?.y ?? Infinity) + (cta?.height ?? 0), 'Continuar tapado a 320×568').toBeLessThanOrEqual(caixa!.y);
+    const transborda = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    );
+    expect(transborda, 'scroll horizontal a 320×568').toBe(false);
+  });
+});
