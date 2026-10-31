@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, DoorOpen, FileText, Gift, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,20 +9,22 @@ import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
-import { approveStatement, createManualStatement, getStatementFull, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, type ReviewChoices } from '@/app/actions/crud';
+import { approveStatement, createManualStatement, getStatementForReview, getStatementFull, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, updateManualStatement, type ReviewChoices, type StatementInput } from '@/app/actions/crud';
 import { extractDonation, getDonation, linkDonationStatement } from '@/app/actions/donations';
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
+import type { Row } from '@/lib/crud/entities';
 import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
-import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { distributeScore, figuresOf, move, problems, toRequest, toUpdateRequest, totalScore, unscored, type BuilderQuestionIdentity, type RequestItem } from '@/lib/exam/draft';
 import { missingToSave, readinessParts, saveBlocker } from '@/lib/exam/readiness';
 import { cn } from '@/lib/utils';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   // O `<label>` envolve o controlo em vez de ser irmao: um label que envolve o
@@ -43,8 +45,89 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /** A prova que acabou de ser guardada: serve para dizer onde está e para a poder dar a uma turma. */
-interface SavedExam { id: number; title: string; published: boolean; snapshot: string }
+interface SavedExam { id: number; title: string; published: boolean; snapshot: string; savedAt: string }
 interface PendingFigurePublication extends SavedExam { figures: ReturnType<typeof figuresOf>; publish: boolean }
+
+function ordered(rows: Row[]): Row[] {
+  return [...rows].sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
+}
+
+function applyServerIds(draft: ExamDraft, statement: Row): ExamDraft {
+  const questions = Array.isArray(statement.questions) ? ordered(statement.questions as Row[]) : [];
+  const topLevel = questions.filter((question) => question.parentId == null);
+  let questionIndex = 0;
+  const optionsWithIds = <T extends { label: string; serverId?: number }>(options: T[], serverOptions: Row[]) =>
+    options.map((option) => {
+      const match = serverOptions.find((candidate) => candidate.optionLabel === option.label);
+      return match?.id != null ? { ...option, serverId: Number(match.id) } : option;
+    });
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const savedQuestion = topLevel[questionIndex++];
+      if (!savedQuestion) return item;
+      const id = Number(savedQuestion.id);
+      const savedOptions = Array.isArray(savedQuestion.options) ? savedQuestion.options as Row[] : [];
+      const identified = { ...item, serverId: id, options: optionsWithIds(item.options, savedOptions) };
+      if (item.kind !== 'group') return identified;
+      const savedItems = questions.filter((question) => Number(question.parentId) === id);
+      let itemIndex = 0;
+      return {
+        ...identified,
+        items: (item.items ?? []).map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const savedItem = savedItems[itemIndex++];
+          if (!savedItem) return subItem;
+          const subOptions = Array.isArray(savedItem.options) ? savedItem.options as Row[] : [];
+          return { ...subItem, serverId: Number(savedItem.id), options: optionsWithIds(subItem.options, subOptions) };
+        }),
+      };
+    }),
+  };
+}
+
+function applyUpdateIdentities(draft: ExamDraft, identities: BuilderQuestionIdentity[]): ExamDraft {
+  const requests = toUpdateRequest(draft.items);
+  let requestIndex = 0;
+  const updateOptions = <T extends { label: string; serverId?: number }>(
+    options: T[], requestOptions: RequestItem['options'], ids: number[],
+  ) => options.map((option) => {
+    const index = requestOptions.findIndex((requested) => requested.label === option.label);
+    const id = index >= 0 ? ids[index] : undefined;
+    return id ? { ...option, serverId: id } : option;
+  });
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const request = requests[requestIndex];
+      const identity = identities[requestIndex++];
+      if (!request || !identity) return item;
+      const identified = {
+        ...item,
+        serverId: identity.serverId,
+        options: updateOptions(item.options, request.options, identity.options),
+      };
+      if (!item.items || !request.items || !identity.items) return identified;
+      let subIndex = 0;
+      return {
+        ...identified,
+        items: item.items.map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const requested = request.items?.[subIndex];
+          const saved = identity.items?.[subIndex++];
+          if (!requested || !saved) return subItem;
+          return {
+            ...subItem,
+            serverId: saved.serverId,
+            options: updateOptions(subItem.options, requested.options, saved.options),
+          };
+        }),
+      };
+    }),
+  };
+}
 
 /** Anexa apenas os recortes ainda ausentes; a ordem e a legenda identificam cada recorte
  *  porque a prova acabou de ser criada e, portanto, não tem imagens pré-existentes. */
@@ -104,6 +187,8 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
   const [reading, setReading] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const draftDecisionPending = useRef(false);
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
@@ -112,25 +197,43 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     // formulário preenchido com a prova anterior, de outra escola ou de há semanas,
     // sem o ter pedido. Se houver trabalho por guardar, pergunta-se — e só nesse caso.
     const anterior = loadDraft();
-    const continuar = draftHasContent(anterior) && window.confirm('Tem um rascunho por guardar da última vez. Continuar esse rascunho? (Cancelar começa uma prova nova.)');
-    if (!continuar) clearDraft();
-    // `setDraft` vai dentro do timeout para não disparar em cima do efeito — a mesma
-    // razão pela qual já era adiado antes de a #362 existir.
-    const task = window.setTimeout(() => { if (continuar) setDraft(anterior); }, 0);
+    const continueDraft = () => {
+      setDraft(anterior);
+      if (anterior.savedStatementId) {
+        setSaved({
+          id: anterior.savedStatementId,
+          title: anterior.title.trim() || 'Prova guardada',
+          published: anterior.savedPublished === true,
+          snapshot: JSON.stringify(anterior),
+          savedAt: anterior.savedAt ?? new Date().toISOString(),
+        });
+      }
+    };
+    const hasDraft = draftHasContent(anterior);
+    let task: number | undefined;
+    if (hasDraft) {
+      draftDecisionPending.current = true;
+      task = window.setTimeout(() => setConfirm({
+          title: 'Continuar o rascunho?',
+          description: 'Há um rascunho guardado localmente. Se continuar, pode retomar a prova existente e as alterações por guardar.',
+          action: 'Continuar rascunho',
+          run: continueDraft,
+        }), 0);
+    } else clearDraft();
     myInstitutions().then((res) => {
       if (!res.ok) toast.error(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
       setReady(true);
     });
-    return () => window.clearTimeout(task);
+    return () => { if (task !== undefined) window.clearTimeout(task); };
   }, []);
   // Um rascunho vazio não se guarda: assim «começar do zero» deixa a chave mesmo
   // limpa, em vez de a reescrever vazia no instante a seguir ao aviso.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || draftDecisionPending.current) return;
     if (draftHasContent(draft)) saveDraft(draft);
     else clearDraft();
-  }, [draft, ready]);
+  }, [confirm, draft, ready]);
   // Uma doação aberta no construtor: os dados dela, para o administrador ver de onde vem a prova.
   useEffect(() => {
     if (donationId === null) return;
@@ -201,6 +304,68 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       questions: toRequest(draft.items),
     };
     const figures = figuresOf(draft.items);
+    if (saved) {
+      const chosen = chosenClassId ? classOptions.find((option) => String(option.value) === chosenClassId) : undefined;
+      const statement: StatementInput = {
+        institutionId: Number(school.id),
+        subjectId: subjectIds[subject],
+        title: payload.title,
+        examType: draft.kind,
+        durationMinutes: draft.duration === '' ? null : Number(draft.duration),
+        variant: draft.variant.trim() || null,
+        instructions: draft.rules.filter(Boolean).join('\n') || null,
+        totalMaxScore: totalScore(draft.items),
+        schoolYearId: chosen?.schoolYearId ?? null,
+        termId: null,
+        classId: chosenClassId ? Number(chosenClassId) : null,
+        courseId: chosen?.courseId ?? null,
+      };
+      const updated = await updateManualStatement(saved.id, statement, toUpdateRequest(draft.items), saved.published);
+      setSaving(false);
+      if (!updated.ok) return toast.error(updated.error);
+      const identifiedDraft = applyUpdateIdentities(draft, updated.data.identities);
+      setDraft(identifiedDraft);
+      if (updated.data.failed.length > 0) {
+        toast.error(`A prova ficou parcialmente guardada. ${updated.data.failed[0]} As alterações continuam no rascunho; tente guardar novamente.`);
+        return;
+      }
+
+      const savedAt = new Date().toISOString();
+      const shouldPublish = publish || saved.published;
+      const savedDraft = {
+        ...identifiedDraft,
+        savedStatementId: saved.id,
+        savedAt,
+        savedPublished: false,
+      };
+      const updatedExam: SavedExam = {
+        ...saved,
+        title: statement.title,
+        published: false,
+        snapshot: JSON.stringify(savedDraft),
+        savedAt,
+      };
+      setDraft(savedDraft);
+      setSaved(updatedExam);
+      if (figures.length > 0) {
+        const pending = { ...updatedExam, figures, publish: shouldPublish };
+        setPendingPublication(pending);
+        await resumeFigurePublication(pending);
+        return;
+      }
+      if (shouldPublish) {
+        const approved = await approveStatement(saved.id);
+        if (!approved.ok) return toast.error(`Prova guardada, mas não publicada: ${approved.error}`);
+        const visible = await setStatementVisible(saved.id, true);
+        if (!visible.ok) return toast.error(`Prova aprovada, mas continua oculta: ${visible.error}`);
+      }
+      const completedDraft = { ...savedDraft, savedPublished: shouldPublish };
+      setDraft(completedDraft);
+      setSaved({ ...updatedExam, published: shouldPublish, snapshot: JSON.stringify(completedDraft) });
+      toast.success(shouldPublish ? 'Prova atualizada e publicada.' : 'Prova guardada. Fica oculta até a publicar.');
+      return;
+    }
+
     // Com imagens OCR, primeiro cria-se sempre um registo oculto. O caminho de publicação
     // só é autorizado depois de confirmar todos os recortes no servidor.
     const res = publish && figures.length === 0
@@ -208,7 +373,24 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       : await createManualStatement({ ...payload, visible: false });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
-    const savedExam = { id: Number(res.data.id), title: String(res.data.title ?? payload.title), published: publish && figures.length === 0, snapshot: JSON.stringify(draft) };
+    const id = Number(res.data.id);
+    const savedAt = new Date().toISOString();
+    const full = await getStatementForReview(id);
+    const savedDraft = {
+      ...(full.ok ? applyServerIds(draft, full.data) : draft),
+      savedStatementId: id,
+      savedAt,
+      savedPublished: publish && figures.length === 0,
+    };
+    if (!full.ok) toast.error(`A prova foi guardada, mas não foi possível carregar os ids para futuras alterações: ${full.error}`);
+    setDraft(savedDraft);
+    const savedExam: SavedExam = {
+      id,
+      title: String(res.data.title ?? payload.title),
+      published: publish && figures.length === 0,
+      snapshot: JSON.stringify(savedDraft),
+      savedAt,
+    };
     setSaved(savedExam);
     const pending = figures.length > 0 ? { ...savedExam, published: false, figures, publish } : null;
     if (pending) setPendingPublication(pending);
@@ -265,7 +447,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
    * O que o OCR leu vira rascunho. Não se guarda nada: o professor corrige aqui e só depois grava.
    * Substituir um rascunho com conteúdo pede confirmação, porque o OCR trocava tudo de uma vez.
    */
-  function applyImport(extraction: ExamExtraction, names: string): boolean {
+  function commitImport(extraction: ExamExtraction, names: string): boolean {
     const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] });
     if (imported.items.length === 0) {
       setNotes(imported.notes);
@@ -273,9 +455,6 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       toast.error('Não foi possível ler questões nesta imagem.');
       return false;
     }
-    // A mesma noção de «conteúdo» do aviso de arranque: o OCR substitui o cabeçalho
-    // inteiro, por isso mexer só na escola/disciplina/duração também se avisa.
-    if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return false;
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
     setFooterPreview(imported.footerPreview ?? null);
@@ -283,6 +462,22 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     setImportOpen(false);
     toast.success(`Prova lida (${names}): ${imported.items.length} questões. Reveja o que o OCR percebeu.`);
     return true;
+  }
+
+  function applyImport(extraction: ExamExtraction, names: string): boolean {
+    // O OCR substitui o cabeçalho inteiro, por isso também se confirma quando só
+    // escola, disciplina ou duração foram preenchidas.
+    if (draftHasContent(draft)) {
+      setConfirm({
+        title: 'Substituir o rascunho?',
+        description: 'Importar substitui as questões e o cabeçalho que já escreveu.',
+        action: 'Importar e substituir',
+        destructive: true,
+        run: () => { commitImport(extraction, names); },
+      });
+      return false;
+    }
+    return commitImport(extraction, names);
   }
 
   /** O OCR sobre os ficheiros da doação: o mesmo caminho do importador, sem ficheiros novos. */
@@ -308,8 +503,8 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     missingToSave({ hasSchool: !!school, hasSubject: !!subject, hasClass: classChosen, hasQuestion: draft.items.some((i) => i.text.trim()) }),
     problemas.length,
   );
-  /** Depois de guardar, gravar outra vez sem mexer em nada criava um duplicado: só volta a ser possível ao editar. */
-  const unchangedSinceSave = saved !== null && saved.snapshot === JSON.stringify(draft);
+  const builderDirty = saved !== null && saved.snapshot !== JSON.stringify(draft);
+  const unchangedSinceSave = saved !== null && !builderDirty;
   const toSave = canSave && !saving && !unchangedSinceSave && pendingPublication === null;
   /** Quando não é por falta de dados: a gravar, já guardada ou a publicação por retomar. */
   const blocker = saveBlocker({ saving, unchangedSinceSave, pendingPublication: pendingPublication !== null });
@@ -347,6 +542,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           <Button variant="outline" onClick={() => window.print()} disabled={!ready2print}>
             <Printer aria-hidden /> Imprimir / guardar PDF
           </Button>
+          {saved ? <span className="self-center text-xs text-muted-foreground" role="status">{builderDirty ? 'Alterações por guardar' : `Guardado às ${new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Luanda', hour: '2-digit', minute: '2-digit' }).format(new Date(saved.savedAt))}`}</span> : null}
         </div>
       </div>
 
@@ -372,10 +568,16 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
               <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
             ) : null}
             {!pendingPublication ? <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button> : null}
-            <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
+            <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => setConfirm({
+              title: 'Começar uma prova nova?',
+              description: 'O rascunho atual será limpo. A prova já guardada continua disponível.',
+              action: 'Começar nova prova',
+              destructive: true,
+              run: () => { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
               // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
               // voltar a ser guardado — um aviso a mais no arranque seguinte.
-              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); setSaved(null); } }}>
+              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); setSaved(null);
+            }} )}>
               <Plus aria-hidden />Nova prova
             </Button>
           </CardContent>
@@ -423,6 +625,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           )}
 
           {importOpen && <ExamImporter onExtracted={applyImport} onClose={() => setImportOpen(false)} />}
+          <Confirm state={confirm} onClose={() => { draftDecisionPending.current = false; setConfirm(null); }} />
 
           {notes.length > 0 && (
             <Card className="border-warning/40">

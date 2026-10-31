@@ -13,6 +13,10 @@ export interface School {
 export type ExamItem = DraftQuestion;
 
 export interface ExamDraft {
+  /** Existing statement identity when this local draft has already been saved. */
+  savedStatementId?: number;
+  savedAt?: string;
+  savedPublished?: boolean;
   schoolId: string;
   subject: string;
   kind: string;
@@ -84,6 +88,7 @@ function normalizeOptions(raw: unknown): DraftOption[] {
   // rótulo, que é uma violação do `UNIQUE (question_id, option_label)`.
   const labels = labelsFor(rawOptions);
   return rawOptions.map((o, i) => ({
+    ...(Number.isInteger(o?.serverId) && Number(o.serverId) > 0 ? { serverId: Number(o.serverId) } : {}),
     label: labels[i],
     text: typeof o?.text === 'string' ? o.text : '',
     correct: o?.correct === true,
@@ -100,6 +105,7 @@ function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
   const label = normalizeSourceItemLabel(raw?.label);
   return {
     ...(label ? { label } : {}),
+    ...(Number.isInteger(raw?.serverId) && Number(raw?.serverId) > 0 ? { serverId: Number(raw?.serverId) } : {}),
     text: typeof raw?.text === 'string' ? raw.text : '',
     points: typeof raw?.points === 'number' ? raw.points : '',
     options: kind === 'true_false' && options.length !== 2 ? trueFalseOptions() : options,
@@ -118,6 +124,7 @@ function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
   // Um grupo sem alíneas guardadas não é um grupo: o rascunho antigo nunca as teve.
   const kind = wanted === 'group' && !items?.length ? undefined : wanted;
   return {
+    ...(Number.isInteger(raw?.serverId) && Number(raw?.serverId) > 0 ? { serverId: Number(raw?.serverId) } : {}),
     text: typeof raw?.text === 'string' ? raw.text : '',
     points: typeof raw?.points === 'number' ? raw.points : '',
     options: kind === 'group' ? [] : options,
@@ -135,6 +142,9 @@ export function normalizeDraft(saved: Partial<ExamDraft>): ExamDraft {
   return {
     ...EMPTY_DRAFT,
     ...saved,
+    savedStatementId: Number.isInteger(saved.savedStatementId) && Number(saved.savedStatementId) > 0 ? Number(saved.savedStatementId) : undefined,
+    savedAt: typeof saved.savedAt === 'string' ? saved.savedAt : undefined,
+    savedPublished: typeof saved.savedPublished === 'boolean' ? saved.savedPublished : undefined,
     items: Array.isArray(saved.items) && saved.items.length > 0 ? saved.items.map(normalizeItem) : EMPTY_DRAFT.items.map(normalizeItem),
     title: typeof saved.title === 'string' ? saved.title : '',
     duration: typeof saved.duration === 'number' ? saved.duration : '',
