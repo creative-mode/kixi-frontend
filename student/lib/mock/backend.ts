@@ -3,6 +3,7 @@ export * from './store';
 import { currentFault, problem, store, accountIdOf, unauthorized, json, meResponse, hash, loginResponse, type Account, type MockCtx } from './store';
 import { friendsRoutes } from './domains/friends';
 import { rankingRoutes } from './domains/ranking';
+import { pautasRoutes } from './domains/pautas';
 import { feedRoutes } from './domains/feed';
 import { profilesRoutes } from './domains/profiles';
 import { communityRoutes } from './domains/community';
@@ -104,7 +105,7 @@ export async function mockHandle(
   }
 
   const ctx: MockCtx = { method, pathname, search, filter, body, text, accountId, account, staff, db };
-  for (const domain of [friendsRoutes, rankingRoutes, feedRoutes, profilesRoutes, communityRoutes, roomsRoutes, tutorRoutes]) {
+  for (const domain of [friendsRoutes, rankingRoutes, pautasRoutes, feedRoutes, profilesRoutes, communityRoutes, roomsRoutes, tutorRoutes]) {
     const response = await domain(ctx);
     if (response) return response;
   }
