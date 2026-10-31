@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, GraduationCap, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -54,7 +55,7 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
   const act = useCallback(async (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => {
     const r = await run();
     if (!r.ok) {
-      toast.error(r.error ?? 'Não foi possível guardar.');
+      reportActionError(r.error ?? 'Não foi possível guardar.');
       return false;
     }
     toast.success(done);

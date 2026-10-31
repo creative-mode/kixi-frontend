@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import type { FormField } from '@techify/ui';
 import { fetchCurrentUser } from '@/lib/auth';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import type { SchoolYearResponse } from '@/types/school-year';
 import { FormSkeleton } from '@/components/crud/loading';
 
@@ -113,7 +114,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
       }, 1000);
     } else {
       setError();
-      toast.error(result.error || 'Erro ao salvar ano letivo.');
+      reportActionError(result.error || 'Erro ao salvar ano letivo.');
     }
   };
 

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { getMe } from '@/lib/me';
+import { entrarUrl } from '@/lib/guard';
 import { getResultView } from '@/lib/result';
 import { getCommunityStats } from '@/lib/community';
 import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
@@ -118,7 +119,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   if (!Number.isInteger(id) || id <= 0) redirect('/provas');
 
   const view = await getResultView(id);
-  if (view.kind === 'unauthorized') redirect('/entrar?reason=session-expired');
+  if (view.kind === 'unauthorized') redirect(await entrarUrl('session-expired'));
   if (view.kind === 'missing') notFound();
   if (view.kind === 'in-progress') redirect(view.statementId ? `/prova/${view.statementId}` : '/provas');
   if (view.kind === 'error') {

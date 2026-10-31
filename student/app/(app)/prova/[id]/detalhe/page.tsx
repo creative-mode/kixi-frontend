@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ErrorState } from '@/components/states';
 import { StatementDetailView } from '@/components/statement-detail';
 import { getStatementDetail } from '@/lib/statement-detail';
+import { entrarUrl } from '@/lib/guard';
 import { getCommunityStats, getSharedSolutions } from '@/lib/community';
 import { getCatalogNames } from '@/lib/catalog';
 import { EnunciadoDaProva } from '@/components/enunciado-da-prova';
@@ -46,7 +47,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
   if (!Number.isInteger(id) || id <= 0) notFound();
 
   const result = await getStatementDetail(id);
-  if (result.kind === 'unauthorized') redirect('/entrar?reason=session-expired');
+  if (result.kind === 'unauthorized') redirect(await entrarUrl('session-expired'));
   if (result.kind === 'missing') notFound();
 
   if (result.kind === 'unknown') {

@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 
-const PUBLIC_PAGES = ['/login', '/403']
+const PUBLIC_PAGES = ['/login', '/403', '/recuperar']
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

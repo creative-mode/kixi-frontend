@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Archive, Check, DoorOpen, Eye, EyeOff, FileSearch, ScanText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -57,7 +58,7 @@ export function StatementsManager() {
     if (res.ok) {
       toast.success(done);
       load();
-    } else toast.error(res.error ?? 'Erro');
+    } else reportActionError(res.error ?? 'Erro');
   }
 
   return (

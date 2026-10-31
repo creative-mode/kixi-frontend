@@ -1,9 +1,10 @@
 import { AuthShell } from '@/components/AuthShell';
 import { EntrarForm } from '@/components/AuthForm';
+import { studentNext } from '@/lib/safe-next';
 
 export const metadata = { title: 'Entrar · Kixi' };
 
-type SearchParams = Promise<{ reason?: string }>;
+type SearchParams = Promise<{ reason?: string; next?: string }>;
 
 function noticeFor(reason?: string) {
   if (reason === 'session-expired') {
@@ -16,10 +17,10 @@ function noticeFor(reason?: string) {
 }
 
 export default async function Entrar({ searchParams }: { searchParams: SearchParams }) {
-  const { reason } = await searchParams;
+  const { reason, next } = await searchParams;
   return (
     <AuthShell title="Entrar" lead="Usa o teu número de processo ou o teu email." notice={noticeFor(reason)} backToLanding>
-      <EntrarForm />
+      <EntrarForm next={studentNext(next) ?? undefined} />
     </AuthShell>
   );
 }

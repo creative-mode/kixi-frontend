@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DoorOpen, Play, Square, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -99,7 +100,7 @@ export function RoomConsole({ id }: { id: number }) {
         setBusy(true);
         const res = await changeRoomStatus(id, action);
         setBusy(false);
-        if (!res.ok) return void toast.error(res.error);
+        if (!res.ok) return void reportActionError(res.error);
         toast.success(action === 'close' ? 'Sala encerrada. As notas estão abaixo.' : action === 'start' ? 'Prova iniciada.' : 'Sala aberta.');
         setData((d) => (d ? { ...d, room: res.data } : d));
       },
@@ -112,7 +113,7 @@ export function RoomConsole({ id }: { id: number }) {
     const res = await inviteRoomClass(id, room.classId);
     setBusy(false);
     if (res.ok) toast.success('Turma convidada. Quem já estava convidado não é repetido.');
-    else toast.error(res.error);
+    else reportActionError(res.error);
   }
 
   const reasons = (Object.keys(actions) as RoomAction[]).map((k) => actions[k].reason).filter(Boolean);
