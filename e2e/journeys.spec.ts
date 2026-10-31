@@ -1042,6 +1042,35 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(guardar).toBeEnabled();
   });
 
+  test('construtor: o aviso de prova guardada vê-se na vista Pré-visualizar e cada botão lê só o seu motivo (#537)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto('/manager/exam-builder');
+    const guardar = page.getByRole('button', { name: 'Guardar', exact: true });
+    const publicar = page.getByRole('button', { name: 'Publicar', exact: true });
+    await escolherOpcao(page.getByLabel('Disciplina'));
+    await escolherOpcao(page.getByLabel(/^Turma/));
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+
+    // Falta a cotação: dá para guardar, e «Guardar» não lê o problema que só trava «Publicar».
+    await expect(guardar).toBeEnabled();
+    await expect(guardar).toHaveAccessibleDescription('');
+    await expect(publicar).toBeDisabled();
+    await expect(publicar).toHaveAccessibleDescription(/Para publicar, corrija 1 ponto/);
+
+    // Guarda-se na vista Pré-visualizar: o aviso tem de se ver e ouvir mesmo com o painel Editar escondido.
+    const vista = page.getByRole('group', { name: 'Vista do construtor' });
+    await vista.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(page.getByLabel('Título')).toBeHidden();
+    await guardar.click();
+    await expect(page.getByRole('status').filter({ hasText: 'Prova guardada' })).toBeVisible();
+
+    // Já guardada, sem alterações: os botões dizem porque estão desativados.
+    await expect(guardar).toBeDisabled();
+    await expect(page.locator('#construtor-estado')).toContainText('já está guardada');
+    await expect(guardar).toHaveAccessibleDescription(/já está guardada/);
+  });
+
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
     // Reproduz a #240: dois `TabsContent` com o mesmo `value` montam-se os dois, e
     // o aluno lê a mesma prova como se a tivesse feito duas vezes. Compila, passa o
