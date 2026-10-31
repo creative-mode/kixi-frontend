@@ -273,6 +273,7 @@ export function authorize(auth: any, method: string, path: string) {
   if (/^\/api\/v1\/term-sheets(\/|$)/.test(path)) return has('ADMIN', 'TEACHER', 'COORDINATOR') ? 200 : 403;
   // kixi#523: o plano do trimestre é do professor, do coordenador e do administrador; o handler decide o que cada um faz.
   if (/^\/api\/v1\/term-plans(\/|$)/.test(path)) return has('ADMIN', 'TEACHER', 'COORDINATOR') ? 200 : 403;
+  if (/^\/api\/v1\/coordination(\/|$)/.test(path)) return has('ADMIN', 'COORDINATOR') && method === 'GET' ? 200 : 403;
   if (path === '/api/v1/me/term-sheets') return has('STUDENT') ? 200 : 403;
   // Como no backend: a lista de atribuições é de ADMIN; o `/me` é o único
   // ponto que um professor pode ler.
