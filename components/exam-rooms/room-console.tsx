@@ -56,7 +56,8 @@ export function RoomConsole({ id }: { id: number }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  /** A ação à espera de confirmação; o texto do diálogo calcula-se a cada render, para acompanhar a sala ao vivo. */
+  const [asking, setAsking] = useState<RoomAction | null>(null);
   const [now, setNow] = useState(() => luandaNowInput());
 
   const load = useCallback(async () => {
@@ -98,21 +99,24 @@ export function RoomConsole({ id }: { id: number }) {
   const title = statement?.title ?? `Enunciado ${room.statementId}`;
   const year = new Date().getFullYear();
 
-  function ask(action: RoomAction) {
-    const participants = live.snapshot?.participants;
-    setConfirm({
-      ...CONFIRM[action],
-      ...(action === 'close' ? closeSummary(participants ? participantCounts(participants) : null) : {}),
-      run: async () => {
-        setBusy(true);
-        const res = await changeRoomStatus(id, action);
-        setBusy(false);
-        if (!res.ok) return void toast.error(res.error);
-        toast.success(action === 'close' ? 'Sala encerrada. As notas estão abaixo.' : action === 'start' ? 'Prova iniciada.' : 'Sala aberta.');
-        setData((d) => (d ? { ...d, room: res.data } : d));
-      },
-    });
+  async function perform(action: RoomAction) {
+    setBusy(true);
+    const res = await changeRoomStatus(id, action);
+    setBusy(false);
+    if (!res.ok) return void toast.error(res.error);
+    toast.success(action === 'close' ? 'Sala encerrada. As notas estão abaixo.' : action === 'start' ? 'Prova iniciada.' : 'Sala aberta.');
+    setData((d) => (d ? { ...d, room: res.data } : d));
   }
+
+  const ask = (action: RoomAction) => setAsking(action);
+  const participants = live.snapshot?.participants;
+  const confirm: ConfirmState | null = asking
+    ? {
+        ...CONFIRM[asking],
+        ...(asking === 'close' ? closeSummary(participants ? participantCounts(participants) : null) : {}),
+        run: () => perform(asking),
+      }
+    : null;
 
   async function invite() {
     if (room.classId == null) return;
@@ -188,7 +192,7 @@ export function RoomConsole({ id }: { id: number }) {
         </div>
       ) : null}
 
-      <Confirm state={confirm} onClose={() => setConfirm(null)} />
+      <Confirm state={confirm} onClose={() => setAsking(null)} />
     </div>
   );
 }
