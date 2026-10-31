@@ -11,6 +11,9 @@ import { statementRoutes } from './domains/statements';
 import { roomAndSimulationRoutes } from './domains/rooms-and-simulations';
 import { academicRoutes } from './domains/academic';
 import { crudRoutes } from './domains/crud';
+import { termSheetRoutes } from './domains/term-sheets';
+import { termPlanRoutes } from './domains/term-plans';
+import { coordinationRoutes } from './domains/coordination';
 
 export async function handle(method: string, rawUrl: string, authorization: string | null, bodyText: string): Promise<Response> {
   const url = new URL(rawUrl, 'http://x');
@@ -33,7 +36,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
 
   try {
     const ctx: MockContext = { method, path, url, auth, isStaff, readBody, loginResponse, ...requestHelpers(auth) };
-    for (const domain of [authRoutes, institutionRoutes, statementRoutes, roomAndSimulationRoutes, academicRoutes, crudRoutes]) {
+    for (const domain of [authRoutes, institutionRoutes, statementRoutes, roomAndSimulationRoutes, academicRoutes, termSheetRoutes, termPlanRoutes, coordinationRoutes, crudRoutes]) {
       const response = await domain(ctx);
       if (response) return response;
     }

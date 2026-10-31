@@ -1,6 +1,6 @@
 // ⚠️ Espelho de student/lib/roles.ts (apps Next separadas, sem import partilhado).
 // Se alterares a regra de papéis aqui, altera lá também.
-export const ROLES = ['ADMIN', 'TEACHER', 'STUDENT'] as const;
+export const ROLES = ['ADMIN', 'TEACHER', 'COORDINATOR', 'STUDENT'] as const;
 
 export type Role = (typeof ROLES)[number];
 
@@ -14,7 +14,16 @@ export function hasRole(roles: readonly Role[], role: Role): boolean {
 }
 
 export function canAccessManager(roles: readonly Role[]): boolean {
-  return hasRole(roles, 'ADMIN') || hasRole(roles, 'TEACHER');
+  return hasRole(roles, 'ADMIN') || hasRole(roles, 'TEACHER') || hasRole(roles, 'COORDINATOR');
+}
+
+/** O coordenador (sem ADMIN nem TEACHER) só abre o plano e as pautas da sua instituição (kixi#513). */
+export function isCoordinatorOnly(roles: readonly Role[]): boolean {
+  return hasRole(roles, 'COORDINATOR') && !hasRole(roles, 'ADMIN') && !hasRole(roles, 'TEACHER');
+}
+
+export function coordinatorMayOpen(pathname: string): boolean {
+  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao';
 }
 
 export function isStudentOnly(roles: readonly Role[]): boolean {
@@ -68,6 +77,8 @@ export function teacherMayOpen(pathname: string): boolean {
     pathname === '/simulation-answers' ||
     pathname === '/classes' ||
     pathname === '/tarefas' ||
+    pathname === '/pautas' ||
+    pathname === '/planos' ||
     /^\/tarefas\/\d+$/.test(pathname)
   );
 }

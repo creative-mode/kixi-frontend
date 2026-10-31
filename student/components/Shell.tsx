@@ -17,6 +17,7 @@ const ITEMS: { href: string; label: string; ariaLabel?: string; icon: IcoName; a
   { href: '/inicio', label: 'Início', icon: 'home', also: [] },
   { href: '/provas', label: 'Provas', icon: 'file', also: ['/prova', '/resultado', '/sala'] },
   { href: '/ranking', label: 'Liga', icon: 'trophy', also: [] },
+  { href: '/pautas', label: 'Pautas', icon: 'award', also: [] },
   { href: '/tutor', label: 'Tutor', icon: 'chat', also: [] },
   { href: '/pesquisa', label: 'Pesquisar', ariaLabel: 'Pesquisar escolas, professores e alunos', icon: 'search', also: [], desktopOnly: true },
 ];
