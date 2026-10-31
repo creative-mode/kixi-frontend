@@ -36,6 +36,9 @@ test('respeita o limite e usa um título de recurso', () => {
   assert.equal(out[0].key, 1);
   assert.equal(out[0].title, 'Sala de prova');
   assert.equal(out[0].meta, '09:00 · 45 min');
+  // A data é lida do texto do servidor, sem passar pelo fuso do browser.
+  assert.equal(out[0].day, '31');
+  assert.equal(out[0].month, 'out');
 });
 
 test('sem salas não há secção para mostrar', () => {
