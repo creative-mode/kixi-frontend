@@ -407,3 +407,45 @@ test.describe('404 da landing (#544)', () => {
     });
   });
 });
+
+/** Cache da landing (#522): HTML público com s-maxage, Markdown e raiz sem cache
+ *  partilhada. Tudo por `request`, sem browser: são cabeçalhos, não pixels. */
+test.describe('cache da landing (#522)', () => {
+  test('HTML público sai com s-maxage e stale-while-revalidate', async ({ request }) => {
+    for (const rota of ['/doar', '/privacidade', '/cookies', '/about', '/contact']) {
+      const r = await request.get(rota, { headers: { Accept: 'text/html' } });
+      expect(r.ok(), rota).toBeTruthy();
+      const cc = r.headers()['cache-control'] ?? '';
+      expect(cc, `${rota} s-maxage`).toContain('s-maxage');
+      expect(cc, `${rota} swr`).toContain('stale-while-revalidate');
+      expect(cc, `${rota} sem no-store`).not.toContain('no-store');
+    }
+  });
+
+  test('Accept markdown recebe Markdown, nunca HTML em cache', async ({ request }) => {
+    const r = await request.get('/doar', { headers: { Accept: 'text/markdown' } });
+    expect(r.ok()).toBeTruthy();
+    expect(r.headers()['content-type'] ?? '').toContain('text/markdown');
+    // Servido no URL da página: uma cache por URL não o distingue do HTML,
+    // por isso não se guarda em lado nenhum.
+    expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+    expect(await r.text()).not.toContain('<html');
+  });
+
+  test('a rota Markdown direta também não se guarda', async ({ request }) => {
+    const r = await request.get('/api/markdown/doar', { headers: { Accept: 'text/markdown' } });
+    expect(r.ok()).toBeTruthy();
+    expect(r.headers()['content-type'] ?? '').toContain('text/markdown');
+    expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+  });
+
+  test('a raiz sem sessão não vai para cache partilhada', async ({ request }) => {
+    // Varia com o cookie (redirecionamento por sessão) e o `Vary` que o diria não
+    // sobrevive à renderização do Next: na dúvida, não se partilha. O 307 com
+    // sessão continua com no-store no código, mas precisa de APP_ORIGIN, que o
+    // CI não define — por isso aqui trava-se o resguardo, não o desvio.
+    const r = await request.get('/', { headers: { Accept: 'text/html' } });
+    expect(r.ok()).toBeTruthy();
+    expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+  });
+});

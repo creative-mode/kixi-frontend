@@ -12,6 +12,10 @@ const TITLE = 'Kixi · Estuda. Dispara. Domina.';
 const DESCRIPTION =
   'O Kixi transforma cada prova num gémeo digital: simulações, um tutor de IA que conhece cada questão e uma rede de estudo entre escolas. Feito por alunos do ITEL, para alunos.';
 
+/** Sem cache partilhada (#522): varia com o cookie de sessão (redirecionamento) e o
+ *  `Vary` que o diria não sobrevive à renderização — por isso renderiza sempre. */
+export const dynamic = 'force-dynamic';
+
 /** `twitter` repetir-se aqui é o que impede que o layout o ponha de fora: o Next
  *  substitui os campos do pai em vez de os juntar, e sem isto a raiz fica sem
  *  `twitter:card` nenhum. */
