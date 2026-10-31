@@ -12,6 +12,11 @@ let nextAssessment = 1;
 const today = () => new Date().toISOString().slice(0, 10);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
+/** A sala está ligada a uma avaliação de um plano do trimestre: a correção é da IA no fluxo, não do professor (kixi#542). */
+export function isPlanRoom(roomId: number): boolean {
+  return plans.some((p) => p.assessments.some((a: any) => a.roomId === roomId));
+}
+
 function status(a: any) {
   if (a.dispensedAt) return 'DISPENSED';
   if (a.roomId) {

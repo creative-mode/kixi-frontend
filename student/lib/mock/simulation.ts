@@ -71,7 +71,8 @@ export interface MockQuestion {
   label?: string | null;
 }
 
-export type MockAnswerStatus = 'PENDING_REVIEW' | 'AUTO_GRADED';
+/** `AI_GRADED`: uma resposta aberta de uma prova de um plano, corrigida pela IA no fluxo do motor (kixi#542). */
+export type MockAnswerStatus = 'PENDING_REVIEW' | 'AUTO_GRADED' | 'AI_GRADED';
 
 export interface MockAnswer {
   id: number;
@@ -83,6 +84,9 @@ export interface MockAnswer {
   isCorrect: boolean | null;
   reviewStatus: MockAnswerStatus | null;
   answeredAt: string | null;
+  /** Só nas respostas corrigidas pela IA. */
+  aiFeedback?: string | null;
+  aiLevel?: string | null;
 }
 
 /** Objective means "has options", which is what the backend grades on
