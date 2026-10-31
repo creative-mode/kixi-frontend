@@ -35,3 +35,15 @@ export function shortcutKey(event: KeyLike, context: KeyContext, allowed: readon
   if (event.repeat && !REPEATABLE.has(key)) return null;
   return key;
 }
+
+/** A chave onde o utilizador guarda se quer os atalhos (neste navegador); o valor `off` desliga-os. */
+export const SHORTCUTS_PREF_KEY = 'kixi.manager.atalhos';
+
+/**
+ * Se os atalhos estão ligados, a partir do que ficou guardado. Ligados por omissão: só um `off` explícito os desliga,
+ * e qualquer outra coisa (vazio, lixo, valor antigo) conta como ligado, para um valor estragado nunca os deixar
+ * desligados sem o utilizador o ter pedido.
+ */
+export function parseShortcutsPref(raw: string | null | undefined): boolean {
+  return raw !== 'off';
+}

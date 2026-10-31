@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { shortcutKey } from '@/lib/queue-shortcuts';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { parseShortcutsPref, shortcutKey, SHORTCUTS_PREF_KEY } from '@/lib/queue-shortcuts';
 import { stepIndex } from '@/lib/queue-state';
 
 /** Onde se escreve: campos, seletores, áreas de texto, qualquer coisa editável e o editor de fórmulas (MathLive). */
@@ -56,4 +56,44 @@ export function focusQueueItem(step: 1 | -1) {
 /** O item da fila onde está o foco (o «atual» a que A e R se referem), pelo `data-fila-id`; `null` se o foco está fora. */
 export function focusedQueueId(): string | null {
   return queueItems().find((item) => item.contains(document.activeElement))?.dataset.filaId ?? null;
+}
+
+/**
+ * A preferência de ter atalhos de uma só tecla (WCAG 2.1.4, nível A: quem usa ditado ou um teclado que dispara teclas
+ * sem querer tem de os poder desligar). Fica neste navegador e vale para as três filas; sem armazenamento (modo
+ * privado) guarda-se só enquanto a página vive, para o interruptor funcionar na mesma.
+ */
+const SHORTCUTS_EVENT = 'kixi:atalhos';
+let shortcutsInMemory = true;
+
+function subscribeShortcuts(onChange: () => void) {
+  window.addEventListener('storage', onChange);
+  window.addEventListener(SHORTCUTS_EVENT, onChange);
+  return () => {
+    window.removeEventListener('storage', onChange);
+    window.removeEventListener(SHORTCUTS_EVENT, onChange);
+  };
+}
+
+function readShortcuts(): boolean {
+  try {
+    return parseShortcutsPref(window.localStorage.getItem(SHORTCUTS_PREF_KEY));
+  } catch {
+    return shortcutsInMemory;
+  }
+}
+
+export function setShortcutsEnabled(next: boolean) {
+  shortcutsInMemory = next;
+  try {
+    window.localStorage.setItem(SHORTCUTS_PREF_KEY, next ? 'on' : 'off');
+  } catch {
+    // Sem armazenamento: vale só nesta página.
+  }
+  window.dispatchEvent(new Event(SHORTCUTS_EVENT));
+}
+
+/** `[ligados, mudar]`. No servidor (e na hidratação) vêm ligados, como por omissão. */
+export function useShortcutsEnabled(): [boolean, (next: boolean) => void] {
+  return [useSyncExternalStore(subscribeShortcuts, readShortcuts, () => true), setShortcutsEnabled];
 }

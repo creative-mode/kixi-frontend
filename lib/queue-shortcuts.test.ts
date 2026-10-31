@@ -1,7 +1,7 @@
 // Atalhos das filas de revisão (#535): node --test lib/queue-shortcuts.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shortcutKey, type KeyContext, type KeyLike } from './queue-shortcuts.ts';
+import { parseShortcutsPref, shortcutKey, SHORTCUTS_PREF_KEY, type KeyContext, type KeyLike } from './queue-shortcuts.ts';
 
 const TECLAS = ['j', 'k', 'a', 'r'] as const;
 const livre: KeyContext = { editable: false, dialogOpen: false };
@@ -53,4 +53,14 @@ test('uma tecla fora do conjunto da página não faz nada', () => {
   assert.equal(shortcutKey(tecla('x'), livre, TECLAS), null);
   assert.equal(shortcutKey(tecla('a'), livre, ['j', 'k']), null);
   assert.equal(shortcutKey(tecla('Enter'), livre, TECLAS), null);
+});
+
+test('os atalhos vêm ligados, e só um «off» explícito os desliga', () => {
+  assert.equal(parseShortcutsPref(null), true);
+  assert.equal(parseShortcutsPref(undefined), true);
+  assert.equal(parseShortcutsPref(''), true);
+  assert.equal(parseShortcutsPref('on'), true);
+  assert.equal(parseShortcutsPref('lixo'), true);
+  assert.equal(parseShortcutsPref('off'), false);
+  assert.equal(SHORTCUTS_PREF_KEY, 'kixi.manager.atalhos');
 });
