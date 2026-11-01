@@ -755,6 +755,8 @@ test.describe('doação sem ecrã cortado (#515)', () => {
         'altura medida do banner',
       )
       .not.toBe('');
+    // No fim da página, onde a folga inferior reserva espaço para o banner.
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
     const [cta, caixa] = await Promise.all([botao.boundingBox(), bnn.boundingBox()]);
     expect((cta?.y ?? Infinity) + (cta?.height ?? 0), `${nome} tapado`).toBeLessThanOrEqual(caixa!.y);
   }

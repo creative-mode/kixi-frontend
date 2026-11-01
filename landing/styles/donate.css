@@ -26,7 +26,8 @@
 
 /* o ecrã: único bloco a cores; rola por dentro quando o conteúdo passa da moldura, com
    barra visível (#515) - sem sinal de scroll ninguém adivinha que há mais formulário. */
-.dn-screenwrap { min-height: 0; display: grid; padding: 2px; background: var(--lp-ink); clip-path: var(--kx-clip); }
+.dn-screenwrap { min-height: 0; min-width: 0; display: grid; padding: 2px; background: var(--lp-ink); clip-path: var(--kx-clip); }
+.dn-console { min-width: 0; }
 .dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 16px; color: var(--lcd-3); background: var(--lcd-0); clip-path: var(--kx-clip); scrollbar-width: thin; scrollbar-color: var(--lcd-3) var(--lcd-1); }
 .dn-lcd::-webkit-scrollbar { width: 8px; }
 .dn-lcd::-webkit-scrollbar-thumb { background: var(--lcd-3); }
