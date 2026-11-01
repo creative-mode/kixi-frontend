@@ -746,7 +746,15 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     const botao = page.getByRole('button', { name: nome, exact: true });
     await expect(botao, nome).toBeVisible();
     const bnn = page.locator('section.ck');
-    await expect(bnn).toBeVisible();
+    await expect(bnn, 'banner presente').toHaveCount(1);
+    // A reserva vem da altura medida: esperar por ela, senão mede-se antes do
+    // efeito e o botão parece tapado sem estar.
+    await expect
+      .poll(
+        () => page.evaluate(() => document.documentElement.style.getPropertyValue('--ck-banner-h')),
+        'altura medida do banner',
+      )
+      .not.toBe('');
     const [cta, caixa] = await Promise.all([botao.boundingBox(), bnn.boundingBox()]);
     expect((cta?.y ?? Infinity) + (cta?.height ?? 0), `${nome} tapado`).toBeLessThanOrEqual(caixa!.y);
   }
@@ -798,13 +806,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await page.goto('/doar');
     await expect(page.getByRole('heading', { name: /Cada prova antiga/ })).toBeVisible();
     await expect(page.getByText('Toca para escolher fotos ou PDF')).toBeVisible();
-    const continuar = page.getByRole('button', { name: 'Continuar' });
-    await continuar.scrollIntoViewIfNeeded();
-    await expect(continuar).toBeVisible();
-    const bnn = page.locator('section.ck');
-    await expect(bnn).toBeVisible();
-    const [cta, caixa] = await Promise.all([continuar.boundingBox(), bnn.boundingBox()]);
-    expect((cta?.y ?? Infinity) + (cta?.height ?? 0), 'Continuar tapado a 320×568').toBeLessThanOrEqual(caixa!.y);
+    await botaoAcimaDoBanner(page, 'Continuar');
     const transborda = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     );
