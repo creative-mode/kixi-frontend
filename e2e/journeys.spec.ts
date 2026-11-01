@@ -1210,6 +1210,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const statementId = await page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId as number);
     await vista.getByRole('button', { name: 'Editar' }).click();
     const question = page.getByRole('textbox', { name: 'Questão 1' });
+    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
     for (const text of ['Quanto é 3 + 3?', 'Quanto é 4 + 4?']) {
       await question.fill(text);
       await expect(page.getByRole('status').filter({ hasText: 'Alterações por guardar' })).toBeVisible();
