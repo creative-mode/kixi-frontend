@@ -228,9 +228,9 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
             <div className="rounded-md bg-accent p-2 text-primary"><GraduationCap size={18} /></div>
             <div><h2 className="font-semibold">{course.name}</h2><p className="font-mono text-xs text-muted-foreground">{course.code}</p></div>
           </div>
-          <Button variant="ghost" size="sm" aria-label={`Apagar curso ${course.code}`} disabled={busy} className="hover:bg-danger-soft hover:text-destructive"
+          <Button variant="ghost" size="sm" aria-label={`Mover curso ${course.code} para a lixeira`} disabled={busy} className="hover:bg-danger-soft hover:text-destructive"
             onClick={() => ask({
-              title: 'Apagar este curso?', destructive: true, action: 'Apagar',
+              title: 'Mover este curso para a lixeira?', destructive: true, action: 'Mover para a lixeira',
               description: `O curso «${course.name}» sai da escola. Só é possível se não tiver turmas com alunos ou professores.`,
               run: () => act(() => deleteRow('courses', course.id), 'Curso movido para a lixeira', () => restoreRow('courses', course.id)),
             })}>
@@ -329,11 +329,11 @@ function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: 
         <strong>{cls.code}</strong>
         <span className="text-muted-foreground">{cls.grade}.ª classe · {cls.studentCount} {cls.studentCount === 1 ? 'aluno' : 'alunos'}</span>
         {cls.subjects.length === 0 ? <span className="text-warning">sem disciplinas (currículo vazio para esta classe)</span> : missing > 0 ? <span className="text-warning">{missing} sem professor</span> : <span className="text-success">completa</span>}
-        <Button type="button" variant="ghost" size="sm" className="ml-auto hover:bg-danger-soft hover:text-destructive" aria-label={`Apagar turma ${cls.code}`} disabled={busy}
+        <Button type="button" variant="ghost" size="sm" className="ml-auto hover:bg-danger-soft hover:text-destructive" aria-label={`Mover turma ${cls.code} para a lixeira`} disabled={busy}
           onClick={(e) => {
             e.preventDefault();
             ask({
-              title: 'Apagar esta turma?', destructive: true, action: 'Apagar',
+              title: 'Mover esta turma para a lixeira?', destructive: true, action: 'Mover para a lixeira',
               description: `A turma ${cls.code} sai da lista. Só é possível se não tiver matrículas nem professores atribuídos.`,
               run: () => act(() => deleteRow('classes', cls.id), 'Turma movida para a lixeira', () => restoreRow('classes', cls.id)),
             });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RotateCcw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [query, setQuery] = useState('');
   const [busyIds, setBusyIds] = useState<Set<string | number>>(new Set());
+  const busyRef = useRef<Set<string | number>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -38,27 +39,43 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
 
   async function restore(row: Row) {
     const id = rowId(entity, row);
+    if (busyRef.current.has(id) || bulkBusy) return;
+    busyRef.current.add(id);
     setBusyIds((ids) => new Set(ids).add(id));
-    const res = await restoreRow(entityKey, id);
-    setBusyIds((ids) => { const next = new Set(ids); next.delete(id); return next; });
-    if (res.ok) {
-      toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`);
-      load();
-    } else toast.error(res.error);
+    try {
+      const res = await restoreRow(entityKey, id);
+      if (res.ok) {
+        toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`);
+        void load();
+      } else toast.error(res.error);
+    } catch {
+      toast.error('Não foi possível restaurar. Tente novamente.');
+    } finally {
+      busyRef.current.delete(id);
+      setBusyIds((ids) => { const next = new Set(ids); next.delete(id); return next; });
+    }
   }
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return !q ? rows : rows?.filter((row) => JSON.stringify(Object.values(row)).toLowerCase().includes(q));
   }, [rows, query]);
   async function restoreAll() {
-    if (!shown?.length) return;
+    if (!shown?.length || bulkBusy) return;
     setBulkBusy(true);
-    const results = await Promise.all(shown.map((row) => restoreRow(entityKey, rowId(entity, row))));
-    setBulkBusy(false);
-    const failed = results.filter((r) => !r.ok);
-    if (failed.length) toast.error(`${failed.length} ${entity.plural.toLowerCase()} não foram restaurados.`);
-    else toast.success(`${shown.length} ${entity.plural.toLowerCase()} restaurados.`);
-    void load();
+    try {
+      let failed = 0;
+      for (let index = 0; index < shown.length; index += 5) {
+        const results = await Promise.allSettled(shown.slice(index, index + 5)
+          .map((row) => restoreRow(entityKey, rowId(entity, row))));
+        failed += results.filter((result) => result.status === 'rejected'
+          || (result.status === 'fulfilled' && !result.value.ok)).length;
+      }
+      if (failed) toast.error(`${failed} ${entity.plural.toLowerCase()} não foram restaurados.`);
+      else toast.success(`${shown.length} ${entity.plural.toLowerCase()} restaurados.`);
+      void load();
+    } finally {
+      setBulkBusy(false);
+    }
   }
   function askPurge(row: Row) {
     setConfirm({
@@ -110,7 +127,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
               ) : error ? (
                 <TableRow><TableCell colSpan={cols} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
               ) : !shown?.length ? (
-                <TableRow><TableCell colSpan={cols} className="py-16 text-center text-sm text-muted-foreground">A lixeira está vazia.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={cols} className="py-16 text-center text-sm text-muted-foreground">{query.trim() ? `Sem resultados para «${query.trim()}».` : 'A lixeira está vazia.'}</TableCell></TableRow>
               ) : (
                 shown.map((row) => (
                   <TableRow key={rowId(entity, row)} className="border-border">

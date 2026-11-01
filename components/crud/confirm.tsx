@@ -68,6 +68,7 @@ export function Confirm({ state, onClose }: { state: ConfirmState | null; onClos
           >
             {busy ? (state?.busyLabel ?? 'A processar…') : state?.action}
           </AlertDialogAction>
+          {busy ? <span role="status" className="sr-only">{state?.busyLabel ?? 'A processar…'}</span> : null}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
