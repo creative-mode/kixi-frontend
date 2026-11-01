@@ -81,7 +81,7 @@ export function RightRail({ me, data }: { me: Me; data: SocialData }) {
         </Module>
       )}
 
-      {data.classTop.length > 0 && <Module title="Na tua turma" href="/ranking" linkLabel="Liga">
+      {data.classTop.length > 0 && <Module title="Na tua turma" href="/ranking" linkLabel="Ranking">
         {(
           <ol className="grid gap-2.5">
             {data.classTop.map((r) => (

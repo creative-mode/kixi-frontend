@@ -26,7 +26,7 @@ async function alunoLogin(page: Page) {
 
 async function gestorLogin(page: Page) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(ADMIN);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(ADMIN);
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
   await expect(page).toHaveURL(/\/manager\/?$/);

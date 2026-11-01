@@ -14,7 +14,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   }, [error]);
 
   return (
-    <html lang="pt">
+    <html lang="pt-AO">
       <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif', background: '#f7f5ef', color: '#1c1a15' }}>
         <main style={{ display: 'grid', placeItems: 'center', minHeight: '100dvh', padding: 16 }}>
           <div

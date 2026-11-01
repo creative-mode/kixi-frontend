@@ -12,10 +12,10 @@ import { Eye, EyeOff, CircleAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
 function noticeFor(reason: string | null) {
-  if (reason === 'session-expired') return 'A tua sessão expirou. Entra novamente para continuar.';
-  if (reason === 'logged-out') return 'Sessão terminada com segurança.';
-  if (reason === 'invalid-session') return 'Esta sessão não dá acesso ao Kixi Manager. Entra com outra conta.';
-  if (reason === 'required') return 'Precisas de iniciar sessão para continuar.';
+  if (reason === 'session-expired') return 'A sessão expirou. Inicie sessão novamente para continuar.';
+  if (reason === 'logged-out') return 'A sessão foi terminada com segurança.';
+  if (reason === 'invalid-session') return 'Esta conta não tem acesso ao Kixi Manager. Inicie sessão com outra conta.';
+  if (reason === 'required') return 'Inicie sessão para continuar.';
   return null;
 }
 
@@ -42,8 +42,8 @@ function LoginContent() {
       const result = await loginAction(formData);
 
       if (result.success) {
-        toast.success('Login realizado com sucesso!', {
-          description: 'A redirecionar para o painel...',
+        toast.success('Sessão iniciada com sucesso!', {
+          description: 'A abrir o painel...',
           duration: 3000,
         });
 
@@ -53,13 +53,13 @@ function LoginContent() {
         router.refresh();
       } else {
         toast.error(result.error || 'Credenciais inválidas', {
-          description: 'Verifique o username/email e a senha.',
+          description: 'Confirme o nome de utilizador ou o e-mail e a palavra-passe.',
         });
       }
     } catch (error) {
       console.error('Erro no login:', error);
-      toast.error('Erro de conexão', {
-        description: 'Não foi possível conectar ao servidor. Tente novamente.',
+      toast.error('Erro de ligação', {
+        description: 'Não foi possível estabelecer ligação ao servidor. Volte a tentar.',
       });
     } finally {
       setIsLoading(false);
@@ -88,7 +88,7 @@ function LoginContent() {
             até a página estar pronta (com o botão por defeito desativado, o Enter também não submete). */}
         <form method="post" onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
-            <Label htmlFor="usernameOrEmail">Username ou email</Label>
+            <Label htmlFor="usernameOrEmail">Nome de utilizador ou e-mail</Label>
             <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username email" autoFocus />
           </div>
           <div className="grid gap-2">

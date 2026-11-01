@@ -70,7 +70,7 @@ export function validateFields(f: DonationFields): FieldErrors {
   if (f.donorEmail && (f.donorEmail.length > 150 || !EMAIL.test(f.donorEmail))) {
     errors.donorEmail = 'Indica um e-mail válido ou deixa em branco.';
   }
-  if (f.schoolYear && !YEAR.test(f.schoolYear)) errors.schoolYear = 'Ano lectivo como 2024/2025 (ou 2025).';
+  if (f.schoolYear && !YEAR.test(f.schoolYear)) errors.schoolYear = 'Ano letivo, por exemplo 2024/2025 (ou 2025).';
   if (!(EXAM_TYPES as readonly string[]).includes(f.examType)) errors.examType = 'Escolhe o tipo de prova.';
   if (!f.consent) errors.consent = 'Tens de aceitar para podermos receber a doação.';
   return errors;

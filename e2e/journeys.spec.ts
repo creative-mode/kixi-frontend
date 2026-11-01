@@ -70,7 +70,7 @@ async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) 
 //#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
 async function managerLogin(page: Page, username: string, landing: RegExp, heading: string) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(username);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(username);
   // O campo da palavra-passe nao tem label associado, so `id`: e por isso que
   // vai por `#` e nao por `getByLabel`. Os outros quatro campos usam label.
   await page.locator('#password').fill(PASSWORD);
