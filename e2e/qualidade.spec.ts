@@ -691,8 +691,10 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
   }
 
-  /** Avança o passo 0 com um PDF: não passa pela análise de imagem, entra limpo. */
+  /** Avança o passo 0 com um PDF: não passa pela análise de imagem, entra limpo.
+   *  Idempotente: cada upload gera um File novo (sem deduplicação possível). */
   async function carregarPdf(page: Page) {
+    if ((await page.locator('.dn-files__item').count()) > 0) return;
     await page.locator('input[type="file"]').setInputFiles({
       name: 'enunciado.pdf',
       mimeType: 'application/pdf',
