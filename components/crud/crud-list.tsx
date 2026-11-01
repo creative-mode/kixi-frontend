@@ -93,12 +93,27 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
       description: copy ? copy.description(`«${title}»`) : `${entity.singular} «${title}» sai da lista mas pode ser ${gender(entity, 'restaurado')} na lixeira.`,
       action: copy?.action ?? 'Mover para a lixeira',
       destructive: true,
+      busyLabel: 'A mover para a lixeira…',
       run: async () => {
         const res = await deleteRow(entityKey, rowId(entity, row));
         if (res.ok) {
-          toast.success(copy?.done ?? `${entity.singular} ${gender(entity, 'movido')} para a lixeira`);
-          load();
-        } else toast.error(res.error);
+          toast.success(copy?.done ?? `${entity.singular} ${gender(entity, 'movido')} para a lixeira`, {
+            duration: 10_000,
+            action: {
+              label: 'Desfazer',
+              onClick: async () => {
+                const { restoreRow } = await import('@/app/actions/crud');
+                const restored = await restoreRow(entityKey, rowId(entity, row));
+                if (restored.ok) { toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`); void load(); }
+                else toast.error(restored.error);
+              },
+            },
+          });
+          await load();
+          return true;
+        }
+        toast.error(res.error);
+        return false;
       },
     });
   }

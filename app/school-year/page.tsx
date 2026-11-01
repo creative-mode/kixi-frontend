@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getActiveSchoolYears, softDeleteSchoolYear } from '@/app/actions/school-year';
+import { getActiveSchoolYears, restoreSchoolYear, softDeleteSchoolYear } from '@/app/actions/school-year';
 import {
   Table,
   TableBody,
@@ -20,11 +20,13 @@ import { Eye, Edit, Trash2, Plus, Calendar, Archive } from 'lucide-react';
 import type { SchoolYearResponse } from '@/types/school-year';
 import { Spinner } from '@/components/ui/spinner';
 import { TableRowsSkeleton } from '@/components/crud/loading';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 
 export default function SchoolYearsManager() {
   const [schoolYears, setSchoolYears] = useState<SchoolYearResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   useEffect(() => {
     loadSchoolYears();
@@ -43,25 +45,42 @@ export default function SchoolYearsManager() {
     }
   }
 
-  async function handleSoftDelete(year: SchoolYearResponse) {
-    if (!confirm(`Tem certeza que deseja mover o ano letivo ${year.startYear}–${year.endYear} para a lixeira?`)) {
-      return;
-    }
-
+  async function handleSoftDelete(year: SchoolYearResponse): Promise<boolean> {
     setDeletingId(year.id);
     try {
       const result = await softDeleteSchoolYear(year.id);
       if (result.success) {
-        toast.success(`Ano letivo ${year.startYear}–${year.endYear} movido para a lixeira`);
+        toast.success(`Ano letivo ${year.startYear}–${year.endYear} movido para a lixeira`, {
+          duration: 10_000,
+          action: { label: 'Desfazer', onClick: async () => {
+            const restored = await restoreSchoolYear(year.id);
+            if (restored.success) { toast.success('Ano letivo restaurado'); await loadSchoolYears(); }
+            else toast.error(restored.error || 'Erro ao restaurar');
+          } },
+        });
         await loadSchoolYears();
+        return true;
       } else {
         toast.error(result.error || 'Erro ao eliminar');
+        return false;
       }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Erro ao eliminar');
+      return false;
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function askSoftDelete(year: SchoolYearResponse) {
+    setConfirm({
+      title: 'Mover para a lixeira?',
+      description: `O ano letivo ${year.startYear}–${year.endYear} poderá ser restaurado pela lixeira.`,
+      action: 'Mover para a lixeira',
+      busyLabel: 'A mover para a lixeira…',
+      destructive: true,
+      run: () => handleSoftDelete(year),
+    });
   }
 
   return (
@@ -163,7 +182,7 @@ export default function SchoolYearsManager() {
                           className="text-muted-foreground hover:text-destructive hover:bg-danger-soft"
                           disabled={deletingId === year.id}
                           aria-label={`Mover o ano letivo ${year.startYear}–${year.endYear} para a reciclagem`}
-                          onClick={() => handleSoftDelete(year)}
+                          onClick={() => askSoftDelete(year)}
                         >
                           {deletingId === year.id ? (
                             <Spinner className="size-4" />
@@ -180,6 +199,7 @@ export default function SchoolYearsManager() {
           </Table>
         </CardContent>
       </Card>
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }

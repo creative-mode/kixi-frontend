@@ -1290,6 +1290,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
  
   test('admin: a estrutura da escola não envia duas vezes o mesmo formulário (#532)', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    const curso = `C${id.slice(0, 5)}`;
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await page.goto('/manager/institutions/new');
     await page.getByLabel('Código').fill(`E2E${id}`);
@@ -1300,14 +1301,15 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     const form = page.getByRole('form', { name: 'Novo curso' });
     const code = form.getByLabel('Código do curso');
-    await code.fill(`C${id.slice(0, 5)}`);
+    await code.fill(curso);
     await form.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
 
     // Atrasa a gravação para que o segundo Enter chegue com o primeiro pedido ainda a correr.
-    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+    const delayCreate = async (route: import('@playwright/test').Route) => {
       if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 600));
       await route.continue();
-    });
+    };
+    await page.route(/\/institutions\/\d+\/structure/, delayCreate);
     const name = form.getByLabel('Nome do curso');
     await name.press('Enter');
     await name.press('Enter');
@@ -1323,6 +1325,27 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Curso criado')).toHaveCount(1);
     await expect(code).toBeFocused();
     await expect(code).toHaveValue('');
+
+    // A confirmação fica aberta enquanto a remoção corre e o toast permite desfazê-la.
+    await page.unroute(/\/institutions\/\d+\/structure/, delayCreate);
+    let releaseDelete!: () => void;
+    const deleteReleased = new Promise<void>((resolve) => { releaseDelete = resolve; });
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST' && route.request().headers()['next-action']) await deleteReleased;
+      await route.continue();
+    });
+    await page.getByRole('button', { name: `Mover curso ${curso} para a lixeira` }).click();
+    const confirm = page.getByRole('alertdialog', { name: 'Mover este curso para a lixeira?' });
+    await confirm.getByRole('button', { name: 'Mover para a lixeira' }).click();
+    try {
+      await expect(confirm).toBeVisible();
+      await expect(confirm.getByRole('button', { name: /A processar/ })).toBeDisabled();
+    } finally {
+      releaseDelete();
+    }
+    await expect(page.getByTestId(`course-${curso}`)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Desfazer' }).click();
+    await expect(page.getByTestId(`course-${curso}`)).toHaveCount(1);
   });
 
   test('admin: atribuir e afiliar só ocupam o seu formulário e travam as ações destrutivas (#532)', async ({ page }) => {
@@ -1377,12 +1400,12 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(novoCurso).toHaveAttribute('aria-busy', 'false');
     await expect(novoCurso.getByRole('button')).toHaveText('Novo curso');
     await expect(afiliar).toHaveAttribute('aria-busy', 'false');
-    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Apagar turma 9Z' })).toBeDisabled();
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Mover turma 9Z para a lixeira' })).toBeDisabled();
 
     await expect(page.getByText('Professor atribuído')).toBeVisible();
     await expect(atribuir).toHaveAttribute('aria-busy', 'false');
-    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeEnabled();
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeEnabled();
     await expect(page.getByTestId('class-9Z').locator('select').first()).toBeFocused();
   });
 

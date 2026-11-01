@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
-import { createRow, deleteRow, listRows, setInstitutionLink } from '@/app/actions/crud';
+import { createRow, deleteRow, listRows, restoreRow, setInstitutionLink } from '@/app/actions/crud';
 import { addToCurriculum, assignTeacher, getStructure, removeFromCurriculum, unassignTeacher } from '@/app/actions/academic';
 import type { InstitutionStructure, StructureClass, StructureCourse } from '@/lib/academic/types';
 import { curriculumLabel, gradeLabel, isComplete, warningText, subjectsToAdd, teachersToAffiliate, teachersToAssign, warningsOf } from '@/lib/academic/structure';
@@ -57,7 +57,7 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
    * um segundo envio (duplo clique, Enter repetido) chega antes de o estado mudar, por isso a trava é um ref.
    * Devolve `false` quando o recusa, e o formulário não limpa os campos.
    */
-  const act = useCallback(async (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => {
+  const act = useCallback(async (run: () => Promise<{ ok: boolean; error?: string }>, done: string, undo?: () => Promise<{ ok: boolean; error?: string }>) => {
     if (running.current) {
       // Uma ação destrutiva confirmada com outra gravação a meio não pode cair em silêncio.
       toast.message('Há outra gravação em curso. Aguarde um instante e tente de novo.');
@@ -71,7 +71,11 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
         toast.error(r.error ?? 'Não foi possível guardar.');
         return false;
       }
-      toast.success(done);
+      toast.success(done, undo ? { duration: 10_000, action: { label: 'Desfazer', onClick: async () => {
+        const restored = await undo();
+        if (restored.ok) { toast.success('Registo restaurado'); await load(); }
+        else toast.error(restored.error ?? 'Não foi possível restaurar.');
+      } } } : undefined);
       await load();
       return true;
     } finally {
@@ -137,7 +141,7 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
   );
 }
 
-type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => Promise<boolean>;
+type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string, undo?: () => Promise<{ ok: boolean; error?: string }>) => Promise<boolean>;
 
 /** Há uma escrita a correr: todos os formulários e ações da estrutura ficam desativados até ela acabar e a estrutura recarregar. */
 const Pending = createContext(false);
@@ -224,11 +228,11 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
             <div className="rounded-md bg-accent p-2 text-primary"><GraduationCap size={18} /></div>
             <div><h2 className="font-semibold">{course.name}</h2><p className="font-mono text-xs text-muted-foreground">{course.code}</p></div>
           </div>
-          <Button variant="ghost" size="sm" aria-label={`Apagar curso ${course.code}`} disabled={busy} className="hover:bg-danger-soft hover:text-destructive"
+          <Button variant="ghost" size="sm" aria-label={`Mover curso ${course.code} para a lixeira`} disabled={busy} className="hover:bg-danger-soft hover:text-destructive"
             onClick={() => ask({
-              title: 'Apagar este curso?', destructive: true, action: 'Apagar',
+              title: 'Mover este curso para a lixeira?', destructive: true, action: 'Mover para a lixeira',
               description: `O curso «${course.name}» sai da escola. Só é possível se não tiver turmas com alunos ou professores.`,
-              run: () => { void act(() => deleteRow('courses', course.id), 'Curso movido para a lixeira'); },
+              run: () => act(() => deleteRow('courses', course.id), 'Curso movido para a lixeira', () => restoreRow('courses', course.id)),
             })}>
             <Trash2 size={16} />
           </Button>
@@ -247,7 +251,7 @@ function CourseCard({ course, data, opts, yearId, act, ask }: { course: Structur
                     onClick={() => ask({
                       title: 'Tirar do currículo?', destructive: true, action: 'Tirar',
                       description: `${e.name} deixa de fazer parte de ${course.name} (${gradeLabel(e.grade)}). Falha se houver professores atribuídos.`,
-                      run: () => { void act(() => removeFromCurriculum(course.id, e.linkId), 'Disciplina retirada do currículo'); },
+                      run: () => act(() => removeFromCurriculum(course.id, e.linkId), 'Disciplina retirada do currículo'),
                     })}>
                     <X size={14} />
                   </button>
@@ -325,13 +329,13 @@ function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: 
         <strong>{cls.code}</strong>
         <span className="text-muted-foreground">{cls.grade}.ª classe · {cls.studentCount} {cls.studentCount === 1 ? 'aluno' : 'alunos'}</span>
         {cls.subjects.length === 0 ? <span className="text-warning">sem disciplinas (currículo vazio para esta classe)</span> : missing > 0 ? <span className="text-warning">{missing} sem professor</span> : <span className="text-success">completa</span>}
-        <Button type="button" variant="ghost" size="sm" className="ml-auto hover:bg-danger-soft hover:text-destructive" aria-label={`Apagar turma ${cls.code}`} disabled={busy}
+        <Button type="button" variant="ghost" size="sm" className="ml-auto hover:bg-danger-soft hover:text-destructive" aria-label={`Mover turma ${cls.code} para a lixeira`} disabled={busy}
           onClick={(e) => {
             e.preventDefault();
             ask({
-              title: 'Apagar esta turma?', destructive: true, action: 'Apagar',
+              title: 'Mover esta turma para a lixeira?', destructive: true, action: 'Mover para a lixeira',
               description: `A turma ${cls.code} sai da lista. Só é possível se não tiver matrículas nem professores atribuídos.`,
-              run: () => { void act(() => deleteRow('classes', cls.id), 'Turma movida para a lixeira'); },
+              run: () => act(() => deleteRow('classes', cls.id), 'Turma movida para a lixeira', () => restoreRow('classes', cls.id)),
             });
           }}>
           <Trash2 size={15} />
@@ -351,7 +355,7 @@ function ClassRow({ cls, data, yearId, act, ask }: { cls: StructureClass; data: 
                       onClick={() => ask({
                         title: 'Retirar o professor?', destructive: true, action: 'Retirar',
                         description: `${t.firstName} ${t.lastName} deixa de dar ${s.name} na turma ${cls.code}.`,
-                        run: () => { void act(() => unassignTeacher(t.assignmentId), 'Professor retirado'); },
+                        run: () => act(() => unassignTeacher(t.assignmentId), 'Professor retirado'),
                       })}><X size={12} /></button>
                   </span>
                 ))}
@@ -413,7 +417,7 @@ function TeachersCard({ data, opts, institutionId, act, ask }: { data: Instituti
                   onClick={() => ask({
                     title: 'Desafiliar o professor?', destructive: true, action: 'Desafiliar',
                     description: `${t.firstName} ${t.lastName} deixa de pertencer a esta escola (continua nas outras).`,
-                    run: () => { void act(() => setInstitutionLink(institutionId, 'teachers', t.id, false), 'Professor desafiliado'); },
+                    run: () => act(() => setInstitutionLink(institutionId, 'teachers', t.id, false), 'Professor desafiliado'),
                   })}><Trash2 size={15} /></Button>
               </li>
             ))}
