@@ -32,6 +32,8 @@ export interface Field {
   required?: boolean;
   min?: number;
   max?: number;
+  /** for `type: 'number'`: o passo; um valor fracionário (0.5, 0.01) é o que deixa o campo aceitar decimais */
+  step?: number;
   placeholder?: string;
   hint?: string;
   /** options come from another entity (a select of its active rows) */
