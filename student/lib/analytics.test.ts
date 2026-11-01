@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEvent } from './analytics.ts';
+import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEvent, type AnalyticsApp } from './analytics.ts';
 
 test('fila: envia eventos quando gtag está disponível e mantém o schema privado', () => {
   const calls: unknown[][] = [];
@@ -117,8 +117,8 @@ test('reabertura das definições mantém a medição desativada', () => {
 });
 
 test('eventos pendentes não são enviados após retirada do consentimento', () => {
-  let granted = true;
-  let ready = false;
+  const granted = true;
+  const ready = false;
   const calls: unknown[][] = [];
   const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'student', page: 'other' }), 'queued');
@@ -130,8 +130,8 @@ test('eventos pendentes não são enviados após retirada do consentimento', () 
 });
 
 test('reaceitar consentimento não duplica eventos já enviados', () => {
-  let granted = true;
-  let ready = true;
+  const granted = true;
+  const ready = true;
   const calls: unknown[][] = [];
   const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'student', page: 'other' }), 'sent');
@@ -146,7 +146,7 @@ test('comportamento consistente nas três aplicações', () => {
   for (const app of ['manager', 'student', 'landing']) {
     const calls: unknown[][] = [];
     const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
-    const result = queue.track('page_view', { app: app as any, page: 'other' });
+    const result = queue.track('page_view', { app: app as AnalyticsApp, page: 'other' });
     assert.equal(result, 'sent');
     assert.equal(calls.length, 1);
     const params = calls[0][2] as Record<string, unknown>;
