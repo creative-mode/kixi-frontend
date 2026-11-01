@@ -1057,182 +1057,6 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
 
-  test('enunciados: cada filtro diz quantos tem, vive no endereço e sobrevive ao recarregamento (#535)', async ({ page }) => {
-    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
-    await page.goto('/manager/statements');
-    const tabs = page.getByRole('tab');
-    await expect(tabs).toHaveCount(3);
-    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
-    const [todos, rever, ocr] = [await contagem(/^Todos \(/), await contagem(/^Para rever \(/), await contagem(/^Vindos do OCR \(/)];
-    await expect(page.locator('tbody tr')).toHaveCount(todos);
-
-    // Cada separador mostra tantas linhas quantas a sua contagem diz, e o endereço guarda o filtro.
-    await page.getByRole('tab', { name: /^Para rever \(/ }).click();
-    await expect(page).toHaveURL(/\/manager\/statements\?filtro=rever$/);
-    await expect(page.locator('tbody tr')).toHaveCount(rever);
-    await page.getByRole('tab', { name: /^Vindos do OCR \(/ }).click();
-    await expect(page).toHaveURL(/\?filtro=ocr$/);
-    await expect(page.locator('tbody tr')).toHaveCount(ocr);
-
-    // O filtro sobrevive ao recarregamento; o valor inventado volta ao padrão; o padrão não se escreve no endereço.
-    await page.reload();
-    await expect(page.getByRole('tab', { name: /^Vindos do OCR \(/ })).toHaveAttribute('aria-selected', 'true');
-    await page.goto('/manager/statements?filtro=inventado');
-    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('aria-selected', 'true');
-
-    // Teclado: só o separador ativo entra no Tab; as setas e o Home andam pelos outros e ativam-nos.
-    await page.getByRole('tab', { name: /^Todos \(/ }).focus();
-    await page.keyboard.press('ArrowRight');
-    await expect(page.getByRole('tab', { name: /^Para rever \(/ })).toBeFocused();
-    await expect(page).toHaveURL(/\?filtro=rever$/);
-    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('tabindex', '-1');
-    await page.keyboard.press('Home');
-    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toBeFocused();
-    await expect(page).toHaveURL(/\/manager\/statements$/);
-    await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', /separador-todos$/);
-  });
-
-  test('enunciados: aprovar e ir para o seguinte abre o próximo por rever, e os atalhos não mexem nos campos (#535)', async ({ page }) => {
-    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
-    await page.goto('/manager/statements?filtro=rever');
-    const antes = Number((await page.getByRole('tab', { name: /^Para rever \(/ }).innerText()).match(/\((\d+)\)/)![1]);
-    // Aprova exatamente dois e deixa sempre sobras: o teste não depende de a fila ter o tamanho de uma execução limpa,
-    // por isso uma repetição (retry do CI) a seguir a uma tentativa que já aprovou alguns continua a servir.
-    expect(antes, 'a fila precisa de pelo menos três enunciados por rever').toBeGreaterThanOrEqual(3);
-    const primeiro = await page.locator('tbody tr').first().getByRole('link', { name: 'Ver questões' }).getAttribute('href');
-    await page.goto(`${primeiro}?rever=1`);
-    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
-
-    // Escrever «j», «k» e «a» num campo é escrever: nenhum atalho dispara.
-    const titulo = page.getByLabel('Título').first();
-    const original = await titulo.inputValue();
-    await titulo.focus();
-    await page.keyboard.type('jka');
-    await expect(titulo).toHaveValue(`${original}jka`);
-    await expect(page.getByRole('alertdialog')).toHaveCount(0);
-    await expect(page).toHaveURL(new RegExp(`${primeiro}\\?rever=1$`));
-    await titulo.fill(original);
-
-    // Fora de um campo, J anda pela fila e K volta; A abre a confirmação, não aprova sozinho.
-    await page.getByRole('heading', { level: 1 }).click();
-    await page.keyboard.press('j');
-    await expect(page.getByText(`Fila de revisão: 2 de ${antes}`)).toBeVisible();
-    await page.keyboard.press('k');
-    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
-    await page.keyboard.press('a');
-    const dialogo = page.getByRole('alertdialog');
-    await expect(dialogo).toContainText('Aprovar e passar ao seguinte?');
-    await page.keyboard.press('j');
-    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(dialogo).toHaveCount(0);
-
-    // O interruptor desliga os atalhos (WCAG 2.1.4): com eles desligados J e A não fazem nada, e a escolha fica guardada.
-    const interruptor = page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' });
-    await expect(interruptor).toBeChecked();
-    await interruptor.uncheck();
-    await page.getByRole('heading', { level: 1 }).click();
-    await page.keyboard.press('a');
-    await page.keyboard.press('j');
-    await expect(dialogo).toHaveCount(0);
-    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
-    await page.reload();
-    await expect(page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' })).not.toBeChecked();
-    await page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' }).check();
-
-    // Aprovar e ir para o seguinte: abre o próximo já em revisão, com a fila uma mais curta.
-    await expect(page.getByRole('button', { name: 'Aprovar e ir para o seguinte' })).toBeVisible();
-    await page.getByRole('button', { name: 'Aprovar e ir para o seguinte' }).click();
-    await expect(page.getByText(`Fila de revisão: 1 de ${antes - 1}`)).toBeVisible();
-    await expect(page).not.toHaveURL(new RegExp(`${primeiro}\\?rever=1$`));
-    await expect(page.getByRole('heading', { name: 'Rever enunciado' })).toBeVisible();
-
-    // O atalho A faz o mesmo, depois de confirmar; como ainda sobram enunciados, continua a ser «e passar ao seguinte».
-    await page.getByRole('heading', { level: 1 }).click();
-    await page.keyboard.press('a');
-    await expect(dialogo).toContainText('Aprovar e passar ao seguinte?');
-    await dialogo.getByRole('button', { name: 'Aprovar e seguinte' }).click();
-    await expect(page.getByText(`Fila de revisão: 1 de ${antes - 2}`)).toBeVisible();
-  });
-
-  test('verificação: os filtros têm contagens, vivem no endereço, paginam e os atalhos respeitam os campos (#535)', async ({ page }) => {
-    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
-    await page.goto('/manager/verification');
-    await expect(page.getByRole('tab')).toHaveCount(5);
-    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
-    const porRever = await contagem(/^Por rever \(/);
-    const todos = await contagem(/^Todos \(/);
-
-    // Abre nos pedidos por rever (o que há para fazer) e o endereço limpo é o desse filtro.
-    await expect(page.getByRole('tab', { name: /^Por rever \(/ })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('[data-fila-item]')).toHaveCount(Math.min(porRever, 10));
-    await expect(page).toHaveURL(/\/manager\/verification$/);
-
-    // «Todos» pagina: a contagem manda, a página vai para o endereço e sobrevive ao recarregamento.
-    await page.getByRole('tab', { name: /^Todos \(/ }).click();
-    await expect(page).toHaveURL(/\?filtro=todos$/);
-    expect(todos, 'precisa de mais de uma página para testar a paginação').toBeGreaterThan(10);
-    await expect(page.locator('[data-fila-item]')).toHaveCount(10);
-    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`1 a 10 de ${todos} pedidos`);
-    await page.getByRole('button', { name: 'Seguinte' }).click();
-    await expect(page).toHaveURL(/\?filtro=todos&pagina=2$/);
-    await expect(page.locator('[data-fila-item]')).toHaveCount(todos - 10);
-    await page.reload();
-    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`11 a ${todos} de ${todos} pedidos`);
-
-    // Atalhos: J anda pelos pedidos, R abre a recusa no focado e leva o foco ao campo do motivo, onde as teclas são texto.
-    await page.goto('/manager/verification');
-    await expect(page.locator('[data-fila-item]').first()).toBeVisible();
-    await page.getByRole('heading', { level: 1 }).click();
-    await page.keyboard.press('a');
-    await expect(page.getByRole('button', { name: 'Confirmar aprovação' })).toHaveCount(0);
-    await page.keyboard.press('j');
-    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
-    await page.keyboard.press('r');
-    const motivo = page.getByLabel(/Motivo da recusa/);
-    await expect(motivo).toBeFocused();
-    await page.keyboard.type('jkar');
-    await expect(motivo).toHaveValue('jkar');
-    await expect(page.getByLabel(/Motivo da recusa/)).toHaveCount(1);
-    await page.getByRole('button', { name: 'Cancelar' }).click();
-  });
-
-  test('moderação: separadores com contagem, decididas por páginas e J/K entre denúncias (#535)', async ({ page }) => {
-    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
-    await page.goto('/manager/moderacao');
-    await expect(page.getByRole('tab')).toHaveCount(2);
-    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
-    const porDecidir = await contagem(/^Por decidir \(/);
-    const decididas = await contagem(/^Decididas \(/);
-    await expect(page.getByRole('tab', { name: /^Por decidir \(/ })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('[data-fila-item]')).toHaveCount(porDecidir);
-
-    // J e K andam pelas denúncias por decidir, e as decisões continuam a ser dos botões.
-    await page.getByRole('heading', { level: 1 }).click();
-    await page.keyboard.press('j');
-    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
-    await page.keyboard.press('j');
-    await expect(page.locator('[data-fila-item]').nth(1)).toBeFocused();
-    await page.keyboard.press('k');
-    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
-
-    // As decididas vêm por páginas, no endereço, e sobrevivem ao recarregamento.
-    expect(decididas, 'precisa de mais de uma página para testar a paginação').toBeGreaterThan(10);
-    await page.getByRole('tab', { name: /^Decididas \(/ }).click();
-    await expect(page).toHaveURL(/\?filtro=decididas$/);
-    const linhas = page.locator('section[aria-label="Denúncias decididas"] > div.rounded-lg');
-    await expect(linhas).toHaveCount(10);
-    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`1 a 10 de ${decididas} denúncias`);
-    await page.getByRole('button', { name: 'Seguinte' }).click();
-    await expect(page).toHaveURL(/\?filtro=decididas&pagina=2$/);
-    await expect(linhas).toHaveCount(decididas - 10);
-    await page.reload();
-    await expect(page.getByRole('tab', { name: /^Decididas \(/ })).toHaveAttribute('aria-selected', 'true');
-    await expect(linhas).toHaveCount(decididas - 10);
-    await expect(page.getByRole('button', { name: /^Ignorar/ })).toHaveCount(0);
-  });
-
   test('gestor: o formulário valida ao sair do campo e permite guardar e criar outro (#533)', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
@@ -1452,6 +1276,182 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.locator('article').filter({ hasText: 'subnetting' }).locator(foto).first()).toBeVisible();
     // Compositor de comentarios, na publicacao aberta.
     await expect(page.getByLabel('Escrever um comentário').locator('xpath=ancestor::form[1]').locator(foto)).toBeVisible();
+  });
+
+  test('enunciados: cada filtro diz quantos tem, vive no endereço e sobrevive ao recarregamento (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/statements');
+    const tabs = page.getByRole('tab');
+    await expect(tabs).toHaveCount(3);
+    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
+    const [todos, rever, ocr] = [await contagem(/^Todos \(/), await contagem(/^Para rever \(/), await contagem(/^Vindos do OCR \(/)];
+    await expect(page.locator('tbody tr')).toHaveCount(todos);
+
+    // Cada separador mostra tantas linhas quantas a sua contagem diz, e o endereço guarda o filtro.
+    await page.getByRole('tab', { name: /^Para rever \(/ }).click();
+    await expect(page).toHaveURL(/\/manager\/statements\?filtro=rever$/);
+    await expect(page.locator('tbody tr')).toHaveCount(rever);
+    await page.getByRole('tab', { name: /^Vindos do OCR \(/ }).click();
+    await expect(page).toHaveURL(/\?filtro=ocr$/);
+    await expect(page.locator('tbody tr')).toHaveCount(ocr);
+
+    // O filtro sobrevive ao recarregamento; o valor inventado volta ao padrão; o padrão não se escreve no endereço.
+    await page.reload();
+    await expect(page.getByRole('tab', { name: /^Vindos do OCR \(/ })).toHaveAttribute('aria-selected', 'true');
+    await page.goto('/manager/statements?filtro=inventado');
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('aria-selected', 'true');
+
+    // Teclado: só o separador ativo entra no Tab; as setas e o Home andam pelos outros e ativam-nos.
+    await page.getByRole('tab', { name: /^Todos \(/ }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: /^Para rever \(/ })).toBeFocused();
+    await expect(page).toHaveURL(/\?filtro=rever$/);
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('tabindex', '-1');
+    await page.keyboard.press('Home');
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toBeFocused();
+    await expect(page).toHaveURL(/\/manager\/statements$/);
+    await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', /separador-todos$/);
+  });
+
+  test('enunciados: aprovar e ir para o seguinte abre o próximo por rever, e os atalhos não mexem nos campos (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/statements?filtro=rever');
+    const antes = Number((await page.getByRole('tab', { name: /^Para rever \(/ }).innerText()).match(/\((\d+)\)/)![1]);
+    // Aprova exatamente dois e deixa sempre sobras: o teste não depende de a fila ter o tamanho de uma execução limpa,
+    // por isso uma repetição (retry do CI) a seguir a uma tentativa que já aprovou alguns continua a servir.
+    expect(antes, 'a fila precisa de pelo menos três enunciados por rever').toBeGreaterThanOrEqual(3);
+    const primeiro = await page.locator('tbody tr').first().getByRole('link', { name: 'Ver questões' }).getAttribute('href');
+    await page.goto(`${primeiro}?rever=1`);
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+
+    // Escrever «j», «k» e «a» num campo é escrever: nenhum atalho dispara.
+    const titulo = page.getByLabel('Título').first();
+    const original = await titulo.inputValue();
+    await titulo.focus();
+    await page.keyboard.type('jka');
+    await expect(titulo).toHaveValue(`${original}jka`);
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`${primeiro}\\?rever=1$`));
+    await titulo.fill(original);
+
+    // Fora de um campo, J anda pela fila e K volta; A abre a confirmação, não aprova sozinho.
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('j');
+    await expect(page.getByText(`Fila de revisão: 2 de ${antes}`)).toBeVisible();
+    await page.keyboard.press('k');
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+    await page.keyboard.press('a');
+    const dialogo = page.getByRole('alertdialog');
+    await expect(dialogo).toContainText('Aprovar e passar ao seguinte?');
+    await page.keyboard.press('j');
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+
+    // O interruptor desliga os atalhos (WCAG 2.1.4): com eles desligados J e A não fazem nada, e a escolha fica guardada.
+    const interruptor = page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' });
+    await expect(interruptor).toBeChecked();
+    await interruptor.uncheck();
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await page.keyboard.press('j');
+    await expect(dialogo).toHaveCount(0);
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' })).not.toBeChecked();
+    await page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' }).check();
+
+    // Aprovar e ir para o seguinte: abre o próximo já em revisão, com a fila uma mais curta.
+    await expect(page.getByRole('button', { name: 'Aprovar e ir para o seguinte' })).toBeVisible();
+    await page.getByRole('button', { name: 'Aprovar e ir para o seguinte' }).click();
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes - 1}`)).toBeVisible();
+    await expect(page).not.toHaveURL(new RegExp(`${primeiro}\\?rever=1$`));
+    await expect(page.getByRole('heading', { name: 'Rever enunciado' })).toBeVisible();
+
+    // O atalho A faz o mesmo, depois de confirmar; como ainda sobram enunciados, continua a ser «e passar ao seguinte».
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await expect(dialogo).toContainText('Aprovar e passar ao seguinte?');
+    await dialogo.getByRole('button', { name: 'Aprovar e seguinte' }).click();
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes - 2}`)).toBeVisible();
+  });
+
+  test('verificação: os filtros têm contagens, vivem no endereço, paginam e os atalhos respeitam os campos (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/verification');
+    await expect(page.getByRole('tab')).toHaveCount(5);
+    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
+    const porRever = await contagem(/^Por rever \(/);
+    const todos = await contagem(/^Todos \(/);
+
+    // Abre nos pedidos por rever (o que há para fazer) e o endereço limpo é o desse filtro.
+    await expect(page.getByRole('tab', { name: /^Por rever \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-fila-item]')).toHaveCount(Math.min(porRever, 10));
+    await expect(page).toHaveURL(/\/manager\/verification$/);
+
+    // «Todos» pagina: a contagem manda, a página vai para o endereço e sobrevive ao recarregamento.
+    await page.getByRole('tab', { name: /^Todos \(/ }).click();
+    await expect(page).toHaveURL(/\?filtro=todos$/);
+    expect(todos, 'precisa de mais de uma página para testar a paginação').toBeGreaterThan(10);
+    await expect(page.locator('[data-fila-item]')).toHaveCount(10);
+    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`1 a 10 de ${todos} pedidos`);
+    await page.getByRole('button', { name: 'Seguinte' }).click();
+    await expect(page).toHaveURL(/\?filtro=todos&pagina=2$/);
+    await expect(page.locator('[data-fila-item]')).toHaveCount(todos - 10);
+    await page.reload();
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`11 a ${todos} de ${todos} pedidos`);
+
+    // Atalhos: J anda pelos pedidos, R abre a recusa no focado e leva o foco ao campo do motivo, onde as teclas são texto.
+    await page.goto('/manager/verification');
+    await expect(page.locator('[data-fila-item]').first()).toBeVisible();
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await expect(page.getByRole('button', { name: 'Confirmar aprovação' })).toHaveCount(0);
+    await page.keyboard.press('j');
+    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
+    await page.keyboard.press('r');
+    const motivo = page.getByLabel(/Motivo da recusa/);
+    await expect(motivo).toBeFocused();
+    await page.keyboard.type('jkar');
+    await expect(motivo).toHaveValue('jkar');
+    await expect(page.getByLabel(/Motivo da recusa/)).toHaveCount(1);
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+  });
+
+  test('moderação: separadores com contagem, decididas por páginas e J/K entre denúncias (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/moderacao');
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
+    const porDecidir = await contagem(/^Por decidir \(/);
+    const decididas = await contagem(/^Decididas \(/);
+    await expect(page.getByRole('tab', { name: /^Por decidir \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-fila-item]')).toHaveCount(porDecidir);
+
+    // J e K andam pelas denúncias por decidir, e as decisões continuam a ser dos botões.
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('j');
+    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
+    await page.keyboard.press('j');
+    await expect(page.locator('[data-fila-item]').nth(1)).toBeFocused();
+    await page.keyboard.press('k');
+    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
+
+    // As decididas vêm por páginas, no endereço, e sobrevivem ao recarregamento.
+    expect(decididas, 'precisa de mais de uma página para testar a paginação').toBeGreaterThan(10);
+    await page.getByRole('tab', { name: /^Decididas \(/ }).click();
+    await expect(page).toHaveURL(/\?filtro=decididas$/);
+    const linhas = page.locator('section[aria-label="Denúncias decididas"] > div.rounded-lg');
+    await expect(linhas).toHaveCount(10);
+    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`1 a 10 de ${decididas} denúncias`);
+    await page.getByRole('button', { name: 'Seguinte' }).click();
+    await expect(page).toHaveURL(/\?filtro=decididas&pagina=2$/);
+    await expect(linhas).toHaveCount(decididas - 10);
+    await page.reload();
+    await expect(page.getByRole('tab', { name: /^Decididas \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(linhas).toHaveCount(decididas - 10);
+    await expect(page.getByRole('button', { name: /^Ignorar/ })).toHaveCount(0);
   });
 
   test('construtor: abre limpo e so retoma o rascunho anterior depois de avisar (#362)', async ({ page }) => {
