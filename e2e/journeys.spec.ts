@@ -1198,6 +1198,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByLabel('Título')).toBeHidden();
     await guardar.click();
     await expect(page.getByRole('status').filter({ hasText: 'Prova guardada' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: /Guardado às/ })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId)).toBeGreaterThan(0);
 
     // Já guardada, sem alterações: os botões dizem porque estão desativados.
     await expect(guardar).toBeDisabled();
@@ -1600,25 +1602,19 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       localStorage.setItem('kixi-exam-draft', JSON.stringify(d));
     }, rascunho);
 
-    let avisos = 0;
-    let aceitar = false;
-    page.on('dialog', async (d) => {
-      avisos += 1;
-      if (aceitar) await d.accept();
-      else await d.dismiss();
-    });
-
     // Recusar (começar do zero): o formulário abre limpo e a chave desaparece.
     await page.goto('/manager/exam-builder');
+    const aviso = page.getByRole('alertdialog', { name: 'Continuar o rascunho?' });
+    await expect(aviso).toBeVisible();
+    await aviso.getByRole('button', { name: /Cancelar|Começar do zero/ }).click();
     await expect(page.getByRole('heading', { name: 'Montar prova' })).toBeVisible();
-    await expect.poll(() => avisos, { message: 'esperava o aviso do rascunho anterior' }).toBe(1);
     await expect(page.getByLabel('Título')).toHaveValue('');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('kixi-exam-draft'))).toBeNull();
 
     // Aceitar: o rascunho anterior volta.
-    aceitar = true;
     await page.goto('/manager/exam-builder');
+    await expect(aviso).toBeVisible();
+    await aviso.getByRole('button', { name: 'Continuar rascunho' }).click();
     await expect(page.getByLabel('Título')).toHaveValue('Prova de OGI da semana passada');
-    await expect.poll(() => avisos).toBe(2);
   });
  });

@@ -466,11 +466,19 @@ export async function updateManualStatement(
         ...(question.serverId == null && parentId != null ? { label: question.label } : {}),
         ...(question.type === 'group' ? { groupLayout: question.groupLayout ?? 'lettered' } : {}),
       };
-      const saved = current
-        ? await request(`/statements/${sid}/questions/${safeId(question.serverId!)}`, 'PUT', body)
-        : await request(`/statements/${sid}/questions`, 'POST', body);
-      if (!saved.ok) { failures.push(await message(saved)); return null; }
-      const savedQuestion = (await saved.json()) as Row;
+      const changed = !current || current.text !== body.text
+        || current.questionType !== body.questionType
+        || current.maxScore !== body.maxScore
+        || (current.modelAnswer ?? null) !== body.modelAnswer
+        || (question.reviewed !== undefined && current.ocrReviewed !== question.reviewed)
+        || (question.type === 'group' && current.groupLayout !== (question.groupLayout ?? 'lettered'));
+      const saved = changed
+        ? await request(current
+          ? `/statements/${sid}/questions/${safeId(question.serverId!)}`
+          : `/statements/${sid}/questions`, current ? 'PUT' : 'POST', body)
+        : null;
+      if (saved && !saved.ok) { failures.push(await message(saved)); return null; }
+      const savedQuestion = saved ? (await saved.json()) as Row : current!;
       const questionId = Number(savedQuestion.id ?? current?.id);
       if (!Number.isInteger(questionId) || questionId <= 0) { failures.push('O servidor não devolveu o id da questão.'); return null; }
       desiredIds.add(questionId);
@@ -487,11 +495,15 @@ export async function updateManualStatement(
           return identity;
         }
         const optionBody = { optionLabel: option.label, optionText: option.text, isCorrect: option.correct };
-        const optionResponse = old
-          ? await request(`/statements/${sid}/questions/${questionId}/options/${safeId(Number(old.id))}`, 'PUT', optionBody)
-          : await request(`/statements/${sid}/questions/${questionId}/options`, 'POST', optionBody);
-        if (!optionResponse.ok) { failures.push(await message(optionResponse)); return identity; }
-        const savedOption = (await optionResponse.json()) as Row;
+        const optionChanged = !old || old.optionLabel !== option.label
+          || old.optionText !== option.text || old.isCorrect !== option.correct;
+        const optionResponse = optionChanged
+          ? await request(old
+            ? `/statements/${sid}/questions/${questionId}/options/${safeId(Number(old.id))}`
+            : `/statements/${sid}/questions/${questionId}/options`, old ? 'PUT' : 'POST', optionBody)
+          : null;
+        if (optionResponse && !optionResponse.ok) { failures.push(await message(optionResponse)); return identity; }
+        const savedOption = optionResponse ? (await optionResponse.json()) as Row : old!;
         const optionId = Number(savedOption.id ?? old?.id);
         if (!Number.isInteger(optionId) || optionId <= 0) { failures.push('O servidor não devolveu o id da opção.'); return identity; }
         optionIds.push(optionId);
@@ -502,7 +514,11 @@ export async function updateManualStatement(
         const removed = await request(`/statements/${sid}/questions/${questionId}/options/${safeId(Number(old.id))}`, 'DELETE');
         if (!removed.ok) { failures.push(await message(removed)); return identity; }
       }
-      if (optionIds.length) {
+      const previousOptionIds = [...oldOptions]
+        .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+        .map((option) => Number(option.id));
+      if (optionIds.length && (optionIds.length !== previousOptionIds.length
+        || optionIds.some((optionId, index) => optionId !== previousOptionIds[index]))) {
         const reordered = await request(`/statements/${sid}/questions/${questionId}/options/reorder`, 'PUT', { optionIds });
         if (!reordered.ok) { failures.push(await message(reordered)); return identity; }
       }
@@ -538,6 +554,14 @@ export async function updateManualStatement(
       }
     }
     if (failures.length === 0) {
+      const previousIds = [...existingQuestions]
+        .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+        .map((question) => Number(question.id));
+      if (orderedIds.length === previousIds.length
+        && orderedIds.every((questionId, index) => questionId === previousIds[index])) {
+        revalidatePath('/statements');
+        return ok({ failed: failures, identities });
+      }
       const reordered = await request(`/statements/${sid}/questions/reorder`, 'PUT', { questionIds: orderedIds });
       if (!reordered.ok) failures.push(await message(reordered));
     }
