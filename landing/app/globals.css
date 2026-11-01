@@ -22,8 +22,7 @@
   --brand: #c8d49a; --brand-edge: #7d8c57; --brand-hover: #d8e2b0; --on-brand: #1b2413; --phosphor: #d0dba2; --focus: #d6dcb8;
 }
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 72px; scrollbar-width: none; }
-html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 body { margin: 0; background: var(--paper); color: var(--lp-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; line-height: 1.5; overflow-x: clip; }
 /* paper grain */
 body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none; opacity: .07; mix-blend-mode: overlay;
@@ -65,10 +64,16 @@ a { color: inherit; }
 .pres__hero { position: absolute; z-index: 3; left: var(--gutter); right: var(--gutter); top: 96px; text-align: center; pointer-events: none; }
 .pres__hero-title { margin: 0 auto; max-width: 20ch; font: 700 clamp(28px, min(4.8vw, 7.5svh), 60px)/1.05 var(--font-sans); letter-spacing: -0.04em; color: var(--lp-ink); text-wrap: balance; }
 .pres__hero-sub { margin: 12px auto 0; max-width: 40ch; font: 400 clamp(15px, 1.6vw, 19px)/1.45 var(--font-sans); color: var(--lp-dim); text-wrap: balance; }
-.site-header__cta { justify-self: end; }
+.site-header__actions { display: flex; gap: 8px; justify-self: end; align-items: center; }
 .site-header__nav { display: none; gap: 32px; }
 .site-header__nav a { text-decoration: none; font: 600 14px/1 var(--font-sans); padding: 12px 0; }
 .site-header__nav a:hover { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+/* a navegação por âncoras aparece a partir de desktop (#512): no telemóvel
+   o cabeçalho leva só a marca e os dois botões, para caberem em 360 px */
+@media (min-width: 960px) {
+  .site-header__in { grid-template-columns: auto 1fr auto; gap: 32px; }
+  .site-header__nav { display: flex; justify-content: center; }
+}
 
 /* presentation: one sticky stage, driven by scroll */
 .pres { position: relative; height: 1800svh; margin-top: -73px; } /* the stage starts under the sticky header, so the first screen is exactly one stage */
@@ -93,7 +98,13 @@ a { color: inherit; }
 .pres__hint { position: absolute; left: 50%; bottom: clamp(20px, 6svh, 56px); margin-left: -16px; color: var(--lp-ink); z-index: 3; pointer-events: none; animation: kx-bob 1.1s steps(4, end) infinite; }
 @keyframes kx-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { .pres__hint { animation: none; } }
-.pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100vw - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
+/* saltar a apresentação (#512): no fluxo do herói, em cima e longe do banner de
+   cookies fixo; o herói não recebe ponteiro, o salto sim. O alvo tem ~44 px. */
+.pres__skip { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 16px; padding: 14px 20px; font: 600 12px/1.4 var(--font-sans); letter-spacing: .04em; color: var(--lp-ink); text-decoration: none; }
+.pres__hero .pres__skip { pointer-events: auto; }
+.pres__skip svg { animation: kx-bob 1.1s steps(4, end) infinite; }
+@media (prefers-reduced-motion: reduce) { .pres__skip svg { animation: none; } }
+.pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100% - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
 .pres__rail span { display: block; height: 100%; background: var(--lp-ink); transform-origin: top; }
 /* narrow screens: the console owns the whole stage (centred), the cartridge scene keeps the lower part under its text */
 @media (max-width: 959px) {
@@ -101,14 +112,14 @@ a { color: inherit; }
   .pres__art { grid-row: 1 / -1; grid-column: 1; height: calc(100svh - 72px); }
   .pres__art .pres__block, .pres__art .pres__cart { inset: 46% 0 4% 6%; width: auto; height: auto; }
   /* A consola é dimensionada pela largura (a altura segue a proporção do desenho) e encostada ao topo do palco;
-     desce só o necessário para ficar logo abaixo do título (~112 px: o título ocupa ~2 linhas). Como a caixa
-     segue a proporção do desenho não sobra margem transparente, e o espaço fica igual em qualquer proporção de
-     ecrã. Antes descia 50svh e deixava um buraco de ~240 px no telemóvel. */
-  .pres__art .gb { inset: 0 0 auto 0; margin: 0 auto; width: min(100%, calc((100svh - 72px) * .561)); height: auto; max-height: none; --ht: calc(72px + 112px); }
+     desce só o necessário para ficar logo abaixo do herói (título + frase de valor). Como a caixa
+     segue a proporção do desenho não sobra margem transparente, e o espaço fica igual em
+     qualquer proporção de ecrã. Antes descia 50svh e deixava um buraco de ~240 px no telemóvel. */
+  .pres__art .gb { inset: 0 0 auto 0; margin: 0 auto; width: min(100%, calc((100svh - 72px) * .561)); height: auto; max-height: none; --ht: calc(72px + 240px); }
 }
-/* Num tablet o título cabe numa linha (mais curto): a consola sobe menos para não lhe encostar. */
+/* O herói tem frase de valor: no tablet o título continua curto, a consola sobe menos. */
 @media (min-width: 600px) and (max-width: 959px) {
-  .pres__art .gb { --ht: calc(72px + 92px); }
+  .pres__art .gb { --ht: calc(72px + 200px); }
 }
 @media (min-width: 960px) {
   .pres__stick { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: var(--gutter); }
