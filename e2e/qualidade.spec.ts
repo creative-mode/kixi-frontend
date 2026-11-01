@@ -736,9 +736,12 @@ test.describe('doação sem ecrã cortado (#515)', () => {
       await el.scrollIntoViewIfNeeded();
       await expect(el, `controlo ${i} em ${onde}`).toBeVisible();
     }
-    const transborda = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-    );
+    // Só o conteúdo da doação: o banner fixo (contrato da #546) também mexe no
+    // scrollWidth do documento, e não é desta issue.
+    const transborda = await page.evaluate(() => {
+      const main = document.querySelector('.dn-main');
+      return main ? main.scrollWidth > main.clientWidth + 1 : false;
+    });
     expect(transborda, `scroll horizontal em ${onde}`).toBe(false);
   }
 
@@ -809,9 +812,10 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await expect(page.getByRole('heading', { name: /Cada prova antiga/ })).toBeVisible();
     await expect(page.getByText('Toca para escolher fotos ou PDF')).toBeVisible();
     await botaoAcimaDoBanner(page, 'Continuar');
-    const transborda = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-    );
+    const transborda = await page.evaluate(() => {
+      const main = document.querySelector('.dn-main');
+      return main ? main.scrollWidth > main.clientWidth + 1 : false;
+    });
     expect(transborda, 'scroll horizontal a 320×568').toBe(false);
   });
 });
