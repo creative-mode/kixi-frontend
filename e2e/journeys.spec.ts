@@ -1057,6 +1057,37 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
 
+  test('sala: o encerrar diz quantos ainda respondem e a tabela filtra por estado (#536)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-rooms/1');
+    const filtros = page.getByRole('group', { name: 'Filtrar alunos' });
+    await expect(filtros).toBeVisible();
+
+    // Cada filtro traz a sua contagem, e a tabela mostra tantas linhas quantas essa contagem diz.
+    const total = Number((await filtros.getByRole('button', { name: /^Todos \(/ }).innerText()).match(/\((\d+)\)/)![1]);
+    expect(total).toBeGreaterThan(0);
+    const porEntrar = filtros.getByRole('button', { name: /^Ainda não entraram \(/ });
+    const esperado = Number((await porEntrar.innerText()).match(/\((\d+)\)/)![1]);
+    await porEntrar.click();
+    await expect(porEntrar).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('table').first().locator('tbody tr')).toHaveCount(esperado);
+    await filtros.getByRole('button', { name: /^Todos \(/ }).click();
+    await expect(page.locator('table').first().locator('tbody tr')).toHaveCount(total);
+
+    // O diálogo de encerrar diz quantos ainda estão a responder, em vez de um aviso genérico.
+    const respondem = Number((await filtros.getByRole('button', { name: /^A responder \(/ }).innerText()).match(/\((\d+)\)/)![1]);
+    await page.getByRole('button', { name: 'Encerrar', exact: true }).click();
+    const dialogo = page.getByRole('alertdialog');
+    if (respondem > 0) {
+      await expect(dialogo).toContainText(`${respondem} ainda a responder`);
+      await expect(dialogo).toContainText(respondem === 1 ? '1 aluno ainda está a responder' : `${respondem} alunos ainda estão a responder`);
+    } else {
+      await expect(dialogo).toContainText('Ninguém está a responder neste momento');
+    }
+    await dialogo.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(dialogo).toHaveCount(0);
+  });
+
   test('gestor: o formulário valida ao sair do campo e permite guardar e criar outro (#533)', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
