@@ -414,6 +414,133 @@ test.describe('progresso do aluno no telemóvel (#493)', () => {
     await expect(page.getByTestId('mobile-progresso')).toBeHidden();
     await expect(page.locator('aside[aria-label="Destaques"]')).toBeVisible();
     await expect(page.locator('aside[aria-label="Destaques"]').getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
+  });
+});
+
+/** O 404 da landing (#544): endereço partido devolve "Esta página não existe" em
+ *  português, na marca do site, com saída clara - e o banner de cookies nunca por
+ *  cima de nada. Antes era o 404 de omissão do Next: inglês, sem marca, sem saída. */
+test.describe('404 da landing (#544)', () => {
+  async function semEscolha(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  test('404 com status certo, título em português, marca e saída', async ({ page, request }) => {
+    const resposta = await request.get('/nao-existe-xyz');
+    expect(resposta.status(), 'o status HTTP').toBe(404);
+
+    await semEscolha(page);
+    await page.goto('/nao-existe-xyz');
+    await expect(page).toHaveTitle(/Página não encontrada · Kixi/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible();
+    // A marca: o cabeçalho leva de volta ao início ("Kixi, início") e o texto é o meu.
+    await expect(page.getByRole('link', { name: 'Kixi, início' })).toBeVisible();
+    const inicio = page.getByRole('link', { name: 'Ir para o início' });
+    await expect(inicio).toBeVisible();
+    expect(await inicio.getAttribute('href')).toBe('/');
+    // O segundo caminho: entrar. O cabeçalho e o corpo têm o seu; o rodapé pode repetir.
+    expect(
+      await page.getByRole('link', { name: 'Entrar' }).count(),
+      'pelo menos o do cabeçalho e o do corpo',
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  test('sem violações sérias de acessibilidade, com o banner na página', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/nao-existe-xyz');
+    await page.waitForLoadState('networkidle');
+    expect(await page.locator('section.ck').count(), 'o banner faz parte da página').toBe(1);
+    expect(await graves(page)).toEqual([]);
+  });
+
+  test.describe('no telemóvel', () => {
+    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+    test('o banner de cookies por cima, mas sem tapar o conteúdo do 404', async ({ page }) => {
+      await semEscolha(page);
+      await page.goto('/nao-existe-xyz');
+      const bnn = page.locator('section.ck');
+      await expect(bnn).toBeVisible();
+      // O botão principal acaba antes do topo do banner: nada do que interessa
+      // fica escondido por baixo dele (a altura do banner é contrato de outra issue).
+      const cta = page.getByRole('link', { name: 'Ir para o início' });
+      await expect(cta).toBeVisible();
+      const ctaBox = await cta.boundingBox();
+      const caixa = await bnn.boundingBox();
+      expect((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0), 'o botão acaba antes do banner').toBeLessThanOrEqual(caixa!.y);
+      // E o título da conversa é o primeiro que se vê.
+      await expect(page.getByRole('heading', { name: 'Esta página não existe' })).toBeInViewport();
+    });
+  });
+});
+
+/** Contraste do LCD (#520): o verde médio sobre verde claro ficava nos 3:1, longe
+ *  dos 4,5 do texto pequeno. O axe não via: com hachuras e máscaras por cima, o
+ *  fundo é ambíguo e a regra cala-se. Por isso trava-se o par de tokens. */
+test.describe('contraste do LCD (#520)', () => {
+  /** WCAG 2.x: luminância relativa e rácio, os mesmos do axe. */
+  function razao(a: string, b: string) {
+    const lum = (hex: string) => {
+      const h = hex.replace('#', '');
+      const [r, g, bl] = [0, 2, 4].map((i) => {
+        const c = parseInt(h.slice(i, i + 2), 16) / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const [claro, escuro] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (claro + 0.05) / (escuro + 0.05);
+  }
+
+  async function tokens(page: Page) {
+    return page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const ler = (nome: string) => cs.getPropertyValue(nome).trim();
+      return { fundo: ler('--lcd-0'), fundoAlt: ler('--lcd-1'), texto: ler('--lcd-3') };
+    });
+  }
+
+  test('texto pequeno do LCD com pelo menos 4,5:1 nos dois fundos', async ({ page }) => {
+    await page.goto('/');
+    const t = await tokens(page);
+    expect(t.texto, 'token do texto').toMatch(/^#[0-9a-f]{6}$/);
+    expect(razao(t.texto, t.fundo), 'texto sobre lcd-0').toBeGreaterThanOrEqual(4.5);
+    expect(razao(t.texto, t.fundoAlt), 'texto sobre lcd-1').toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('axe sem falta de contraste nas zonas LCD', async ({ page }) => {
+    // Apontado às zonas desta issue (o axe cala-se onde o fundo é ambíguo;
+    // a página inteira já é coberta pelos testes de acessibilidade).
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      const { violations } = await new AxeBuilder({ page })
+        .include('.aud')
+        .include('.pres__art')
+        .withRules(['color-contrast'])
+        .analyze();
+      expect(violations.map((v) => v.id), `${viewport.width}px`).toEqual([]);
+    }
+  });
+
+  test.describe('movimento reduzido', () => {
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('axe sem falta de contraste no modo still', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      const { violations } = await new AxeBuilder({ page })
+        .include('.aud')
+        .withRules(['color-contrast'])
+        .analyze();
+      expect(violations.map((v) => v.id), 'still').toEqual([]);
+      // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
+      // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
+      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
+    });
+  });
+});
 
 /** O banner de cookies no telemóvel (#545): frase curta que se lê toda, dois botões
  *  do mesmo peso e foco que não rouba nem prende - nunca um quarto do ecrã por
@@ -554,130 +681,5 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     await expect
       .poll(() => page.evaluate(() => (document.activeElement as HTMLElement)?.tagName))
       .toBe('BODY');
-  });
-});
-
-/** O 404 da landing (#544): endereço partido devolve "Esta página não existe" em
- *  português, na marca do site, com saída clara - e o banner de cookies nunca por
- *  cima de nada. Antes era o 404 de omissão do Next: inglês, sem marca, sem saída. */
-test.describe('404 da landing (#544)', () => {
-  async function semEscolha(page: Page) {
-    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
-  }
-
-  test('404 com status certo, título em português, marca e saída', async ({ page, request }) => {
-    const resposta = await request.get('/nao-existe-xyz');
-    expect(resposta.status(), 'o status HTTP').toBe(404);
-
-    await semEscolha(page);
-    await page.goto('/nao-existe-xyz');
-    await expect(page).toHaveTitle(/Página não encontrada · Kixi/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible();
-    // A marca: o cabeçalho leva de volta ao início ("Kixi, início") e o texto é o meu.
-    await expect(page.getByRole('link', { name: 'Kixi, início' })).toBeVisible();
-    const inicio = page.getByRole('link', { name: 'Ir para o início' });
-    await expect(inicio).toBeVisible();
-    expect(await inicio.getAttribute('href')).toBe('/');
-    // O segundo caminho: entrar. O cabeçalho e o corpo têm o seu; o rodapé pode repetir.
-    expect(
-      await page.getByRole('link', { name: 'Entrar' }).count(),
-      'pelo menos o do cabeçalho e o do corpo',
-    ).toBeGreaterThanOrEqual(2);
-  });
-
-  test('sem violações sérias de acessibilidade, com o banner na página', async ({ page }) => {
-    await semEscolha(page);
-    await page.goto('/nao-existe-xyz');
-    await page.waitForLoadState('networkidle');
-    expect(await page.locator('section.ck').count(), 'o banner faz parte da página').toBe(1);
-    expect(await graves(page)).toEqual([]);
-  });
-
-  test.describe('no telemóvel', () => {
-    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-
-    test('o banner de cookies por cima, mas sem tapar o conteúdo do 404', async ({ page }) => {
-      await semEscolha(page);
-      await page.goto('/nao-existe-xyz');
-      const bnn = page.locator('section.ck');
-      await expect(bnn).toBeVisible();
-      // O botão principal acaba antes do topo do banner: nada do que interessa
-      // fica escondido por baixo dele (a altura do banner é contrato de outra issue).
-      const cta = page.getByRole('link', { name: 'Ir para o início' });
-      await expect(cta).toBeVisible();
-      const ctaBox = await cta.boundingBox();
-      const caixa = await bnn.boundingBox();
-      expect((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0), 'o botão acaba antes do banner').toBeLessThanOrEqual(caixa!.y);
-      // E o título da conversa é o primeiro que se vê.
-      await expect(page.getByRole('heading', { name: 'Esta página não existe' })).toBeInViewport();
-    });
-  });
-});
-
-/** Contraste do LCD (#520): o verde médio sobre verde claro ficava nos 3:1, longe
- *  dos 4,5 do texto pequeno. O axe não via: com hachuras e máscaras por cima, o
- *  fundo é ambíguo e a regra cala-se. Por isso trava-se o par de tokens. */
-test.describe('contraste do LCD (#520)', () => {
-  /** WCAG 2.x: luminância relativa e rácio, os mesmos do axe. */
-  function razao(a: string, b: string) {
-    const lum = (hex: string) => {
-      const h = hex.replace('#', '');
-      const [r, g, bl] = [0, 2, 4].map((i) => {
-        const c = parseInt(h.slice(i, i + 2), 16) / 255;
-        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-      });
-      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-    };
-    const [claro, escuro] = [lum(a), lum(b)].sort((x, y) => y - x);
-    return (claro + 0.05) / (escuro + 0.05);
-  }
-
-  async function tokens(page: Page) {
-    return page.evaluate(() => {
-      const cs = getComputedStyle(document.documentElement);
-      const ler = (nome: string) => cs.getPropertyValue(nome).trim();
-      return { fundo: ler('--lcd-0'), fundoAlt: ler('--lcd-1'), texto: ler('--lcd-3') };
-    });
-  }
-
-  test('texto pequeno do LCD com pelo menos 4,5:1 nos dois fundos', async ({ page }) => {
-    await page.goto('/');
-    const t = await tokens(page);
-    expect(t.texto, 'token do texto').toMatch(/^#[0-9a-f]{6}$/);
-    expect(razao(t.texto, t.fundo), 'texto sobre lcd-0').toBeGreaterThanOrEqual(4.5);
-    expect(razao(t.texto, t.fundoAlt), 'texto sobre lcd-1').toBeGreaterThanOrEqual(4.5);
-  });
-
-  test('axe sem falta de contraste nas zonas LCD', async ({ page }) => {
-    // Apontado às zonas desta issue (o axe cala-se onde o fundo é ambíguo;
-    // a página inteira já é coberta pelos testes de acessibilidade).
-    for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
-      await page.setViewportSize(viewport);
-      await page.goto('/');
-      await page.waitForLoadState('networkidle');
-      const { violations } = await new AxeBuilder({ page })
-        .include('.aud')
-        .include('.pres__art')
-        .withRules(['color-contrast'])
-        .analyze();
-      expect(violations.map((v) => v.id), `${viewport.width}px`).toEqual([]);
-    }
-  });
-
-  test.describe('movimento reduzido', () => {
-    test.use({ contextOptions: { reducedMotion: 'reduce' } });
-
-    test('axe sem falta de contraste no modo still', async ({ page }) => {
-      await page.goto('/');
-      await page.waitForLoadState('networkidle');
-      const { violations } = await new AxeBuilder({ page })
-        .include('.aud')
-        .withRules(['color-contrast'])
-        .analyze();
-      expect(violations.map((v) => v.id), 'still').toEqual([]);
-      // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
-      // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
-      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
-    });
   });
 });
