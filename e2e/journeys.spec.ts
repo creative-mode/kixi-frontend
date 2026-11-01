@@ -1027,6 +1027,18 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(code).toHaveValue('RASCUNHO');
 
     await code.fill('');
+    for (const value of ['OUTRO', 'MAIS UM']) {
+      await code.fill(value);
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(true);
+      await code.fill('');
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+    }
+    // Um único Voltar deve sair depois de vários ciclos sujo → limpo.
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/manager\/classes\/new/);
+    await expect(warning).toHaveCount(0);
+
+    await page.goto('/manager/classes/new');
     await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
     await expect(page).toHaveURL(/\/manager\/classes$/);
     await expect(warning).toHaveCount(0);
@@ -1148,6 +1160,10 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(code).toBeFocused();
     await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveCount(0);
     await expect(page.locator('[id$="-erro"]')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/manager\/subjects\/new/);
+    await expect(page.getByRole('alertdialog', { name: 'Descartar alterações?' })).toHaveCount(0);
 
     // A disciplina criada está na lista.
     await page.goto('/manager/subjects');

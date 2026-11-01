@@ -6,6 +6,23 @@ import { Confirm } from './confirm';
 import { BASE_PATH } from '@/lib/constants';
 
 const activeGuards = new Set<(next: () => void) => void>();
+let historyReady = Promise.resolve();
+const releasingMarkers = new Set<string>();
+
+function removeHistoryGuard(marker: string, next?: () => void) {
+  releasingMarkers.add(marker);
+  const remove = async () => {
+    if (window.history.state?.__unsavedGuard === marker) {
+      await new Promise<void>((resolve) => {
+        window.addEventListener('popstate', () => resolve(), { once: true });
+        window.history.back();
+      });
+    }
+    releasingMarkers.delete(marker);
+    next?.();
+  };
+  historyReady = historyReady.then(remove);
+}
 
 /** Let layout actions such as logout use the active form's accessible confirmation. */
 export function guardGlobalUnsavedChanges(next: () => void) {
@@ -46,19 +63,26 @@ export function useUnsavedChanges(dirty: boolean, description = 'Tem alteraçõe
     document.addEventListener('click', onDocumentClick, true);
     const marker = `unsaved-${Math.random()}`;
     const guardedPath = window.location.pathname;
-    let leavingByBack = false;
-    window.history.pushState({ ...window.history.state, __unsavedGuard: marker }, '', window.location.href);
-    const onBack = () => {
-      if (leavingByBack || window.location.pathname !== guardedPath) return;
+    let released = false;
+    let installed = false;
+    void historyReady.then(() => {
+      if (released) return;
       window.history.pushState({ ...window.history.state, __unsavedGuard: marker }, '', window.location.href);
-      ask(() => { leavingByBack = true; window.history.go(-2); });
+      installed = true;
+    });
+    const onBack = () => {
+      if (released || releasingMarkers.has(marker) || !installed || window.location.pathname !== guardedPath) return;
+      window.history.pushState({ ...window.history.state, __unsavedGuard: marker }, '', window.location.href);
+      ask(() => window.history.back());
     };
     window.addEventListener('popstate', onBack);
     return () => {
+      released = true;
       activeGuards.delete(ask);
       window.removeEventListener('beforeunload', beforeUnload);
       document.removeEventListener('click', onDocumentClick, true);
       window.removeEventListener('popstate', onBack);
+      if (installed) removeHistoryGuard(marker);
     };
   }, [dirty, router]);
   const guard = (next: () => void) => dirty ? setLeaving(() => next) : next();
@@ -66,7 +90,11 @@ export function useUnsavedChanges(dirty: boolean, description = 'Tem alteraçõe
     guard,
     dialog: <Confirm state={leaving ? {
       title: 'Descartar alterações?', description,
-      action: 'Descartar e sair', destructive: true, run: () => { leaving(); },
+      action: 'Descartar e sair', destructive: true, run: () => {
+        const marker = window.history.state?.__unsavedGuard;
+        if (typeof marker === 'string' && marker.startsWith('unsaved-')) removeHistoryGuard(marker, leaving);
+        else leaving();
+      },
     } : null} onClose={() => setLeaving(null)} />,
   };
 }
