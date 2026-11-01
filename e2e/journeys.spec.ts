@@ -1005,6 +1005,45 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(reopenedDialog).toHaveCount(0);
   });
 
+  test('gestor: protege a saída com alterações e navega logo quando o formulário está limpo (#508)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/classes/new');
+    const code = page.getByLabel('Código');
+    await code.fill('RASCUNHO');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    const warning = page.getByRole('alertdialog', { name: 'Descartar alterações?' });
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await page.getByRole('button', { name: 'Sair do sistema' }).first().click();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes\/new/);
+
+    await page.goBack();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await code.fill('');
+    for (const value of ['OUTRO', 'MAIS UM']) {
+      await code.fill(value);
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(true);
+      await code.fill('');
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+    }
+    // Um único Voltar deve sair depois de vários ciclos sujo → limpo.
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/manager\/classes\/new/);
+    await expect(warning).toHaveCount(0);
+
+    await page.goto('/manager/classes/new');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+    await expect(warning).toHaveCount(0);
+  });
+
   test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await page.goto('/manager/classes');
@@ -1121,6 +1160,16 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(code).toBeFocused();
     await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveCount(0);
     await expect(page.locator('[id$="-erro"]')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+
+    // O envio normal também remove a sentinela antes de navegar para a lista.
+    await code.fill(`T${id}`);
+    await name.fill(`Outra disciplina ${id}`);
+    await page.getByRole('button', { name: /^Criar/ }).click();
+    await expect(page).toHaveURL(/\/manager\/subjects$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/manager\/subjects\/new$/);
+    await expect(page.getByRole('alertdialog', { name: 'Descartar alterações?' })).toHaveCount(0);
 
     // A disciplina criada está na lista.
     await page.goto('/manager/subjects');

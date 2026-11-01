@@ -33,6 +33,7 @@ import { resetTeacherScope } from "@/hooks/use-teacher-scope";
 import { activeHref, groupLinks } from "@/lib/nav-rules";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
+import { guardGlobalUnsavedChanges } from "./crud/use-unsaved-changes";
 
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 
@@ -102,8 +103,10 @@ function writeCollapsed(next: boolean) {
 }
 
 function logout() {
-  resetTeacherScope();
-  logoutAction();
+  guardGlobalUnsavedChanges(() => {
+    resetTeacherScope();
+    logoutAction();
+  });
 }
 
 function NavList({

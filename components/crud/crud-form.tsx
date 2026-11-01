@@ -15,6 +15,7 @@ import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from
 import { errorSummary, fieldError, validate, type FieldErrors } from '@/lib/crud/validation';
 import { PageHead } from './page-head';
 import { FormSkeleton } from './loading';
+import { useUnsavedChanges } from './use-unsaved-changes';
 
 const blankValues = (fields: Field[]): Row => Object.fromEntries(fields.map((f) => [f.name, '']));
 
@@ -36,6 +37,9 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState<string>('');
+  const [baseline, setBaseline] = useState('');
+  const dirty = !loading && baseline !== '' && JSON.stringify(values) !== baseline;
+  const { guard, leaveAfterSave, dialog } = useUnsavedChanges(dirty);
 
   useEffect(() => {
     let alive = true;
@@ -74,6 +78,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       if (!alive) return;
       setOptions(opts);
       setValues(initial);
+      setBaseline(JSON.stringify(initial));
       setLoading(false);
     })();
     return () => { alive = false; };
@@ -115,8 +120,10 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       }
       // Uma escola nova ainda está vazia: leva direto ao assistente de estrutura (cursos, turmas, professores).
       const createdId = !editing && entityKey === 'institutions' ? Number((res.data as Row | undefined)?.id) : NaN;
-      router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
-      router.refresh();
+      leaveAfterSave(() => {
+        router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
+        router.refresh();
+      });
     } else toast.error(res.error);
   }
 
@@ -188,7 +195,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
               })}
               {/* O rato não tira o foco ao campo: senão o blur insere o erro, o botão desce e o clique perde-se. */}
               <div className="flex justify-end gap-3 pt-2" onMouseDown={(e) => e.preventDefault()}>
-                <Button type="button" variant="outline" onClick={() => router.push(`/${entity.path}`)} disabled={saving}>Cancelar</Button>
+                <Button type="button" variant="outline" onClick={() => guard(() => router.push(`/${entity.path}`))} disabled={saving}>Cancelar</Button>
                 {/* Uma escola nova leva ao assistente da estrutura: não há «criar outro» para ela. */}
                 {!editing && entityKey !== 'institutions' ? <Button type="button" variant="outline" onClick={() => void save(true)} disabled={saving}>Guardar e criar outro</Button> : null}
                 <Button type="submit" disabled={saving}>{saving ? 'A guardar…' : editing ? 'Guardar alterações' : `Criar ${entity.singular.toLowerCase()}`}</Button>
@@ -197,6 +204,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
           )}
         </CardContent>
       </Card>
+      {dialog}
     </div>
   );
 }
