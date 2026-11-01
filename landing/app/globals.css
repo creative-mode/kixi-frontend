@@ -126,7 +126,7 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .pres { height: auto; margin-top: 0; }
   .pres__stick { position: static; height: auto; display: block; padding: calc(72px + clamp(24px, 6svh, 72px)) var(--gutter) clamp(24px, 6svh, 72px); text-align: center; }
-  .pres__hero { position: static; }
+  .pres__hero { position: static; opacity: 1 !important; visibility: visible !important; transform: none !important; }
   .pres__text { display: block; }
   .pres__scene { align-items: center; margin-top: clamp(28px, 7svh, 72px); }
   /* Primeira tinta (#513): o `reduced` nasce `false` no JS, por isso o SSR pinta as
