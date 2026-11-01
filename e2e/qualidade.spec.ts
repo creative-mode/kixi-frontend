@@ -67,6 +67,26 @@ for (const vp of VIEWPORTS) {
       }
     });
 
+    test('gestor: o erro do login fica no ecrã e é anunciado (#542)', async ({ page }) => {
+      await page.goto('/manager/login');
+      await page.getByLabel('Username ou email').fill('nao-existe');
+      await page.locator('#password').fill('errada');
+      await page.getByTestId('gestor-entrar-submeter').click();
+
+      // O Next injecta um `role="alert"` próprio (anunciador de rota): identificar o nosso pela frase.
+      const alerta = page.getByRole('alert').filter({ hasText: 'Utilizador ou palavra-passe' });
+      await expect(alerta).toContainText('Utilizador ou palavra-passe incorretos.');
+
+      // O defeito era o toast sumir aos ~4 s: passado mais tempo do que isso, tem de continuar.
+      await page.waitForTimeout(6000);
+      await expect(alerta).toBeVisible();
+      await expect(page.getByLabel('Username ou email')).toHaveValue('nao-existe');
+
+      // Um só <main>, o do layout: a página não repete o landmark.
+      await expect(page.locator('main')).toHaveCount(1);
+      expect(await graves(page), '/manager/login').toEqual([]);
+    });
+
     test('landing sem violações sérias', async ({ page }) => {
       for (const rota of LANDING) {
         await page.goto(rota);

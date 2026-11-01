@@ -60,7 +60,11 @@ services:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
-      args: { APP_DIR: ".", PORT: 3002 }
+      args:
+        APP_DIR: "."
+        PORT: 3002
+        # O «Problemas no acesso?» do login usa o mesmo contacto público do site (#542).
+        NEXT_PUBLIC_CONTACT_EMAIL: "${NEXT_PUBLIC_CONTACT_EMAIL:-}"
     expose: ["3002"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3002/manager/login"]
