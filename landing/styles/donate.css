@@ -75,8 +75,9 @@
 .dn-progress__bar { position: absolute; inset: 0 auto 0 0; background: var(--lcd-2); transition: width .2s linear; }
 .dn-progress span { position: relative; display: grid; place-items: center; height: 100%; font: 800 13px/1 var(--font-sans); mix-blend-mode: difference; color: white; }
 
-/* os botões são os da landing (kx-btn); só a disposição é daqui */
-.dn-pad { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+/* os botões são os da landing (kx-btn); só a disposição é daqui: em ecrã estreito
+   empilham em vez de rebentar para scroll horizontal (#515) */
+.dn-pad { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .dn-pad__next { margin-left: auto; }
 
 /* depois de enviar: a referência e nada mais */
