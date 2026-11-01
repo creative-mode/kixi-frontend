@@ -4,7 +4,7 @@ import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEv
 
 test('fila: envia eventos quando gtag está disponível e mantém o schema privado', () => {
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
+  const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home', page_location: 'https://kixi.ao/?email=ana@example.ao' }), 'sent');
   assert.equal(calls.length, 1);
   assert.equal((calls[0][2] as Record<string, unknown>).page_location, 'https://kixi.ao/');
@@ -15,7 +15,7 @@ test('fila: preserva em memória até gtag carregar, respeitando consentimento e
   let granted = true;
   let ready = false;
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao', maxPending: 2 });
+  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao', maxPending: 2 });
   assert.equal(queue.track('signup_started', { surface: 'signup_form' }), 'queued');
   assert.equal(queue.track('donation_started'), 'queued');
   assert.equal(queue.track('donation_started'), 'overflow');
@@ -33,7 +33,7 @@ test('fila: preserva em memória até gtag carregar, respeitando consentimento e
 
 test('all events override GA auto-location with a canonical URL without query strings', () => {
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args) => calls.push(args)), getOrigin: () => 'https://kixi.ao', getPathname: () => '/aluno/cadastro?email=ana@example.ao#password' });
+  const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao', getPathname: () => '/aluno/cadastro?email=ana@example.ao#password' });
   assert.equal(queue.track('signup_started', { surface: 'signup_form' }), 'sent');
   const params = calls[0][2] as Record<string, unknown>;
   assert.equal(params.page_location, 'https://kixi.ao/aluno/cadastro');
@@ -62,7 +62,7 @@ test('evento ainda pendente é descartado ao retirar consentimento e não volta 
   let granted = true;
   let ready = false;
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
+  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'queued');
   granted = false;
   assert.equal(queue.flush(), 0);
@@ -75,7 +75,7 @@ test('evento ainda pendente é descartado ao retirar consentimento e não volta 
 
 test('URLs com parâmetros sensíveis não são enviadas ao gtag', () => {
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args) => calls.push(args)), getOrigin: () => 'https://kixi.ao', getPathname: () => '/aluno/cadastro?email=ana@example.ao#password' });
+  const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao', getPathname: () => '/aluno/cadastro?email=ana@example.ao#password' });
   const result = queue.track('page_view', { app: 'student', page: 'signup' });
   assert.equal(result, 'sent');
   const params = calls[0][2] as Record<string, unknown>;
@@ -88,7 +88,7 @@ test('URLs com parâmetros sensíveis não são enviadas ao gtag', () => {
 test('eventos automáticos não contornam a proteção de consentimento', () => {
   let granted = true;
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ((...args) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
+  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
   granted = false;
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'denied');
   assert.equal(calls.length, 0);
@@ -97,7 +97,7 @@ test('eventos automáticos não contornam a proteção de consentimento', () => 
 test('retirada de consentimento desativa imediatamente a medição', () => {
   let granted = true;
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ((...args) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
+  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'sent');
   assert.equal(calls.length, 1);
   granted = false;
@@ -108,7 +108,7 @@ test('retirada de consentimento desativa imediatamente a medição', () => {
 test('reabertura das definições mantém a medição desativada', () => {
   let granted = false;
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ((...args) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
+  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'denied');
   assert.equal(calls.length, 0);
   granted = false; // reabrir definições com consentimento nulo continua sem medir
@@ -120,7 +120,7 @@ test('eventos pendentes não são enviados após retirada do consentimento', () 
   let granted = true;
   let ready = false;
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
+  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'queued');
   assert.equal(queue.track('cta_click', { surface: 'hero', destination: 'signup' }), 'queued');
   granted = false;
@@ -133,7 +133,7 @@ test('reaceitar consentimento não duplica eventos já enviados', () => {
   let granted = true;
   let ready = true;
   const calls: unknown[][] = [];
-  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
+  const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'sent');
   assert.equal(calls.length, 1);
   granted = false;
@@ -145,7 +145,7 @@ test('reaceitar consentimento não duplica eventos já enviados', () => {
 test('comportamento consistente nas três aplicações', () => {
   for (const app of ['manager', 'student', 'landing']) {
     const calls: unknown[][] = [];
-    const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
+    const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
     const result = queue.track('page_view', { app: app as any, page: 'other' });
     assert.equal(result, 'sent');
     assert.equal(calls.length, 1);
