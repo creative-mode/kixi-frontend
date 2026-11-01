@@ -104,7 +104,7 @@ a { color: inherit; }
 .pres__hero .pres__skip { pointer-events: auto; }
 .pres__skip svg { animation: kx-bob 1.1s steps(4, end) infinite; }
 @media (prefers-reduced-motion: reduce) { .pres__skip svg { animation: none; } }
-.pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100vw - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
+.pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100% - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
 .pres__rail span { display: block; height: 100%; background: var(--lp-ink); transform-origin: top; }
 /* narrow screens: the console owns the whole stage (centred), the cartridge scene keeps the lower part under its text */
 @media (max-width: 959px) {
