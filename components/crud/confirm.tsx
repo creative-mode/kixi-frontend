@@ -15,6 +15,9 @@ export interface ConfirmState {
   title: string;
   description: string;
   action: string;
+  cancelLabel?: string;
+  onCancel?: () => void;
+  requireChoice?: boolean;
   destructive?: boolean;
   run: () => void | Promise<void>;
 }
@@ -23,13 +26,13 @@ export interface ConfirmState {
 export function Confirm({ state, onClose }: { state: ConfirmState | null; onClose: () => void }) {
   return (
     <AlertDialog open={!!state} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent>
+      <AlertDialogContent onEscapeKeyDown={(event) => { if (state?.requireChoice) event.preventDefault(); }}>
         <AlertDialogHeader>
           <AlertDialogTitle>{state?.title}</AlertDialogTitle>
           <AlertDialogDescription>{state?.description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel onClick={state?.onCancel}>{state?.cancelLabel ?? 'Cancelar'}</AlertDialogCancel>
           <AlertDialogAction
             className={state?.destructive ? 'bg-destructive text-destructive-foreground' : undefined}
             onClick={async () => {

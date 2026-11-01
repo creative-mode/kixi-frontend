@@ -215,9 +215,12 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       draftDecisionPending.current = true;
       task = window.setTimeout(() => setConfirm({
           title: 'Continuar o rascunho?',
-          description: 'Há um rascunho guardado localmente. Se continuar, pode retomar a prova existente e as alterações por guardar.',
+          description: 'Há um rascunho guardado localmente. Pode retomá-lo ou começar do zero. Começar do zero descarta definitivamente este rascunho local; a prova já guardada continua disponível.',
           action: 'Continuar rascunho',
-          run: continueDraft,
+          cancelLabel: 'Começar do zero',
+          requireChoice: true,
+          onCancel: () => { clearDraft(); draftDecisionPending.current = false; },
+          run: () => { continueDraft(); draftDecisionPending.current = false; },
         }), 0);
     } else clearDraft();
     myInstitutions().then((res) => {
@@ -625,7 +628,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           )}
 
           {importOpen && <ExamImporter onExtracted={applyImport} onClose={() => setImportOpen(false)} />}
-          <Confirm state={confirm} onClose={() => { draftDecisionPending.current = false; setConfirm(null); }} />
+          <Confirm state={confirm} onClose={() => setConfirm(null)} />
 
           {notes.length > 0 && (
             <Card className="border-warning/40">

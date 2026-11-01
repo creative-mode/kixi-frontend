@@ -1205,6 +1205,20 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(guardar).toBeDisabled();
     await expect(page.locator('#construtor-estado')).toContainText('já está guardada');
     await expect(guardar).toHaveAccessibleDescription(/já está guardada/);
+
+    // Duas edições seguidas têm de atualizar o mesmo enunciado, sem criar outro.
+    const statementId = await page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId as number);
+    await vista.getByRole('button', { name: 'Editar' }).click();
+    const question = page.getByRole('textbox', { name: 'Questão 1' });
+    for (const text of ['Quanto é 3 + 3?', 'Quanto é 4 + 4?']) {
+      await question.fill(text);
+      await expect(page.getByRole('status').filter({ hasText: 'Alterações por guardar' })).toBeVisible();
+      await guardar.click();
+      await expect(guardar).toBeDisabled();
+      await expect(page.getByRole('status').filter({ hasText: /Guardado às/ })).toBeVisible();
+      await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId)).toBe(statementId);
+      await expect(page.getByRole('link', { name: 'Ver o enunciado' })).toHaveAttribute('href', `/manager/statements/${statementId}`);
+    }
   });
 
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
@@ -1606,7 +1620,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.goto('/manager/exam-builder');
     const aviso = page.getByRole('alertdialog', { name: 'Continuar o rascunho?' });
     await expect(aviso).toBeVisible();
-    await aviso.getByRole('button', { name: /Cancelar|Começar do zero/ }).click();
+    await expect(aviso).toContainText('descarta definitivamente este rascunho local');
+    await page.keyboard.press('Escape');
+    await expect(aviso).toBeVisible();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('kixi-exam-draft'))).not.toBeNull();
+    await aviso.getByRole('button', { name: 'Começar do zero' }).click();
     await expect(page.getByRole('heading', { name: 'Montar prova' })).toBeVisible();
     await expect(page.getByLabel('Título')).toHaveValue('');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('kixi-exam-draft'))).toBeNull();
