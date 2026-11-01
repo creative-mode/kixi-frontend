@@ -662,3 +662,4 @@ test.describe('CTA de registo da landing (#512)', () => {
     await expect.poll(() => eventos.length, 'clique no faq').toBe(3);
     expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq' }]);
   });
+});
