@@ -3,6 +3,9 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 .dn-stage { height: 100svh; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
 .dn-top { display: flex; align-items: center; padding-inline: var(--gutter); }
 .dn-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: clamp(10px, 2.5svh, 24px); padding: 0 var(--gutter) clamp(18px, 4svh, 40px); outline: none; }
+/* O banner de cookies é fixo e mora nos ~100 px do fundo (#545): sem esta folga o
+   "Continuar" ficava por baixo dele, numa página que não faz scroll. */
+.dn-main { padding-bottom: calc(clamp(18px, 4svh, 40px) + 112px); }
 
 /* título: duas linhas e mais nada */
 .dn-pitch { display: flex; flex-direction: column; justify-content: center; }

@@ -541,3 +541,145 @@ test.describe('contraste do LCD (#520)', () => {
     });
   });
 });
+
+/** O banner de cookies no telemóvel (#545): frase curta que se lê toda, dois botões
+ *  do mesmo peso e foco que não rouba nem prende - nunca um quarto do ecrã por
+ *  cima do formulário, como o visitante viu em produção. */
+test.describe('banner de cookies no telemóvel (#545)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  /** 12% da altura do viewport: se a cópia mudar, o limite acompanha. */
+  const LIMITE = Math.floor(844 * 0.12);
+
+  /** Sem escolha guardada: é o visitante da primeira vez que o critério mede. */
+  async function semEscolha(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  const banner = (page: Page) => page.locator('section.ck, body > section[role="dialog"]').first();
+
+  const paginas = ['/', '/doar', '/aluno/entrar', '/aluno/cadastro'] as const;
+
+  test('cabe em pouco mais de um décimo do ecrã nas páginas de entrada', async ({ page }) => {
+    await semEscolha(page);
+    for (const rota of paginas) {
+      await page.goto(rota);
+      await expect(banner(page), `banner em ${rota}`).toBeVisible();
+      const caixa = await banner(page).boundingBox();
+      expect(caixa?.height ?? Infinity, rota).toBeLessThanOrEqual(LIMITE);
+    }
+  });
+
+  test('o texto lê-se todo e o Saber mais está à vista', async ({ page }) => {
+    await semEscolha(page);
+    // Sem corte: o parágrafo cabe inteiro na caixa do banner - nada de texto
+    // escondido com link focável no escuro.
+    for (const rota of ['/', '/aluno/entrar'] as const) {
+      await page.goto(rota);
+      const bnn = banner(page);
+      await expect(bnn).toBeVisible();
+      const dentro = await bnn.evaluate((el) => {
+        const b = el.getBoundingClientRect();
+        const p = el.querySelector('p')?.getBoundingClientRect();
+        return p ? { fundoBanner: b.bottom, fundoTexto: p.bottom } : null;
+      });
+      expect(dentro, `texto em ${rota}`).not.toBeNull();
+      expect(dentro!.fundoTexto, `texto cortado em ${rota}`).toBeLessThanOrEqual(dentro!.fundoBanner);
+    }
+    // Na landing o Saber mais existe sempre: visível e dentro do banner.
+    await page.goto('/');
+    const bnn = banner(page);
+    const saber = bnn.getByRole('link', { name: 'Saber mais' });
+    await expect(saber, 'Saber mais na landing').toBeInViewport();
+    const caixas = await bnn.evaluate((el) => {
+      const b = el.getBoundingClientRect();
+      const l = el.querySelector('a[href*="cookies"]')?.getBoundingClientRect();
+      return l ? { fundo: b.bottom, link: l.bottom } : null;
+    });
+    expect(caixas, 'Saber mais dentro do banner').not.toBeNull();
+    expect(caixas!.link, 'Saber mais cortado').toBeLessThanOrEqual(caixas!.fundo);
+    // No aluno o link só existe com APP_ORIGIN (produção): em dev fica de fora
+    // em vez de apontar a um 404, por isso aqui só se verifica o parágrafo.
+  });
+
+  test('o banner não tapa o botão principal das páginas de entrada', async ({ page }) => {
+    await semEscolha(page);
+    for (const rota of ['/doar', '/aluno/entrar', '/aluno/cadastro'] as const) {
+      await page.goto(rota);
+      const bnn = banner(page);
+      await expect(bnn).toBeVisible();
+      const botao =
+        rota === '/doar'
+          ? page.getByRole('button', { name: 'Continuar' })
+          : page.getByTestId(rota === '/aluno/entrar' ? 'aluno-entrar-submeter' : 'aluno-cadastro-submeter');
+      // Como quem termina o formulário: até ao fim da página, onde a folga
+      // inferior reserva espaço para o banner. O doar não faz scroll.
+      if (rota !== '/doar') {
+        await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+      }
+      const caixas = await page.evaluate(() => {
+        const b = document.querySelector('section.ck, body > section[role="dialog"]')?.getBoundingClientRect();
+        return b ? { topo: b.top } : null;
+      });
+      const cta = await botao.boundingBox();
+      expect(caixas, `banner em ${rota}`).not.toBeNull();
+      expect((cta?.y ?? Infinity) + (cta?.height ?? 0), `botão tapado em ${rota}`).toBeLessThanOrEqual(caixas!.topo);
+    }
+  });
+
+  test('os dois botões pesam o mesmo: tamanho, borda e fundo', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/aluno/entrar');
+    await expect(banner(page)).toBeVisible();
+    const botaos = banner(page).getByRole('button', { name: /Só necessários|Aceitar/ });
+    await expect(botaos).toHaveCount(2);
+    const pesos = await botaos.evaluateAll((els) =>
+      els.map((el) => {
+        const s = getComputedStyle(el);
+        return `${s.fontSize}|${s.borderTopWidth}|${s.backgroundColor}|${s.borderTopColor}`;
+      }),
+    );
+    expect(new Set(pesos).size, `pesos: ${pesos.join(' vs ')}`).toBe(1);
+  });
+
+  test('o foco começa no banner e o Esc devolve-o ao corpo da página', async ({ page }) => {
+    await semEscolha(page);
+    // No doar ninguém tem autofocus: a hidratação traz o foco para o banner,
+    // sem prender quem navega com o Tab.
+    await page.goto('/doar');
+    await expect(banner(page)).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => (document.activeElement as HTMLElement)?.role === 'dialog'))
+      .toBe(true);
+    await page.keyboard.press('Escape');
+    // Critério real: o corpo, não só "fora do banner".
+    await expect
+      .poll(() => page.evaluate(() => (document.activeElement as HTMLElement)?.tagName))
+      .toBe('BODY');
+  });
+
+  test('o banner não rouba o foco de quem está a escrever', async ({ page }) => {
+    // Foco antes da hidratação: o input é SSR, os scripts (e o efeito do banner)
+    // vêm depois. Se o guarda funciona, o foco fica no campo e o banner aparece.
+    await semEscolha(page);
+    await page.goto('/aluno/entrar', { waitUntil: 'commit' });
+    await page.locator('#usernameOrEmail').waitFor({ state: 'attached' });
+    await page.evaluate(() => document.getElementById('usernameOrEmail')?.focus());
+    await expect(banner(page)).toBeVisible();
+    await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
+  });
+
+  test('escolher uma das opções fecha o banner e devolve o foco ao corpo', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/aluno/entrar');
+    await expect(banner(page)).toBeVisible();
+    await banner(page).getByRole('button', { name: 'Só necessários' }).click();
+    await expect(banner(page)).toHaveCount(0);
+    // Sem autofocus no formulário, o destino honesto é o corpo: foco em lado nenhum visível.
+    await expect
+      .poll(() => page.evaluate(() => (document.activeElement as HTMLElement)?.tagName))
+      .toBe('BODY');
+  });
+});
