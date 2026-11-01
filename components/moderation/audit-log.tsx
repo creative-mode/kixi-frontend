@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { listAudit } from '@/app/actions/moderation';
 import { DECISION_LABEL, TARGET_LABEL, type AuditEntry } from '@/lib/moderation/model';
+import { formatLuandaDateTime } from '@/lib/format';
 
-const when = (iso: string) => new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+const when = (iso: string) => formatLuandaDateTime(iso);
 
 /**
  * O registo de auditoria (#323).

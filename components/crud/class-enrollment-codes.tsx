@@ -11,9 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { classEnrollmentCodes, createEnrollmentCode, revokeEnrollmentCode } from '@/app/actions/crud';
 import type { Row } from '@/lib/crud/entities';
+import { formatLuandaDateTime, fromLuandaDateTimeLocal } from '@/lib/format';
+import { Confirm, type ConfirmState } from './confirm';
 
-const dateTime = (v?: string | null) =>
-  v ? new Date(v).toLocaleString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const dateTime = (v?: string | null) => formatLuandaDateTime(v);
 
 /** Códigos de matrícula de uma turma (#255): o aluno troca um destes por uma
  *  auto-matrícula em `POST /enrollments`, em vez de escolher a turma à mão. */
@@ -24,6 +25,7 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
   const [codes, setCodes] = useState<Row[]>([]);
   const [maxUses, setMaxUses] = useState('1');
   const [expiresAt, setExpiresAt] = useState('');
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   async function show() {
     setOpen(true);
@@ -38,9 +40,10 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
     e.preventDefault();
     const uses = Number(maxUses);
     if (!Number.isInteger(uses) || uses < 1) return toast.error('O número de usos tem de ser pelo menos 1.');
-    if (expiresAt && new Date(expiresAt) <= new Date()) return toast.error('A data de expiração tem de ser no futuro.');
+    const expiresAtIso = fromLuandaDateTimeLocal(expiresAt);
+    if (expiresAt && (!expiresAtIso || new Date(expiresAtIso) <= new Date())) return toast.error('A data de expiração tem de ser no futuro.');
     setBusy(true);
-    const res = await createEnrollmentCode(classItem.id, uses, expiresAt ? new Date(expiresAt).toISOString() : null);
+    const res = await createEnrollmentCode(classItem.id, uses, expiresAtIso);
     setBusy(false);
     if (!res.ok) return toast.error(res.error);
     setCodes((c) => [res.data, ...c]);
@@ -49,14 +52,17 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
     toast.success(`Código ${res.data.code} criado`);
   }
 
-  async function revoke(code: Row) {
-    if (!confirm(`Revogar o código ${code.code}? Deixa de poder ser usado.`)) return;
+  async function revoke(code: Row): Promise<boolean> {
     setBusy(true);
     const res = await revokeEnrollmentCode(code.id);
     setBusy(false);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) { toast.error(res.error); return false; }
     setCodes((c) => c.map((x) => (x.id === code.id ? res.data : x)));
     toast.success('Código revogado');
+    return true;
+  }
+  function askRevoke(code: Row) {
+    setConfirm({ title: 'Revogar código?', description: `O código ${code.code} deixa de poder ser usado.`, action: 'Revogar', destructive: true, run: () => revoke(code) });
   }
 
   async function copy(code: string) {
@@ -133,7 +139,7 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
                       </p>
                     </div>
                     {!code.revokedAt && (
-                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => revoke(code)} className="hover:bg-danger-soft hover:text-destructive">
+                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => askRevoke(code)} className="hover:bg-danger-soft hover:text-destructive">
                         Revogar
                       </Button>
                     )}
@@ -144,6 +150,7 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
           )}
         </DialogContent>
       </Dialog>
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </>
   );
 }

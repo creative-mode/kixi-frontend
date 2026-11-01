@@ -1,3 +1,5 @@
+import { toLuandaDateTimeLocal } from '../format.ts';
+
 // Salas de Prova (FE-13): os contratos do backend e as regras que o ecrã usa.
 //
 // Os DTOs são os do `examrooms` do backend (BE-16 e BE-17). As horas chegam como
@@ -214,7 +216,7 @@ export function toLocalDateTime(input: string): string {
 
 /** A hora de parede de Luanda agora (UTC+1, sem horário de verão), no formato do input. */
 export function luandaNowInput(now: Date = new Date()): string {
-  return new Date(now.getTime() + 60 * 60_000).toISOString().slice(0, 16);
+  return toLuandaDateTimeLocal(now);
 }
 
 /** `mm:ss`, ou `h:mm:ss` a partir de uma hora. */

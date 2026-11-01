@@ -35,12 +35,13 @@ import {
   MODERATION_FILTER_KEYS,
   MODERATION_FILTERS,
 } from '@/lib/moderation/queue';
+import { formatLuandaDateTime } from '@/lib/format';
 
 /** O verbo da decisão, para o `data-testid` se ler como a acção e não como o
  *  participio: `moderacao-ignore-12`, e não `moderacao-ignored-12`. */
 const VERBO: Record<Decision, string> = { IGNORED: 'ignore', HIDDEN: 'hide', SUSPENDED: 'suspend' };
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+const when = (iso: string | null) => formatLuandaDateTime(iso);
 
 /**
  * A fila de moderação (#323).

@@ -17,6 +17,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { formatLuandaDateTime, fromLuandaDateTimeLocal, toLuandaDateTimeLocal } from '@/lib/format';
 
 /**
  * Registry of every entity the manager can maintain. One entry drives the list, the form, the trash,
@@ -89,6 +90,7 @@ export interface Entity {
   icon: LucideIcon;
   tone: string;
   fields: Field[];
+  validate?: (values: Row) => Record<string, string>;
   columns: Column[];
   /** human label of a row, used in confirmations and selects */
   titleOf: (row: Row) => string;
@@ -122,8 +124,8 @@ export interface Entity {
 }
 
 const date = (v?: string | null) => (v ? new Date(v).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
-const dateTime = (v?: string | null) => (v ? new Date(v).toLocaleString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
-const localInput = (v?: string | null) => (v ? String(v).slice(0, 16) : '');
+const dateTime = (v?: string | null) => formatLuandaDateTime(v);
+const localInput = (v?: string | null) => toLuandaDateTimeLocal(v);
 const num = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
 const dim = (v: ReactNode) => <span className="text-muted-foreground">{v ?? '—'}</span>;
 
@@ -139,9 +141,15 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     icon: Calendar,
     tone: 'bg-accent text-primary',
     fields: [
-      { name: 'startYear', label: 'Ano de início', type: 'number', required: true, min: 1900, max: 2200, placeholder: '2025' },
+      { name: 'startYear', label: 'Ano de início', type: 'number', required: true, min: 1900, max: new Date().getFullYear() + 10, placeholder: '2025' },
       { name: 'endYear', label: 'Ano de fim', type: 'number', required: true, min: 1901, max: 2200, placeholder: '2026' },
     ],
+    validate: (values): Record<string, string> => {
+      if (values.startYear === '' || values.startYear == null || values.endYear === '' || values.endYear == null
+        || !Number.isFinite(Number(values.startYear)) || !Number.isFinite(Number(values.endYear))
+        || Number(values.endYear) > Number(values.startYear)) return {};
+      return { endYear: 'O ano de fim deve ser maior que o ano de início' };
+    },
     columns: [
       { label: 'Ano letivo', value: (r) => <strong>{r.startYear} – {r.endYear}</strong> },
       { label: 'Criado em', value: (r) => dim(date(r.createdAt)) },
@@ -544,7 +552,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     canEdit: true,
     restore: { method: 'POST', suffix: '/restore' },
     purge: { suffix: '/purge' },
-    toRequest: (v) => ({ accountId: Number(v.accountId), token: String(v.token).trim(), ipAddress: String(v.ipAddress).trim(), expiresAt: v.expiresAt ? `${v.expiresAt}:00` : null }),
+    toRequest: (v) => ({ accountId: Number(v.accountId), token: String(v.token).trim(), ipAddress: String(v.ipAddress).trim(), expiresAt: fromLuandaDateTimeLocal(String(v.expiresAt ?? '')) }),
     toForm: (r) => ({ accountId: r.accountId, token: r.token, ipAddress: r.ipAddress, expiresAt: localInput(r.expiresAt) }),
   },
   'simulation-answers': {
@@ -582,7 +590,7 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       questionId: Number(v.questionId),
       selectedOptionId: v.selectedOptionId === '' || v.selectedOptionId == null ? null : Number(v.selectedOptionId),
       answerText: v.answerText || null,
-      answeredAt: v.answeredAt ? `${v.answeredAt}:00` : null,
+      answeredAt: fromLuandaDateTimeLocal(String(v.answeredAt ?? '')),
     }),
     toForm: (r) => ({ simulationId: r.simulationId, questionId: r.questionId, selectedOptionId: r.selectedOptionId ?? '', answerText: r.answerText ?? '', answeredAt: localInput(r.answeredAt) }),
   },

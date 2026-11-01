@@ -93,7 +93,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
 
   async function save(another: boolean) {
     if (saving) return;
-    const errs = validate(fields, values);
+    const errs = { ...validate(fields, values), ...(entity.validate?.(values) ?? {}) };
     setErrors(errs);
     const invalid = errorSummary(fields, errs);
     setAttempted(invalid !== null);

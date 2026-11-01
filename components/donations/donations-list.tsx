@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableRowsSkeleton } from '@/components/crud/loading';
 import { listDonations } from '@/app/actions/donations';
+import { formatLuandaDateTime } from '@/lib/format';
 import {
   DONATION_STATUSES,
   STATUS_LABEL,
@@ -28,7 +29,7 @@ export function DonationStatusBadge({ status }: { status: DonationStatus }) {
   return <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>;
 }
 
-const when = (iso: string) => iso.slice(0, 16).replace('T', ' ');
+const when = (iso: string) => formatLuandaDateTime(iso);
 
 export function DonationsList() {
   const [status, setStatus] = useState<DonationStatus | null>('pending');

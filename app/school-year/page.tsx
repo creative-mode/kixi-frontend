@@ -11,8 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { formatLuandaDateTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -138,10 +137,10 @@ export default function SchoolYearsManager() {
                     <TableCell className="text-muted-foreground">{year.startYear}</TableCell>
                     <TableCell className="text-muted-foreground">{year.endYear}</TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
-                      {format(new Date(year.createdAt), "dd 'de' MMM yyyy, HH:mm", { locale: pt })}
+                      {formatLuandaDateTime(year.createdAt)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
-                      {format(new Date(year.updatedAt), "dd 'de' MMM yyyy, HH:mm", { locale: pt })}
+                      {formatLuandaDateTime(year.updatedAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
