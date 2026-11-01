@@ -145,7 +145,9 @@ export const ENTITIES: Record<EntityKey, Entity> = {
       { name: 'endYear', label: 'Ano de fim', type: 'number', required: true, min: 1901, max: 2200, placeholder: '2026' },
     ],
     validate: (values): Record<string, string> => {
-      if (values.startYear === '' || values.startYear == null || values.endYear === '' || values.endYear == null || Number(values.endYear) > Number(values.startYear)) return {};
+      if (values.startYear === '' || values.startYear == null || values.endYear === '' || values.endYear == null
+        || !Number.isFinite(Number(values.startYear)) || !Number.isFinite(Number(values.endYear))
+        || Number(values.endYear) > Number(values.startYear)) return {};
       return { endYear: 'O ano de fim deve ser maior que o ano de início' };
     },
     columns: [

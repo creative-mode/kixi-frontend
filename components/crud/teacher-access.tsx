@@ -40,7 +40,7 @@ export function TeacherAccess({ teacher, onChange }: { teacher: Row; onChange: (
     return true;
   }
   function askRevoke() {
-    setConfirm({ title: 'Retirar acesso?', description: `O professor ${teacher.firstName} ${teacher.lastName} deixa de poder entrar na plataforma.`, action: 'Retirar acesso', destructive: true, run: async () => { await revoke(); } });
+    setConfirm({ title: 'Retirar acesso?', description: `O professor ${teacher.firstName} ${teacher.lastName} deixa de poder entrar na plataforma.`, action: 'Retirar acesso', destructive: true, run: () => revoke() });
   }
 
   return (

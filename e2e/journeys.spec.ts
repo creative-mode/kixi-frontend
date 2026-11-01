@@ -1026,8 +1026,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const code = (await item.locator('button').first().textContent())?.trim() ?? '';
     expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
 
-    page.on('dialog', (confirm) => confirm.accept());
     await item.getByRole('button', { name: 'Revogar' }).click();
+    await page.getByRole('alertdialog', { name: 'Revogar código?' }).getByRole('button', { name: 'Revogar' }).click();
     await expect(item.getByText('Revogado')).toBeVisible();
     await expect(item.getByRole('button', { name: 'Revogar' })).toHaveCount(0);
   });

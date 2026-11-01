@@ -62,7 +62,7 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
     return true;
   }
   function askRevoke(code: Row) {
-    setConfirm({ title: 'Revogar código?', description: `O código ${code.code} deixa de poder ser usado.`, action: 'Revogar', destructive: true, run: async () => { await revoke(code); } });
+    setConfirm({ title: 'Revogar código?', description: `O código ${code.code} deixa de poder ser usado.`, action: 'Revogar', destructive: true, run: () => revoke(code) });
   }
 
   async function copy(code: string) {

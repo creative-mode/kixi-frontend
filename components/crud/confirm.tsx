@@ -16,7 +16,7 @@ export interface ConfirmState {
   description: string;
   action: string;
   destructive?: boolean;
-  run: () => void | Promise<void>;
+  run: () => unknown | Promise<unknown>;
 }
 
 /** One confirmation dialog for a whole list: set `state` to open it, null to close. */
