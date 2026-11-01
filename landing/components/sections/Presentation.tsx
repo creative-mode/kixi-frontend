@@ -62,10 +62,18 @@ function Scene({ i }: { i: number }) {
 const HERO_SUB = 'Estuda o que vai mesmo sair: simulações, tutor de IA e a rede de estudo entre escolas.';
 
 /** Saltar a apresentação (#512): uma âncora chega a rato, teclado e toque. Vive no
- *  fluxo do herói — em cima, longe do banner de cookies fixo — e some com ele. */
+ *  fluxo do herói — em cima, longe do banner de cookies fixo — e some com ele.
+ *  O clique leva o foco para o título de destino, para quem vai pelo teclado
+ *  sentir a chegada (#608 re-revisão: a âncora sozinha não movia o foco). */
 function SkipShow() {
+  const saltar = () => {
+    const alvo = document.querySelector<HTMLElement>('#modulos h2');
+    if (!alvo) return;
+    if (!alvo.hasAttribute('tabindex')) alvo.setAttribute('tabindex', '-1');
+    window.setTimeout(() => alvo.focus({ preventScroll: true }), 50);
+  };
   return (
-    <a href="#modulos" className="pres__skip">
+    <a href="#modulos" className="pres__skip" onClick={saltar}>
       <span>Saltar a apresentação</span>
       <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
         <polyline points="4,7 10,13 16,7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -177,7 +185,8 @@ export function Presentation() {
         <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
           <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
           <p className="pres__hero-sub">{HERO_SUB}</p>
-          <SkipShow />
+          {/* Fora do herói não há salto focável: apagado não entra no Tab. */}
+          {hero > 0.5 && <SkipShow />}
         </div>
         <div className="pres__text">
                     <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
