@@ -421,7 +421,9 @@ test.describe('progresso do aluno no telemóvel (#493)', () => {
  *  português, na marca do site, com saída clara - e o banner de cookies nunca por
  *  cima de nada. Antes era o 404 de omissão do Next: inglês, sem marca, sem saída. */
 test.describe('404 da landing (#544)', () => {
-  async function semEscolha(page: Page) {
+  /** Visitante da primeira vez: sem escolha guardada o banner aparece. O nome
+   *  antigo enganava — apagar a chave MOSTRA o banner, não o esconde. */
+  async function primeiraVisita(page: Page) {
     await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
   }
 
@@ -429,7 +431,7 @@ test.describe('404 da landing (#544)', () => {
     const resposta = await request.get('/nao-existe-xyz');
     expect(resposta.status(), 'o status HTTP').toBe(404);
 
-    await semEscolha(page);
+    await primeiraVisita(page);
     await page.goto('/nao-existe-xyz');
     await expect(page).toHaveTitle(/Página não encontrada · Kixi/);
     await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible();
@@ -446,7 +448,7 @@ test.describe('404 da landing (#544)', () => {
   });
 
   test('sem violações sérias de acessibilidade, com o banner na página', async ({ page }) => {
-    await semEscolha(page);
+    await primeiraVisita(page);
     await page.goto('/nao-existe-xyz');
     await page.waitForLoadState('networkidle');
     expect(await page.locator('section.ck').count(), 'o banner faz parte da página').toBe(1);
@@ -457,7 +459,7 @@ test.describe('404 da landing (#544)', () => {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
     test('o banner de cookies por cima, mas sem tapar o conteúdo do 404', async ({ page }) => {
-      await semEscolha(page);
+      await primeiraVisita(page);
       await page.goto('/nao-existe-xyz');
       const bnn = page.locator('section.ck');
       await expect(bnn).toBeVisible();
@@ -546,12 +548,14 @@ test.describe('contraste do LCD (#520)', () => {
  *  focável invisível, as setas estavam sequestradas e o modo parado chegava
  *  depois da hidratação, com a página a saltar de 1800 ecrãs para uma lista. */
 test.describe('foco e movimento da apresentação (#513)', () => {
-  async function semEscolha(page: Page) {
+  /** Visitante da primeira vez: sem escolha guardada o banner aparece. O nome
+   *  antigo enganava — apagar a chave MOSTRA o banner, não o esconde. */
+  async function primeiraVisita(page: Page) {
     await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
   }
 
   test('o CTA do fim só é focável quando está visível', async ({ page }) => {
-    await semEscolha(page);
+    await primeiraVisita(page);
     await page.goto('/');
     // Por DOM e não por papel: apagada (`aria-hidden` + `inert`), a cena sai da
     // árvore de acessibilidade — que é exatamente o que se quer provar.
@@ -575,7 +579,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
   });
 
   test('as setas mantêm o passo nativo', async ({ page }) => {
-    await semEscolha(page);
+    await primeiraVisita(page);
     await page.goto('/');
     await page.evaluate(() => window.scrollTo(0, 0));
     const antes = await page.evaluate(() => window.scrollY);
@@ -601,7 +605,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
           }
         }).observe({ type: 'layout-shift', buffered: true });
       });
-      await semEscolha(page);
+      await primeiraVisita(page);
       await page.goto('/');
       await page.waitForLoadState('networkidle');
       await page.evaluate(() => document.fonts.ready);
