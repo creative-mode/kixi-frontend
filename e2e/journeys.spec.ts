@@ -1339,12 +1339,12 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(novoCurso).toHaveAttribute('aria-busy', 'false');
     await expect(novoCurso.getByRole('button')).toHaveText('Novo curso');
     await expect(afiliar).toHaveAttribute('aria-busy', 'false');
-    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Apagar turma 9Z' })).toBeDisabled();
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Mover turma 9Z para a lixeira' })).toBeDisabled();
 
     await expect(page.getByText('Professor atribuído')).toBeVisible();
     await expect(atribuir).toHaveAttribute('aria-busy', 'false');
-    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeEnabled();
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeEnabled();
     await expect(page.getByTestId('class-9Z').locator('select').first()).toBeFocused();
   });
 
