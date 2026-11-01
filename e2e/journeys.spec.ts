@@ -1005,6 +1005,33 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(reopenedDialog).toHaveCount(0);
   });
 
+  test('gestor: protege a saída com alterações e navega logo quando o formulário está limpo (#508)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/classes/new');
+    const code = page.getByLabel('Código');
+    await code.fill('RASCUNHO');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    const warning = page.getByRole('alertdialog', { name: 'Descartar alterações?' });
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await page.getByRole('button', { name: 'Sair do sistema' }).first().click();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes\/new/);
+
+    await page.goBack();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await code.fill('');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+    await expect(warning).toHaveCount(0);
+  });
+
   test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await page.goto('/manager/classes');

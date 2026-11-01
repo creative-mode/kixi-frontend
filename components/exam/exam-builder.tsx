@@ -106,7 +106,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [donation, setDonation] = useState<DonationDetail | null>(null);
   const [reading, setReading] = useState(false);
   const builderDirty = ready && draftHasContent(draft) && (saved === null || saved.snapshot !== JSON.stringify(draft));
-  const { dialog: unsavedDialog } = useUnsavedChanges(builderDirty);
+  const { dialog: unsavedDialog } = useUnsavedChanges(builderDirty, 'O rascunho local volta na próxima visita, mas as alterações ainda não foram publicadas.');
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
