@@ -106,7 +106,7 @@ test('retirada de consentimento desativa imediatamente a medição', () => {
 });
 
 test('reabertura das definições mantém a medição desativada', () => {
-  const granted = false;
+  let granted = false;
   const calls: unknown[][] = [];
   const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'denied');
@@ -117,7 +117,7 @@ test('reabertura das definições mantém a medição desativada', () => {
 });
 
 test('eventos pendentes não são enviados após retirada do consentimento', () => {
-  const granted = true;
+  let granted = true;
   const ready = false;
   const calls: unknown[][] = [];
   const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
@@ -130,7 +130,7 @@ test('eventos pendentes não são enviados após retirada do consentimento', () 
 });
 
 test('reaceitar consentimento não duplica eventos já enviados', () => {
-  const granted = true;
+  let granted = true;
   const ready = true;
   const calls: unknown[][] = [];
   const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
