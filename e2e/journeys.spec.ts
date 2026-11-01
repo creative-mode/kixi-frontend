@@ -1256,10 +1256,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await form.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
 
     // Atrasa a gravação para que o segundo Enter chegue com o primeiro pedido ainda a correr.
-    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+    const delayCreate = async (route: import('@playwright/test').Route) => {
       if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 600));
       await route.continue();
-    });
+    };
+    await page.route(/\/institutions\/\d+\/structure/, delayCreate);
     const name = form.getByLabel('Nome do curso');
     await name.press('Enter');
     await name.press('Enter');
@@ -1277,11 +1278,22 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(code).toHaveValue('');
 
     // A confirmação fica aberta enquanto a remoção corre e o toast permite desfazê-la.
+    await page.unroute(/\/institutions\/\d+\/structure/, delayCreate);
+    let releaseDelete!: () => void;
+    const deleteReleased = new Promise<void>((resolve) => { releaseDelete = resolve; });
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST' && route.request().headers()['next-action']) await deleteReleased;
+      await route.continue();
+    });
     await page.getByRole('button', { name: `Mover curso ${curso} para a lixeira` }).click();
     const confirm = page.getByRole('alertdialog', { name: 'Mover este curso para a lixeira?' });
     await confirm.getByRole('button', { name: 'Mover para a lixeira' }).click();
-    await expect(confirm).toBeVisible();
-    await expect(confirm.getByRole('button', { name: /A processar/ })).toBeDisabled();
+    try {
+      await expect(confirm).toBeVisible();
+      await expect(confirm.getByRole('button', { name: /A processar/ })).toBeDisabled();
+    } finally {
+      releaseDelete();
+    }
     await expect(page.getByTestId(`course-${curso}`)).toHaveCount(0);
     await page.getByRole('button', { name: 'Desfazer' }).click();
     await expect(page.getByTestId(`course-${curso}`)).toHaveCount(1);
