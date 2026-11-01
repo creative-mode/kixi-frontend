@@ -282,7 +282,7 @@ const queue = createAnalyticsQueue({
   onDrained: () => { if (typeof window !== 'undefined') window.dispatchEvent(new Event(ANALYTICS_READY_EVENT)); },
 });
 
-export function track(event: AnalyticsEvent, params: AnalyticsParams = {}): TrackStatus {
+export function track(event: string, params: AnalyticsParams = {}): TrackStatus {
   return queue.track(event, params);
 }
 export function flushAnalytics(): number { return queue.flush(); }
