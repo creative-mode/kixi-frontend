@@ -28,8 +28,8 @@ export function ShortcutsHint({ items }: { items: { keys: string[]; label: strin
         ))}
         . Não funcionam enquanto se escreve num campo.
       </p>
-      <label htmlFor={id} className="flex min-h-6 cursor-pointer items-center gap-1.5">
-        <input id={id} type="checkbox" checked={on} onChange={(event) => setOn(event.target.checked)} />
+      <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-2">
+        <input id={id} type="checkbox" className="size-4" checked={on} onChange={(event) => setOn(event.target.checked)} />
         Atalhos de teclado ligados
       </label>
     </div>

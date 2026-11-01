@@ -4,12 +4,13 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { parseShortcutsPref, shortcutKey, SHORTCUTS_PREF_KEY } from '@/lib/queue-shortcuts';
 import { stepIndex } from '@/lib/queue-state';
 
-/** Onde se escreve: campos, seletores, áreas de texto, qualquer coisa editável e o editor de fórmulas (MathLive). */
+/** Onde se escreve ou se navega por teclas: campos, seletores, áreas de texto, editáveis, o editor de fórmulas (MathLive), listas de opções e deslizadores. */
 function isEditable(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target.closest('input, textarea, select, math-field, [contenteditable=""], [contenteditable="true"]')) return true;
   const role = target.getAttribute('role');
-  return role === 'textbox' || role === 'combobox' || role === 'searchbox' || role === 'spinbutton';
+  // Também os controlos que usam letras e setas por si (lista de opções, deslizador).
+  return ['textbox', 'combobox', 'searchbox', 'spinbutton', 'listbox', 'slider'].includes(role ?? '');
 }
 
 /**

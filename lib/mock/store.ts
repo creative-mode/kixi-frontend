@@ -115,6 +115,7 @@ add('statements', {
   source: 'OCR', ocrConfidence: 0.92, ocrRequestId: 'req-2', schoolYearId: sy.id, termId: 2, subjectId: 1, classId: cls.id, questions: [],
 });
 // Mais enunciados por rever, para a fila ter folga: o teste que os aprova consome dois e uma repetição (retry do CI) ainda encontra fila.
+// Os e2e das filas (#535) contam com pelo menos 3 por rever: não reduzir esta semente sem os ajustar.
 for (let n = 3; n <= 6; n++) {
   add('statements', {
     title: `P${n} · Química (a rever)`, examType: 'P2', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
@@ -390,6 +391,7 @@ export function verificationStore() {
     status, reviewNote, reviewedAt: status === 'PENDING' ? null : '2026-10-10T09:00:00', createdAt: `2026-10-0${i + 1}T08:00:00`,
   }));
   // Mais pedidos já decididos, para a fila ter páginas e o filtro «Todos» passar de uma página.
+  // O e2e da verificação (#535) conta com mais de 10 pedidos no total: não reduzir sem o ajustar.
   const base = G.__kixiVerification.length;
   for (let n = 1; base === 4 && n <= 8; n++) {
     const status = n % 4 === 0 ? 'REVOKED' : 'APPROVED';
@@ -424,6 +426,7 @@ export function moderationStore() {
     ],
   };
   // Mais denúncias já decididas, para a lista das decididas ter páginas.
+  // O e2e da moderação (#535) conta com mais de 10 decididas: não reduzir sem o ajustar.
   if (G.__kixiModeration.reports.length === 4) {
     for (let n = 1; n <= 11; n++) {
       const day = String(n).padStart(2, '0');
