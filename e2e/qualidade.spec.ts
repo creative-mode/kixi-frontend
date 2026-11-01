@@ -599,6 +599,8 @@ test.describe('CTA de registo da landing (#512)', () => {
     await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
     await expect(page).toHaveURL(/#modulos/);
     await expect(page.locator('#modulos h2')).toBeInViewport();
+    // O foco segue para o destino: quem vai pelo teclado sente a chegada.
+    await expect(page.locator('#modulos h2')).toBeFocused();
   });
 
   test('saltar a apresentação a teclado', async ({ page }) => {
@@ -609,6 +611,8 @@ test.describe('CTA de registo da landing (#512)', () => {
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#modulos/);
     await expect(page.locator('#modulos h2')).toBeInViewport();
+    // O foco segue para o destino: quem vai pelo teclado sente a chegada.
+    await expect(page.locator('#modulos h2')).toBeFocused();
   });
 
   test.describe('no telemóvel', () => {
@@ -620,6 +624,7 @@ test.describe('CTA de registo da landing (#512)', () => {
       await page.getByRole('link', { name: 'Saltar a apresentação' }).tap();
       await expect(page).toHaveURL(/#modulos/);
       await expect(page.locator('#modulos h2')).toBeInViewport();
+      await expect(page.locator('#modulos h2')).toBeFocused();
     });
   });
 
