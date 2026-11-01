@@ -24,6 +24,7 @@ import {
   problems,
   round2,
   toRequest,
+  toUpdateRequest,
   totalScore,
   unscored,
   type DraftItem,
@@ -479,4 +480,22 @@ test('a prova de OGI completa e pontuada não tem problemas', () => {
   const pronta = distributeScore(ogi(), 20).map((q) => (kindOf(q) === 'group' ? { ...q, items: (q.items ?? []).map((i) => (kindOf(i) === 'true_false' ? { ...i, options: trueFalseOptions('V') } : i)) } : q));
   assert.deepEqual(problems(pronta), []);
   assert.equal(totalScore(pronta), 20);
+});
+
+test('o pedido de atualização conserva os ids da pergunta, alínea e opções', () => {
+  const [question] = toUpdateRequest([{
+    serverId: 41, text: 'Escolha', points: '', kind: 'group', options: [],
+    items: [{
+      serverId: 42, label: 'b', text: 'Qual?', points: 2, kind: 'multiple_choice',
+      options: [
+        { serverId: 43, label: 'A', text: 'Sim', correct: false },
+        { serverId: 44, label: 'B', text: 'Não', correct: true },
+      ],
+    }],
+  }]);
+
+  assert.equal(question.serverId, 41);
+  assert.equal(question.items?.[0].serverId, 42);
+  assert.deepEqual(question.items?.[0].options.map((option) => option.serverId), [43, 44]);
+  assert.deepEqual(question.items?.[0].options.map((option) => option.correct), [false, true]);
 });

@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/mock/fetch';
 import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
 import { friendlyMessage } from '@/lib/crud/messages';
 import { mergeCurricula } from '@/lib/exam/curriculum';
+import type { BuilderQuestionIdentity, RequestQuestion } from '@/lib/exam/draft';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -417,6 +418,155 @@ export async function reorderStatementQuestions(id: number, questionIds: number[
     if (!res.ok) return fail(await message(res));
     revalidatePath('/statements');
     return ok(undefined);
+  });
+}
+
+/** Update a builder-created statement in place, reconciling its stable question/option identities. */
+export async function updateManualStatement(
+  id: number,
+  statement: StatementInput,
+  desired: RequestQuestion[],
+  hideBeforeUpdate: boolean,
+): Promise<Result<{ failed: string[]; identities: BuilderQuestionIdentity[] }>> {
+  return guard(async () => {
+    const sid = safeId(id);
+    const request = (path: string, method: string, body?: unknown) => call(`/api/v1${path}`, {
+      method,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (hideBeforeUpdate) {
+      const hidden = await request(`/statements/${sid}/visibility?visible=false`, 'PATCH');
+      if (!hidden.ok) return fail(await message(hidden));
+    }
+    const header = await request(`/statements/${sid}`, 'PUT', statement);
+    if (!header.ok) return fail(await message(header));
+
+    const full = await request(`/statements/${sid}/full`, 'GET');
+    if (!full.ok) return ok({ failed: [`Não foi possível ler as questões existentes: ${await message(full)}`], identities: [] });
+    const existingQuestions = ((await full.json()) as Row).questions as Row[] ?? [];
+    const byId = new Map(existingQuestions.map((question) => [Number(question.id), question]));
+    const desiredIds = new Set<number>();
+    const orderedIds: number[] = [];
+    const identities: BuilderQuestionIdentity[] = [];
+    const failures: string[] = [];
+
+    const syncQuestion = async (question: RequestQuestion, parentId: number | null): Promise<BuilderQuestionIdentity | null> => {
+      const current = question.serverId ? byId.get(question.serverId) : undefined;
+      if (question.serverId != null && !current) {
+        failures.push(`A questão ${question.serverId} já não existe nesta prova. Atualize a página antes de guardar novamente.`);
+        return null;
+      }
+      const body = {
+        text: question.text,
+        questionType: question.type,
+        maxScore: question.maxScore,
+        modelAnswer: question.modelAnswer ?? null,
+        ocrReviewed: question.reviewed ?? false,
+        ...(parentId != null ? { parentId } : {}),
+        ...(question.serverId == null && parentId != null ? { label: question.label } : {}),
+        ...(question.type === 'group' ? { groupLayout: question.groupLayout ?? 'lettered' } : {}),
+      };
+      const changed = !current || current.text !== body.text
+        || current.questionType !== body.questionType
+        || current.maxScore !== body.maxScore
+        || (current.modelAnswer ?? null) !== body.modelAnswer
+        || (question.reviewed !== undefined && current.ocrReviewed !== question.reviewed)
+        || (question.type === 'group' && current.groupLayout !== (question.groupLayout ?? 'lettered'));
+      const saved = changed
+        ? await request(current
+          ? `/statements/${sid}/questions/${safeId(question.serverId!)}`
+          : `/statements/${sid}/questions`, current ? 'PUT' : 'POST', body)
+        : null;
+      if (saved && !saved.ok) { failures.push(await message(saved)); return null; }
+      const savedQuestion = saved ? (await saved.json()) as Row : current!;
+      const questionId = Number(savedQuestion.id ?? current?.id);
+      if (!Number.isInteger(questionId) || questionId <= 0) { failures.push('O servidor não devolveu o id da questão.'); return null; }
+      desiredIds.add(questionId);
+      orderedIds.push(questionId);
+      const identity: BuilderQuestionIdentity = { serverId: questionId, options: [] };
+
+      const oldOptions = Array.isArray(current?.options) ? current.options as Row[] : [];
+      const oldOptionsById = new Map(oldOptions.map((option) => [Number(option.id), option]));
+      const optionIds = identity.options;
+      for (const option of question.options) {
+        const old = option.serverId ? oldOptionsById.get(option.serverId) : oldOptions.find((candidate) => candidate.optionLabel === option.label);
+        if (option.serverId != null && !old) {
+          failures.push(`A opção ${option.label} já não existe nesta questão. Atualize a página antes de guardar novamente.`);
+          return identity;
+        }
+        const optionBody = { optionLabel: option.label, optionText: option.text, isCorrect: option.correct };
+        const optionChanged = !old || old.optionLabel !== option.label
+          || old.optionText !== option.text || old.isCorrect !== option.correct;
+        const optionResponse = optionChanged
+          ? await request(old
+            ? `/statements/${sid}/questions/${questionId}/options/${safeId(Number(old.id))}`
+            : `/statements/${sid}/questions/${questionId}/options`, old ? 'PUT' : 'POST', optionBody)
+          : null;
+        if (optionResponse && !optionResponse.ok) { failures.push(await message(optionResponse)); return identity; }
+        const savedOption = optionResponse ? (await optionResponse.json()) as Row : old!;
+        const optionId = Number(savedOption.id ?? old?.id);
+        if (!Number.isInteger(optionId) || optionId <= 0) { failures.push('O servidor não devolveu o id da opção.'); return identity; }
+        optionIds.push(optionId);
+      }
+      const retainedOptionIds = new Set(optionIds);
+      for (const old of oldOptions) {
+        if (retainedOptionIds.has(Number(old.id))) continue;
+        const removed = await request(`/statements/${sid}/questions/${questionId}/options/${safeId(Number(old.id))}`, 'DELETE');
+        if (!removed.ok) { failures.push(await message(removed)); return identity; }
+      }
+      const previousOptionIds = [...oldOptions]
+        .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+        .map((option) => Number(option.id));
+      if (optionIds.length && (optionIds.length !== previousOptionIds.length
+        || optionIds.some((optionId, index) => optionId !== previousOptionIds[index]))) {
+        const reordered = await request(`/statements/${sid}/questions/${questionId}/options/reorder`, 'PUT', { optionIds });
+        if (!reordered.ok) { failures.push(await message(reordered)); return identity; }
+      }
+
+      if (question.items) {
+        identity.items = [];
+        for (const item of question.items) {
+          const child = await syncQuestion(item as RequestQuestion, questionId);
+          if (!child) return identity;
+          identity.items.push(child);
+          if (failures.length) return identity;
+        }
+      }
+      return identity;
+    };
+
+    for (const question of desired) {
+      const identity = await syncQuestion(question, null);
+      if (!identity) break;
+      identities.push(identity);
+      if (failures.length) break;
+    }
+
+    if (failures.length === 0) {
+      const deletedGroups = new Set<number>();
+      for (const old of existingQuestions) {
+        const oldId = Number(old.id);
+        if (desiredIds.has(oldId)) continue;
+        if (old.parentId != null && deletedGroups.has(Number(old.parentId))) continue;
+        const removed = await request(`/statements/${sid}/questions/${safeId(oldId)}`, 'DELETE');
+        if (!removed.ok) { failures.push(await message(removed)); break; }
+        if (old.parentId == null && old.questionType === 'group') deletedGroups.add(oldId);
+      }
+    }
+    if (failures.length === 0) {
+      const previousIds = [...existingQuestions]
+        .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+        .map((question) => Number(question.id));
+      if (orderedIds.length === previousIds.length
+        && orderedIds.every((questionId, index) => questionId === previousIds[index])) {
+        revalidatePath('/statements');
+        return ok({ failed: failures, identities });
+      }
+      const reordered = await request(`/statements/${sid}/questions/reorder`, 'PUT', { questionIds: orderedIds });
+      if (!reordered.ok) failures.push(await message(reordered));
+    }
+    revalidatePath('/statements');
+    return ok({ failed: failures, identities });
   });
 }
 

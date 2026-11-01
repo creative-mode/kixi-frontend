@@ -15,6 +15,8 @@ import { mathNeedsReview, serializeMathText, type MathContentFields, type MathFo
 
 /** One option of a multiple-choice question. `label` is the identity the backend gives it. */
 export interface DraftOption {
+  /** Backend identity, retained only after the manual statement is created. */
+  serverId?: number;
   label: string;
   text: string;
   correct: boolean;
@@ -28,6 +30,7 @@ export type GroupLayout = 'lettered' | 'brace';
 
 /** An alínea: a question of its own inside a `group`. The label (a, b, c…) is generated. */
 export interface DraftItem extends MathContentFields {
+  serverId?: number;
   /** Source label when OCR imports a paper whose alíneas do not start at a. */
   label?: string;
   text: string;
@@ -53,6 +56,7 @@ export interface DraftImage {
 }
 
 export interface DraftQuestion extends MathContentFields {
+  serverId?: number;
   text: string;
   /** `''` means "not scored yet". It is not the same as zero, and the difference matters below. */
   points: number | '';
@@ -450,13 +454,18 @@ export function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export interface RequestOption { label: string; text: string; correct: boolean }
+export interface RequestOption { label: string; text: string; correct: boolean; serverId?: number }
 export interface RequestItem {
+  serverId?: number;
+  modelAnswer?: string | null;
   label: string; text: string; type: LeafKind; maxScore: number | null; options: RequestOption[];
   /** Matches ManualStatementRequest.Item; blocks are encoded in text and formulas. */
   rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
 }
 export interface RequestQuestion {
+  serverId?: number;
+  label?: string;
+  modelAnswer?: string | null;
   text: string;
   type: QuestionKind;
   /** `null` for a group: its score is the sum of its items. */
@@ -468,6 +477,12 @@ export interface RequestQuestion {
   groupLayout?: GroupLayout;
   /** Matches ManualStatementRequest.Question; `needsReview` is derived by the backend. */
   rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
+}
+
+export interface BuilderQuestionIdentity {
+  serverId: number;
+  options: number[];
+  items?: BuilderQuestionIdentity[];
 }
 
 function formulaEvidence(formulas?: MathFormula[], blocks?: MathContentBlock[]): MathFormula[] | undefined {
@@ -543,4 +558,36 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
         ...ocrEvidence(q),
       };
     });
+}
+
+/** Adds stable backend identities to the manual-create shape for an in-place update. */
+export function toUpdateRequest(questions: DraftQuestion[]): RequestQuestion[] {
+  const desired = toRequest(questions);
+  const sources = questions.filter((question) => question.text.trim());
+  const identifyOptions = (requested: RequestOption[], source: DraftOption[]) => requested.map((option) => {
+    const prior = source.find((candidate) => candidate.label === option.label);
+    return { ...option, ...(prior?.serverId ? { serverId: prior.serverId } : {}) };
+  });
+  return desired.map((question, index) => {
+    const source = sources[index];
+    const identified: RequestQuestion = {
+      ...question,
+      ...(source.serverId ? { serverId: source.serverId } : {}),
+      modelAnswer: source.modelAnswer?.trim() || null,
+      options: identifyOptions(question.options, source.options),
+    };
+    if (question.items && source.items) {
+      const sourceItems = source.items.filter((item) => item.text.trim());
+      identified.items = question.items.map((item, itemIndex) => {
+        const sourceItem = sourceItems[itemIndex];
+        return {
+          ...item,
+          ...(sourceItem.serverId ? { serverId: sourceItem.serverId } : {}),
+          modelAnswer: sourceItem.modelAnswer?.trim() || null,
+          options: identifyOptions(item.options, sourceItem.options),
+        };
+      });
+    }
+    return identified;
+  });
 }
