@@ -86,14 +86,18 @@ export function useUnsavedChanges(dirty: boolean, description = 'Tem alteraçõe
     };
   }, [dirty, router]);
   const guard = (next: () => void) => dirty ? setLeaving(() => next) : next();
+  const leaveAfterSave = (next: () => void) => {
+    const marker = window.history.state?.__unsavedGuard;
+    if (typeof marker === 'string' && marker.startsWith('unsaved-')) removeHistoryGuard(marker, next);
+    else next();
+  };
   return {
     guard,
+    leaveAfterSave,
     dialog: <Confirm state={leaving ? {
       title: 'Descartar alterações?', description,
       action: 'Descartar e sair', destructive: true, run: () => {
-        const marker = window.history.state?.__unsavedGuard;
-        if (typeof marker === 'string' && marker.startsWith('unsaved-')) removeHistoryGuard(marker, leaving);
-        else leaving();
+        leaveAfterSave(leaving);
       },
     } : null} onClose={() => setLeaving(null)} />,
   };

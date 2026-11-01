@@ -1161,8 +1161,14 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveCount(0);
     await expect(page.locator('[id$="-erro"]')).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+
+    // O envio normal também remove a sentinela antes de navegar para a lista.
+    await code.fill(`T${id}`);
+    await name.fill(`Outra disciplina ${id}`);
+    await page.getByRole('button', { name: /^Criar/ }).click();
+    await expect(page).toHaveURL(/\/manager\/subjects$/);
     await page.goBack();
-    await expect(page).not.toHaveURL(/\/manager\/subjects\/new/);
+    await expect(page).toHaveURL(/\/manager\/subjects\/new$/);
     await expect(page.getByRole('alertdialog', { name: 'Descartar alterações?' })).toHaveCount(0);
 
     // A disciplina criada está na lista.

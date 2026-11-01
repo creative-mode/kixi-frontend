@@ -39,7 +39,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const [title, setTitle] = useState<string>('');
   const [baseline, setBaseline] = useState('');
   const dirty = !loading && baseline !== '' && JSON.stringify(values) !== baseline;
-  const { guard, dialog } = useUnsavedChanges(dirty);
+  const { guard, leaveAfterSave, dialog } = useUnsavedChanges(dirty);
 
   useEffect(() => {
     let alive = true;
@@ -120,8 +120,10 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       }
       // Uma escola nova ainda está vazia: leva direto ao assistente de estrutura (cursos, turmas, professores).
       const createdId = !editing && entityKey === 'institutions' ? Number((res.data as Row | undefined)?.id) : NaN;
-      router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
-      router.refresh();
+      leaveAfterSave(() => {
+        router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
+        router.refresh();
+      });
     } else toast.error(res.error);
   }
 
