@@ -54,11 +54,16 @@ const FACES = [
   { n: [0, -1], p: (x: number, y: number, w: number) => [[x, y], [x + w, y]] },
 ];
 
-/** Sufixo de ids por instância (#513): vê `Cartridge`. */
-const krefFor = (uid: string) => (name: string) => `url(#kx-${name}-${uid})`;
+/** Sufixo de ids por instância (#513): duas cópias do cartucho vivem no DOM com
+ *  movimento reduzido, e com ids fixos o `url(#…)` resolvia para a escondida. */
+export const cartridgeRefs = (uid: string) => {
+  const kid = (name: string) => `kx-${name}-${uid}`;
+  const kref = (name: string) => `url(#${kid(name)})`;
+  return { kid, kref };
+};
 
 function Slab({ x = 0, y = 0, w, d, h, z, rx = 6, yaw, top = 'var(--paper-3)', children, ns }: SlabProps & { ns: string }) {
-  const kref = krefFor(ns);
+  const { kref } = cartridgeRefs(ns);
   const zt = z + h;
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
@@ -87,7 +92,7 @@ function Slab({ x = 0, y = 0, w, d, h, z, rx = 6, yaw, top = 'var(--paper-3)', c
 }
 
 function Dome({ cx, cy, r, z, h, yaw, ns }: { cx: number; cy: number; r: number; z: number; h: number; yaw: number; ns: string }) {
-  const kref = krefFor(ns);
+  const { kref } = cartridgeRefs(ns);
   const [X, Y] = proj(cx, cy, z + h, yaw);
   const rx = 1.2247 * r;
   const ry = 0.7071 * r;
@@ -116,7 +121,7 @@ const GAP = 130;
 const SPREAD = 150;
 
 function Layer({ i, bars, a, yaw, on, ns }: { i: number; bars: number; a: number; yaw: number; on: boolean; ns: string }) {
-  const kref = krefFor(ns);
+  const { kref } = cartridgeRefs(ns);
   const t = TH[i];
   const hot = on ? 'var(--paper-2)' : 'var(--paper-3)'; // the layer in focus is a shade darker, no spot colour
   const ship = spritePath('ship');
@@ -208,8 +213,7 @@ export function Cartridge({
   // parada visível (#513): com ids fixos o `url(#…)` resolvia para a primeira e a
   // visível perdia hachuras, pontos e filtro. Um sufixo por instância resolve.
   const uid = useId().replace(/:/g, '');
-  const kid = (name: string) => `kx-${name}-${uid}`;
-  const kref = (name: string) => `url(#${kid(name)})`;
+  const { kid, kref } = cartridgeRefs(uid);
   const shift = (j: number) => SPREAD * zoom * clamp(j - f, -1, 1);
   const offset = (j: number) => explode * GAP * (4 - j) - shift(j);
   const centre = (j: number) => Y0 + C0[1] - (TH[j].z + TH[j].h) - offset(j);
