@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { approveStatement, deleteRow, getStatementFull, setCorrectOption, setStatementVisible } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
+import { queryWith } from '@/lib/queue-state';
 import { PageHead } from './page-head';
 import { Confirm, type ConfirmState } from './confirm';
 import { QuestionImages } from './question-images';
@@ -32,14 +33,14 @@ const score = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDig
  * servidor e a lista das questões. Publicar só por visibilidade saltaria o gate
  * inteiro, e é por isso que os dois botões andam juntos.
  */
-export function StatementDetail({ id }: { id: number }) {
+export function StatementDetail({ id, startReviewing = false }: { id: number; startReviewing?: boolean }) {
   const router = useRouter();
   const [s, setS] = useState<Row | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gate, setGate] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const [reviewing, setReviewing] = useState(false);
+  const [reviewing, setReviewing] = useState(startReviewing);
 
   const load = useCallback(async () => {
     const r = await getStatementFull(id);
@@ -51,7 +52,13 @@ export function StatementDetail({ id }: { id: number }) {
   }, [load]);
 
   // FE-11: modo de revisão (editar cabeçalho, questões e gabarito). Ao sair, recarrega.
-  if (reviewing) return <StatementReview id={id} onExit={() => { setReviewing(false); void load(); }} />;
+  // Ao sair da revisão tira-se o `?rever=1` do endereço: sem isso um recarregamento reabria a revisão.
+  const exitReview = () => {
+    setReviewing(false);
+    window.history.replaceState(null, '', `${window.location.pathname}${queryWith(window.location.search, { rever: null })}`);
+    void load();
+  };
+  if (reviewing) return <StatementReview id={id} onExit={exitReview} />;
 
   async function mark(questionId: number, optionId: number) {
     const res = await setCorrectOption(questionId, optionId);

@@ -110,6 +110,18 @@ add('statements', {
   title: 'P1 · POO (a rever)', examType: 'P1', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
   source: 'OCR', ocrConfidence: 0.87, ocrRequestId: 'req-1', schoolYearId: sy.id, termId: 2, subjectId: 1, classId: cls.id, questions: [],
 });
+add('statements', {
+  title: 'P2 · Física (a rever)', examType: 'P2', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
+  source: 'OCR', ocrConfidence: 0.92, ocrRequestId: 'req-2', schoolYearId: sy.id, termId: 2, subjectId: 1, classId: cls.id, questions: [],
+});
+// Mais enunciados por rever, para a fila ter folga: o teste que os aprova consome dois e uma repetição (retry do CI) ainda encontra fila.
+// Os e2e das filas (#535) contam com pelo menos 3 por rever: não reduzir esta semente sem os ajustar.
+for (let n = 3; n <= 6; n++) {
+  add('statements', {
+    title: `P${n} · Química (a rever)`, examType: 'P2', durationMinutes: 60, variant: null, instructions: null, totalMaxScore: 20, visible: false, needsReview: true,
+    source: 'OCR', ocrConfidence: 0.9, ocrRequestId: `req-${n}`, schoolYearId: sy.id, termId: 2, subjectId: 1, classId: cls.id, questions: [],
+  });
+}
 
   const itel = add('institutions', { code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: '/manager/exam/itel.png' });
   // A escola da turma é herdada do curso (como no backend): o seed liga-os aqui.
@@ -378,6 +390,17 @@ export function verificationStore() {
     contactEmail: `direcao@${String(code).toLowerCase()}.ao`, documentUrl: 'https://example.com/alvara.pdf', notes: null,
     status, reviewNote, reviewedAt: status === 'PENDING' ? null : '2026-10-10T09:00:00', createdAt: `2026-10-0${i + 1}T08:00:00`,
   }));
+  // Mais pedidos já decididos, para a fila ter páginas e o filtro «Todos» passar de uma página.
+  // O e2e da verificação (#535) conta com mais de 10 pedidos no total: não reduzir sem o ajustar.
+  const base = G.__kixiVerification.length;
+  for (let n = 1; base === 4 && n <= 8; n++) {
+    const status = n % 4 === 0 ? 'REVOKED' : 'APPROVED';
+    G.__kixiVerification.push({
+      id: base + n, institutionId: 1, officialName: `Escola de exemplo ${n} (nome oficial)`, registrationNumber: `NIF-${6000 + n}`,
+      contactEmail: `escola${n}@exemplo.ao`, documentUrl: null, notes: null, status, reviewNote: null,
+      reviewedAt: `2026-10-${String(10 + n).padStart(2, '0')}T09:00:00`, createdAt: `2026-10-${String(10 + n).padStart(2, '0')}T08:00:00`,
+    });
+  }
   return G.__kixiVerification;
 }
 
@@ -402,6 +425,18 @@ export function moderationStore() {
       { id: 1, at: '2026-10-12T15:02:00', actor: 'Administrador Kixi', action: 'IGNORED', target: 'INSTITUTION', targetId: 1, targetName: 'Instituto de Telecomunicações', reportId: 4, note: 'Escola verificada e com selo valido.' },
     ],
   };
+  // Mais denúncias já decididas, para a lista das decididas ter páginas.
+  // O e2e da moderação (#535) conta com mais de 10 decididas: não reduzir sem o ajustar.
+  if (G.__kixiModeration.reports.length === 4) {
+    for (let n = 1; n <= 11; n++) {
+      const day = String(n).padStart(2, '0');
+      G.__kixiModeration.reports.push({
+        id: 4 + n, target: 'ACCOUNT', targetId: 4, targetName: `Perfil de exemplo ${n}`, reporterAccountId: 3, reporterName: 'Abner Ede', reason: 'OTHER', note: '',
+        status: n % 3 === 0 ? 'HIDDEN' : 'IGNORED', createdAt: `2026-09-${day}T10:00:00`, decidedAt: `2026-09-${day}T12:00:00`, decidedBy: 'Administrador Kixi', decisionNote: 'Sem motivo para atuar.',
+      });
+    }
+    G.__kixiModeration.next = 16;
+  }
   return G.__kixiModeration;
 }
 
@@ -443,9 +478,13 @@ export function seedExtras() {
     ['Para que serve uma VLAN?', ['Aumentar a banda', 'Segmentar a rede logicamente', 'Cifrar tráfego', 'Balancear carga'], 1],
     ['Qual é a máscara de um /24?', ['255.255.0.0', '255.255.255.0', '255.255.255.128', '255.0.0.0'], 1],
   ];
+  // Cotações com duas casas que somam mesmo o total (a última leva o resto): 20 / 6 dava 3,3333…, que o ecrã de
+  // revisão lê como 3,33 e o servidor soma como 20,00, e nenhum enunciado do simulado se deixava aprovar.
+  const base = Math.floor((20 / qs.length) * 100) / 100;
+  const scoreOf = (i: number) => (i === qs.length - 1 ? Math.round((20 - base * (qs.length - 1)) * 100) / 100 : base);
   db.statements.forEach((st: any) => {
     st.institutionId = st.institutionId ?? 1;
-    st.questions = qs.map(([text, o, c]: any, i: number) => ({ id: nextId('questions'), statementId: st.id, number: i + 1, orderIndex: i, text, questionType: 'MULTIPLE_CHOICE', maxScore: 20 / qs.length, needsReview: st.needsReview && i === 2, options: opts(o, c) }));
+    st.questions = qs.map(([text, o, c]: any, i: number) => ({ id: nextId('questions'), statementId: st.id, number: i + 1, orderIndex: i, text, questionType: 'MULTIPLE_CHOICE', maxScore: scoreOf(i), needsReview: st.needsReview && i === 2, options: opts(o, c) }));
     st.questions.forEach((q: any) => q.options.forEach((opt: any) => { opt.questionId = q.id; }));
   });
   for (const [qid, opt] of [[1, 2], [2, 1], [3, 2]]) {
