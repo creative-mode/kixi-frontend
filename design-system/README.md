@@ -20,7 +20,7 @@ npm run ds:sync -- --check # falha se alguma cópia estiver desactualizada (CI)
 
 - **Base shadcn:** `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `destructive`, `border`, `input`, `ring`, `sidebar-*`, `chart-1..5` (cada um com `-foreground` onde aplicável).
 - **Estado (extensão Kixi):** `success`, `warning`, `info` e os fundos suaves `success-soft`, `warning-soft`, `info-soft`, `danger-soft`.
-- **Raio:** `--radius: .625rem` (`rounded-md` = raio − 2px, `rounded-xl` = raio + 4px). Governa os cantos dos componentes DS (`Button`, `Card`, `Input`, etc.).
+- **Raio:** `--radius: .625rem` (`rounded-md` = raio - 2px, `rounded-xl` = raio + 4px). Governa os cantos dos componentes DS (`Button`, `Card`, `Input`, etc.).
 - **Tema:** só claro. Não há tema escuro nem preferência guardada; não acrescentes variantes `dark:`.
 - **Cantos em degrau / clip-path:** `.px-step` e `.px-box` (cantos em degrau, contorno de 2 px) são uma sobreposição de marca aplicada nos botões/caixas da landing e do aluno — não são tokens DS nem substituem `--radius`. Não os misture com `rounded-*` do Tailwind.
 
