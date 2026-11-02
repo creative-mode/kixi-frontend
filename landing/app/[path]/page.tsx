@@ -33,6 +33,9 @@ const byKey = (key: PageKey): Metadata => ({
   twitter: { card: 'summary_large_image', title: PAGES[key].title, description: PAGES[key].description },
 });
 
+/** Cache partilhada (#522): HTML público igual para toda a gente. */
+export const revalidate = 3600;
+
 export async function generateMetadata({ params }: { params: Promise<{ path: string }> }): Promise<Metadata> {
   const { path } = await params;
   const key = path as PageKey;

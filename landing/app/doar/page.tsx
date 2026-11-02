@@ -8,6 +8,9 @@ const TITLE = 'Doa um enunciado · Kixi';
 const DESCRIPTION =
   'Tens uma prova, um teste ou um exame antigo? Doa-o ao Kixi: uma foto ou um PDF chega para ajudar outros alunos a estudar.';
 
+/** Cache partilhada (#522): HTML público igual para toda a gente. */
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
