@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
-import { Cartridge, LAYERS } from './Cartridge';
+import { Cartridge } from './Cartridge';
 import { GameDemo } from './GameDemo';
 import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
@@ -70,17 +70,28 @@ function Scene({ i }: { i: number }) {
 export function Presentation() {
   const ref = useRef<HTMLElement>(null);
   const [p, setP] = useState(0);
-  const [still, setStill] = useState(false);
+  // Movimento reduzido (#513): só decide atributos de acessibilidade (o que o
+  // leitor de ecrã ouve, o que o teclado alcança). O desenho — compacto ou
+  // 1800 ecrãs — é decidido pelo CSS com `@media (prefers-reduced-motion)`,
+  // que já vale na primeira tinta; por JS chegava tarde e a página saltava.
+  const [reduced, setReduced] = useState(false);
+  // Espelho para o `onScroll` (efeito de montagem, sem `reduced` nas deps): em
+  // modo reduzido o progresso não muda nada no desenho, por isso nem se mede.
+  const reducedRef = useRef(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const upd = () => setStill(mq.matches);
+    const upd = () => {
+      reducedRef.current = mq.matches;
+      setReduced(mq.matches);
+    };
     upd();
     mq.addEventListener('change', upd);
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
+        if (reducedRef.current) return;
         const el = ref.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
@@ -98,45 +109,9 @@ export function Presentation() {
     };
   }, []);
 
-  // ↑ / ↓ (and PageUp/PageDown, Space) walk the story in steps you can feel; the browser's own 40px arrow step is invisible on a page this long
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
-      const el = ref.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      if (r.top > 1 || r.bottom < window.innerHeight * 0.5) return; // only while the presentation is on screen
-      const h = window.innerHeight;
-      const step = e.key === 'ArrowDown' ? h * 0.5 : e.key === 'ArrowUp' ? -h * 0.5 : 0;
-      if (!step) return;
-      e.preventDefault();
-      window.scrollBy({ top: step });
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  if (still) {
-    return (
-      <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
-        <div className="wrap">
-          <h1 id="hero-title" className="sr-only">E se estudar fosse... divertido?</h1>
-          <div className="still-plate"><Cartridge explode={1} callouts className="pres__svg" /></div>
-          <ol className="pres__list">
-            {SCENES.map((s, i) => (
-              <li key={s.head}>
-                <strong>{LAYERS[i].label}</strong>
-                <span>{s.head} {s.line}</span>
-              </li>
-            ))}
-          </ol>
-          <Outro />
-        </div>
-      </section>
-    );
-  }
+  // As setas andam com o browser (#513): o passo nativo é o que o teclado, o
+  // leitor de ecrã e o próprio utilizador esperam. O passo de meio ecrã por
+  // `preventDefault` sequestrava as setas enquanto a apresentação estava visível.
 
   // Timeline: prologue (logo → ship → book shatters) → cartridge: open → camera in → five layers → reunite → outro
   const P0 = 0.35; // the last stretch of the prologue (q 0.84 → 0.92) holds the closing words
@@ -160,26 +135,38 @@ export function Presentation() {
     outro: clamp((p2 - 0.85) / 0.05),
     scene: (j: number) => clamp((sc - j - 0.12) / 0.12) * clamp((j + 1 - sc) / 0.1),
   };
-  const layerText = (v: number) => ({ opacity: v, transform: `translateY(${(1 - v) * 18}px)`, pointerEvents: (v > 0.6 ? 'auto' : 'none') as 'auto' | 'none' });
+  // Cena apagada, cena intocável (#513): `aria-hidden` sem `inert` deixava o CTA
+  // do fim focável no escuro — o Tab andava por botões invisíveis (WCAG 4.1.2).
+  // O mesmo limiar (0.6) decide as três coisas; com movimento reduzido está
+  // tudo aceso, porque o CSS mostra tudo empilhado.
+  const sceneAttrs = (v: number) => {
+    const on = reduced || v > 0.6;
+    return {
+      style: {
+        opacity: reduced ? 1 : v,
+        transform: reduced ? 'none' : `translateY(${(1 - v) * 18}px)`,
+        pointerEvents: (on ? 'auto' : 'none') as 'auto' | 'none',
+      },
+      'aria-hidden': !on,
+      inert: !on,
+    };
+  };
 
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
-        <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
+        <div className="pres__hero" style={{ opacity: reduced ? 1 : hero, transform: reduced ? 'none' : `translateY(${(1 - hero) * -24}px)`, visibility: reduced || hero > 0.01 ? 'visible' : 'hidden' }}>
           <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
         </div>
         <div className="pres__text">
-                    <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
-          <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
-          {SCENES.map((s, i) => {
-            const v = vis.scene(i);
-            return (
-              <div key={s.head} className="pres__scene" style={layerText(v)} aria-hidden={v < 0.5}>
-                <Scene i={i} />
-              </div>
-            );
-          })}
-          <div className="pres__scene" style={layerText(vis.outro)} aria-hidden={vis.outro < 0.5}><Outro /></div>
+          <div className="pres__scene" {...sceneAttrs(vis.bridge)}><Bridge /></div>
+          <div className="pres__scene" {...sceneAttrs(vis.inside)}><Inside /></div>
+          {SCENES.map((s, i) => (
+            <div key={s.head} className="pres__scene" {...sceneAttrs(vis.scene(i))}>
+              <Scene i={i} />
+            </div>
+          ))}
+          <div className="pres__scene" {...sceneAttrs(vis.outro)}><Outro /></div>
         </div>
         <div className="pres__art">
           {eject < 1 ? (
@@ -190,6 +177,11 @@ export function Presentation() {
           <div className="pres__block" style={{ opacity: reveal }} aria-hidden="true" />
           <div className="pres__cart pres__art--cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
+          </div>
+          {/* Com movimento reduzido o palco animado esconde-se e este cartucho
+              parado aparece: a mesma peça, sem viajar (#513). */}
+          <div className="pres__cart pres__cart--flat" aria-hidden="true">
+            <Cartridge explode={1} callouts className="pres__svg" />
           </div>
         </div>
       </div>
