@@ -90,6 +90,15 @@ export function proxy(request: NextRequest) {
   // HTML de uma rota negociada: só vai para um cache partilhado quando é igual para
   // toda a gente. A raiz varia com a sessão e o resto (inexistente incluído) não se
   // promete a nenhum CDN.
+  //
+  // Limite conhecido e medido (#522): o Next reescreve o `Vary` das respostas
+  // renderizadas, por isso nem o proxy nem o `headers()` conseguem emitir
+  // `Vary: Accept` no HTML — e sem ele uma cache partilhada ingénua guardava o HTML
+  // e servia-o a quem pede Markdown no mesmo URL. Hoje não há cache partilhada no
+  // caminho (o Caddy da frente não faz cache), por isso o `s-maxage` é seguro; no
+  // dia em que houver, ela tem de particionar por `Accept` (ou contornar quando ele
+  // pedir Markdown). A alternativa — redirecionar em vez de reescrever — muda o
+  // contrato da #218 e fica para decisão própria.
   // Sem tocar no Cache-Control: o que aqui se põe numa resposta renderizada não
   // sobrevive (medido: sai sempre o da config da rota). Cache desta landing
   // decide-se por página, com `revalidate` (públicas) ou `dynamic` (a raiz, que
