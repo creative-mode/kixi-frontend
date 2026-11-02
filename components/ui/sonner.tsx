@@ -1,14 +1,13 @@
 'use client'
 
-import { useTheme } from 'next-themes'
 import { Toaster as Sonner, ToasterProps } from 'sonner'
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
-
+  // O design system é só-claro (design-system/README.md): forçar tema claro nos
+  // toasts para não escurecer mesmo com o SO em modo escuro.
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme="light"
       className="toaster group"
       style={
         {

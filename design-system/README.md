@@ -6,7 +6,7 @@ Sistema de design partilhado pelas apps do Kixi (aluno e gestor). Segue o modelo
 
 | Ficheiro | Para quê |
 | --- | --- |
-| `tokens.css` | **Fonte única** das cores, raio e sombras. Temas claro e escuro. |
+| `tokens.css` | **Fonte única** das cores, raio e sombras. Tema claro (único). |
 | `theme.css` | Mapeia os tokens para utilitários Tailwind v4 (`bg-primary`, `text-muted-foreground`, `bg-success-soft`…) e define a fonte. |
 
 As cópias em `app/ds-*.css` (gestor) e `student/styles/ds-*.css` (aluno) são **geradas**. Não as edites.
@@ -20,8 +20,9 @@ npm run ds:sync -- --check # falha se alguma cópia estiver desactualizada (CI)
 
 - **Base shadcn:** `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `destructive`, `border`, `input`, `ring`, `sidebar-*`, `chart-1..5` (cada um com `-foreground` onde aplicável).
 - **Estado (extensão Kixi):** `success`, `warning`, `info` e os fundos suaves `success-soft`, `warning-soft`, `info-soft`, `danger-soft`.
-- **Raio:** `--radius: .625rem` (`rounded-md` = raio − 2px, `rounded-xl` = raio + 4px).
+- **Raio:** `--radius: .625rem` (`rounded-md` = raio − 2px, `rounded-xl` = raio + 4px). Governa os cantos dos componentes DS (`Button`, `Card`, `Input`, etc.).
 - **Tema:** só claro. Não há tema escuro nem preferência guardada; não acrescentes variantes `dark:`.
+- **Cantos em degrau / clip-path:** `.px-step` e `.px-box` (cantos em degrau, contorno de 2 px) são uma sobreposição de marca aplicada nos botões/caixas da landing e do aluno — não são tokens DS nem substituem `--radius`. Não os misture com `rounded-*` do Tailwind.
 
 Regra: nunca uses cores literais em componentes. Usa sempre o token (`text-destructive`, não `text-red-600`).
 
@@ -64,7 +65,7 @@ Uma coluna centrada: marca e cartão com o formulário (400px), sem painel later
 
 - **App do aluno**: cada rota tem um `loading.tsx` que usa `components/skeletons.tsx` (`InicioSkeleton`, `ProvasSkeleton`, `RankingSkeleton`, `TutorSkeleton`, `PerfilSkeleton`, `ResultadoSkeleton`, `ProvaSkeleton`, `AuthSkeleton`). Reaproveitam `Page`/`Column`/`Rail`, por isso têm a mesma largura e grelha da página real e nada "salta" quando o conteúdo chega.
 - **Login e cadastro**: `AuthSkeleton` reproduz o `AuthShell` (coluna única centrada, sem painel lateral).
-- **Landing**: `landing/app/loading.tsx` usa blocos `.lp-sk` (tinta sobre papel oliva, cantos em degrau, varrimento em passos). A landing mantém a sua paleta própria; o login e o cadastro para onde "Entrar" e "Começar a estudar" apontam são os do aluno.
+- **Landing**: `landing/app/loading.tsx` usa blocos `.lp-sk` (tinta sobre papel oliva, cantos em degrau, varrimento em passos). **A landing mantém a sua paleta própria** (`landing/styles/tokens.css`, ex: `--brand`, `--tiro`, `--alvo`) e não consome os tokens DS; consulte esse ficheiro para as exceções documentadas. O login e o cadastro para onde "Entrar" e "Começar a estudar" apontam são os do aluno.
 - Todos respeitam `prefers-reduced-motion` e anunciam `role="status"` para leitores de ecrã.
 ## Checklist de conformidade (gestor e aluno)
 
