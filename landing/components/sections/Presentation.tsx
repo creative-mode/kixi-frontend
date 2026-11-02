@@ -111,7 +111,12 @@ export function Presentation() {
         const el = ref.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
-        setP(clamp(-r.top / (r.height - window.innerHeight)));
+        // Quantizado a sério, 1/200 do percurso (#514): scrolls lentos e médios
+        // ficam vários frames na mesma casa e não re-renderizam; só flings mexem
+        // a cada frame — e aí é o movimento que o pede. O `memo` não poupava nada:
+        // quando a casa muda, os números que o cartucho recebe mudam mesmo.
+        const next = Math.round(clamp(-r.top / (r.height - window.innerHeight)) * 200) / 200;
+        setP((prev) => (prev === next ? prev : next));
       });
     };
     onScroll();
