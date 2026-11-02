@@ -79,6 +79,23 @@ export function CookieBanner() {
     banner.current?.focus();
   }, [choice]);
 
+  // A altura real do banner fica em `--ck-banner-h` (medida como no #506): o
+  // `/doar` reserva-a em baixo e nunca tapa o "Continuar". Medida e não uma
+  // constante, e 0 px quando já há escolha (o banner desmonta e a variável sai).
+  useEffect(() => {
+    const el = banner.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const reserve = () => root.style.setProperty('--ck-banner-h', `${el.getBoundingClientRect().height}px`);
+    reserve();
+    const observer = new ResizeObserver(reserve);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--ck-banner-h');
+    };
+  }, [choice]);
+
   useEffect(() => {
     if (choice === 'all') {
       if (GA_ID) (window as unknown as Record<string, boolean>)[`ga-disable-${GA_ID}`] = false;
