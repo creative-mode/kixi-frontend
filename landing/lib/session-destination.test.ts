@@ -21,16 +21,16 @@ test('o aluno vai para o início do aluno', () => {
   assert.equal(sessionDestination(token({ roles: ['STUDENT'], exp: daquiAUmaHora }), '', NOW), STUDENT_HOME);
 });
 
-test('administrador e professor vão para o gestor', () => {
-  assert.equal(sessionDestination(token({ roles: ['ADMIN'], exp: daquiAUmaHora }), '', NOW), MANAGER_HOME);
-  assert.equal(sessionDestination(token({ roles: ['TEACHER'], exp: daquiAUmaHora }), '', NOW), MANAGER_HOME);
-  assert.equal(sessionDestination(token({ roles: ['TEACHER', 'STUDENT'], exp: daquiAUmaHora }), '', NOW), MANAGER_HOME);
+test('administrador e professor não são redirecionados no domínio público', () => {
+  assert.equal(sessionDestination(token({ roles: ['ADMIN'], exp: daquiAUmaHora }), '', NOW), null);
+  assert.equal(sessionDestination(token({ roles: ['TEACHER'], exp: daquiAUmaHora }), '', NOW), null);
+  assert.equal(sessionDestination(token({ roles: ['TEACHER', 'STUDENT'], exp: daquiAUmaHora }), '', NOW), null);
 });
 
-test('o gestor noutro endereço é respeitado', () => {
+test('o gestor noutro endereço não é usado no domínio público', () => {
   assert.equal(
     sessionDestination(token({ roles: ['ADMIN'], exp: daquiAUmaHora }), 'https://gestor.kixi.ao/manager', NOW),
-    'https://gestor.kixi.ao/manager',
+    null,
   );
 });
 

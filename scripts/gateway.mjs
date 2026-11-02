@@ -7,13 +7,19 @@ import net from 'node:net';
 
 const PORT = Number(process.env.PORT ?? 3000);
 // Em Docker cada app é um contentor: MANAGER_HOST=manager, STUDENT_HOST=student, LANDING_HOST=landing.
+// No domínio público, `/manager` e `/manager/*` não são expostos: respondem 404 neutro
+// (comportando-se como qualquer rota desconhecida). O gestor só é acedido diretamente
+// no seu host isolado (mgr-*.sslip.io), nunca através do gateway público.
 const ROUTES = [
-  { prefix: '/manager', host: process.env.MANAGER_HOST ?? '127.0.0.1', port: Number(process.env.MANAGER_PORT ?? 3002) },
   { prefix: '/aluno', host: process.env.STUDENT_HOST ?? '127.0.0.1', port: Number(process.env.STUDENT_PORT ?? 3003) },
 ];
 const LANDING = { host: process.env.LANDING_HOST ?? '127.0.0.1', port: Number(process.env.LANDING_PORT ?? 3004) };
 
 const pick = (url = '/') => {
+  // Rotas do gestor são recusadas no domínio público: 404 neutro.
+  if (url === '/manager' || url.startsWith('/manager/') || url.startsWith('/manager?')) {
+    return null;
+  }
   const hit = ROUTES.find((r) => url === r.prefix || url.startsWith(r.prefix + '/') || url.startsWith(r.prefix + '?'));
   return hit ?? LANDING;
 };
@@ -68,8 +74,8 @@ const sessionHome = (req) => {
     const payload = JSON.parse(Buffer.from(decodeURIComponent(raw).split('.')[1], 'base64url').toString('utf8'));
     if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) return null;
     const roles = Array.isArray(payload.roles) ? payload.roles : [];
-    if (roles.includes('ADMIN') || roles.includes('TEACHER')) return '/manager';
     if (roles.includes('STUDENT')) return '/aluno/inicio';
+    // Gestor não é redirecionado no domínio público: acede diretamente ao host isolado.
   } catch {
     // cookie ilegível: segue para a landing
   }
@@ -88,6 +94,11 @@ const server = http.createServer((req, res) => {
     return res.end();
   }
   const t = pick(req.url);
+  if (!t) {
+    // `/manager` e `/manager/*` não existem no domínio público: 404 neutro.
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('Not Found');
+  }
   const up = http.request({ host: t.host, port: t.port, method: req.method, path: req.url, headers: forwarded(req) }, (r) => {
     res.writeHead(r.statusCode ?? 502, r.headers);
     r.pipe(res);

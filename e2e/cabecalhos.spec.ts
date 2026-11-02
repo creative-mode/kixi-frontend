@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Os cabeçalhos de segurança (#585) chegam ao browser pelo gateway nas três apps, não só na configuração de cada uma.
 const APPS = [
   ['aluno', '/aluno/entrar'],
-  ['gestor', '/manager/login'],
+  ['gestor', 'http://localhost:3002/manager/login'],
   ['landing', '/'],
 ] as const;
 
