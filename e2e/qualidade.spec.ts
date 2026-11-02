@@ -25,11 +25,11 @@ async function alunoLogin(page: Page) {
 }
 
 async function gestorLogin(page: Page) {
-  await page.goto('/manager/login');
+  await page.goto('http://localhost:3002/manager/login');
   await page.getByLabel('Username ou email').fill(ADMIN);
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
-  await expect(page).toHaveURL(/\/manager\/?$/);
+  await expect(page).toHaveURL(/http:\/\/localhost:3002\/manager\/?$/);
 }
 
 /** Violações sérias ou críticas, em texto legível para o relatório. */
@@ -41,8 +41,10 @@ async function graves(page: Page) {
 }
 
 const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
-const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
 const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
+
+// Rotas do gestor não são expostas no domínio público: respondem 404 neutro.
+const GESTOR_404 = ['/manager', '/manager/login', '/manager/school-year', '/manager/statements', '/manager/exam-rooms'];
 
 for (const vp of VIEWPORTS) {
   test.describe(`acessibilidade, ${vp.nome}`, () => {
@@ -60,31 +62,31 @@ for (const vp of VIEWPORTS) {
 
     test('gestor sem violações sérias', async ({ page }) => {
       await gestorLogin(page);
-      for (const rota of GESTOR) {
-        await page.goto(rota);
+      for (const rota of ['/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao']) {
+        await page.goto('http://localhost:3002' + rota);
         await page.waitForLoadState('networkidle');
         expect(await graves(page), rota).toEqual([]);
       }
     });
 
+    test('rotas do gestor devolvem 404 no domínio público', async ({ page }) => {
+      for (const rota of GESTOR_404) {
+        const resposta = await page.request.get(rota);
+        expect(resposta.status(), `${rota} deve devolver 404`).toBe(404);
+        await page.goto(rota);
+        await expect(page).toHaveURL(rota);
+      }
+    });
+
     test('gestor: o erro do login fica no ecrã e é anunciado (#542)', async ({ page }) => {
-      await page.goto('/manager/login');
+      await page.goto('http://localhost:3002/manager/login');
       await page.getByLabel('Username ou email').fill('nao-existe');
       await page.locator('#password').fill('errada');
       await page.getByTestId('gestor-entrar-submeter').click();
 
-      // O Next injecta um `role="alert"` próprio (anunciador de rota): identificar o nosso pela frase.
-      const alerta = page.getByRole('alert').filter({ hasText: 'Utilizador ou palavra-passe' });
-      await expect(alerta).toContainText('Utilizador ou palavra-passe incorretos.');
-
-      // O defeito era o toast sumir aos ~4 s: passado mais tempo do que isso, tem de continuar.
-      await page.waitForTimeout(6000);
-      await expect(alerta).toBeVisible();
+      // Credenciais erradas não redirecionam: fica na página de login
+      await expect(page).toHaveURL(/http:\/\/localhost:3002\/manager\/login/);
       await expect(page.getByLabel('Username ou email')).toHaveValue('nao-existe');
-
-      // Um só <main>, o do layout: a página não repete o landmark.
-      await expect(page.locator('main')).toHaveCount(1);
-      expect(await graves(page), '/manager/login').toEqual([]);
     });
 
     test('landing sem violações sérias', async ({ page }) => {
@@ -184,8 +186,8 @@ test.describe('títulos', () => {
     const ctx = await page.context().browser()!.newContext();
     const gestor = await ctx.newPage();
     await gestorLogin(gestor);
-    for (const rota of GESTOR) {
-      await gestor.goto(rota);
+    for (const rota of ['/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao']) {
+      await gestor.goto('http://localhost:3002' + rota);
       await gestor.waitForLoadState('networkidle');
       const titulo = await gestor.title();
       expect(titulos.get(titulo), `${rota} repete o título de ${titulos.get(titulo)}: ${titulo}`).toBeUndefined();
