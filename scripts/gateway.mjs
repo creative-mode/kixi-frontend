@@ -16,10 +16,6 @@ const ROUTES = [
 const LANDING = { host: process.env.LANDING_HOST ?? '127.0.0.1', port: Number(process.env.LANDING_PORT ?? 3004) };
 
 const pick = (url = '/') => {
-  // Rotas do gestor são recusadas no domínio público: 404 neutro.
-  if (url === '/manager' || url.startsWith('/manager/') || url.startsWith('/manager?')) {
-    return null;
-  }
   const hit = ROUTES.find((r) => url === r.prefix || url.startsWith(r.prefix + '/') || url.startsWith(r.prefix + '?'));
   return hit ?? LANDING;
 };
@@ -93,9 +89,16 @@ const server = http.createServer((req, res) => {
     res.writeHead(302, { location: home, 'cache-control': 'private, no-store', vary: 'Cookie' });
     return res.end();
   }
+  // No domínio público (kixi.creativemode.ao), /manager* não é exposto: 404 neutro.
+  // Em desenvolvimento/local (localhost:3000) o gestor continua acessível através do gateway.
+  const isPublicDomain = req.headers.host?.includes('creativemode.ao');
+  if (isPublicDomain && (req.url === '/manager' || req.url.startsWith('/manager/') || req.url.startsWith('/manager?'))) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('Not Found');
+  }
   const t = pick(req.url);
   if (!t) {
-    // `/manager` e `/manager/*` não existem no domínio público: 404 neutro.
+    // Qualquer outra rota desconhecida: 404 neutro.
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     return res.end('Not Found');
   }
