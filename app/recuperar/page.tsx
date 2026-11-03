@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { ArrowLeft, CircleAlert } from 'lucide-react';
 import { KixiLogo } from '@/components/kixi-logo';
+import { AccessHelp } from '@/components/access-help';
 
+/** O `AuthLayout` já dá o `<main id="conteudo">`: a página não abre outro (landmark-no-duplicate-main, como no login). */
 export default function RecuperarPage() {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
       <div className="flex items-center gap-3">
         <KixiLogo size={28} wordmark />
         <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">Manager</span>
@@ -27,7 +29,7 @@ export default function RecuperarPage() {
           Voltar a iniciar sessão
         </Link>
       </div>
-      <p className="text-center text-xs text-muted-foreground">Problemas no acesso? Contacte o suporte técnico.</p>
-    </main>
+      <AccessHelp />
+    </div>
   );
 }

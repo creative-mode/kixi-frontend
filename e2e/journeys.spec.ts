@@ -496,7 +496,8 @@ test.describe('jornadas críticas do Kixi', () => {
 
     await page.goto('/aluno/prova/2');
     await expect(page).toHaveURL(/\/aluno\/entrar\?/);
-    // O destino vai no `next`, validado contra URLs externos (lib/safe-next.ts).
+    // O destino vai no `next`, validado contra URLs externos (lib/safe-next.ts). Os dois formatos são válidos:
+    // relativo à app (`/prova/2`, o que o safe-next produz) ou com o basePath (`/aluno/prova/2`, o que o proxy pode emitir).
     await expect(page).toHaveURL(/next=(?:%2Fprova%2F2|%2Faluno%2Fprova%2F2)/i);
 
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -518,6 +519,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.goto('/manager/recuperar');
     await expect(page.getByRole('note')).toContainText('Contacte o professor ou a secretaria da escola');
     await expect(page.locator('form')).toHaveCount(0);
+    // Um só landmark principal: o do AuthLayout (a página não abre outro <main>).
+    await expect(page.locator('main')).toHaveCount(1);
   });
 
   test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {
