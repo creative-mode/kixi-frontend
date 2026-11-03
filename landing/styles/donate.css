@@ -3,6 +3,8 @@
    erros e consentimento fora de vista (WCAG 1.4.10). Agora o palco cresce e a página rola. */
 .dn-stage { min-height: 100svh; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
 .dn-top { display: flex; align-items: center; padding-inline: var(--gutter); }
+.dn-top__contact { margin-left: auto; font: 700 13px/1 var(--font-sans); color: var(--lcd-3); text-decoration: underline; }
+
 .dn-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: clamp(10px, 2.5svh, 24px); padding: 0 var(--gutter) clamp(18px, 4svh, 40px); outline: none; }
 /* O banner de cookies é fixo e mora no fundo: a folga é a altura real que ele
    publica em `--ck-banner-h` (#515, medida como no #506), por isso nunca tapa o
@@ -43,6 +45,12 @@
 .dn-field textarea { resize: none; min-height: 56px; }
 .dn-field :focus-visible, .dn-drop:focus-within, .dn-consent__row input:focus-visible { outline: 3px solid var(--lcd-3); outline-offset: 2px; }
 .dn-field [aria-invalid="true"] { background: #c9d98a; border-color: #5c0d0a; }
+.dn-step-hint { margin: 0 0 12px; padding: 10px 12px; background: var(--lcd-1); border: 1px solid var(--lcd-3); border-radius: 0; }
+.dn-step-hint__title { margin: 0 0 4px; font: 800 12px/1.2 var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; color: var(--lp-ink); }
+.dn-step-hint__list { margin: 0; padding-left: 16px; line-height: 1.5; color: var(--lcd-3); }
+.dn-data-warning { margin: 0 0 12px; padding: 8px 10px; font-size: 12px; line-height: 1.4; color: #5c0d0a; background: #fdf6e3; border: 1px solid #5c0d0a; border-radius: 0; }
+.dn-consent__policy { align-self: end; font: 600 11px/1 var(--font-sans); color: var(--lcd-2); text-decoration: underline; cursor: pointer; }
+
 .dn-help { margin: 0; font-size: 13px; line-height: 1.4; }
 .dn-help--small { font-size: 12px; }
 .dn-err { margin: 0; font-size: 13px; font-weight: 800; color: #5c0d0a; }
@@ -84,6 +92,8 @@
 .dn-done { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; outline: none; }
 .dn-done__title { margin: 0; font: 800 clamp(22px, 3.6svh, 30px)/1.1 var(--font-sans); letter-spacing: -0.03em; text-wrap: balance; }
 .dn-done__ref { margin: 4px 0; padding: 10px 14px; font: 400 clamp(16px, 3.4svh, 24px)/1 var(--font-pixel); border: 3px solid var(--lcd-3); background: var(--lcd-1); user-select: all; }
+.dn-done__contact { display: flex; justify-content: center; margin-top: 12px; }
+
 .dn-done__refrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; min-width: 0; max-width: 100%; }
 .dn-done__text { margin: 0; font-size: 14px; line-height: 1.45; max-width: 34ch; }
 /* No ecrã final não há a linha dos passos (.dn-label), que é quem ocupa o topo nos outros: repõe-se o padding que falta para a moldura ficar simétrica. */

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   ACCEPT_ATTR,
-  CONSENT_TEXT_VERSION,
   EXAM_TYPES,
   MAX_FILES,
   MAX_FILE_BYTES,
@@ -13,9 +13,10 @@ import {
   validateFiles,
   type FieldErrors,
 } from '@/lib/donation-rules';
-import { inspectImage, messageFor, type Assessment } from '@/lib/image-quality';
+import { inspectImage, messageFor, prepareFileForUpload, type Assessment } from '@/lib/image-quality';
 import { imagesFrom } from '@/lib/clipboard-images';
 import { track } from '@/lib/analytics';
+import { CONTACT_EMAIL } from '@/lib/content';
 
 type Phase = 'editing' | 'sending' | 'done';
 
@@ -40,11 +41,19 @@ export function DonationForm() {
   const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [problem, setProblem] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(false);
   const [phase, setPhase] = useState<Phase>('editing');
   const [progress, setProgress] = useState(0);
   const [reference, setReference] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [step, setStep] = useState(0);
+
+  const [resized, setResized] = useState<Record<string, File>>({});
+  const resizedRef = useRef<Record<string, File>>({});
+  const selectedFilesRef = useRef<File[]>([]);
+  const [preparingFiles, setPreparingFiles] = useState<Record<string, boolean>>({});
+  const [preparationErrors, setPreparationErrors] = useState<Record<string, string>>({});
+
   // Veredicto da análise de cada foto (undefined = ainda a analisar); os PDFs não são analisados.
   const [checks, setChecks] = useState<Record<string, Assessment | null>>({});
   const [copied, setCopied] = useState(false);
@@ -90,16 +99,37 @@ export function DonationForm() {
       if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
     }
     const added = next.filter((f) => !files.includes(f));
+    selectedFilesRef.current = next;
     setFiles(next);
     setErrors((e) => ({ ...e, files: validateFiles(next) ?? undefined }));
     if (picker.current) picker.current.value = '';
     for (const file of added) {
+      const key = keyOf(file);
       void inspectImage(file).then((result) => setChecks((c) => ({ ...c, [keyOf(file)]: result })));
+      setPreparingFiles((current) => ({ ...current, [key]: true }));
+      void prepareFileForUpload(file).then((prepared) => {
+        if (!selectedFilesRef.current.some((selected) => keyOf(selected) === key)) return;
+        resizedRef.current = { ...resizedRef.current, [key]: prepared };
+        setResized((current) => ({ ...current, [key]: prepared }));
+        setPreparationErrors((current) => { const { [key]: _done, ...rest } = current; return rest; });
+      }).catch(() => {
+        if (!selectedFilesRef.current.some((selected) => keyOf(selected) === key)) return;
+        setPreparationErrors((current) => ({ ...current, [key]: 'Não foi possível preparar esta foto. Remove-a e escolhe outra.' }));
+      }).finally(() => {
+        setPreparingFiles((current) => { const { [key]: _done, ...rest } = current; return rest; });
+      });
     }
   }
 
   function removeFile(index: number) {
+    const removed = files[index];
+    const key = keyOf(removed);
     const next = files.filter((_, i) => i !== index);
+    selectedFilesRef.current = next;
+    delete resizedRef.current[key];
+    setResized((current) => { const { [key]: _gone, ...rest } = current; return rest; });
+    setPreparingFiles((current) => { const { [key]: _gone, ...rest } = current; return rest; });
+    setPreparationErrors((current) => { const { [key]: _gone, ...rest } = current; return rest; });
     setFiles(next);
     setChecks((c) => { const { [keyOf(files[index])]: _gone, ...rest } = c; return rest; });
     setErrors((e) => ({ ...e, files: next.length ? validateFiles(next) ?? undefined : undefined }));
@@ -119,42 +149,83 @@ export function DonationForm() {
     copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
   }
 
-  function send(form: FormData) {
+  const RETRY_COUNT = 3;
+  const REQUEST_TIMEOUT_MS = 60_000;
+
+  function parseResponse(request: XMLHttpRequest) {
+    let body: { reference?: string; error?: string; fieldErrors?: FieldErrors } = {};
+    try {
+      body = JSON.parse(request.responseText);
+    } catch {
+      // resposta que não é nossa: cai na mensagem genérica abaixo
+    }
+    return body;
+  }
+
+  async function send(form: FormData) {
     setPhase('sending');
     setProgress(0);
     setProblem(null);
-    const request = new XMLHttpRequest();
-    request.open('POST', '/api/doar');
-    request.upload.onprogress = (event) => {
-      if (event.lengthComputable) setProgress(Math.round((event.loaded / event.total) * 100));
-    };
-    request.onerror = () => {
-      setPhase('editing');
-      setProblem('Sem ligação. Verifica a internet e tenta outra vez; os ficheiros continuam aqui.');
-    };
-    request.onload = () => {
-      let body: { reference?: string; error?: string; fieldErrors?: FieldErrors } = {};
-      try {
-        body = JSON.parse(request.responseText);
-      } catch {
-        // resposta que não é nossa: cai na mensagem genérica abaixo
-      }
-      if (request.status === 201 && body.reference) {
-        setReference(body.reference);
-        setPhase('done');
-        // #219 "doação submetida": sem o conteúdo, só que uma aconteceu.
-        track('donation_submitted');
-        return;
-      }
-      setPhase('editing');
-      if (body.fieldErrors) setErrors(body.fieldErrors);
-      setProblem(body.error ?? 'Não foi possível enviar agora. Tenta outra vez daqui a pouco.');
-    };
-    request.send(form);
+    setRetryable(false);
+
+    for (let attempt = 1; attempt <= RETRY_COUNT + 1; attempt++) {
+      const request = new XMLHttpRequest();
+      request.timeout = REQUEST_TIMEOUT_MS;
+      request.open('POST', '/api/doar');
+      setProgress(0);
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) setProgress(Math.round((event.loaded / event.total) * 100));
+      };
+
+      const done = new Promise<'ok' | 'fail' | 'retry'>((resolve) => {
+        request.onload = () => {
+          const body = parseResponse(request);
+          if (request.status === 201 && body.reference) {
+            setReference(body.reference);
+            setPhase('done');
+            // #219 "doação submetida": sem o conteúdo, só que uma aconteceu.
+            track('donation_submitted');
+            resolve('ok');
+            return;
+          }
+          setPhase('editing');
+          if (body.fieldErrors) setErrors(body.fieldErrors);
+          setProblem(body.error ?? `Resposta inesperada do servidor (${request.status}).`);
+          setRetryable(request.status === 429 || request.status >= 500);
+          resolve('fail');
+        };
+
+        request.onerror = () => {
+          setPhase('editing');
+          setProblem('Sem ligação. Verifica a internet e tenta outra vez; os ficheiros continuam aqui.');
+          setRetryable(true);
+          resolve('fail');
+        };
+
+        request.ontimeout = () => {
+          if (attempt <= RETRY_COUNT) {
+            setProblem('A subida demorou. Repetindo…');
+            resolve('retry');
+          } else {
+            setPhase('editing');
+            setProblem('A subida demorou demasiado. Tenta outra vez; os ficheiros continuam aqui.');
+            setRetryable(true);
+            resolve('fail');
+          }
+        };
+      });
+
+      request.send(form);
+      const outcome = await done;
+      if (outcome === 'ok') return;
+      if (outcome === 'fail') return;
+    }
   }
 
   /** Fotos que não servem (ou ainda em análise) impedem de avançar; as com só um aviso passam. */
   function photoProblem(): string | null {
+    if (files.some((f) => preparationErrors[keyOf(f)])) return 'Há uma foto que não foi preparada. Remove-a e escolhe outra.';
+    if (files.some((f) => !(keyOf(f) in resized))) return 'A preparar as fotos… tenta outra vez num segundo.';
     if (files.some((f) => !(keyOf(f) in checks))) return 'A analisar as fotos… tenta outra vez num segundo.';
     if (files.some((f) => checks[keyOf(f)]?.verdict === 'reject')) return 'Há fotos que não servem. Troca ou remove as assinaladas.';
     return null;
@@ -215,7 +286,10 @@ export function DonationForm() {
     for (const [key, value] of Object.entries(fields)) outgoing.append(key, String(value));
     outgoing.set('website', String(data.get('website') ?? ''));
     outgoing.set('formStartedAt', String(startedAt.current));
-    for (const file of files) outgoing.append('files', file, file.name);
+    for (const file of files) {
+      const next = resizedRef.current[keyOf(file)];
+      outgoing.append('files', next ?? file, (next ?? file).name);
+    }
     send(outgoing);
   }
 
@@ -240,6 +314,11 @@ export function DonationForm() {
           <p className="dn-done__text">
             Guarda este código: é com ele que falas connosco sobre esta doação. Vamos rever o enunciado antes de o publicar.
           </p>
+          <div className="dn-done__contact">
+            <Link href={CONTACT_EMAIL ? `mailto:${CONTACT_EMAIL}` : '/contact'} className="kx-btn kx-btn--sm kx-btn--secondary">
+              {CONTACT_EMAIL ? `Contactar (${CONTACT_EMAIL})` : 'Contactar'}
+            </Link>
+          </div>
         </div></div>
         <div className="dn-pad">
           <span className="kx-btn-wrap kx-scope"><button
@@ -247,6 +326,12 @@ export function DonationForm() {
             className="kx-btn kx-btn--a"
             onClick={() => {
               setFiles([]);
+              selectedFilesRef.current = [];
+              resizedRef.current = {};
+              setResized({});
+              setPreparingFiles({});
+              setPreparationErrors({});
+              setChecks({});
               setErrors({});
               setProblem(null);
               setReference(null);
@@ -271,6 +356,8 @@ export function DonationForm() {
     errors[name] ? <p className="dn-err" id={`${id(name)}-err`}>! {errors[name]}</p> : null;
   const total = files.reduce((sum, f) => sum + f.size, 0);
 
+  const preparedTotal = files.reduce((sum, file) => sum + (resized[keyOf(file)]?.size ?? file.size), 0);
+
   return (
     <form ref={formRef} className="dn-console" onSubmit={onSubmit} noValidate aria-busy={sending}>
       <div className="dn-label">
@@ -281,6 +368,26 @@ export function DonationForm() {
         <noscript>
           <p className="dn-err">Este formulário precisa de JavaScript para enviar os ficheiros.</p>
         </noscript>
+
+        {/* Informação de contexto: o que acontece, quem vê e o prazo, antes de começar a preencher. */}
+        <div className="dn-step-hint">
+          <p className="dn-step-hint__title">O que acontece</p>
+          <ul className="dn-step-hint__list">
+            <li>A equipa Kixi revê o enunciado antes de o publicar.</li>
+            <li>Depois de publicado, fica disponível a alunos e professores.</li>
+            <li>Não há prazo fixo para a revisão; depende do volume de doações.</li>
+          </ul>
+        </div>
+
+        {/* O browser não identifica dados móveis em todos os telemóveis; o aviso é explícito e útil em qualquer rede. */}
+        {step === 0 && (
+          <div className="dn-data-warning">
+            <p>
+              Se estiveres a usar dados móveis, as fotos são reduzidas neste dispositivo antes do envio.
+              {files.length ? ` Tamanho estimado do envio: ${size(preparedTotal)}.` : ' Escolhe os ficheiros para estimar o tamanho do envio.'}
+            </p>
+          </div>
+        )}
 
         {/* Os três ecrãs ficam no formulário (só um visível): o envio leva sempre todos os campos. */}
         <fieldset className="dn-screen" hidden={step !== 0} disabled={sending}>
@@ -323,8 +430,11 @@ export function DonationForm() {
                   return (
                   <li key={keyOf(file)} className={`dn-files__item dn-files__item--${tone}`}>
                     <span className="dn-files__name">{file.name}</span>
-                    <span className="dn-files__size">{keyOf(file) in checks ? size(file.size) : 'a analisar…'}</span>
+                    <span className="dn-files__size">
+                      {preparingFiles[keyOf(file)] ? 'a reduzir…' : resized[keyOf(file)] ? size(resized[keyOf(file)].size) : 'preparação falhou'}
+                    </span>
                     <button type="button" className="dn-files__remove" onClick={() => removeFile(index)} aria-label={`Remover ${file.name}`}>×</button>
+                    {preparationErrors[keyOf(file)] && <span className="dn-files__note" role="alert">{preparationErrors[keyOf(file)]}</span>}
                     {note && <span className="dn-files__note" role={tone === 'bad' ? 'alert' : undefined}>{tone === 'bad' ? 'x ' : '! '}{note}</span>}
                   </li>
                   );
@@ -411,11 +521,14 @@ export function DonationForm() {
               <span>
                 Tenho direito a partilhar este enunciado e aceito que o Kixi o reveja, o trate (incluindo leitura automática do texto)
                 e o publique na plataforma para estudo. Se deixei o e-mail, aceito ser contactado sobre esta doação. *
+                <Link href="/privacidade" className="dn-consent__policy">
+                  Política de Privacidade
+                </Link>
               </span>
             </label>
             {fieldError('consent')}
             <p className="dn-help dn-help--small">
-              Não guardamos o teu endereço de rede, só uma marca irreversível para travar abusos. Consentimento v{CONSENT_TEXT_VERSION}.
+              Não guardamos o teu endereço de rede, só uma marca irreversível para travar abusos.
             </p>
           </div>
         </fieldset>
@@ -443,7 +556,7 @@ export function DonationForm() {
         <span className="kx-btn-wrap kx-scope dn-pad__next">
           {last ? (
             <button key="enviar" type="submit" className="kx-btn kx-btn--a" disabled={sending}>
-              <span className="kx-btn__label">{sending ? 'A enviar…' : 'Doar'}</span>
+              <span className="kx-btn__label">{sending ? 'A enviar…' : retryable ? 'Tentar novamente' : 'Doar'}</span>
             </button>
           ) : (
             <button key="continuar" type="button" className="kx-btn kx-btn--a" onClick={next} disabled={sending}>

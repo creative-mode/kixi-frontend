@@ -210,6 +210,62 @@ export function messageFor(a: Assessment): string | null {
   const first = a.reasons.find((r) => BLOCKING.includes(r)) ?? a.reasons[0];
   return first ? MESSAGES[first] : null;
 }
+/** Codifica um canvas como um Blob JPEG. */
+async function encodeCanvas(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob(
+      (blob) => resolve(blob),
+      'image/jpeg',
+      quality,
+    );
+  });
+}
+
+/**
+ * Prepara uma foto para o envio: o lado maior fica no máximo com 1600 px e o ficheiro sai até 2 MB,
+ * codificada como JPEG (qualidade 0.8 a partir). Os PDFs são devolvidos ilesos:
+ * o redimensionamento só faz sentido para imagens, e o backend revalida o que é enviado.
+ */
+export async function prepareFileForUpload(file: File): Promise<File> {
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) return file;
+
+  const maxSide = 1600;
+  const maxBytes = 2 * 1024 * 1024;
+  const bitmap = await createImageBitmap(file);
+  try {
+    if (file.size <= maxBytes && Math.max(bitmap.width, bitmap.height) <= maxSide) return file;
+
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('sem contexto de canvas');
+
+    let w = Math.max(1, Math.round(bitmap.width * scale));
+    let h = Math.max(1, Math.round(bitmap.height * scale));
+    let blob: Blob | null = null;
+    while (Math.max(w, h) >= 900) {
+      canvas.width = w;
+      canvas.height = h;
+      context.fillStyle = 'rgb(255 255 255)';
+      context.fillRect(0, 0, w, h);
+      context.drawImage(bitmap, 0, 0, w, h);
+
+      for (let quality = 0.8; quality >= 0.5; quality -= 0.05) {
+        blob = await encodeCanvas(canvas, quality);
+        if (blob && blob.size <= maxBytes) {
+          const jpgName = file.name.replace(/\.[^.]+$/, '.jpg');
+          return new File([blob], jpgName, { type: 'image/jpeg' });
+        }
+      }
+
+      w = Math.round(w * 0.9);
+      h = Math.round(h * 0.9);
+    }
+    throw new Error('A foto não ficou abaixo de 2 MB sem reduzir demasiado a leitura.');
+  } finally {
+    bitmap.close();
+  }
+}
 
 /** Loads a file, shrinks it and assesses it. PDFs are not looked at (they cannot be drawn here). */
 export async function inspectImage(file: File): Promise<Assessment | null> {

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Logo } from '@/components/kixi';
+import { CONTACT_EMAIL } from '@/lib/content';
 import { DonationForm } from '@/components/donate/DonationForm';
 import '@/styles/donate.css';
 
@@ -30,6 +31,13 @@ export default function Donate() {
       <header className="dn-top">
         <Link href="/" aria-label="Kixi, início" className="site-header__logo">
           <Logo size={28} wordmark />
+        </Link>
+        <Link
+          href={CONTACT_EMAIL ? `mailto:${CONTACT_EMAIL}` : '/contact'}
+          className="dn-top__contact"
+          aria-label="Contacto da Kixi"
+        >
+          Contacto
         </Link>
       </header>
       <main id="conteudo" tabIndex={-1} className="dn-main">
