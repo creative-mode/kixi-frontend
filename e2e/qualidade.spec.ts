@@ -44,6 +44,22 @@ const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfi
 const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
 const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
 
+/** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
+ *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
+ *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
+ *  `getByRole` nem a via ("element(s) not found"). */
+async function irAoFim(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+        return page.evaluate(() => window.innerHeight + window.scrollY >= document.body.scrollHeight - 2);
+      },
+      { message: 'chegar ao fim da página', timeout: 15000 },
+    )
+    .toBe(true);
+}
+
 for (const vp of VIEWPORTS) {
   test.describe(`acessibilidade, ${vp.nome}`, () => {
     test.use({ viewport: vp.size, isMobile: vp.size.width < 500 });
@@ -845,7 +861,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     });
     expect(noTopo, 'CTA invisível não recebe foco').toBe(false);
     // No fim da história a cena acende e o botão entra no Tab.
-    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    await irAoFim(page);
     const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
     await expect(cenaOutro, 'a cena do fim acende').toHaveAttribute('aria-hidden', 'false', { timeout: 15000 });
     await expect(outro).toBeVisible();
@@ -1032,7 +1048,7 @@ test.describe('CTA de registo da landing (#512)', () => {
     // Em runner carregado a hidratação demora: os 15 s são os dos testes irmãos.
     await expect(page.locator('#solucao')).toBeAttached({ timeout: 15000 });
     // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
-    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    await irAoFim(page);
     const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
     await expect(outro).toBeVisible({ timeout: 15000 });
     await outro.click();
