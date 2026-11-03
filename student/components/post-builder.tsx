@@ -11,7 +11,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { enviarImagemPostAction, publishBuiltPostAction } from '@/lib/feed-actions';
 import {
-  BLOCK_LABEL, LIMITS, TEMPLATES, TONE_LABEL, emptyBlock, moved, payloadOf, problemOf, templateBlocks,
+  BLOCK_LABEL, LIMITS, TEMPLATES, TONE_LABEL, emptyBlock, imagesWithoutAlt, moved, payloadOf, problemOf, templateBlocks,
   type BlockDraft, type BlockType, type BuiltKind, type CalloutTone, type Template,
 } from '@/lib/post-blocks';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ function ImageField({ block, label, onChange }: { block: BlockDraft; label: stri
         <span className="text-[13px] text-muted-foreground">PNG, JPG ou WEBP, até 2 MB</span>
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}
-      <Input aria-label={`${label}: descrição da imagem`} placeholder="Descrição para quem não vê a imagem" maxLength={150} value={block.alt ?? ''} onChange={(e) => onChange({ alt: e.target.value })} />
+      <Input id={`${block.key}-alt`} aria-label={`${label}: descrição da imagem`} placeholder="Descrição para quem não vê a imagem" maxLength={150} value={block.alt ?? ''} onChange={(e) => onChange({ alt: e.target.value })} />
       <Input aria-label={`${label}: legenda`} placeholder="Legenda (opcional)" maxLength={LIMITS.caption} value={block.caption ?? ''} onChange={(e) => onChange({ caption: e.target.value })} />
     </div>
   );
@@ -126,6 +126,8 @@ export function PostBuilder({ classId }: { classId: number }) {
   const [blocks, setBlocks] = useState<BlockDraft[]>(() => templateBlocks(TEMPLATES[0]));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  /** O aviso das imagens sem descrição foi mostrado nesta tentativa de publicar. */
+  const [altWarning, setAltWarning] = useState(false);
 
   const filled = payloadOf(blocks);
   const kind: BuiltKind = template.kind;
@@ -139,15 +141,34 @@ export function PostBuilder({ classId }: { classId: number }) {
   const update = (key: string, patch: Partial<BlockDraft>) => setBlocks((list) => list.map((b) => (b.key === key ? { ...b, ...patch } : b)));
   const add = (type: BlockType) => setBlocks((list) => (list.length >= LIMITS.blocks ? list : [...list, emptyBlock(type)]));
 
-  const publish = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (problem) { setError(problem); return; }
+  // As posições contam na lista do construtor (a mesma numeração dos rótulos «Imagem 5»).
+  const withoutAlt = imagesWithoutAlt(blocks);
+  const showAltWarning = altWarning && withoutAlt.length > 0;
+
+  const send = () => {
     setError(null);
+    setAltWarning(false);
     startTransition(async () => {
       const result = await publishBuiltPostAction(classId, kind, title, blocks);
       if (result.ok) router.push('/inicio');
       else setError(result.message);
     });
+  };
+
+  /**
+   * Uma imagem sem descrição não impede de publicar, mas só se publica assim por «Publicar mesmo assim»: enquanto
+   * faltar uma descrição, «Publicar» (de novo, ou com Enter) volta sempre ao aviso, em vez de o contornar.
+   */
+  const publish = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (problem) { setError(problem); return; }
+    if (withoutAlt.length > 0) { setError(null); setAltWarning(true); return; }
+    send();
+  };
+
+  const writeAlt = () => {
+    setAltWarning(false);
+    document.getElementById(`${blocks[withoutAlt[0]!]!.key}-alt`)?.focus();
   };
 
   return (
@@ -208,6 +229,18 @@ export function PostBuilder({ classId }: { classId: number }) {
           {filled.length > 0 ? <PostBlocksView blocks={filled} /> : <p className="text-sm text-muted-foreground">Preenche os blocos e vê aqui como a publicação vai aparecer na turma.</p>}
         </section>
         <div aria-live="polite">{error && <Alert variant="destructive">{error}</Alert>}</div>
+        {showAltWarning && (
+          <div role="alert" className="grid gap-3 rounded-lg border border-warning/30 bg-warning-soft p-3 text-sm text-warning">
+            <p>
+              {withoutAlt.length === 1 ? 'Há 1 imagem sem descrição' : `Há ${withoutAlt.length} imagens sem descrição`}{' '}
+              ({withoutAlt.map((i) => `${BLOCK_LABEL.image} ${i + 1}`).join(', ')}). Quem usa um leitor de ecrã não vai saber o que mostra{withoutAlt.length === 1 ? '' : 'm'}.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" onClick={writeAlt}>Escrever a descrição</Button>
+              <Button type="button" onClick={send} disabled={pending}>Publicar mesmo assim</Button>
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => router.push('/inicio')}>Cancelar</Button>
           <Button type="submit" disabled={pending || !!problem}>{pending ? 'A publicar…' : 'Publicar'}</Button>

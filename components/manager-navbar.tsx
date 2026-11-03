@@ -24,6 +24,7 @@ import {
   Gift,
   BadgeCheck,
   Flag,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ const allNavLinks: NavLink[] = [
   { href: "/donations", label: "Doações", icon: Gift },
   { href: "/verification", label: "Verificação", icon: BadgeCheck },
   { href: "/moderacao", label: "Moderação", icon: Flag },
+  { href: "/moderacao/auditoria", label: "Auditoria", icon: ScrollText },
   ...NAV_KEYS.map((k) => {
     const e = ENTITIES[k];
     return { href: `/${e.path}`, label: e.plural, icon: e.icon };

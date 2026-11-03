@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,6 +40,10 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const [baseline, setBaseline] = useState('');
   const dirty = !loading && baseline !== '' && JSON.stringify(values) !== baseline;
   const { guard, leaveAfterSave, dialog } = useUnsavedChanges(dirty);
+  // A lista traz a vista no endereço (`?q=&sort=&dir=&page=`): o voltar, o
+  // cancelar e o guardar devolvem-na, para o editar não perder a pesquisa.
+  const backQs = useSearchParams().toString();
+  const listHref = backQs ? `/${entity.path}?${backQs}` : `/${entity.path}`;
 
   useEffect(() => {
     let alive = true;
@@ -121,7 +125,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       // Uma escola nova ainda está vazia: leva direto ao assistente de estrutura (cursos, turmas, professores).
       const createdId = !editing && entityKey === 'institutions' ? Number((res.data as Row | undefined)?.id) : NaN;
       leaveAfterSave(() => {
-        router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
+        router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : listHref);
         router.refresh();
       });
     } else toast.error(res.error);
@@ -138,7 +142,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
         entity={entity}
         title={editing ? `Editar ${entity.singular.toLowerCase()}` : `${newLabel(entity)} ${entity.singular.toLowerCase()}`}
         subtitle={editing ? title : entity.description}
-        back={{ href: `/${entity.path}`, label: 'Voltar à lista' }}
+        back={{ href: listHref, label: 'Voltar à lista' }}
       />
       <Card>
         <CardContent className="p-6">
@@ -195,7 +199,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
               })}
               {/* O rato não tira o foco ao campo: senão o blur insere o erro, o botão desce e o clique perde-se. */}
               <div className="flex justify-end gap-3 pt-2" onMouseDown={(e) => e.preventDefault()}>
-                <Button type="button" variant="outline" onClick={() => guard(() => router.push(`/${entity.path}`))} disabled={saving}>Cancelar</Button>
+                <Button type="button" variant="outline" onClick={() => guard(() => router.push(listHref))} disabled={saving}>Cancelar</Button>
                 {/* Uma escola nova leva ao assistente da estrutura: não há «criar outro» para ela. */}
                 {!editing && entityKey !== 'institutions' ? <Button type="button" variant="outline" onClick={() => void save(true)} disabled={saving}>Guardar e criar outro</Button> : null}
                 <Button type="submit" disabled={saving}>{saving ? 'A guardar…' : editing ? 'Guardar alterações' : `Criar ${entity.singular.toLowerCase()}`}</Button>
