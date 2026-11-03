@@ -947,6 +947,7 @@ test.describe('CTA de registo da landing (#512)', () => {
     await page.setViewportSize({ width: 360, height: 640 });
     await semEscolha(page);
     await page.goto('/');
+    await page.evaluate(() => document.fonts.check('16px "Plus Jakarta Sans"'));
     const cabecalho = page.locator('header.site-header');
     const criar = cabecalho.getByRole('link', { name: 'Criar conta' });
     await expect(criar).toBeInViewport();
