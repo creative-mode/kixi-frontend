@@ -1,11 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Flag } from 'lucide-react';
+import Link from 'next/link';
+import { Flag, ScrollText } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { FilterTabs, filterPanelProps } from '@/components/crud/filter-tabs';
 import { Pagination } from '@/components/crud/pagination';
@@ -19,11 +28,14 @@ import {
   DECISION_LABEL,
   DECISION_NOTE,
   DECISIONS,
+  NOTA_MINIMA,
   REASON_LABEL,
   STATUS_LABEL,
   TARGET_LABEL,
   contarPorMotivo,
+  decisionExigeNota,
   decisionValida,
+  notaDecisaoError,
   porAlvo,
   type Decision,
   type Report,
@@ -87,6 +99,9 @@ export function ModerationQueue() {
 
   async function confirmar() {
     if (!aAbrir) return;
+    // A barreira repete-se aqui: o botão já vem desativado sem nota válida,
+    // mas a decisão é um endpoint e valida-se de novo antes de a pedir.
+    if (notaDecisaoError(aAbrir.decision, nota)) return;
     setOcupado(true);
     setErro(null);
     const r = await decideReport(aAbrir.report.id, aAbrir.decision, aAbrir.report.target, nota);
@@ -98,16 +113,26 @@ export function ModerationQueue() {
     }
   }
 
+  // Ocultar e suspender pedem nota escrita (mínimo): sem ela o confirmar nem ativa.
+  const erroNota = aAbrir ? notaDecisaoError(aAbrir.decision, nota) : null;
+
   if (erro && !reports) return <p className="text-sm text-destructive">{erro}</p>;
   if (!reports) return <p className="text-sm text-muted-foreground">A carregar denúncias…</p>;
 
   return (
     <div className="grid gap-6">
-      <header>
-        <h1 className="text-2xl font-bold text-foreground md:text-3xl">Moderação</h1>
-        <p className="text-sm text-muted-foreground">
-          Denúncias de perfis e de escolas. Só o administrador decide, e cada decisão fica registada.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground md:text-3xl">Moderação</h1>
+          <p className="text-sm text-muted-foreground">
+            Denúncias de perfis e de escolas. Só o administrador decide, e cada decisão fica registada.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/moderacao/auditoria">
+            <ScrollText size={16} aria-hidden /> Ver auditoria
+          </Link>
+        </Button>
       </header>
 
       <FilterTabs
@@ -147,10 +172,21 @@ export function ModerationQueue() {
               return (
                 <Card key={chave}>
                   <CardHeader>
-                    <CardTitle className="text-base">
-                      {primeiro.targetName}
-                      <Badge variant="outline" className="ml-2">{TARGET_LABEL[primeiro.target]}</Badge>
-                      {extra > 0 && <span className="ml-2 text-sm font-normal text-muted-foreground">+{extra} denúncia(s) do mesmo alvo</span>}
+                    <CardTitle className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base">
+                      <span>{primeiro.targetName}</span>
+                      <Badge variant="outline">{TARGET_LABEL[primeiro.target]}</Badge>
+                      {extra > 0 && <span className="text-sm font-normal text-muted-foreground">+{extra} denúncia(s) do mesmo alvo</span>}
+                      <span className="ml-auto">
+                        {primeiro.target === 'INSTITUTION' ? (
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/institutions/${primeiro.targetId}/structure`}>Ver escola</Link>
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/accounts?q=${encodeURIComponent(primeiro.targetName)}`}>Ver nas contas</Link>
+                          </Button>
+                        )}
+                      </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-3">
@@ -185,29 +221,52 @@ export function ModerationQueue() {
           </section>
         )}
 
-        {separador === 'por-decidir' && aAbrir && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {DECISION_LABEL[aAbrir.decision]} — {aAbrir.report.targetName}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p className="text-sm text-muted-foreground">{DECISION_NOTE[aAbrir.decision]}</p>
-              <Textarea
-                value={nota} onChange={(e) => setNota(e.target.value)} rows={3}
-                placeholder="Porquê esta decisão (fica no registo de auditoria)"
-                aria-label="Nota da decisão"
-              />
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setAAbrir(null)} disabled={ocupado}>Cancelar</Button>
-                <Button size="sm" onClick={confirmar} disabled={ocupado} data-testid="moderacao-confirmar">
-                  {ocupado ? 'A guardar…' : `Confirmar: ${DECISION_LABEL[aAbrir.decision]}`}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* A decisão abre em diálogo modal: foco direto na nota, Esc fecha e o
+            foco volta ao botão que abriu. Antes o painel nascia depois de toda a
+            lista, fora do ecrã e sem scroll nem foco. */}
+        <Dialog
+          open={aAbrir !== null}
+          onOpenChange={(aberto) => {
+            if (!aberto) setAAbrir(null);
+          }}
+        >
+          <DialogContent>
+            {aAbrir && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    {DECISION_LABEL[aAbrir.decision]} — {aAbrir.report.targetName}
+                  </DialogTitle>
+                  <DialogDescription>{DECISION_NOTE[aAbrir.decision]}</DialogDescription>
+                </DialogHeader>
+                <Textarea
+                  value={nota}
+                  onChange={(e) => setNota(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  placeholder="Porquê esta decisão (fica no registo de auditoria)"
+                  aria-label="Nota da decisão"
+                  aria-invalid={!!erroNota}
+                  aria-describedby="nota-decisao-dica"
+                />
+                <p id="nota-decisao-dica" className={erroNota ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
+                  {erroNota ??
+                    (decisionExigeNota(aAbrir.decision)
+                      ? `Obrigatória, com pelo menos ${NOTA_MINIMA} caracteres: é ela que explica a decisão daqui a meses.`
+                      : 'Opcional, fica no registo de auditoria.')}
+                </p>
+                <DialogFooter>
+                  <Button variant="outline" size="sm" onClick={() => setAAbrir(null)} disabled={ocupado}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={confirmar} disabled={ocupado || !!erroNota} data-testid="moderacao-confirmar">
+                    {ocupado ? 'A guardar…' : `Confirmar: ${DECISION_LABEL[aAbrir.decision]}`}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {separador === 'decididas' && (
           <section aria-label="Denúncias decididas" className="grid gap-3">

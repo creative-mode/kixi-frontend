@@ -1154,3 +1154,62 @@ test.describe('cache da landing (#522)', () => {
     expect(r.headers()['cache-control'] ?? '').toContain('no-store');
   });
 });
+
+/** Moderação com diálogo e nota a sério (#525): antes o painel nascia depois de
+ *  toda a lista, fora do ecrã e sem foco, a nota "pedida" era opcional e o alvo
+ *  não tinha ligação. Agora é diálogo modal com foco na nota, nota obrigatória
+ *  para ocultar/suspender e alvo com saída. Nada aqui decide de verdade: abrir,
+ *  validar e fechar não mutam nada, por isso os testes não se estragam entre si. */
+test.describe('moderação com diálogo, nota e auditoria (#525)', () => {
+  test('clicar numa decisão abre diálogo modal com foco na nota', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await expect(page.getByLabel('Nota da decisão')).toBeFocused();
+    expect(await graves(page), 'diálogo da decisão').toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+  });
+
+  test('ocultar não confirma sem nota de pelo menos 10 caracteres', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const confirmar = page.getByRole('button', { name: /^Confirmar/ });
+    await expect(confirmar).toBeDisabled();
+    await expect(page.getByText(/pelo menos 10 caracteres/)).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('curta');
+    await expect(confirmar).toBeDisabled();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    await expect(confirmar).toBeEnabled();
+    await page.keyboard.press('Escape');
+  });
+
+  test('Esc fecha e devolve o foco ao botão que abriu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    const botao = page.getByRole('button', { name: /^Ocultar/ }).first();
+    await botao.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(botao).toBeFocused();
+  });
+
+  test('o cartão do alvo tem ligação (escola ou contas)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await expect(page.getByRole('link', { name: /Ver (escola|nas contas)/ }).first()).toBeVisible();
+  });
+
+  test('a auditoria é alcançável em 1 clique, no topo e no menu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await expect(page.getByRole('link', { name: 'Auditoria', exact: true })).toBeVisible();
+    await page.getByRole('main').getByRole('link', { name: 'Ver auditoria' }).click();
+    await expect(page).toHaveURL(/\/moderacao\/auditoria$/);
+    await expect(page.getByRole('heading', { name: 'Auditoria' })).toBeVisible();
+  });
+});
