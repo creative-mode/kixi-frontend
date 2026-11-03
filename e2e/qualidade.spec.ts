@@ -1201,10 +1201,20 @@ test.describe('moderação com diálogo, nota e auditoria (#525)', () => {
     await expect(botao).toBeFocused();
   });
 
-  test('o cartão do alvo tem ligação (escola ou contas)', async ({ page }) => {
+  test('o cartão do alvo liga por id (escola ou conta)', async ({ page }) => {
     await gestorLogin(page);
     await page.goto('/manager/moderacao');
-    await expect(page.getByRole('link', { name: /Ver (escola|nas contas)/ }).first()).toBeVisible();
+    // Escola: estrutura direta por id.
+    const escola = page.getByRole('link', { name: 'Ver escola' }).first();
+    await expect(escola).toHaveAttribute('href', /\/institutions\/\d+\/structure$/);
+    // Pessoa: registo da conta por id — o nome da denúncia vive no registo da
+    // pessoa, e na lista só há o username (homónimos incluídos), por isso o
+    // `?q=nome` não chegava lá.
+    const conta = page.getByRole('link', { name: 'Ver conta' }).first();
+    await expect(conta).toHaveAttribute('href', /\/accounts\/\d+\/edit$/);
+    await conta.click();
+    await expect(page).toHaveURL(/\/accounts\/\d+\/edit$/);
+    await expect(page.getByLabel(/Utilizador/)).toBeVisible();
   });
 
   test('a auditoria é alcançável em 1 clique, no topo e no menu', async ({ page }) => {

@@ -216,8 +216,14 @@ export function ModerationQueue() {
                             <Link href={`/institutions/${primeiro.targetId}/structure`}>Ver escola</Link>
                           </Button>
                         ) : (
+                          // Por id e não por nome: o nome da denúncia vive no registo
+                          // da pessoa, e na lista de contas só há o username
+                          // («Administrador Kixi» vs `admin`) — homónimos incluídos.
+                          // O destino direto por id é o registo da conta.
                           <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/accounts?q=${encodeURIComponent(primeiro.targetName)}`}>Ver nas contas</Link>
+                            <Link href={`/accounts/${primeiro.targetId}/edit`} title="Ver a conta denunciada">
+                              Ver conta
+                            </Link>
                           </Button>
                         )}
                       </span>
