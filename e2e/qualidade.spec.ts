@@ -1171,6 +1171,36 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     );
   }
 
+  /** N respostas POST com sucesso ao padrão: prova que a leitura terminou mesmo,
+   *  não só que o erro se apagou ao clicar (o `load` limpa o erro antes de a
+   *  resposta chegar). */
+  function contarPosts(page: Page, padrao: string) {
+    void page.evaluate(() => {
+      (window as unknown as { __ok?: number }).__ok = 0;
+    });
+    page.on('response', (r) => {
+      if (r.request().method() === 'POST' && r.url().includes(padrao) && r.ok()) {
+        void page.evaluate(() => {
+          const w = window as unknown as { __ok?: number };
+          w.__ok = (w.__ok ?? 0) + 1;
+        });
+      }
+    });
+    return {
+      async total(n: number) {
+        try {
+          await page.waitForFunction(
+            (esperadas: number) => ((window as unknown as { __ok?: number }).__ok ?? 0) >= esperadas,
+            n,
+            { timeout: 30000 },
+          );
+        } finally {
+          page.removeAllListeners('response');
+        }
+      },
+    };
+  }
+
   test('gestor: ano letivo falhado mostra erro com retry, não "criar primeiro"', async ({ page }) => {
     await gestorLogin(page);
     await avariarPOST(page, '**/manager/school-year');
@@ -1180,12 +1210,34 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     // O defeito era este CTA: a falha pintava "lista vazia" com "criar primeiro".
     await expect(page.getByRole('link', { name: 'Criar primeiro ano letivo' })).toHaveCount(0);
     expect(await graves(page), 'school-year em erro').toEqual([]);
-    // Com a rede de volta, o retry traz a lista (ou o vazio verdadeiro, sem erro).
+    // Com a rede de volta, o retry traz a lista (ou o vazio verdadeiro, sem erro):
+    // espera-se a resposta, não só o sumiço do botão, e valida-se o recuperado.
+    const conta = contarPosts(page, '/manager/school-year');
     await page.unroute('**/manager/school-year');
     await tentar.click();
-    // O botão de retry desmonta com o erro. (Não se conta `alert`: o Next injeta
-    // um anunciador de rota próprio com esse papel.)
-    await expect(tentar).toHaveCount(0);
+    await conta.total(1);
+    await expect(
+      page
+        .getByText('Nenhum ano letivo registado ainda.')
+        .or(page.locator('tbody a[href^="/school-year/"]'))
+        .first(),
+      'lista ou vazio legítimo',
+    ).toBeVisible();
+    // Segunda falha a seguir ao retry: o erro volta, para não testar só o caminho feliz.
+    await avariarPOST(page, '**/manager/school-year');
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
+    const conta2 = contarPosts(page, '/manager/school-year');
+    await page.unroute('**/manager/school-year');
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+    await conta2.total(1);
+    await expect(
+      page
+        .getByText('Nenhum ano letivo registado ainda.')
+        .or(page.locator('tbody a[href^="/school-year/"]'))
+        .first(),
+      'lista ou vazio legítimo após a segunda falha',
+    ).toBeVisible();
   });
 
   test('gestor: counts falhados mostram erro e retry, não esqueleto infinito', async ({ page }) => {
@@ -1197,17 +1249,22 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     const tentar = cadastros.getByRole('button', { name: 'Tentar novamente' });
     await expect(tentar).toBeVisible();
     expect(await graves(page), 'dashboard em erro').toEqual([]);
+    const conta = contarPosts(page, '/manager');
     await page.unroute('**/manager');
     await tentar.click();
+    await conta.total(1);
     await expect(cadastros.getByRole('alert')).toHaveCount(0);
+    // Recuperado a sério: os tiles voltam, não só o erro que se apaga.
+    await expect(cadastros.locator('a').first(), 'tiles dos cadastros').toBeVisible();
   });
 
   test('professor: listas e scope falhados mostram erro com retry', async ({ page }) => {
     await gestorLogin(page);
     await avariarPOST(page, '**/manager/professor');
     await page.goto('/manager/professor');
-    const listas = page.getByRole('alert').filter({ hasText: 'Não foi possível carregar as listas' });
-    await expect(listas).toBeVisible();
+    const tabelas = page.getByRole('table');
+    await expect(tabelas.nth(0).getByRole('alert')).toContainText('Não foi possível carregar as simulações');
+    await expect(tabelas.nth(1).getByRole('alert')).toContainText('Não foi possível carregar os enunciados por rever');
     // O scope falha pela mesma rede: sem o `catch` no hook, este painel nunca
     // aparecia e as listas ficavam no esqueleto para sempre.
     const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
@@ -1215,11 +1272,19 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     expect(await graves(page), 'professor em erro').toEqual([]);
     await page.unroute('**/manager/professor');
     // O retry do scope volta a pedir (a falha de rede não fica em cache)...
+    const contaScope = contarPosts(page, '/manager/professor');
     await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await contaScope.total(1);
     await expect(scope).toHaveCount(0);
-    // ...e o das listas também.
-    await listas.getByRole('button', { name: 'Tentar novamente' }).click();
-    await expect(listas).toHaveCount(0);
+    // ...e o das listas também (duas leituras, uma por tabela).
+    const contaListas = contarPosts(page, '/manager/professor');
+    await tabelas.nth(0).getByRole('button', { name: 'Tentar novamente' }).click();
+    await contaListas.total(2);
+    await expect(tabelas.nth(0).getByRole('alert')).toHaveCount(0);
+    await expect(tabelas.nth(1).getByRole('alert')).toHaveCount(0);
+    // Recuperado a sério: cada tabela pinta linhas ou o vazio legítimo.
+    await expect(tabelas.nth(0).locator('tbody tr').first(), 'tabela de simulações').toBeVisible();
+    await expect(tabelas.nth(1).locator('tbody tr').first(), 'tabela por rever').toBeVisible();
   });
 
   test('gestor: enunciados falhados (lista e scope) mostram erro com retry', async ({ page }) => {
@@ -1227,16 +1292,20 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await avariarPOST(page, '**/manager/statements');
     await page.goto('/manager/statements');
     // A falha da lista tem prioridade no painel e esconde a do scope: só há um
-    // retry de cada vez. Primeiro sai o da lista...
+    // retry de cada vez. Primeiro sai o da lista (com resposta à espera)...
     const tentar = page.getByRole('button', { name: 'Tentar novamente' });
     await expect(tentar.first()).toBeVisible();
     expect(await graves(page), 'enunciados em erro').toEqual([]);
+    const contaLista = contarPosts(page, '/manager/statements');
     await page.unroute('**/manager/statements');
     await tentar.first().click();
-    // ...depois aparece o do scope, que também sai com retry.
+    await contaLista.total(1);
+    // ...depois aparece o do scope, que também sai com retry (e resposta).
     const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
     await expect(scope).toBeVisible();
+    const contaScope = contarPosts(page, '/manager/statements');
     await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await contaScope.total(1);
     await expect(tentar).toHaveCount(0);
   });
 
@@ -1246,12 +1315,17 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await page.goto('/manager/simulations');
     const tentar = page.getByRole('button', { name: 'Tentar novamente' });
     await expect(tentar.first()).toBeVisible();
+    const conta = contarPosts(page, '/manager/simulations');
     await page.unroute('**/manager/simulations');
-    for (let i = 0; i < 3; i++) {
-      if ((await tentar.count()) === 0) break;
-      await tentar.first().click();
-    }
+    // Primeiro a lista; o scope falhado aparece a seguir e sai com retry.
+    await tentar.first().click();
+    await conta.total(1);
+    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
+    await expect(scope).toBeVisible();
+    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await conta.total(2);
     await expect(tentar).toHaveCount(0);
+    await expect(page.locator('tbody tr').first(), 'tabela recomposta').toBeVisible();
   });
 
   test('gestor: sala inexistente mostra erro com retry (sem fingir vazio)', async ({ page }) => {

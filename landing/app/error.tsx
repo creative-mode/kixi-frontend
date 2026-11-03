@@ -19,9 +19,9 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       <main id="conteudo" tabIndex={-1} className="lp-stack">
         <div role="alert">
           <p className="nf__code">ERRO</p>
-          <h1 className="nf__title">Algo falhou, mas não perdeste nada</h1>
+          <h1 className="nf__title">Algo falhou. Tenta de novo.</h1>
           <p className="nf__message">
-            Tenta de novo. Se continuar, volta ao início e continua a estudar.
+            Se continuar, volta ao início e continua a estudar.
           </p>
         </div>
         <div className="actions nf__actions">

@@ -36,6 +36,7 @@ import { statementInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from './confirm';
 import { DetailSkeleton } from './loading';
+import { LoadError } from './load-state';
 import { QueueShortcuts } from './queue-shortcuts';
 import { ShortcutsHint } from './shortcuts-hint';
 import { QuestionImages } from './question-images';
@@ -198,6 +199,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
         return;
       }
       const d = toDraft(r.data);
+      setError(null);
       setOriginal(d);
       setHeader(d.header);
       setQuestions(d.questions.map((q) => keep.find((k) => k.id === q.id) ?? q));
@@ -264,7 +266,13 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
     };
   }, [scope]);
 
-  if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
+  if (error && !header) {
+    return (
+      <div className="mx-auto max-w-4xl p-4 md:p-8">
+        <LoadError message={error} onRetry={() => void load(questions ?? [])} />
+      </div>
+    );
+  }
   if (!header || !questions || !original || admin == null) return <DetailSkeleton />;
 
   // Disciplinas do currículo da turma escolhida (ou de qualquer turma sem turma); ao professor, só as que dá.
@@ -494,6 +502,16 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
           {lowConfidence ? <Badge variant="secondary">Confiança OCR baixa ({Math.round((meta.ocrConfidence ?? 0) * 100)}%)</Badge> : null}
         </div>
       </div>
+
+      {/* A falha não esconde o editor: o rascunho continua editável, a leitura
+          que falhou tenta-se de novo por cima, sem perder nada. */}
+      {error ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent>
+            <LoadError message={error} onRetry={() => void load(questions ?? [])} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {issues.length > 0 ? (
         <Card className="border-warning/40 bg-warning-soft">
