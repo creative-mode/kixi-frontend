@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Flag, ScrollText } from 'lucide-react';
 
@@ -67,6 +67,16 @@ export function ModerationQueue() {
   const [aAbrir, setAAbrir] = useState<{ report: Report; decision: Decision } | null>(null);
   const [nota, setNota] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const notaRef = useRef<HTMLTextAreaElement>(null);
+
+  // O foco vai para a nota depois de o diálogo montar: com `autoFocus` o React
+  // focava antes de o FocusScope do Radix registar o botão que abriu, e no
+  // fechar ele restaurava o foco para o campo desmontado (caía no `body`).
+  useEffect(() => {
+    if (!aAbrir) return;
+    const task = window.setTimeout(() => notaRef.current?.focus(), 0);
+    return () => window.clearTimeout(task);
+  }, [aAbrir]);
   // O separador e a página vivem no endereço: sobrevivem ao recarregamento e podem ir numa ligação.
   const [separador, setSeparador] = useQueryChoice('filtro', MODERATION_FILTER_KEYS, DEFAULT_MODERATION_FILTER);
   const [pagina, setPagina] = useQueryPage();
@@ -240,10 +250,10 @@ export function ModerationQueue() {
                   <DialogDescription>{DECISION_NOTE[aAbrir.decision]}</DialogDescription>
                 </DialogHeader>
                 <Textarea
+                  ref={notaRef}
                   value={nota}
                   onChange={(e) => setNota(e.target.value)}
                   rows={3}
-                  autoFocus
                   placeholder="Porquê esta decisão (fica no registo de auditoria)"
                   aria-label="Nota da decisão"
                   aria-invalid={!!erroNota}
