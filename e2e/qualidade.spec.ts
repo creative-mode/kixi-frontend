@@ -1388,3 +1388,44 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     expect(await graves(page), 'aluno 404').toEqual([]);
   });
 });
+
+/** Listagens CRUD com estado no endereço (#526): antes a pesquisa casava com
+ *  JSON de campos invisíveis, tudo se renderizava e editar voltava sem a vista.
+ *  Agora `?q=&sort=&dir=&page=` guarda a vista; só o visível casa e só a página
+ *  se renderiza. */
+test.describe('listagens com pesquisa, ordenação e paginação (#526)', () => {
+  test('recarregar mantém pesquisa, ordenação e página', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/simulations?q=sem-igual-xy9&sort=Aluno&dir=desc&page=3');
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('sem-igual-xy9');
+    await expect(page.locator('th').first()).toHaveAttribute('aria-sort', 'descending');
+    expect(page.url(), 'página no endereço').toContain('page=3');
+    await expect(page.getByText('Nada corresponde à pesquisa.')).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('sem-igual-xy9');
+    await expect(page.locator('th').first()).toHaveAttribute('aria-sort', 'descending');
+    expect(page.url(), 'página após recarregar').toContain('page=3');
+  });
+
+  test('voltar do criar restaura a pesquisa', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/subjects/new?q=volta-aqui');
+    // O voltar é o 2.º nível do breadcrumb, com o nome da lista.
+    const voltar = page
+      .getByRole('navigation', { name: 'Navegação estrutural' })
+      .getByRole('link', { name: 'Disciplinas' });
+    await expect(voltar).toHaveAttribute('href', /q=volta-aqui/);
+    await voltar.click();
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('volta-aqui');
+    expect(page.url(), 'pesquisa no endereço').toContain('q=volta-aqui');
+  });
+
+  test('só se renderiza a página e só a coluna ordenada anuncia', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/simulations?sort=Nota');
+    await expect(page.locator('th[aria-sort="ascending"]')).toHaveCount(1);
+    expect(await graves(page), 'simulações ordenadas').toEqual([]);
+    // Janela de renderização: nunca mais linhas no DOM que as da página.
+    expect(await page.locator('tbody tr').count(), 'linhas renderizadas').toBeLessThanOrEqual(25);
+  });
+});
