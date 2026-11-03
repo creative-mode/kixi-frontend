@@ -1027,6 +1027,9 @@ test.describe('CTA de registo da landing (#512)', () => {
     expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header' }]);
     await page.goBack();
 
+    // A hidratação pode chegar depois do `goBack`: sem o `#solucao` no DOM, o
+    // scroll de baixo perdia-se (ainda sem ouvintes) e o CTA do fim nunca nascia.
+    await expect(page.locator('#solucao')).toBeAttached();
     // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
     await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
     const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
