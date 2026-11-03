@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorOfPerson, authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePercent } from './feed-rules.ts';
+import { authorOfPerson, authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePassed, scorePercent, simulationHeadline } from './feed-rules.ts';
 
 const ME = { name: 'Ana Silva', photo: '/me.jpg' };
 const AUTHOR = { name: 'Beatriz Costa', photo: '/b.jpg', verified: false };
@@ -103,4 +103,23 @@ test('um perfil completo mostra o nome, a foto e o selo', () => {
 test('uma foto fora dos endereços aceites cai nas iniciais', () => {
   assert.equal(authorOfPerson({ displayName: 'Ana Silva', photo: 'javascript:alert(1)', restricted: false, verified: false }).photo, null);
   assert.equal(authorOfPerson({ displayName: 'Ana Silva', photo: null, restricted: true, verified: false }).photo, null);
+});
+
+test('a fasquia do carimbo é metade da cotação, como na folha', () => {
+  assert.equal(scorePassed(13, 20), true);
+  assert.equal(scorePassed(10, 20), true);
+  assert.equal(scorePassed(9.5, 20), false);
+  assert.equal(scorePassed(null, 20), null);
+  assert.equal(scorePassed(10, null), null);
+  assert.equal(scorePassed(10, 0), null);
+});
+
+test('o cabeçalho do cartão junta classe, tipo, duração e ano letivo (#602)', () => {
+  assert.equal(
+    simulationHeadline({ grade: '12.ª Classe', paperKind: 'Teste', subject: 'TLP', durationMinutes: 30, schoolYear: '2026/2027', variant: null }),
+    '12.ª Classe / Teste – TLP · 30 min · Ano letivo 2026/2027',
+  );
+  assert.equal(simulationHeadline({ grade: null, paperKind: 'Exame', subject: null, durationMinutes: null, schoolYear: null, variant: 'A' }), 'Exame · Série A');
+  // Sem nada do instantâneo não há linha: um backend antigo mostra só título e nota.
+  assert.equal(simulationHeadline({}), null);
 });
