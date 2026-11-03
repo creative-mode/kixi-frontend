@@ -1190,29 +1190,30 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
 
   /** N respostas POST com sucesso ao padrão: prova que a leitura terminou mesmo,
    *  não só que o erro se apagou ao clicar (o `load` limpa o erro antes de a
-   *  resposta chegar). */
-  function contarPosts(page: Page, padrao: string) {
-    void page.evaluate(() => {
-      (window as unknown as { __ok?: number }).__ok = 0;
-    });
-    page.on('response', (r) => {
-      if (r.request().method() === 'POST' && r.url().includes(padrao) && r.ok()) {
-        void page.evaluate(() => {
-          const w = window as unknown as { __ok?: number };
-          w.__ok = (w.__ok ?? 0) + 1;
-        });
+   *  resposta chegar). Conta pedidos distintos (pelo objeto do pedido), por isso
+   *  a mesma instância serve para totais sucessivos; o ouvinte vive até ao fim
+   *  do teste. */
+  function esperarPosts(page: Page, padrao: string) {
+    const concluidos = new Set<object>();
+    let acorda: (() => void) | null = null;
+    page.on('response', (resposta) => {
+      const pedido = resposta.request();
+      if (pedido.method() === 'POST' && pedido.url().includes(padrao) && resposta.ok()) {
+        concluidos.add(pedido);
+        acorda?.();
       }
     });
     return {
-      async total(n: number) {
-        try {
-          await page.waitForFunction(
-            (esperadas: number) => ((window as unknown as { __ok?: number }).__ok ?? 0) >= esperadas,
-            n,
-            { timeout: 30000 },
-          );
-        } finally {
-          page.removeAllListeners('response');
+      async total(n: number, limite = 30000) {
+        const inicio = Date.now();
+        while (concluidos.size < n) {
+          if (Date.now() - inicio > limite) {
+            throw new Error(`só ${concluidos.size} de ${n} respostas POST com sucesso em ${padrao}`);
+          }
+          await new Promise<void>((resolve) => {
+            acorda = resolve;
+            setTimeout(resolve, 200);
+          });
         }
       },
     };
@@ -1229,7 +1230,7 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     expect(await graves(page), 'school-year em erro').toEqual([]);
     // Com a rede de volta, o retry traz a lista (ou o vazio verdadeiro, sem erro):
     // espera-se a resposta, não só o sumiço do botão, e valida-se o recuperado.
-    const conta = contarPosts(page, '/manager/school-year');
+    const conta = esperarPosts(page, '/manager/school-year');
     await page.unroute('**/manager/school-year');
     await tentar.click();
     await conta.total(1);
@@ -1244,7 +1245,7 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await avariarPOST(page, '**/manager/school-year');
     await page.reload();
     await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
-    const conta2 = contarPosts(page, '/manager/school-year');
+    const conta2 = esperarPosts(page, '/manager/school-year');
     await page.unroute('**/manager/school-year');
     await page.getByRole('button', { name: 'Tentar novamente' }).click();
     await conta2.total(1);
@@ -1266,7 +1267,7 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     const tentar = cadastros.getByRole('button', { name: 'Tentar novamente' });
     await expect(tentar).toBeVisible();
     expect(await graves(page), 'dashboard em erro').toEqual([]);
-    const conta = contarPosts(page, '/manager');
+    const conta = esperarPosts(page, '/manager');
     await page.unroute('**/manager');
     await tentar.click();
     await conta.total(1);
@@ -1289,12 +1290,12 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     expect(await graves(page), 'professor em erro').toEqual([]);
     await page.unroute('**/manager/professor');
     // O retry do scope volta a pedir (a falha de rede não fica em cache)...
-    const contaScope = contarPosts(page, '/manager/professor');
+    const contaScope = esperarPosts(page, '/manager/professor');
     await scope.getByRole('button', { name: 'Tentar novamente' }).click();
     await contaScope.total(1);
     await expect(scope).toHaveCount(0);
     // ...e o das listas também (duas leituras, uma por tabela).
-    const contaListas = contarPosts(page, '/manager/professor');
+    const contaListas = esperarPosts(page, '/manager/professor');
     await tabelas.nth(0).getByRole('button', { name: 'Tentar novamente' }).click();
     await contaListas.total(2);
     await expect(tabelas.nth(0).getByRole('alert')).toHaveCount(0);
@@ -1313,14 +1314,14 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     const tentar = page.getByRole('button', { name: 'Tentar novamente' });
     await expect(tentar.first()).toBeVisible();
     expect(await graves(page), 'enunciados em erro').toEqual([]);
-    const contaLista = contarPosts(page, '/manager/statements');
+    const contaLista = esperarPosts(page, '/manager/statements');
     await page.unroute('**/manager/statements');
     await tentar.first().click();
     await contaLista.total(1);
     // ...depois aparece o do scope, que também sai com retry (e resposta).
     const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
     await expect(scope).toBeVisible();
-    const contaScope = contarPosts(page, '/manager/statements');
+    const contaScope = esperarPosts(page, '/manager/statements');
     await scope.getByRole('button', { name: 'Tentar novamente' }).click();
     await contaScope.total(1);
     await expect(tentar).toHaveCount(0);
@@ -1332,7 +1333,7 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await page.goto('/manager/simulations');
     const tentar = page.getByRole('button', { name: 'Tentar novamente' });
     await expect(tentar.first()).toBeVisible();
-    const conta = contarPosts(page, '/manager/simulations');
+    const conta = esperarPosts(page, '/manager/simulations');
     await page.unroute('**/manager/simulations');
     // Primeiro a lista; o scope falhado aparece a seguir e sai com retry.
     await tentar.first().click();
