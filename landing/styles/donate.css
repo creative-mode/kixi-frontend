@@ -92,6 +92,8 @@ html:has(.dn-stage), body:has(.dn-stage) { overflow: hidden; height: 100%; }
 
 @media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } .dn-lcd { padding: 10px; } }
 @media (max-width: 899px) {
+  /* Fixa o cartucho à fila disponível; o conteúdo extra fica dentro do LCD e os botões continuam visíveis acima do banner de cookies. */
+  .dn-console { height: 100%; }
   .dn-screen .dn-help:not(.dn-help--small) { display: none; }
   .dn-field textarea { min-height: 44px; }
   .dn-consent__row { font-size: 12px; line-height: 1.3; }
