@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, DoorOpen, FileText, Gift, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
@@ -19,7 +20,8 @@ import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
 import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { missingToSave, readinessParts, saveBlocker } from '@/lib/exam/readiness';
 import { cn } from '@/lib/utils';
-import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
+import { draftFromExtraction, type ExamExtraction, type ImportedNote } from '@/lib/exam/extraction';
+import type { OriginalPage } from './exam-importer';
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
@@ -99,8 +101,24 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [choices, setChoices] = useState<ReviewChoices | null>(null);
   const [classId, setClassId] = useState('');
   const [importOpen, setImportOpen] = useState(openImport);
-  const [notes, setNotes] = useState<string[]>([]);
+  const [notes, setNotes] = useState<ImportedNote[]>([]);
   const [footerPreview, setFooterPreview] = useState<{ dataUrl: string; pageIndex: number | null; text: string[] } | null>(null);
+  /** As páginas originais lidas pelo OCR, lado a lado com o rascunho. A posse
+   *  dos URLs é daqui: revogam-se ao trocar, ao limpar e ao sair. */
+  const [originais, setOriginais] = useState<OriginalPage[] | null>(null);
+  const originaisRef = useRef<OriginalPage[] | null>(null);
+  const [originalAberto, setOriginalAberto] = useState<OriginalPage | null>(null);
+
+  function trocarOriginais(next: OriginalPage[] | null) {
+    for (const o of originaisRef.current ?? []) URL.revokeObjectURL(o.url);
+    originaisRef.current = next;
+    setOriginais(next);
+  }
+
+  useEffect(() => () => {
+    for (const o of originaisRef.current ?? []) URL.revokeObjectURL(o.url);
+    originaisRef.current = null;
+  }, []);
   const [saved, setSaved] = useState<SavedExam | null>(null);
   const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
@@ -268,11 +286,12 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
    * O que o OCR leu vira rascunho. Não se guarda nada: o professor corrige aqui e só depois grava.
    * Substituir um rascunho com conteúdo pede confirmação, porque o OCR trocava tudo de uma vez.
    */
-  function applyImport(extraction: ExamExtraction, names: string): boolean {
+  function applyImport(extraction: ExamExtraction, names: string, originals?: OriginalPage[]): boolean {
     const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] });
     if (imported.items.length === 0) {
       setNotes(imported.notes);
       setFooterPreview(imported.footerPreview ?? null);
+      trocarOriginais(originals ?? null);
       toast.error('Não foi possível ler questões nesta imagem.');
       return false;
     }
@@ -282,10 +301,23 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
     setFooterPreview(imported.footerPreview ?? null);
+    trocarOriginais(originals ?? null);
     setSaved(null);
     setImportOpen(false);
     toast.success(`Prova lida (${names}): ${imported.items.length} questões. Reveja o que o OCR percebeu.`);
     return true;
+  }
+
+  /** Leva à questão indicada pela nota ("Ir para a questão N"): faz scroll e
+   *  entrega o foco ao fieldset, para rato, teclado e leitor de ecrã. */
+  function irParaQuestao(n: number) {
+    const alvo = document.getElementById(`questao-${n}`);
+    if (!alvo) {
+      toast.error(`A questão ${n} já não está nesta posição. Procure-a pelo número no editor.`);
+      return;
+    }
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => (alvo as HTMLElement).focus({ preventScroll: true }), 350);
   }
 
   /** O OCR sobre os ficheiros da doação: o mesmo caminho do importador, sem ficheiros novos. */
@@ -378,7 +410,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
             <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
               // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
               // voltar a ser guardado — um aviso a mais no arranque seguinte.
-              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); setSaved(null); } }}>
+              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); trocarOriginais(null); setSaved(null); } }}>
               <Plus aria-hidden />Nova prova
             </Button>
           </CardContent>
@@ -439,13 +471,74 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                 </div>
               </CardHeader>
               <CardContent>
-                <ul className="grid list-disc gap-1.5 pl-5 text-sm">{notes.map((n) => <li key={n}>{n}</li>)}</ul>
+                <ul className="grid gap-2.5 text-sm">
+                  {notes.map((n, i) => (
+                    <li key={`${i}-${n.text.slice(0, 24)}`} className="grid gap-1">
+                      <span>{n.text}</span>
+                      {typeof n.question === 'number' ? (
+                        <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => irParaQuestao(n.question!)}>
+                          Ir para a questão {n.question}
+                        </Button>
+                      ) : n.anchor === 'rodape' ? (
+                        <Button type="button" variant="outline" size="sm" className="justify-self-start" asChild>
+                          <a href="#ocr-rodape">Ver rodapé original</a>
+                        </Button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           )}
 
+          {originais && originais.length > 0 && (
+            <Card className="print:hidden" data-testid="ocr-originais">
+              <CardHeader>
+                <CardTitle>Páginas originais</CardTitle>
+                <CardDescription>As páginas lidas, na ordem da leitura. Toque para ver em tamanho real.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-wrap gap-2">
+                  {originais.map((o) => (
+                    <li key={o.url}>
+                      <button
+                        type="button"
+                        onClick={() => setOriginalAberto(o)}
+                        aria-label={`Ver ${o.name} em tamanho real`}
+                        className="grid w-24 gap-1 rounded-lg border bg-card p-1.5 text-left transition-colors hover:border-primary"
+                      >
+                        {o.kind === 'image' ? (
+                          <img src={o.url} alt="" aria-hidden className="h-20 w-full rounded object-cover" />
+                        ) : (
+                          <span className="grid h-20 w-full place-items-center rounded bg-accent text-primary"><FileText size={20} aria-hidden /></span>
+                        )}
+                        <span className="truncate text-[11px] text-muted-foreground">{o.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          <Dialog open={originalAberto !== null} onOpenChange={(aberto) => { if (!aberto) setOriginalAberto(null); }}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>{originalAberto?.name}</DialogTitle>
+              </DialogHeader>
+              {originalAberto?.kind === 'image' ? (
+                <img src={originalAberto.url} alt={`Página original ${originalAberto.name}`} className="max-h-[70dvh] w-full rounded-lg border object-contain" />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Pré-visualização de PDF em tamanho real não cabe aqui.{' '}
+                  <a href={originalAberto?.url} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">Abrir {originalAberto?.name} num separador</a>.
+                </p>
+              )}
+            </DialogContent>
+          </Dialog>
+
           {footerPreview && (
-            <Card data-testid="ocr-footer-preview">
+            <Card data-testid="ocr-footer-preview" id="ocr-rodape" className="scroll-mt-20">
               <CardHeader>
                 <CardTitle>Rodapé original — fora das questões</CardTitle>
                 <CardDescription>
