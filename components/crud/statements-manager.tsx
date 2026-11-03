@@ -43,11 +43,17 @@ export function StatementsManager() {
   // Não se esvazia a lista ao recarregar: as contagens dos separadores não podem desaparecer a cada ação.
   const load = useCallback(async () => {
     setError(null);
-    const res = await listStatements('all');
-    if (res.ok) setRows(res.data);
-    else {
+    try {
+      const res = await listStatements('all');
+      if (res.ok) setRows(res.data);
+      else {
+        setRows([]);
+        setError(res.error);
+      }
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
       setRows([]);
-      setError(res.error);
+      setError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
     }
   }, []);
   useEffect(() => {

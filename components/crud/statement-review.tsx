@@ -191,16 +191,21 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
 
   /** Lê do servidor. `keep` são rascunhos de questões que falharam ao gravar: ficam por cima. */
   const load = useCallback(async (keep: QuestionDraft[] = []) => {
-    const r = await getStatementForReview(id);
-    if (!r.ok) {
-      setError(r.error);
-      return;
+    try {
+      const r = await getStatementForReview(id);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      const d = toDraft(r.data);
+      setOriginal(d);
+      setHeader(d.header);
+      setQuestions(d.questions.map((q) => keep.find((k) => k.id === q.id) ?? q));
+      setMeta({ needsReview: !!r.data.needsReview, visible: !!r.data.visible, ocrConfidence: r.data.ocrConfidence ?? null });
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
+      setError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
     }
-    const d = toDraft(r.data);
-    setOriginal(d);
-    setHeader(d.header);
-    setQuestions(d.questions.map((q) => keep.find((k) => k.id === q.id) ?? q));
-    setMeta({ needsReview: !!r.data.needsReview, visible: !!r.data.visible, ocrConfidence: r.data.ocrConfidence ?? null });
   }, [id]);
 
   useEffect(() => {

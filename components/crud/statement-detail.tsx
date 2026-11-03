@@ -44,8 +44,14 @@ export function StatementDetail({ id, startReviewing = false }: { id: number; st
   const [reviewing, setReviewing] = useState(startReviewing);
 
   const load = useCallback(async () => {
-    const r = await getStatementFull(id);
-    if (r.ok) { setS(r.data); setError(null); } else { setS(null); setError(r.error); }
+    try {
+      const r = await getStatementFull(id);
+      if (r.ok) { setS(r.data); setError(null); } else { setS(null); setError(r.error); }
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
+      setS(null);
+      setError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
+    }
   }, [id]);
   useEffect(() => {
     const task = window.setTimeout(() => { void load(); }, 0);

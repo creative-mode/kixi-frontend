@@ -47,7 +47,6 @@ export function useTeacherScope(): { scope: TeachingScope | null; retry: () => v
 
   useEffect(() => {
     let alive = true;
-    setScope(null);
     loadScopeOnce().then((res) => {
       if (!alive) return;
       setScope(res.ok ? res.data : closedScope(res.error));
@@ -59,6 +58,8 @@ export function useTeacherScope(): { scope: TeachingScope | null; retry: () => v
 
   const retry = useCallback(() => {
     scopeOnce = null;
+    // O esqueleto volta enquanto se lê de novo: é no handler, não no efeito.
+    setScope(null);
     setAttempt((n) => n + 1);
   }, []);
 

@@ -70,14 +70,23 @@ export default function TeacherHome() {
 
   const load = useCallback(async () => {
     setListsError(null);
-    const [roomRes, reviewRes] = await Promise.all([
-      listRows('simulations'),
-      listStatements('review'),
-    ]);
-    const firstError = !roomRes.ok ? roomRes.error : !reviewRes.ok ? reviewRes.error : null;
-    setListsError(firstError);
-    setRooms(roomRes.ok ? roomRes.data : []);
-    setPending(reviewRes.ok ? reviewRes.data : []);
+    try {
+      const [roomRes, reviewRes] = await Promise.all([
+        listRows('simulations'),
+        listStatements('review'),
+      ]);
+      const firstError = !roomRes.ok ? roomRes.error : !reviewRes.ok ? reviewRes.error : null;
+      setListsError(firstError);
+      setRooms(roomRes.ok ? roomRes.data : []);
+      setPending(reviewRes.ok ? reviewRes.data : []);
+    } catch (e: unknown) {
+      // O abort da rede (ou a queda do servidor) lança no cliente, fora do
+      // `guard` do servidor: sem isto o `Promise.all` rejeitava e as listas
+      // ficavam no esqueleto para sempre.
+      setRooms([]);
+      setPending([]);
+      setListsError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
+    }
   }, []);
 
   useEffect(() => {

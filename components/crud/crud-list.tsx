@@ -39,11 +39,17 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
 
   const load = useCallback(async () => {
     setError(null);
-    const res = await listRows(entityKey);
-    if (res.ok) setRows(res.data);
-    else {
+    try {
+      const res = await listRows(entityKey);
+      if (res.ok) setRows(res.data);
+      else {
+        setRows([]);
+        setError(res.error);
+      }
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
       setRows([]);
-      setError(res.error);
+      setError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
     }
   }, [entityKey]);
 

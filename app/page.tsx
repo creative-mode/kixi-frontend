@@ -69,11 +69,16 @@ export default function ManagerDashboard() {
 
   const loadCounts = useCallback(async () => {
     setCountsError(null);
-    const r = await dashboardCounts();
-    // Sem `catch` os tiles ficavam em esqueleto para sempre: a falha pinta
-    // erro com retry, nunca "—" infinito.
-    if (r.ok) setCounts(r.data);
-    else setCountsError(r.error);
+    try {
+      const r = await dashboardCounts();
+      // Sem `catch` os tiles ficavam em esqueleto para sempre: a falha pinta
+      // erro com retry, nunca "—" infinito. O `guard` trata a falha do servidor;
+      // o `catch` trata a rede, que lança no cliente antes de lá chegar.
+      if (r.ok) setCounts(r.data);
+      else setCountsError(r.error);
+    } catch (e: unknown) {
+      setCountsError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
+    }
   }, []);
 
   useEffect(() => {

@@ -62,11 +62,16 @@ export function RoomConsole({ id }: { id: number }) {
   const [now, setNow] = useState(() => luandaNowInput());
 
   const load = useCallback(async () => {
-    const res = await getRoom(id);
-    if (res.ok) {
-      setData(res.data);
-      setError(null);
-    } else setError(res.error);
+    try {
+      const res = await getRoom(id);
+      if (res.ok) {
+        setData(res.data);
+        setError(null);
+      } else setError(res.error);
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
+      setError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
+    }
   }, [id]);
 
   useEffect(() => {

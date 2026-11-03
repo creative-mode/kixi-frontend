@@ -125,7 +125,8 @@ test.describe('avisos do aluno', () => {
     try {
       expect((await definir('500')).ok()).toBeTruthy();
       await page.getByRole('tab', { name: 'Escola' }).click();
-      const aviso = page.getByRole('status', { name: 'Não foi possível carregar o ranking' });
+      // O erro anuncia-se como alerta (#529): a falha não é "status" passivo.
+      const aviso = page.getByRole('alert', { name: 'Não foi possível carregar o ranking' });
       await expect(aviso).toBeVisible();
       await expect(aviso.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
     } finally {
@@ -1176,10 +1177,12 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     // O defeito era este CTA: a falha pintava "lista vazia" com "criar primeiro".
     await expect(page.getByRole('link', { name: 'Criar primeiro ano letivo' })).toHaveCount(0);
     expect(await graves(page), 'school-year em erro').toEqual([]);
-    // Com a rede de volta, o retry traz a lista (ou o vazio verdadeiro, sem alerta).
+    // Com a rede de volta, o retry traz a lista (ou o vazio verdadeiro, sem erro).
     await page.unroute('**/manager/school-year');
     await tentar.click();
-    await expect(page.getByRole('alert')).toHaveCount(0);
+    // O botão de retry desmonta com o erro. (Não se conta `alert`: o Next injeta
+    // um anunciador de rota próprio com esse papel.)
+    await expect(tentar).toHaveCount(0);
   });
 
   test('gestor: counts falhados mostram erro e retry, não esqueleto infinito', async ({ page }) => {
@@ -1211,7 +1214,8 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     expect(resposta?.status(), 'estado do /nao-existe').toBe(404);
     await expect(page.getByRole('heading', { name: 'Esta página não existe' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Ir para o início' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Entrar' })).toBeVisible();
+    // "Entrar" existe no cabeçalho, no corpo e no rodapé: o que conta é o do corpo.
+    await expect(page.locator('#conteudo').getByRole('link', { name: 'Entrar' })).toBeVisible();
     expect(await graves(page), 'landing 404').toEqual([]);
   });
 
