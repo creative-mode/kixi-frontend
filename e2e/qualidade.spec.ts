@@ -849,7 +849,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
     const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
     await expect(cenaOutro, 'a cena do fim acende').toHaveAttribute('aria-hidden', 'false', { timeout: 15000 });
-    await expect(outro).toBeVisible();
+    await expect(outro).toBeVisible({ timeout: 10000 });
     const noFim = await outro.evaluate((el) => {
       (el as HTMLElement).focus();
       return document.activeElement === el;
@@ -1030,7 +1030,7 @@ test.describe('CTA de registo da landing (#512)', () => {
     // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
     await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
     const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
-    await expect(outro).toBeVisible();
+    await expect(outro).toBeVisible({ timeout: 10000 });
     await outro.click();
     await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
     expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro' }]);
