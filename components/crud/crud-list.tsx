@@ -12,6 +12,7 @@ import { deleteRow, listOptions, listRows } from '@/app/actions/crud';
 import { ENTITIES, rowId, type EntityKey, type Row, gender, newLabel } from '@/lib/crud/entities';
 import { answerInScope, classInScope, simulationInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
 import { isStructureEntity } from '@/lib/roles';
+import { LoadError } from './load-state';
 import { AccountRoles } from './account-roles';
 import { ClassEnrollmentCodes } from './class-enrollment-codes';
 import { InstitutionMembers } from './institution-members';
@@ -32,7 +33,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   // id -> display name per FK field (entity.lookups), for flat API responses
   const [labels, setLabels] = useState<Record<string, string>>({});
   // Teachers only see records tied to their own classes/subjects (admins see all).
-  const scope = useTeacherScope();
+  const { scope, retry: retryScope } = useTeacherScope();
   // A estrutura académica (turmas incluídas) só o ADMIN altera: o professor só consulta, sem botões que falhariam com 403.
   const readOnly = isStructureEntity(entityKey) && !!scope?.restricted;
 
@@ -173,9 +174,10 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
               ) : scope?.error ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-12 text-center">
-                    <p className="text-sm text-destructive">
-                      Não foi possível determinar as suas turmas, por isso a lista fica vazia: {scope.error}
-                    </p>
+                    <LoadError
+                      message={`Não foi possível determinar as suas turmas, por isso a lista fica vazia: ${scope.error}`}
+                      onRetry={retryScope}
+                    />
                   </TableCell>
                 </TableRow>
               ) : shown === null ? (

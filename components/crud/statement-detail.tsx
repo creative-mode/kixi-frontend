@@ -14,6 +14,7 @@ import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { queryWith } from '@/lib/queue-state';
 import { PageHead } from './page-head';
 import { Confirm, type ConfirmState } from './confirm';
+import { LoadError } from './load-state';
 import { QuestionImages } from './question-images';
 import { DetailSkeleton } from './loading';
 import { StatementReview } from './statement-review';
@@ -148,7 +149,7 @@ export function StatementDetail({ id, startReviewing = false }: { id: number; st
         }
       />
       {error ? (
-        <p className="py-12 text-center text-sm text-destructive">{error}</p>
+        <LoadError message={error} onRetry={() => void load()} />
       ) : !s ? (
         <DetailSkeleton />
       ) : (

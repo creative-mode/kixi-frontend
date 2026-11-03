@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, DoorOpen, FilePen, ScanText } from 'lucide-react';
+import { ArrowRight, DoorOpen, FilePen, RefreshCw, ScanText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -64,14 +64,18 @@ function byMostRecent(rows: Row[]): Row[] {
 export default function TeacherHome() {
   const [rooms, setRooms] = useState<Row[] | null>(null);
   const [pending, setPending] = useState<Row[] | null>(null);
+  const [listsError, setListsError] = useState<string | null>(null);
   // Teachers only see their own classes/subjects (admins see all).
-  const scope = useTeacherScope();
+  const { scope, retry: retryScope } = useTeacherScope();
 
   const load = useCallback(async () => {
+    setListsError(null);
     const [roomRes, reviewRes] = await Promise.all([
       listRows('simulations'),
       listStatements('review'),
     ]);
+    const firstError = !roomRes.ok ? roomRes.error : !reviewRes.ok ? reviewRes.error : null;
+    setListsError(firstError);
     setRooms(roomRes.ok ? roomRes.data : []);
     setPending(reviewRes.ok ? reviewRes.data : []);
   }, []);
@@ -149,12 +153,29 @@ export default function TeacherHome() {
       </Link>
 
       {scopeError ? (
-        <p
-          role="status"
+        <div
+          role="alert"
           className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          Não foi possível determinar as suas turmas, por isso as listas abaixo ficam vazias: {scopeError}
-        </p>
+          <p>Não foi possível determinar as suas turmas, por isso as listas abaixo ficam vazias: {scopeError}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={retryScope}>
+            <RefreshCw size={14} aria-hidden />
+            Tentar novamente
+          </Button>
+        </div>
+      ) : null}
+
+      {listsError ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          <p>Não foi possível carregar as listas: {listsError}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => void load()}>
+            <RefreshCw size={14} aria-hidden />
+            Tentar novamente
+          </Button>
+        </div>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">

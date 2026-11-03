@@ -1154,3 +1154,74 @@ test.describe('cache da landing (#522)', () => {
     expect(r.headers()['cache-control'] ?? '').toContain('no-store');
   });
 });
+
+/** Erros que pareciam "estado vazio" (#529): a falha do servidor pintava "Nenhum
+ *  ano letivo", lista vazia ou esqueleto infinito, sem "Tentar de novo". Agora a
+ *  falha mostra erro com retry; vazio é só quando a leitura correu bem. */
+test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
+  // Só os POST — que é por onde vão as server actions — falham; o GET da
+  // navegação passa, para a página abrir e a falha ser da leitura, não da rota.
+  async function avariarPOST(page: Page, padrao: string) {
+    await page.route(padrao, (rota) =>
+      rota.request().method() === 'POST' ? rota.abort() : rota.continue(),
+    );
+  }
+
+  test('gestor: ano letivo falhado mostra erro com retry, não "criar primeiro"', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/school-year');
+    await page.goto('/manager/school-year');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    // O defeito era este CTA: a falha pintava "lista vazia" com "criar primeiro".
+    await expect(page.getByRole('link', { name: 'Criar primeiro ano letivo' })).toHaveCount(0);
+    expect(await graves(page), 'school-year em erro').toEqual([]);
+    // Com a rede de volta, o retry traz a lista (ou o vazio verdadeiro, sem alerta).
+    await page.unroute('**/manager/school-year');
+    await tentar.click();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('gestor: counts falhados mostram erro e retry, não esqueleto infinito', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager');
+    await page.goto('/manager');
+    const cadastros = page.locator('section[aria-label="Cadastros"]');
+    await expect(cadastros.getByRole('alert')).toBeVisible();
+    const tentar = cadastros.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    expect(await graves(page), 'dashboard em erro').toEqual([]);
+    await page.unroute('**/manager');
+    await tentar.click();
+    await expect(cadastros.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('professor: listas falhadas mostram erro com retry', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/professor');
+    await page.goto('/manager/professor');
+    const alerta = page.getByRole('alert').filter({ hasText: 'Não foi possível carregar as listas' });
+    await expect(alerta).toBeVisible();
+    await expect(alerta.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
+    expect(await graves(page), 'professor em erro').toEqual([]);
+  });
+
+  test('landing: /nao-existe devolve 404 em PT, com marca e saída', async ({ page }) => {
+    const resposta = await page.goto('/nao-existe');
+    expect(resposta?.status(), 'estado do /nao-existe').toBe(404);
+    await expect(page.getByRole('heading', { name: 'Esta página não existe' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ir para o início' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Entrar' })).toBeVisible();
+    expect(await graves(page), 'landing 404').toEqual([]);
+  });
+
+  test('aluno: 404 autenticado é vazio sem live region, com saída', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/rota-que-nao-existe');
+    await expect(page.getByText('Esta página não existe')).toBeVisible();
+    // Vazio não é acontecimento: o texto não vive dentro de status nem de alert.
+    await expect(page.locator('[role="status"], [role="alert"]', { hasText: 'Esta página não existe' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible();
+    expect(await graves(page), 'aluno 404').toEqual([]);
+  });
+});

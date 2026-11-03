@@ -182,7 +182,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
   const [choices, setChoices] = useState<ReviewChoices | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const router = useRouter();
-  const scope = useTeacherScope();
+  const scope = useTeacherScope().scope;
   /** Os enunciados por rever que este utilizador pode abrir, pela ordem da lista: dá o «seguinte» e a posição na fila. */
   const [queue, setQueue] = useState<number[] | null>(null);
   const setH = (patch: Partial<HeaderDraft>) => setHeader((h) => (h ? { ...h, ...patch } : h));

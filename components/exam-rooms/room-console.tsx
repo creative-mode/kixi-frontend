@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DetailSkeleton } from '@/components/crud/loading';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
+import { LoadError } from '@/components/crud/load-state';
 import { changeRoomStatus, getRoom, inviteRoomClass, type StatementChoice } from '@/app/actions/exam-rooms';
 import {
   closeSummary,
@@ -89,7 +90,13 @@ export function RoomConsole({ id }: { id: number }) {
     return () => window.clearTimeout(task);
   }, [stale, load]);
 
-  if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
+  if (error) {
+    return (
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
+        <LoadError message={error} onRetry={() => void load()} />
+      </div>
+    );
+  }
   if (!data) return <div className="mx-auto max-w-6xl p-4 md:p-8"><DetailSkeleton /></div>;
 
   const { room, statement, classLabel } = data;
