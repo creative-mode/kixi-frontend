@@ -25,11 +25,11 @@ async function alunoLogin(page: Page) {
 }
 
 async function gestorLogin(page: Page) {
-  await page.goto('http://localhost:3002/manager/login');
+  await page.goto('/manager/login');
   await page.getByLabel('Username ou email').fill(ADMIN);
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
-  await expect(page).toHaveURL(/http:\/\/localhost:3002\/manager\/?$/);
+  await expect(page).toHaveURL(/manager\/?$/);
 }
 
 /** Violações sérias ou críticas, em texto legível para o relatório. */
@@ -63,7 +63,7 @@ for (const vp of VIEWPORTS) {
     test('gestor sem violações sérias', async ({ page }) => {
       await gestorLogin(page);
       for (const rota of ['/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao']) {
-        await page.goto('http://localhost:3002' + rota);
+        await page.goto(rota);
         await page.waitForLoadState('networkidle');
         expect(await graves(page), rota).toEqual([]);
       }
@@ -71,21 +71,21 @@ for (const vp of VIEWPORTS) {
 
     test('rotas do gestor devolvem 404 no domínio público', async ({ page }) => {
       for (const rota of GESTOR_404) {
-        const resposta = await page.request.get(rota);
-        expect(resposta.status(), `${rota} deve devolver 404`).toBe(404);
-        await page.goto(rota);
-        await expect(page).toHaveURL(rota);
+        // O 404 só se aplica quando o Host é o domínio público (kixi.creativemode.ao).
+        // No CI/local (Host: localhost) o gateway continua a fazer proxy para o manager.
+        const resposta = await page.request.get(rota, { headers: { host: 'kixi.creativemode.ao' } });
+        expect(resposta.status(), `${rota} deve devolver 404 no domínio público`).toBe(404);
       }
     });
 
     test('gestor: o erro do login fica no ecrã e é anunciado (#542)', async ({ page }) => {
-      await page.goto('http://localhost:3002/manager/login');
+      await page.goto('/manager/login');
       await page.getByLabel('Username ou email').fill('nao-existe');
       await page.locator('#password').fill('errada');
       await page.getByTestId('gestor-entrar-submeter').click();
 
       // Credenciais erradas não redirecionam: fica na página de login
-      await expect(page).toHaveURL(/http:\/\/localhost:3002\/manager\/login/);
+      await expect(page).toHaveURL(/\/manager\/login/);
       await expect(page.getByLabel('Username ou email')).toHaveValue('nao-existe');
     });
 
