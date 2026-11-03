@@ -103,8 +103,9 @@
 @media (max-width: 899px) {
   /* A ajuda de privacidade fica sempre visível (#515): doar sem se identificar é
      uma promessa que o telemóvel também tem de ler. */
-  /* Fixa o cartucho à fila disponível; o conteúdo extra fica dentro do LCD e os botões continuam visíveis acima do banner de cookies. */
-  .dn-console { height: 100%; }
+  /* Reserva espaço para o banner de cookies e mantém o CTA acima dele; o conteúdo extra rola dentro do LCD. */
+  .dn-main { height: 100%; padding-bottom: calc(100px + clamp(18px, 4svh, 40px)); }
+  .dn-console { height: 100%; align-self: stretch; }
   .dn-field textarea { min-height: 44px; }
   .dn-consent__row { font-size: 12px; line-height: 1.3; }
   .dn-lcd { padding: 12px; }
