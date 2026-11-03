@@ -22,6 +22,15 @@ latência de 150 ms é simulada.
 
 O tempo até aparecer o conteúdo (500 a 600 ms) não mudou: é o pedido da página, limitado pela latência simulada.
 
+## Estabilidade do feed enquanto as imagens chegam (CLS, #524)
+
+As imagens dos blocos das publicações não tinham dimensões: ocupavam 2 px até carregar e depois empurravam o feed (um
+salto de **CLS 0,171** só por uma imagem, num ecrã de 390 px com o CPU quatro vezes mais lento e a imagem retida até
+depois de o post estar à vista). O backend não guarda largura nem altura de cada imagem, por isso cada uma passou a vir
+dentro de uma caixa 4:3 (`aspect-[4/3]`, `object-contain`), com o espaço reservado antes de chegar. O mesmo salto mede
+agora **CLS 0,000**. As figuras das questões na sala de prova usam a mesma caixa. Para o espaço exato de cada imagem
+seria preciso o backend guardar as dimensões.
+
 ## O que mudou e porquê
 
 - **Imagens na largura em que aparecem.** Um avatar de 1,7 MB mostrava-se num círculo de 44 px. O backend passa a aceitar

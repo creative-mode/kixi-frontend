@@ -265,6 +265,53 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   });
 
+  test('imagens do feed: aviso ao publicar sem descrição e espaço reservado antes de a imagem chegar (#524)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const id = randomUUID().slice(0, 6);
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
+    await page.goto('/aluno/publicar');
+    await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
+    await page.getByLabel('Título 1', { exact: true }).fill(`Esquema ${id}`);
+    await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
+    await page.getByLabel('Lista 3: linha 1').fill('Endereço da rede');
+    await page.getByRole('button', { name: 'Imagem', exact: true }).click();
+    await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
+    await expect(page.getByText('Imagem pronta')).toBeVisible();
+
+    // Sem descrição não publica logo: avisa, nomeia a imagem e deixa escolher.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    const aviso = page.getByRole('alert').filter({ hasText: 'sem descrição' });
+    await expect(aviso).toContainText('Há 1 imagem sem descrição (Imagem 5)');
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await aviso.getByRole('button', { name: 'Escrever a descrição' }).click();
+    await expect(page.getByLabel('Imagem 5: descrição da imagem')).toBeFocused();
+    await expect(aviso).toHaveCount(0);
+    // «Publicar mesmo assim» respeita a escolha: a imagem fica sem descrição, mas o aluno foi avisado.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await aviso.getByRole('button', { name: 'Publicar mesmo assim' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // No feed a imagem vem numa caixa com proporção fixa: o espaço existe antes de ela chegar, e não muda quando chega.
+    let soltar: () => void = () => {};
+    const retida = new Promise<void>((resolve) => { soltar = resolve; });
+    await page.route('**/uploads/**', async (route) => { await retida; await route.continue(); });
+    await page.reload();
+    const figura = page.getByRole('article').filter({ hasText: `Esquema ${id}` }).first().locator('figure img');
+    await figura.scrollIntoViewIfNeeded();
+    const caixa = figura.locator('..');
+    await expect(caixa).toHaveCSS('aspect-ratio', '4 / 3');
+    const antes = await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    expect(antes).toBeGreaterThan(100);
+    soltar();
+    await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+    expect(await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height))).toBe(antes);
+  });
+
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto('/aluno/entrar');
