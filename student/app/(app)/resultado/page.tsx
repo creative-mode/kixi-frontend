@@ -339,8 +339,16 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             classId={classId}
             simulationId={result.simulationId}
             card={{
+              simulationId: result.simulationId,
+              statementId,
               schoolName: me?.school?.name ?? null,
               statementTitle: view.title,
+              paperKind: paperMeta.kind,
+              grade: paperMeta.grade,
+              subject: paperMeta.subject,
+              durationMinutes: paperMeta.durationMinutes,
+              schoolYear: paperMeta.schoolYear,
+              variant: paperMeta.variant,
               finalScore: result.finalScore,
               maxScore: totalMax,
               correctAnswers: result.correctAnswers ?? null,

@@ -62,10 +62,21 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
       if (sim.status !== 'FINISHED') return problem(409, 'Simulation is not finished');
       if (db.posts.some((p) => p.simulation?.simulationId === sim.id)) return problem(409, 'This simulation was already published');
       const statement = db.statements.find((x) => x.id === sim.statementId);
+      // O cabeçalho congela-se aqui, com o resto do instantâneo (#602): o cartão do
+      // feed mostra a folha como era ao publicar, sem ir ler o enunciado por cartão.
+      const klassOfStatement = db.classes.find((c) => c.id === statement?.classId);
+      const yearOfStatement = db.schoolYears.find((y) => y.id === statement?.schoolYearId);
       simulation = {
         simulationId: sim.id,
+        statementId: sim.statementId,
         statementTitle: statement?.title ?? null,
         schoolName: db.institutions.find((i) => i.id === klass.institutionId)?.name ?? null,
+        paperKind: statement?.examType ?? null,
+        grade: klassOfStatement?.grade != null ? `${klassOfStatement.grade}ª Classe` : null,
+        subject: statement?.subjectId != null ? db.subjects.find((s) => s.id === statement.subjectId)?.name ?? null : null,
+        durationMinutes: statement?.durationMinutes ?? null,
+        schoolYear: yearOfStatement ? `${yearOfStatement.startYear}/${yearOfStatement.endYear}` : null,
+        variant: statement?.variant ?? null,
         finalScore: sim.finalScore, maxScore: statement?.totalMaxScore ?? null,
         correctAnswers: null, totalQuestions: null, timeSpentSeconds: sim.timeSpentSeconds,
       };
