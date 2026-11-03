@@ -1044,6 +1044,26 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(warning).toHaveCount(0);
   });
 
+  test('painel: cada cartão diz o mesmo número que a lista, com as contagens num só pedido (#389)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    const cadastros = page.getByRole('region', { name: 'Cadastros' });
+    const contagem = async (nome: string) => {
+      const texto = await cadastros.getByRole('link', { name: new RegExp(`^${nome}`) }).innerText();
+      return Number(texto.match(/(\d+)\s+ativos/)![1]);
+    };
+    await expect(cadastros.getByRole('link', { name: /^Disciplinas/ })).toContainText('ativos');
+    const esperado = { Disciplinas: await contagem('Disciplinas'), Cursos: await contagem('Cursos'), Turmas: await contagem('Turmas') };
+    expect(esperado.Disciplinas, 'o simulado tem disciplinas').toBeGreaterThan(0);
+
+    // O número do cartão é o tamanho da lista que ele abre.
+    for (const [nome, caminho] of [['Disciplinas', 'subjects'], ['Cursos', 'courses'], ['Turmas', 'classes']] as const) {
+      await page.goto(`/manager/${caminho}`);
+      const linhas = page.locator('tbody tr');
+      if (esperado[nome] === 0) await expect(linhas.first()).toContainText(/Ainda não há|Nenhum/);
+      else await expect(linhas).toHaveCount(esperado[nome]);
+    }
+  });
+
   test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await page.goto('/manager/classes');
