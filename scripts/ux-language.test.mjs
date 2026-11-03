@@ -103,7 +103,7 @@ test('o conceito do menu do aluno usa sempre Ranking e a navegação móvel tem 
   assert.match(rail, /linkLabel="Ranking"/);
   // 4 colunas (#704) e o rótulo inteiro, sem `truncate`: a 320 px «Ranking» cabe numa coluna.
   assert.match(shell, /grid-cols-4/);
-  assert.match(shell, /<span className="text-\[11px\] leading-tight">\{it\.label\}<\/span>/);
+  assert.match(shell, /<span className="text-\[11px\] leading-tight[^"]*">\{it\.label\}<\/span>/);
   assert.match(shell, /aria-current=\{on\(it\) \? 'page' : undefined\}/);
   assert.match(shell, /aria-\[current=page\]:font-semibold/);
   assert.match(shell, /aria-\[current=page\]:bg-primary\/10/);

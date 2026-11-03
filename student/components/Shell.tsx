@@ -93,12 +93,13 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
 
       {/* `--ck-banner-h` (#506): com o banner de cookies em baixo, a barra sobe por cima dele em vez de ficar tapada.
           São sempre 4 itens (`mobileNavItems`) num `grid-cols-4`: um quinto partiria o último para outra linha (#704).
-          O texto fica visível e o item ativo tem fundo e negrito, não só cor (#511). */}
+          O texto fica visível e o item ativo tem fundo e negrito, não só cor (#511); o rótulo de 11 px usa a cor
+          do texto, não a atenuada, para ter contraste por cima do fundo translúcido da barra. */}
       <nav aria-label="Principal" data-testid="nav-mobile" className="fixed inset-x-0 bottom-[var(--ck-banner-h,0px)] z-30 grid grid-cols-4 border-t bg-background/95 px-1 pt-1 pb-[calc(4px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         {mobileNavItems(ITEMS).map((it) => (
-          <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} className="grid min-h-14 min-w-0 place-items-center gap-0.5 rounded-md text-muted-foreground aria-[current=page]:bg-primary/10 aria-[current=page]:font-semibold aria-[current=page]:text-primary">
+          <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} className="group grid min-h-14 min-w-0 place-items-center gap-0.5 rounded-md text-muted-foreground aria-[current=page]:bg-primary/10 aria-[current=page]:font-semibold aria-[current=page]:text-primary">
             <Ico name={it.icon} filled={on(it)} size={24} />
-            <span className="text-[11px] leading-tight">{it.label}</span>
+            <span className="text-[11px] leading-tight text-foreground group-aria-[current=page]:text-primary">{it.label}</span>
           </Link>
         ))}
       </nav>
