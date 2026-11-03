@@ -128,7 +128,7 @@ export function Presentation() {
       window.removeEventListener('resize', onScroll);
       cancelAnimationFrame(raf);
     };
-  },
+  }, []);
 
 
   // As setas andam com o browser (#513): o passo nativo é o que o teclado, o
