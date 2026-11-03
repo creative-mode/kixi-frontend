@@ -113,6 +113,8 @@ async function main() {
       STUDENT_PORT: '3003',
       LANDING_HOST: '127.0.0.1',
       LANDING_PORT: '3004',
+      // Domínio público onde /manager* não é exposto (simula kixi.creativemode.ao)
+      PUBLIC_ORIGINS: 'kixi.creativemode.ao',
     },
   });
 }
