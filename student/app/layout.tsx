@@ -1,7 +1,26 @@
 import type { Metadata, Viewport } from 'next';
+import localFont from 'next/font/local';
 import './globals.css';
 import { CookieBanner } from '@/components/consent/Consent';
 import { appOrigin } from '@/lib/origin';
+
+
+const jakarta = localFont({
+  src: [
+    { path: './fonts/plus-jakarta-sans-latin-400-normal.woff2', weight: '400' },
+    { path: './fonts/plus-jakarta-sans-latin-600-normal.woff2', weight: '600' },
+    { path: './fonts/plus-jakarta-sans-latin-700-normal.woff2', weight: '700' },
+  ],
+  variable: '--ff-sans',
+  display: 'swap',
+});
+
+const mono = localFont({
+  src: './fonts/jetbrains-mono-latin-500-normal.woff2',
+  weight: '500',
+  variable: '--ff-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Kixi',
@@ -29,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       {/* `--ck-banner-h` (#506): enquanto o banner de cookies estiver em baixo, o fim do documento
        *  ganha esse espaço, para que nenhuma página acabe com ações por baixo dele. */}
-      <body className="pb-[var(--ck-banner-h,0px)]">
+      <body className={`${jakarta.variable} ${mono.variable} pb-[var(--ck-banner-h,0px)]`}>
         {children}
         {/* #219: analítica mínima, só depois deste banner ser aceite. */}
         <CookieBanner landingOrigin={appOrigin()} />
