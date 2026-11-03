@@ -14,14 +14,14 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   }, [error]);
 
   return (
-    <main className="mx-auto grid min-h-dvh w-full max-w-7xl place-items-center p-6 md:p-8">
+    <div className="mx-auto grid min-h-dvh w-full max-w-7xl place-items-center p-6 md:p-8">
       <Card className="w-full max-w-lg">
         <CardContent>
           <div role="alert" className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
             <TriangleAlert className="size-5 text-warning" aria-hidden />
-            <p className="text-base font-semibold text-foreground">Algo falhou, mas não perdeste nada</p>
+            <p className="text-base font-semibold text-foreground">Algo falhou. Tenta de novo.</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Tenta de novo. Se continuar, volta ao início e segue a partir daí.
+              Se continuar, volta ao início e segue a partir daí.
             </p>
             <div className="mt-1 flex flex-wrap justify-center gap-2">
               <Button type="button" onClick={reset}>
@@ -34,6 +34,6 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           </div>
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

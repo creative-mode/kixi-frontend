@@ -1202,14 +1202,78 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await expect(cadastros.getByRole('alert')).toHaveCount(0);
   });
 
-  test('professor: listas falhadas mostram erro com retry', async ({ page }) => {
+  test('professor: listas e scope falhados mostram erro com retry', async ({ page }) => {
     await gestorLogin(page);
     await avariarPOST(page, '**/manager/professor');
     await page.goto('/manager/professor');
-    const alerta = page.getByRole('alert').filter({ hasText: 'Não foi possível carregar as listas' });
-    await expect(alerta).toBeVisible();
-    await expect(alerta.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
+    const listas = page.getByRole('alert').filter({ hasText: 'Não foi possível carregar as listas' });
+    await expect(listas).toBeVisible();
+    // O scope falha pela mesma rede: sem o `catch` no hook, este painel nunca
+    // aparecia e as listas ficavam no esqueleto para sempre.
+    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
+    await expect(scope).toBeVisible();
     expect(await graves(page), 'professor em erro').toEqual([]);
+    await page.unroute('**/manager/professor');
+    // O retry do scope volta a pedir (a falha de rede não fica em cache)...
+    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(scope).toHaveCount(0);
+    // ...e o das listas também.
+    await listas.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(listas).toHaveCount(0);
+  });
+
+  test('gestor: enunciados falhados (lista e scope) mostram erro com retry', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/statements');
+    await page.goto('/manager/statements');
+    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
+    await expect(scope).toBeVisible();
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar.first()).toBeVisible();
+    expect(await graves(page), 'enunciados em erro').toEqual([]);
+    await page.unroute('**/manager/statements');
+    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(scope).toHaveCount(0);
+    // Resta o da lista: é o último e também sai com retry.
+    await expect(tentar).toHaveCount(1);
+    await tentar.first().click();
+    await expect(tentar).toHaveCount(0);
+  });
+
+  test('gestor: lista genérica falhada (simulações) mostra erro com retry', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/simulations');
+    await page.goto('/manager/simulations');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar.first()).toBeVisible();
+    await page.unroute('**/manager/simulations');
+    for (let i = 0; i < 3; i++) {
+      if ((await tentar.count()) === 0) break;
+      await tentar.first().click();
+    }
+    await expect(tentar).toHaveCount(0);
+  });
+
+  test('gestor: sala inexistente mostra erro com retry (sem fingir vazio)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/exam-rooms/999999');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    expect(await graves(page), 'sala em erro').toEqual([]);
+    // O id continua a não existir: o retry volta a tentar e o erro mantém-se,
+    // que é o honesto — nunca um ecrã vazio.
+    await tentar.click();
+    await expect(tentar).toBeVisible();
+  });
+
+  test('gestor: enunciado inexistente mostra erro com retry (sem fingir vazio)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/statements/999999');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    expect(await graves(page), 'enunciado em erro').toEqual([]);
+    await tentar.click();
+    await expect(tentar).toBeVisible();
   });
 
   test('landing: /nao-existe devolve 404 em PT, com marca e saída', async ({ page }) => {

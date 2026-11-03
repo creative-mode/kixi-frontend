@@ -39,7 +39,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
               justifyItems: 'center',
             }}
           >
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Algo falhou, mas não perdeste nada</p>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Algo falhou.</p>
             <p style={{ margin: 0, fontSize: 14, color: 'var(--muted-foreground, #617066)' }}>
               Tenta de novo. Se continuar, fecha e volta a entrar.
             </p>

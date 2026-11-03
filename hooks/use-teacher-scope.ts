@@ -18,14 +18,30 @@ export {
  * processo serve, e daria o scope de um professor ao seguinte. No browser é por
  * sessão: um professor com uma atribuição nova vê-a depois de recarregar. */
 let scopeOnce: Promise<Result<TeachingScope>> | null = null;
+/** Geração do pedido em voo: um retry mais novo invalida o anterior, e o fim do
+ *  anterior nunca apaga o cache do mais novo (corrida entre o `catch` e o `retry`). */
+let scopeToken = 0;
 
 function loadScopeOnce(): Promise<Result<TeachingScope>> {
-  scopeOnce ??= myTeachingScope().then((res) => {
-    // A falha não fica em cache: sem isto, um erro de rede na primeira leitura
-    // fechava o scope para a sessão inteira, sem saída a não ser recarregar.
-    if (!res.ok) scopeOnce = null;
-    return res;
-  });
+  if (!scopeOnce) {
+    const geracao = ++scopeToken;
+    scopeOnce = myTeachingScope().then(
+      (res): Result<TeachingScope> => {
+        // A falha não fica em cache: sem isto, um erro na primeira leitura
+        // fechava o scope para a sessão inteira, sem saída a não ser recarregar.
+        if (!res.ok && geracao === scopeToken) scopeOnce = null;
+        return res;
+      },
+      (err: unknown): Result<TeachingScope> => {
+        // A rede lança no cliente, fora do `guard` do servidor: sem este `catch`
+        // a promessa rejeitava, o efeito nunca definia `scope.error`, as listas
+        // ficavam no esqueleto para sempre e o retry nunca aparecia.
+        if (geracao === scopeToken) scopeOnce = null;
+        const msg = err instanceof Error && err.message ? err.message : '';
+        return { ok: false, error: msg || 'Não foi possível contactar o servidor.' };
+      },
+    );
+  }
   return scopeOnce;
 }
 
