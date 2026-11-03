@@ -917,7 +917,6 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     });
   });
 });
-
 /** O CTA de registo da landing (#512): antes o 1.º ecrã só tinha "Entrar" e o
  *  "Começar a estudar" morava ~18 ecrãs abaixo, com a barra de scroll escondida. */
 test.describe('CTA de registo da landing (#512)', () => {
