@@ -228,9 +228,13 @@ export type MockPost = {
   updatedAt: string;
   /** Posts construídos (kixi#347): a lista de blocos; ausente nos simples. */
   blocks?: PostBlock[];
-  /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend. */
+  /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend.
+   *  Desde a #602 traz também o cabeçalho da folha, lido do enunciado na hora de
+   *  publicar — nunca do cliente, e nunca com fetch extra na leitura do feed. */
   simulation?: {
-    simulationId: number; statementTitle: string | null; schoolName: string | null;
+    simulationId: number; statementId?: number | null; statementTitle: string | null; schoolName: string | null;
+    paperKind?: string | null; grade?: string | null; subject?: string | null;
+    durationMinutes?: number | null; schoolYear?: string | null; variant?: string | null;
     finalScore: number | null; maxScore: number | null;
     correctAnswers: number | null; totalQuestions: number | null; timeSpentSeconds: number | null;
   };

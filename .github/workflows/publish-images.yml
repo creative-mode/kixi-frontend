@@ -33,6 +33,7 @@ jobs:
             build_args: |
               APP_DIR=.
               PORT=3002
+              NEXT_PUBLIC_CONTACT_EMAIL=${{ vars.NEXT_PUBLIC_CONTACT_EMAIL }}
           - name: student
             dockerfile: docker/app.Dockerfile
             build_args: |

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { CONTACT_EMAIL } from '@/lib/constants';
 import { KixiLogo } from '@/components/kixi-logo';
 import { Eye, EyeOff, CircleAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
@@ -29,12 +30,16 @@ function LoginContent() {
   const hydrated = useHydrated();
   const [isLoading, setIsLoading] = useState(false);
   const [show, setShow] = useState(false);
+  // O erro fica no ecrã até à próxima tentativa (kixi-frontend#542): um toast de 4 s
+  // desaparecia antes de quem escreve devagar ou lê com leitor de ecrã o ter lido.
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const notice = noticeFor(useSearchParams().get('reason'));
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     const formData = new FormData(e.currentTarget);
 
@@ -52,22 +57,18 @@ function LoginContent() {
         router.push('/');
         router.refresh();
       } else {
-        toast.error(result.error || 'Credenciais inválidas', {
-          description: 'Verifique o username/email e a senha.',
-        });
+        setError(result.error || 'Credenciais inválidas. Verifique o utilizador e a palavra-passe.');
       }
-    } catch (error) {
-      console.error('Erro no login:', error);
-      toast.error('Erro de conexão', {
-        description: 'Não foi possível conectar ao servidor. Tente novamente.',
-      });
+    } catch (err) {
+      console.error('Erro no login:', err);
+      setError('Não foi possível ligar ao servidor. Verifique a ligação e tente novamente.');
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
       <div className="flex items-center gap-3">
         <KixiLogo size={28} wordmark />
         <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">Manager</span>
@@ -83,13 +84,19 @@ function LoginContent() {
             <span>{notice}</span>
           </div>
         ) : null}
+        {error ? (
+          <div role="alert" className="flex items-start gap-2 rounded-md border border-destructive/40 bg-danger-soft p-3 text-sm text-foreground">
+            <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+            <span>{error}</span>
+          </div>
+        ) : null}
         {/* Antes de o JavaScript hidratar, o envio nativo de um formulário sem `method` é um GET: a palavra-passe
             iria no endereço (histórico, logs de proxies). `method="post"` tira-a do URL e o botão fica desativado
             até a página estar pronta (com o botão por defeito desativado, o Enter também não submete). */}
         <form method="post" onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
             <Label htmlFor="usernameOrEmail">Username ou email</Label>
-            <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username email" autoFocus />
+            <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username" autoFocus />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Palavra-passe</Label>
@@ -105,8 +112,21 @@ function LoginContent() {
           </Button>
         </form>
       </div>
-      <p className="text-center text-xs text-muted-foreground">Problemas no acesso? Contacte o suporte técnico.</p>
-    </main>
+      <p className="text-center text-xs text-muted-foreground">
+        Problemas no acesso?{' '}
+        {CONTACT_EMAIL ? (
+          <>
+            Escreve para{' '}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-2 hover:text-foreground">
+              {CONTACT_EMAIL}
+            </a>
+            .
+          </>
+        ) : (
+          'Contacta o suporte técnico.'
+        )}
+      </p>
+    </div>
   );
 }
 

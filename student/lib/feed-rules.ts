@@ -1,4 +1,5 @@
 import { safePhoto } from './profile.ts';
+import { PASS_RATIO } from './folha-do-resultado.ts';
 
 /** Regras de apresentação do feed (#120/#30), sem servidor e sem React.
  *
@@ -106,6 +107,34 @@ export function canPublishReflection(content: string): boolean {
 export function scorePercent(score: number | null | undefined, max: number | null | undefined): number | null {
   if (score == null || max == null || max <= 0) return null;
   return Math.round((score / max) * 100);
+}
+
+/** Abaixo de metade da cotação a nota é negativa (10 em 20): a mesma fasquia do
+ *  carimbo da folha (`PASS_RATIO` em `folha-do-resultado`), para os dois nunca discordarem. Null sem cotação. */
+export function scorePassed(score: number | null | undefined, max: number | null | undefined): boolean | null {
+  if (score == null || max == null || max <= 0) return null;
+  return score / max >= PASS_RATIO;
+}
+
+/** A linha de identificação da prova no cartão do feed («12ª Classe / Teste –
+ *  Programação · 30 min · Ano letivo 2026/2027»): só com o que o instantâneo
+ *  trouxe, sem inventar o que um backend antigo não enviou (#602). */
+export function simulationHeadline(card: {
+  grade?: string | null;
+  paperKind?: string | null;
+  subject?: string | null;
+  durationMinutes?: number | null;
+  schoolYear?: string | null;
+  variant?: string | null;
+}): string | null {
+  const title = [card.paperKind, card.subject].filter((s) => s?.trim()).join(' – ');
+  const head = [
+    card.grade?.trim() ? `${card.grade.trim()}${title ? ` / ${title}` : ''}` : title || '',
+    card.durationMinutes != null ? `${card.durationMinutes} min` : '',
+    card.variant?.trim() ? `Série ${card.variant.trim()}` : '',
+    card.schoolYear?.trim() ? `Ano letivo ${card.schoolYear.trim()}` : '',
+  ].filter(Boolean).join(' · ');
+  return head || null;
 }
 
 /** O que o perfil de uma pessoa (`GET /profiles/accounts/{id}`) dá ao feed: nome abreviado se for restrito, foto sempre. */

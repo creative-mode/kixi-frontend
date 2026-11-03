@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import ForbiddenScene from '@/components/forbidden/forbidden-scene';
 import { Header } from '@/components/sections/Header';
-import { LOGIN_URL } from '@/lib/content';
+import { getForbiddenReason } from '@/lib/forbidden-reasons';
 import '@/components/forbidden/forbidden.css';
 
 export const metadata: Metadata = {
@@ -29,21 +29,14 @@ function button(href: string, label: string) {
 export default async function ForbiddenPage({ searchParams }: PageProps) {
   const raw = (await searchParams).reason;
   const reason = Array.isArray(raw) ? raw[0] : raw;
-  const wrongRole = reason === 'role';
-
-  const primary = wrongRole
-    ? button('/manager/exam-builder', 'Voltar ao meu painel')
-    : button('/aluno/inicio', 'Ir para o caminho certo');
-
-  const secondary = wrongRole
-    ? button('/', 'Ver o site')
-    : button(LOGIN_URL, 'Entrar noutra conta');
-
-  const hint = wrongRole
-    ? 'Esta área é para quem gere o Kixi. O teu acesso chega até aqui.'
-    : 'O teu acesso é do lado dos alunos. Esta porta não abre para ti.';
+  const config = getForbiddenReason(reason);
 
   return (
-    <ForbiddenScene header={<Header />} hint={hint} primary={primary} secondary={secondary} />
+    <ForbiddenScene
+      header={<Header />}
+      hint={config.message}
+      primary={button(config.primary.href, config.primary.label)}
+      secondary={config.secondary ? button(config.secondary.href, config.secondary.label) : undefined}
+    />
   );
 }
