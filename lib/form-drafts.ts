@@ -27,13 +27,13 @@ export const DRAFT_TTL_MS = 12 * 60 * 60 * 1000;
 /** Um formulário maior do que isto não é trabalho normal: não se guarda para não encher a quota. */
 const MAX_DRAFT_BYTES = 512 * 1024;
 /** Campos que nunca vão para o armazenamento, mesmo que o chamador os passe por engano. */
-const SENSITIVE_KEY = /(^|_)(password|passwd|senha|token|secret|authorization|credential|api_key|cookie|jwt)(_|$)/i;
+const SENSITIVE_KEY = /password|passwd|senha|token|secret|authorization|credential|apikey|cookie|jwt/;
 
 function isSensitiveKey(key: string): boolean {
-  // Separe camelCase e hífen para apanhar `authToken`/`api-key`, sem bloquear
-  // campos legítimos como `passingScore`, `passMark` ou `compass`.
-  const normalized = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/-/g, '_');
-  return SENSITIVE_KEY.test(normalized);
+  // Em minúsculas e sem separadores, a palavra apanha-se em qualquer forma: `authToken`, `api-key`, `apikey`,
+  // `newpassword`, `credentials`, `tokens`, `cookies`. `pass` sozinho não conta, para não bloquear
+  // `passingScore`, `passMark` ou `compass`.
+  return SENSITIVE_KEY.test(key.toLowerCase().replace(/[-_\s]/g, ''));
 }
 
 export interface FormDraft<T> {
@@ -141,7 +141,9 @@ export function loadChangedFormDraft<T>(
 ): T | null {
   const saved = loadFormDraft<{ baseline: T; values: T }>(storage, formId, owner, now);
   if (!saved) return null;
-  if (stableValue(saved.baseline) !== stableValue(baseline)) {
+  // O baseline guardado passou por `sanitizeDraft` (sem `password`, sem `undefined`): compara-se com o atual
+  // sanitizado da mesma forma, senão um formulário com um campo sensível nunca restauraria nada.
+  if (stableValue(saved.baseline) !== stableValue(sanitizeDraft(baseline))) {
     clearFormDraft(storage, formId);
     return null;
   }
@@ -157,7 +159,8 @@ export function saveChangedFormDraft<T>(
   owner: number | null,
   now: number = Date.now(),
 ): boolean {
-  if (stableValue(values) === stableValue(baseline)) {
+  // Mudar só um campo que não se guarda (a palavra-passe) não é um rascunho: nada dele voltaria.
+  if (stableValue(sanitizeDraft(values)) === stableValue(sanitizeDraft(baseline))) {
     clearFormDraft(storage, formId);
     return false;
   }

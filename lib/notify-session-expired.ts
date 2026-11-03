@@ -19,9 +19,9 @@ export function notifySessionExpired(): void {
   const login = new URL(`${MANAGER_BASE_PATH}/login`, window.location.origin);
   login.searchParams.set('next', here);
 
-  toast.error('A tua sessão expirou', {
+  toast.error('A sua sessão expirou', {
     id: 'kixi-sessao-expirada',
-    description: 'Inicia sessão numa aba nova para continuares. O que tens neste separador fica guardado.',
+    description: 'Inicie sessão numa aba nova para continuar. O que tem neste separador fica guardado.',
     duration: Infinity,
     closeButton: true,
     action: {

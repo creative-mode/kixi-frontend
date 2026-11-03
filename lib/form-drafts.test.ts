@@ -115,3 +115,31 @@ test('um armazenamento cheio não lança', () => {
   };
   assert.equal(saveFormDraft(storage, 'room:new', { x: 1 }, 7), false);
 });
+
+test('plurais e compostos em minúsculas também ficam de fora', () => {
+  const limpo = sanitizeDraft({
+    credentials: 'x', apikey: 'x', 'api-key': 'x', currentpassword: 'x', newpassword: 'x', passwords: ['x'],
+    cookies: 'x', tokens: ['x'], authorization: 'x', jwt: 'x', secretKey: 'x',
+    nome: 'Ana', passingScore: 70, compass: 'norte',
+  });
+  assert.deepEqual(limpo, { nome: 'Ana', passingScore: 70, compass: 'norte' });
+});
+
+// O formulário de `users` tem `password` no estado inicial (`initial.password = ''`): o baseline guardado
+// perde-o na sanitização, e o rascunho tem de voltar na mesma (entities.tsx, `users`).
+test('formulário com campo sensível restaura o rascunho das restantes alterações', () => {
+  const storage = new MemoryStorage();
+  const initial = { username: 'ana', email: 'ana@kixi.ao', password: '', role: undefined as string | undefined };
+  assert.equal(saveChangedFormDraft(storage, 'crud:users:new', { ...initial, username: 'ana.silva', password: 'segredo' }, initial, 7, 1000), true);
+  const saved = loadChangedFormDraft(storage, 'crud:users:new', 7, initial, 1000);
+  assert.deepEqual(saved, { username: 'ana.silva', email: 'ana@kixi.ao' });
+  assert.equal(JSON.stringify(storage.getItem(formDraftKey('crud:users:new'))).includes('segredo'), false);
+  assert.deepEqual({ ...initial, ...saved }, { ...initial, username: 'ana.silva' });
+});
+
+test('mudar só a palavra-passe não cria rascunho', () => {
+  const storage = new MemoryStorage();
+  const initial = { username: 'ana', password: '' };
+  assert.equal(saveChangedFormDraft(storage, 'crud:users:3', { ...initial, password: 'nova' }, initial, 7, 1000), false);
+  assert.equal(storage.getItem(formDraftKey('crud:users:3')), null);
+});

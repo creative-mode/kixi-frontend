@@ -16,7 +16,7 @@ export default function RecuperarPage() {
         </div>
         <div role="note" className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-foreground">
           <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <span>Contacta o professor ou a secretaria da escola para redefinir a palavra-passe. Não há um serviço automático disponível neste momento.</span>
+          <span>Contacte o professor ou a secretaria da escola para redefinir a palavra-passe. Não há um serviço automático disponível neste momento.</span>
         </div>
 
         <Link

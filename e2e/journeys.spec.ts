@@ -495,13 +495,13 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page).toHaveURL(/\/manager\/login\?/);
     await expect(page).toHaveURL(/next=(?:%2Fclasses|%2Fmanager%2Fclasses)/i);
 
-    await page.getByLabel('Username ou email').fill(ADMIN_USERNAME);
+    await page.locator('#usernameOrEmail').fill(ADMIN_USERNAME);
     await page.locator('#password').fill(PASSWORD);
     await page.getByTestId('gestor-entrar-submeter').click();
     await expect(page).toHaveURL(/\/manager\/classes$/);
 
     await page.goto('/manager/recuperar');
-    await expect(page.getByRole('note')).toContainText('Contacta o professor ou a secretaria da escola');
+    await expect(page.getByRole('note')).toContainText('Contacte o professor ou a secretaria da escola');
     await expect(page.locator('form')).toHaveCount(0);
   });
 
