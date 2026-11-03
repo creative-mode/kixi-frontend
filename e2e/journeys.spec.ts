@@ -1812,3 +1812,47 @@ test.describe('cartão de prova no feed (#602)', () => {
     await colegaContext.close();
   });
 });
+
+/** A barra inferior do telemóvel tem 4 colunas (#704). Com 5 itens o último caía
+ *  para uma segunda linha; as Pautas passaram a viver no perfil. */
+test.describe('navegação do telemóvel (#704)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('a barra tem 4 itens numa só linha e as pautas abrem pelo perfil', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const barra = page.getByTestId('nav-mobile');
+    const itens = barra.getByRole('link');
+    await expect(itens).toHaveCount(4);
+    for (const nome of ['Início', 'Provas', 'Liga', 'Tutor']) {
+      await expect(barra.getByRole('link', { name: nome })).toBeVisible();
+    }
+    await expect(barra.getByRole('link', { name: 'Pautas' })).toHaveCount(0);
+
+    // Uma linha: com o Tutor numa segunda linha a barra teria ~120 px, não ~64.
+    const caixa = await barra.boundingBox();
+    expect(caixa?.height ?? 0).toBeGreaterThanOrEqual(56);
+    expect(caixa?.height ?? 0).toBeLessThan(80);
+
+    // As pautas continuam alcançáveis: pelo perfil, que é como se chega no telemóvel.
+    await page.goto('/aluno/perfil');
+    await page.getByRole('link', { name: /As minhas pautas/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/pautas/);
+    await expect(page.getByRole('heading', { name: 'As minhas pautas' })).toBeVisible();
+  });
+
+  test('no desktop a barra lateral mantém as Pautas', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await expect(page.locator('header nav[aria-label="Principal"]').getByRole('link', { name: 'Pautas' })).toBeVisible();
+    await expect(page.getByTestId('nav-mobile')).toBeHidden();
+  });
+});

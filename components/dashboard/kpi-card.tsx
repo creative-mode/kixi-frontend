@@ -33,7 +33,7 @@ export function KpiCard({ label, value, hint, icon: Icon, accent = 'brand', load
       </CardHeader>
       <CardContent>
         {loading ? (
-          <Skeleton className="h-8 w-24" aria-label="A carregar" />
+          <Skeleton className="h-8 w-24" aria-hidden />
         ) : (
           <div className="text-xl font-bold leading-tight tabular-nums whitespace-nowrap text-foreground">{value}</div>
         )}
