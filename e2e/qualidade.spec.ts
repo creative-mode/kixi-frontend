@@ -40,10 +40,6 @@ async function graves(page: Page) {
     .map((v) => `${v.id} x${v.nodes.length}: ${v.nodes[0]?.html.slice(0, 120)}`);
 }
 
-const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
-const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
-const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
-
 /** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
  *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
  *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
@@ -60,6 +56,14 @@ async function irAoFim(page: Page) {
     .toBe(true);
 }
 
+const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
+const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
+const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
+
+/** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
+ *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
+ *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
+ *  `getByRole` nem a via ("element(s) not found"). */
 for (const vp of VIEWPORTS) {
   test.describe(`acessibilidade, ${vp.nome}`, () => {
     test.use({ viewport: vp.size, isMobile: vp.size.width < 500 });
@@ -994,7 +998,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     await irAoFim(page);
     const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
     await expect(cenaOutro, 'a cena do fim acende').toHaveAttribute('aria-hidden', 'false', { timeout: 15000 });
-    await expect(outro).toBeVisible();
+    await expect(outro).toBeVisible({ timeout: 15000 });
     const noFim = await outro.evaluate((el) => {
       (el as HTMLElement).focus();
       return document.activeElement === el;
@@ -1303,6 +1307,94 @@ test.describe('cache da landing (#522)', () => {
     const r = await request.get('/', { headers: { Accept: 'text/html' } });
     expect(r.ok()).toBeTruthy();
     expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+  });
+});
+
+/** Moderação com diálogo e nota a sério (#525): antes o painel nascia depois de
+ *  toda a lista, fora do ecrã e sem foco, a nota "pedida" era opcional e o alvo
+ *  não tinha ligação. Agora é diálogo modal com foco na nota, nota obrigatória
+ *  para ocultar/suspender e alvo com saída. Nada aqui decide de verdade: abrir,
+ *  validar e fechar não mutam nada, por isso os testes não se estragam entre si. */
+test.describe('moderação com diálogo, nota e auditoria (#525)', () => {
+  test('clicar numa decisão abre diálogo modal com foco na nota', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await expect(page.getByLabel('Nota da decisão')).toBeFocused();
+    expect(await graves(page), 'diálogo da decisão').toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+  });
+
+  test('ocultar não confirma sem nota de pelo menos 10 caracteres', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const confirmar = page.getByRole('button', { name: /^Confirmar/ });
+    await expect(confirmar).toBeDisabled();
+    await expect(page.getByText(/pelo menos 10 caracteres/)).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('curta');
+    await expect(confirmar).toBeDisabled();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    await expect(confirmar).toBeEnabled();
+    await page.keyboard.press('Escape');
+  });
+
+  test('Esc fecha e devolve o foco ao botão que abriu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    const botao = page.getByRole('button', { name: /^Ocultar/ }).first();
+    await botao.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(botao).toBeFocused();
+  });
+
+  test('o cartão do alvo liga por id (escola ou conta)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    // Escola: estrutura direta por id.
+    const escola = page.getByRole('link', { name: 'Ver escola' }).first();
+    await expect(escola).toHaveAttribute('href', /\/institutions\/\d+\/structure$/);
+    // Pessoa: registo da conta por id — o nome da denúncia vive no registo da
+    // pessoa, e na lista só há o username (homónimos incluídos), por isso o
+    // `?q=nome` não chegava lá.
+    const conta = page.getByRole('link', { name: 'Ver conta' }).first();
+    await expect(conta).toHaveAttribute('href', /\/accounts\/\d+\/edit$/);
+    await conta.click();
+    await expect(page).toHaveURL(/\/accounts\/\d+\/edit$/);
+    await expect(page.getByLabel(/Utilizador/)).toBeVisible();
+  });
+
+  test('a auditoria é alcançável em 1 clique, no topo e no menu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await expect(page.getByRole('link', { name: 'Auditoria', exact: true })).toBeVisible();
+    await page.getByRole('main').getByRole('link', { name: 'Ver auditoria' }).click();
+    await expect(page).toHaveURL(/\/moderacao\/auditoria$/);
+    await expect(page.getByRole('heading', { name: 'Auditoria' })).toBeVisible();
+  });
+
+  test('decisão falhada mostra o erro dentro do diálogo', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    // Só os POST (a decisão) falham; o GET da navegação passa.
+    await page.route('**/manager/moderacao', (rota) =>
+      rota.request().method() === 'POST' ? rota.abort() : rota.continue(),
+    );
+    await dialogo.getByRole('button', { name: /^Confirmar/ }).click();
+    // O erro aparece dentro do diálogo e ele continua aberto — antes ficava
+    // escondido atrás do overlay, com a página em `aria-hidden`.
+    await expect(dialogo.getByRole('alert')).toContainText(/failed to fetch|contactar o servidor/i);
+    await expect(dialogo).toBeVisible();
+    await page.keyboard.press('Escape');
   });
 });
 
