@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Archive, Edit, Network, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,10 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   const entity = ENTITIES[entityKey];
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  // Uma ligação pode trazer a pesquisa (`?q=`, p. ex. da moderação): lê-se uma
+  // vez ao montar. Quem usa precisa de um `Suspense` por cima (ver a página).
+  const qInicial = useSearchParams().get('q') ?? '';
+  const [query, setQuery] = useState(qInicial);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   // id -> display name per FK field (entity.lookups), for flat API responses
   const [labels, setLabels] = useState<Record<string, string>>({});

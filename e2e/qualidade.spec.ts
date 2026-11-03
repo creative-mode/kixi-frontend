@@ -1215,4 +1215,23 @@ test.describe('moderação com diálogo, nota e auditoria (#525)', () => {
     await expect(page).toHaveURL(/\/moderacao\/auditoria$/);
     await expect(page.getByRole('heading', { name: 'Auditoria' })).toBeVisible();
   });
+
+  test('decisão falhada mostra o erro dentro do diálogo', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    // Só os POST (a decisão) falham; o GET da navegação passa.
+    await page.route('**/manager/moderacao', (rota) =>
+      rota.request().method() === 'POST' ? rota.abort() : rota.continue(),
+    );
+    await dialogo.getByRole('button', { name: /^Confirmar/ }).click();
+    // O erro aparece dentro do diálogo e ele continua aberto — antes ficava
+    // escondido atrás do overlay, com a página em `aria-hidden`.
+    await expect(dialogo.getByRole('alert')).toContainText(/failed to fetch|contactar o servidor/i);
+    await expect(dialogo).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
 });

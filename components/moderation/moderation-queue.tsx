@@ -67,6 +67,10 @@ export function ModerationQueue() {
   const [aAbrir, setAAbrir] = useState<{ report: Report; decision: Decision } | null>(null);
   const [nota, setNota] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  /** O erro de uma decisão falhada vive dentro do diálogo (por cima do footer),
+   *  com `role="alert"`: fora dele o overlay tapa-o e o Radix põe a página em
+   *  `aria-hidden`, por isso nem o leitor de ecrã o anunciava. */
+  const [erroDialogo, setErroDialogo] = useState<string | null>(null);
   const notaRef = useRef<HTMLTextAreaElement>(null);
   /** Quem abriu o diálogo: o Esc e o cancelar devolvem-lhe o foco. */
   const openerRef = useRef<HTMLButtonElement | null>(null);
@@ -106,8 +110,18 @@ export function ModerationQueue() {
 
   function abrir(report: Report, decision: Decision, opener: HTMLButtonElement | null) {
     setNota('');
+    setErroDialogo(null);
     openerRef.current = opener;
     setAAbrir({ report, decision });
+  }
+
+  function fechar() {
+    // Com pedido em curso não se fecha: o resultado chegaria a um ecrã fechado,
+    // com o erro invisível. O cancelar já vem desativado; o Esc e o clique fora
+    // travam aqui.
+    if (ocupado) return;
+    setErroDialogo(null);
+    setAAbrir(null);
   }
 
   async function confirmar() {
@@ -116,13 +130,20 @@ export function ModerationQueue() {
     // mas a decisão é um endpoint e valida-se de novo antes de a pedir.
     if (notaDecisaoError(aAbrir.decision, nota)) return;
     setOcupado(true);
-    setErro(null);
-    const r = await decideReport(aAbrir.report.id, aAbrir.decision, aAbrir.report.target, nota);
-    setOcupado(false);
-    if (!r.ok) setErro(r.error);
-    else {
+    setErroDialogo(null);
+    try {
+      const r = await decideReport(aAbrir.report.id, aAbrir.decision, aAbrir.report.target, nota);
+      if (!r.ok) {
+        setErroDialogo(r.error);
+        return;
+      }
       setAAbrir(null);
       await carregar();
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
+      setErroDialogo(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
+    } finally {
+      setOcupado(false);
     }
   }
 
@@ -240,7 +261,7 @@ export function ModerationQueue() {
         <Dialog
           open={aAbrir !== null}
           onOpenChange={(aberto) => {
-            if (!aberto) setAAbrir(null);
+            if (!aberto) fechar();
           }}
         >
           <DialogContent
@@ -249,6 +270,12 @@ export function ModerationQueue() {
               // saído do botão quando o diálogo montou): devolve-se à mão.
               e.preventDefault();
               openerRef.current?.focus();
+            }}
+            onEscapeKeyDown={(e) => {
+              if (ocupado) e.preventDefault();
+            }}
+            onPointerDownOutside={(e) => {
+              if (ocupado) e.preventDefault();
             }}
           >
             {aAbrir && (
@@ -275,8 +302,13 @@ export function ModerationQueue() {
                       ? `Obrigatória, com pelo menos ${NOTA_MINIMA} caracteres: é ela que explica a decisão daqui a meses.`
                       : 'Opcional, fica no registo de auditoria.')}
                 </p>
+                {erroDialogo && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {erroDialogo}
+                  </p>
+                )}
                 <DialogFooter>
-                  <Button variant="outline" size="sm" onClick={() => setAAbrir(null)} disabled={ocupado}>
+                  <Button variant="outline" size="sm" onClick={fechar} disabled={ocupado}>
                     Cancelar
                   </Button>
                   <Button size="sm" onClick={confirmar} disabled={ocupado || !!erroNota} data-testid="moderacao-confirmar">
