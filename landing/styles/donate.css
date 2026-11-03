@@ -49,7 +49,7 @@
 .dn-step-hint__title { margin: 0 0 4px; font: 800 12px/1.2 var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; color: var(--lp-ink); }
 .dn-step-hint__list { margin: 0; padding-left: 16px; line-height: 1.5; color: var(--lcd-3); }
 .dn-data-warning { margin: 0 0 12px; padding: 8px 10px; font-size: 12px; line-height: 1.4; color: #5c0d0a; background: #fdf6e3; border: 1px solid #5c0d0a; border-radius: 0; }
-.dn-consent__policy { align-self: end; font: 600 11px/1 var(--font-sans); color: var(--lcd-2); text-decoration: underline; cursor: pointer; }
+.dn-consent__policy { font: 600 11px/1 var(--font-sans); color: var(--lcd-2); text-decoration: underline; cursor: pointer; }
 
 .dn-help { margin: 0; font-size: 13px; line-height: 1.4; }
 .dn-help--small { font-size: 12px; }
@@ -103,7 +103,7 @@
 @media (max-width: 899px) {
   /* Limita o palco à altura visível. Com apenas min-height, o track flexível
      cresce com o conteúdo e o rodapé fixo de cookies acaba por tapar o CTA. */
-  .dn-stage { height: 100svh; min-height: 0; }
+  .dn-stage { height: 100svh; height: 100dvh; min-height: 0; }
   /* A ajuda de privacidade fica sempre visível (#515): doar sem se identificar é
      uma promessa que o telemóvel também tem de ler. */
   /* O espaço medido do banner já está reservado em .dn-main; o ecrã rola por dentro. */

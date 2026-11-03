@@ -53,6 +53,7 @@ export function DonationForm() {
   const selectedFilesRef = useRef<File[]>([]);
   const [preparingFiles, setPreparingFiles] = useState<Record<string, boolean>>({});
   const [preparationErrors, setPreparationErrors] = useState<Record<string, string>>({});
+  const imageWorkQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Veredicto da análise de cada foto (undefined = ainda a analisar); os PDFs não são analisados.
   const [checks, setChecks] = useState<Record<string, Assessment | null>>({});
@@ -105,18 +106,24 @@ export function DonationForm() {
     if (picker.current) picker.current.value = '';
     for (const file of added) {
       const key = keyOf(file);
-      void inspectImage(file).then((result) => setChecks((c) => ({ ...c, [keyOf(file)]: result })));
       setPreparingFiles((current) => ({ ...current, [key]: true }));
-      void prepareFileForUpload(file).then((prepared) => {
+      imageWorkQueue.current = imageWorkQueue.current.then(async () => {
         if (!selectedFilesRef.current.some((selected) => keyOf(selected) === key)) return;
-        resizedRef.current = { ...resizedRef.current, [key]: prepared };
-        setResized((current) => ({ ...current, [key]: prepared }));
-        setPreparationErrors((current) => { const { [key]: _done, ...rest } = current; return rest; });
-      }).catch(() => {
-        if (!selectedFilesRef.current.some((selected) => keyOf(selected) === key)) return;
-        setPreparationErrors((current) => ({ ...current, [key]: 'Não foi possível preparar esta foto. Remove-a e escolhe outra.' }));
-      }).finally(() => {
-        setPreparingFiles((current) => { const { [key]: _done, ...rest } = current; return rest; });
+        try {
+          const result = await inspectImage(file);
+          if (!selectedFilesRef.current.some((selected) => keyOf(selected) === key)) return;
+          setChecks((current) => ({ ...current, [key]: result }));
+          const prepared = await prepareFileForUpload(file);
+          if (!selectedFilesRef.current.some((selected) => keyOf(selected) === key)) return;
+          resizedRef.current = { ...resizedRef.current, [key]: prepared };
+          setResized((current) => ({ ...current, [key]: prepared }));
+          setPreparationErrors((current) => { const { [key]: _done, ...rest } = current; return rest; });
+        } catch {
+          if (!selectedFilesRef.current.some((selected) => keyOf(selected) === key)) return;
+          setPreparationErrors((current) => ({ ...current, [key]: 'Não foi possível preparar esta foto. Remove-a e escolhe outra.' }));
+        } finally {
+          setPreparingFiles((current) => { const { [key]: _done, ...rest } = current; return rest; });
+        }
       });
     }
   }
@@ -149,7 +156,6 @@ export function DonationForm() {
     copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
   }
 
-  const RETRY_COUNT = 3;
   const REQUEST_TIMEOUT_MS = 60_000;
 
   function parseResponse(request: XMLHttpRequest) {
@@ -168,58 +174,50 @@ export function DonationForm() {
     setProblem(null);
     setRetryable(false);
 
-    for (let attempt = 1; attempt <= RETRY_COUNT + 1; attempt++) {
-      const request = new XMLHttpRequest();
-      request.timeout = REQUEST_TIMEOUT_MS;
-      request.open('POST', '/api/doar');
-      setProgress(0);
-      request.upload.onprogress = (event) => {
-        if (event.lengthComputable) setProgress(Math.round((event.loaded / event.total) * 100));
+    const filesBytes = form.getAll('files').reduce((sum, entry) => sum + (entry instanceof File ? entry.size : 0), 0);
+    const timeout = Math.max(REQUEST_TIMEOUT_MS, Math.min(20 * 60_000, Math.ceil(filesBytes / (64 * 1024) * 1000)));
+    const request = new XMLHttpRequest();
+    request.timeout = timeout;
+    request.open('POST', '/api/doar');
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) setProgress(Math.round((event.loaded / event.total) * 100));
+    };
+
+    const done = new Promise<void>((resolve) => {
+      request.onload = () => {
+        const body = parseResponse(request);
+        if (request.status === 201 && body.reference) {
+          setReference(body.reference);
+          setPhase('done');
+          // #219 "doação submetida": sem o conteúdo, só que uma aconteceu.
+          track('donation_submitted');
+          resolve();
+          return;
+        }
+        setPhase('editing');
+        if (body.fieldErrors) setErrors(body.fieldErrors);
+        setProblem(body.error ?? `Resposta inesperada do servidor (${request.status}).`);
+        setRetryable(request.status === 429 || request.status >= 500);
+        resolve();
       };
 
-      const done = new Promise<'ok' | 'fail' | 'retry'>((resolve) => {
-        request.onload = () => {
-          const body = parseResponse(request);
-          if (request.status === 201 && body.reference) {
-            setReference(body.reference);
-            setPhase('done');
-            // #219 "doação submetida": sem o conteúdo, só que uma aconteceu.
-            track('donation_submitted');
-            resolve('ok');
-            return;
-          }
-          setPhase('editing');
-          if (body.fieldErrors) setErrors(body.fieldErrors);
-          setProblem(body.error ?? `Resposta inesperada do servidor (${request.status}).`);
-          setRetryable(request.status === 429 || request.status >= 500);
-          resolve('fail');
-        };
+      request.onerror = () => {
+        setPhase('editing');
+        setProblem('Sem ligação nem confirmação. A doação pode ter sido registada; verifica antes de tentar outra vez. Os ficheiros continuam aqui.');
+        setRetryable(true);
+        resolve();
+      };
 
-        request.onerror = () => {
-          setPhase('editing');
-          setProblem('Sem ligação. Verifica a internet e tenta outra vez; os ficheiros continuam aqui.');
-          setRetryable(true);
-          resolve('fail');
-        };
+      request.ontimeout = () => {
+        setPhase('editing');
+        setProblem('O envio demorou e não recebemos confirmação. A doação pode ter sido registada; verifica antes de tentar outra vez. Os ficheiros continuam aqui.');
+        setRetryable(true);
+        resolve();
+      };
+    });
 
-        request.ontimeout = () => {
-          if (attempt <= RETRY_COUNT) {
-            setProblem('A subida demorou. Repetindo…');
-            resolve('retry');
-          } else {
-            setPhase('editing');
-            setProblem('A subida demorou demasiado. Tenta outra vez; os ficheiros continuam aqui.');
-            setRetryable(true);
-            resolve('fail');
-          }
-        };
-      });
-
-      request.send(form);
-      const outcome = await done;
-      if (outcome === 'ok') return;
-      if (outcome === 'fail') return;
-    }
+    request.send(form);
+    await done;
   }
 
   /** Fotos que não servem (ou ainda em análise) impedem de avançar; as com só um aviso passam. */
@@ -383,7 +381,7 @@ export function DonationForm() {
         {step === 0 && (
           <div className="dn-data-warning">
             <p>
-              Se estiveres a usar dados móveis, as fotos são reduzidas neste dispositivo antes do envio.
+              As fotos grandes são reduzidas neste dispositivo antes do envio para poupar dados.
               {files.length ? ` Tamanho estimado do envio: ${size(preparedTotal)}.` : ' Escolhe os ficheiros para estimar o tamanho do envio.'}
             </p>
           </div>
@@ -521,8 +519,8 @@ export function DonationForm() {
               <span>
                 Tenho direito a partilhar este enunciado e aceito que o Kixi o reveja, o trate (incluindo leitura automática do texto)
                 e o publique na plataforma para estudo. Se deixei o e-mail, aceito ser contactado sobre esta doação. *
-                <Link href="/privacidade" className="dn-consent__policy">
-                  Política de Privacidade
+                <Link href="/privacidade" target="_blank" rel="noopener" className="dn-consent__policy">
+                  Política de Privacidade<span className="sr-only"> (abre noutra janela)</span>
                 </Link>
               </span>
             </label>
