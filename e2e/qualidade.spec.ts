@@ -814,6 +814,121 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await botaoAcimaDoBanner(page, 'Doar');
   });
 
+  test('360×640 e janela reduzida mantêm o CTA acima dos cookies', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await semEscolha(page);
+    await page.goto('/doar');
+    await expect(page.locator('section.ck')).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--ck-banner-h')))
+      .not.toBe('');
+    await testInfo.attach('doar-360x640-cookies', { body: await page.screenshot(), contentType: 'image/png' });
+    await botaoAcimaDoBanner(page, 'Continuar');
+
+    // Reduzir o viewport simula o espaço visível que sobra quando o teclado
+    // virtual está aberto num telemóvel.
+    await page.setViewportSize({ width: 360, height: 400 });
+    await expect(page.locator('.dn-stage')).toHaveCSS('height', '400px');
+    await testInfo.attach('doar-360x400-teclado-cookies', { body: await page.screenshot(), contentType: 'image/png' });
+    await botaoAcimaDoBanner(page, 'Continuar');
+  });
+
+  test('a foto grande é comprimida antes do POST e a nova tentativa é manual', async ({ page }) => {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+    await page.goto('/doar');
+
+    // Gera uma folha vertical de 12,96 MB: textura leve para evitar uma imagem
+    // artificialmente fácil de comprimir, com linhas horizontais de texto.
+    const originalBytes = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1800;
+      canvas.height = 2400;
+      const context = canvas.getContext('2d')!;
+      const image = context.createImageData(canvas.width, canvas.height);
+      let seed = 719;
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          const offset = (y * canvas.width + x) * 4;
+          const isText = y % 72 < 8 && x > 180 && x < 1600 && (x + Math.floor(y / 72) * 19) % 97 < 72;
+          const shade = isText ? 22 : 244 + (seed % 9);
+          image.data[offset] = shade;
+          image.data[offset + 1] = shade;
+          image.data[offset + 2] = shade;
+          image.data[offset + 3] = 255;
+        }
+      }
+      context.putImageData(image, 0, 0);
+      const blob = await new Promise<Blob>((resolve) => canvas.toBlob((value) => resolve(value!), 'image/png'));
+      const file = new File([blob], 'prova-grande.png', { type: 'image/png' });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return file.size;
+    });
+    expect(originalBytes).toBeGreaterThan(2 * 1024 * 1024);
+    await expect(page.locator('.dn-files__item')).toHaveCount(1);
+    await expect(page.locator('.dn-files__size')).not.toHaveText('a reduzir…', { timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Continuar' })).toBeEnabled();
+
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await page.getByLabel('Instituição').fill('Escola E2E');
+    await page.getByLabel('Disciplina').fill('Matemática');
+    await page.getByLabel('Tipo de prova').selectOption('Teste');
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await page.getByLabel(/Tenho direito/).check();
+
+    let attempts = 0;
+    const observed: { sentFile: { name: string; bytes: number; width: number; height: number } | null } = { sentFile: null };
+    await page.route('**/api/doar', async (route) => {
+      attempts++;
+      if (attempts === 1) {
+        await route.abort('failed');
+        return;
+      }
+      const request = route.request();
+      const boundary = /boundary=([^;]+)/.exec(request.headers()['content-type'] ?? '')?.[1];
+      const body = request.postDataBuffer();
+      if (!boundary || !body) throw new Error('O POST não contém multipart/form-data.');
+      const fileHeader = Buffer.from('Content-Disposition: form-data; name="files"; filename="');
+      const headerAt = body.indexOf(fileHeader);
+      const dataAt = body.indexOf(Buffer.from('\r\n\r\n'), headerAt) + 4;
+      const dataEnd = body.indexOf(Buffer.from(`\r\n--${boundary}`), dataAt);
+      const bytes = body.subarray(dataAt, dataEnd);
+      let width = 0;
+      let height = 0;
+      for (let i = 2; i + 9 < bytes.length;) {
+        if (bytes[i] !== 0xff) { i++; continue; }
+        const marker = bytes[i + 1];
+        const length = bytes.readUInt16BE(i + 2);
+        if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+          height = bytes.readUInt16BE(i + 5);
+          width = bytes.readUInt16BE(i + 7);
+          break;
+        }
+        i += length + 2;
+      }
+      const filename = /filename="([^"]+)"/.exec(body.subarray(headerAt, dataAt).toString())?.[1] ?? '';
+      observed.sentFile = { name: filename, bytes: bytes.length, width, height };
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ reference: 'KD-AB12-CD34' }) });
+    });
+
+    await page.getByRole('button', { name: 'Doar', exact: true }).click();
+    await expect(page.getByText(/Sem ligação/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(attempts, 'não repete o POST automaticamente').toBe(1);
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(page.getByText('KD-AB12-CD34')).toBeVisible();
+    expect(attempts, 'reenvia apenas após ação explícita').toBe(2);
+    expect(observed.sentFile?.name).toBe('prova-grande.jpg');
+    expect(observed.sentFile?.bytes).toBeLessThanOrEqual(2 * 1024 * 1024);
+    expect(Math.max(observed.sentFile?.width ?? Infinity, observed.sentFile?.height ?? Infinity)).toBeLessThanOrEqual(1600);
+    expect(Math.min(observed.sentFile?.width ?? 0, observed.sentFile?.height ?? 0)).toBeGreaterThanOrEqual(900);
+  });
+
   test('o texto de privacidade é visível no mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await semEscolha(page);
@@ -822,6 +937,21 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     // Era `display: none` abaixo de 899 px: doar sem se identificar é uma
     // promessa que o telemóvel também tem de ler.
     await expect(page.getByText('Podes doar sem dizer quem és')).toBeVisible();
+  });
+
+  test('a política abre noutra janela e anuncia isso', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/doar');
+    await irParaEnvio(page);
+    const policy = page.getByRole('link', { name: /Política de Privacidade.*abre noutra janela/ });
+    await expect(policy).toHaveAttribute('target', '_blank');
+    await expect(policy).toHaveAttribute('rel', 'noopener');
+    const popupReady = page.waitForEvent('popup');
+    await policy.click();
+    const popup = await popupReady;
+    await expect(popup).toHaveURL(/\/privacidade$/);
+    await expect(page).toHaveURL(/\/doar$/);
+    await expect(page.locator('.dn-files__item')).toHaveCount(1);
   });
 
   test('320×568: o primeiro ecrã é utilizável', async ({ page }) => {
