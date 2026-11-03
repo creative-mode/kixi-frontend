@@ -155,11 +155,14 @@ export function PostBuilder({ classId }: { classId: number }) {
     });
   };
 
-  /** Uma imagem sem descrição não impede de publicar: avisa primeiro, e o aluno escolhe. */
+  /**
+   * Uma imagem sem descrição não impede de publicar, mas só se publica assim por «Publicar mesmo assim»: enquanto
+   * faltar uma descrição, «Publicar» (de novo, ou com Enter) volta sempre ao aviso, em vez de o contornar.
+   */
   const publish = (e: React.FormEvent) => {
     e.preventDefault();
     if (problem) { setError(problem); return; }
-    if (withoutAlt.length > 0 && !altWarning) { setError(null); setAltWarning(true); return; }
+    if (withoutAlt.length > 0) { setError(null); setAltWarning(true); return; }
     send();
   };
 
