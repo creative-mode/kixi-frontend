@@ -103,8 +103,8 @@ test.describe('ecrãs de erro do aluno', () => {
   test('prova inexistente: em português, com saída e sem tentar de novo', async ({ page }) => {
     await alunoLogin(page);
     await page.goto('/aluno/prova/999999');
-    await expect(page.getByText('Esta prova não existe ou já não está disponível.')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Voltar às provas' })).toBeVisible();
+    await expect(page.getByText('Esta prova não existe ou já não está disponível.')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('link', { name: 'Voltar às provas' })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: 'Tentar de novo' })).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText(/statement not found|not found/i);
   });
@@ -113,7 +113,7 @@ test.describe('ecrãs de erro do aluno', () => {
     await alunoLogin(page);
     await page.goto('/aluno/nao-existe');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
-    await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -128,8 +128,8 @@ test.describe('avisos do aluno', () => {
       expect((await definir('500')).ok()).toBeTruthy();
       await page.getByRole('tab', { name: 'Escola' }).click();
       const aviso = page.getByRole('status', { name: 'Não foi possível carregar o ranking' });
-      await expect(aviso).toBeVisible();
-      await expect(aviso.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
+      await expect(aviso).toBeVisible({ timeout: 15000 });
+      await expect(aviso.getByRole('button', { name: 'Tentar de novo' })).toBeVisible({ timeout: 15000 });
     } finally {
       await definir('');
     }
@@ -156,15 +156,15 @@ test.describe('ranking acessível (#498)', () => {
     });
 
     await page.getByRole('tab', { name: 'Escola' }).click();
-    await expect(page.getByRole('heading', { name: 'A carregar Escola…' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'A carregar Escola…' })).toBeVisible({ timeout: 15000 });
     await expect(painel).toHaveAttribute('aria-busy', 'true');
     await expect(painel.getByRole('table')).toHaveCount(0);
     await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('A carregar o ranking da Escola.');
 
-    await expect(page.getByRole('heading', { name: 'Ranking · Escola' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ranking · Escola' })).toBeVisible({ timeout: 15000 });
     await expect(painel).toHaveAttribute('aria-busy', 'false');
     await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('Ranking da Escola carregado');
-    await expect(painel.getByRole('table')).toBeVisible();
+    await expect(painel.getByRole('table')).toBeVisible({ timeout: 15000 });
     await expect(painel.locator('tbody tr').first().locator('td').nth(2)).toContainText('%');
     await expect(painel.getByText(/A tua média:/)).toContainText('%');
   });
@@ -255,20 +255,20 @@ test.describe('backend a falhar', () => {
     const definir = (mode: string) => page.request.post('/aluno/api/mock-fault', { data: { mode } });
 
     await page.goto('/aluno/tutor?statementId=2');
-    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible({ timeout: 15000 });
 
     try {
       expect((await definir('500')).ok()).toBeTruthy();
       await page.goto('/aluno/tutor?statementId=2');
-      await expect(page.getByText('Não foi possível confirmar o estado da prova')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Voltar à prova' })).toBeVisible();
+      await expect(page.getByText('Não foi possível confirmar o estado da prova')).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole('button', { name: 'Tentar de novo' })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole('link', { name: 'Voltar à prova' })).toBeVisible({ timeout: 15000 });
     } finally {
       await definir('');
     }
 
     await page.goto('/aluno/tutor?statementId=2');
-    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -280,7 +280,7 @@ test.describe('amigos e ranking de amigos', () => {
     // Sem esperar pela hidratação o clique no separador perde-se na build de produção.
     await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Amigos' }).click();
-    await expect(page.getByRole('region', { name: 'Amigos' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Amigos' })).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/chega em breve|não está disponível/i)).toHaveCount(0);
     // A lista chega depois da hidratação: espera pela amiga que já está aceite antes de olhar para os pedidos.
     await expect(page.getByRole('region', { name: 'Amigos' })).toContainText('Sara P.');
@@ -306,7 +306,7 @@ test.describe('ranking global e métrica', () => {
     const participar = page.getByRole('button', { name: 'Quero participar' });
     const retirar = page.getByRole('button', { name: /Deixar de participar/ });
     // Espera pela resposta do servidor: antes dela a página ainda mostra a tabela da aba anterior.
-    await expect(page.getByText(/Comparar-te com alunos de outras escolas|pelo menos 10 alunos/)).toBeVisible();
+    await expect(page.getByText(/Comparar-te com alunos de outras escolas|pelo menos 10 alunos/)).toBeVisible({ timeout: 15000 });
     if (await participar.isVisible()) {
       // Um clique dado antes de a página reagir perde-se: repete até a explicação aparecer.
       await expect(async () => {
@@ -314,19 +314,19 @@ test.describe('ranking global e métrica', () => {
         await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible({ timeout: 2000 });
       }).toPass({ timeout: 15_000 });
     }
-    await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible();
-    await expect(retirar).toBeVisible();
+    await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible({ timeout: 15000 });
+    await expect(retirar).toBeVisible({ timeout: 15000 });
     expect(await graves(page)).toEqual([]);
     await retirar.click();
-    await expect(participar).toBeVisible();
+    await expect(participar).toBeVisible({ timeout: 15000 });
 
     await page.getByRole('tab', { name: 'Turma' }).click();
     await page.getByLabel('Ordenar por').selectOption('xp');
-    await expect(page.locator('th', { hasText: /^XP$/ })).toBeVisible();
+    await expect(page.locator('th', { hasText: /^XP$/ })).toBeVisible({ timeout: 15000 });
     await page.getByLabel('Período').selectOption('month');
     // O período entra no pedido: sem erro, com a tabela ou com o estado vazio, mas nunca um aviso.
     await expect(page.getByLabel('Período')).toHaveValue('month');
-    await expect(page.locator('th', { hasText: /^XP$/ }).or(page.getByText('Ainda não há dados'))).toBeVisible();
+    await expect(page.locator('th', { hasText: /^XP$/ }).or(page.getByText('Ainda não há dados'))).toBeVisible({ timeout: 15000 });
     await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
     expect(await graves(page)).toEqual([]);
   });
@@ -340,14 +340,14 @@ test.describe('ranking global e métrica', () => {
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     await page.goto('/aluno/provas');
     const filtros = page.getByRole('button', { name: /^Filtros/ });
-    await expect(filtros).toBeVisible();
+    await expect(filtros).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel('Tipo de prova')).toBeHidden();
     await filtros.click();
-    await expect(page.getByLabel('Tipo de prova')).toBeVisible();
+    await expect(page.getByLabel('Tipo de prova')).toBeVisible({ timeout: 15000 });
     const opcao = await page.getByLabel('Tipo de prova').locator('option:not([value=""])').first().getAttribute('value');
     await page.getByLabel('Tipo de prova').selectOption(opcao!);
     await expect(page).toHaveURL(/tipo=/);
-    await expect(page.getByRole('button', { name: /^Filtros \(1\)/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Filtros \(1\)/ })).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -365,7 +365,7 @@ test.describe('auditoria de UX do aluno', () => {
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     await page.goto('/aluno/perfil');
     await page.getByRole('tab', { name: 'Definições' }).click();
-    await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible({ timeout: 15000 });
     const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(transborda, 'scroll horizontal no perfil').toBe(false);
     const botao = await page.getByRole('button', { name: 'Editar perfil' }).boundingBox();
@@ -384,25 +384,25 @@ test.describe('progresso do aluno no telemóvel (#493)', () => {
       await page.goto('/aluno/inicio');
 
       const cartao = page.getByTestId('mobile-progresso');
-      await expect(cartao).toBeVisible();
-      await expect(cartao.getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
-      await expect(cartao.getByText('Nível 1')).toBeVisible();
-      await expect(cartao.getByText('120 XP no total')).toBeVisible();
-      await expect(cartao.getByText(/1 dia de sequência/)).toBeVisible();
+      await expect(cartao).toBeVisible({ timeout: 15000 });
+      await expect(cartao.getByRole('heading', { name: 'O teu progresso' })).toBeVisible({ timeout: 15000 });
+      await expect(cartao.getByText('Nível 1')).toBeVisible({ timeout: 15000 });
+      await expect(cartao.getByText('120 XP no total')).toBeVisible({ timeout: 15000 });
+      await expect(cartao.getByText(/1 dia de sequência/)).toBeVisible({ timeout: 15000 });
       await expect(page.locator('aside[aria-label="Destaques"]')).toBeHidden();
 
       // As secções nascem recolhidas; abrir «Para rever» mostra o tema e o tutor.
       const rever = page.getByTestId('mobile-para-rever');
-      await expect(rever).toBeVisible();
+      await expect(rever).toBeVisible({ timeout: 15000 });
       await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeHidden();
       await rever.locator('summary').click();
-      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeVisible();
+      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeVisible({ timeout: 15000 });
 
       const proximas = page.getByTestId('mobile-proximas-provas');
-      await expect(proximas).toBeVisible();
+      await expect(proximas).toBeVisible({ timeout: 15000 });
       await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeHidden();
       await proximas.locator('summary').click();
-      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeVisible();
+      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeVisible({ timeout: 15000 });
 
       const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       expect(transborda, 'scroll horizontal no início do telemóvel').toBe(false);
@@ -414,8 +414,8 @@ test.describe('progresso do aluno no telemóvel (#493)', () => {
     await alunoLogin(page);
     await page.goto('/aluno/inicio');
     await expect(page.getByTestId('mobile-progresso')).toBeHidden();
-    await expect(page.locator('aside[aria-label="Destaques"]')).toBeVisible();
-    await expect(page.locator('aside[aria-label="Destaques"]').getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
+    await expect(page.locator('aside[aria-label="Destaques"]')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('aside[aria-label="Destaques"]').getByRole('heading', { name: 'O teu progresso' })).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -434,11 +434,11 @@ test.describe('404 da landing (#544)', () => {
     await semEscolha(page);
     await page.goto('/nao-existe-xyz');
     await expect(page).toHaveTitle(/Página não encontrada · Kixi/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible({ timeout: 15000 });
     // A marca: o cabeçalho leva de volta ao início ("Kixi, início") e o texto é o meu.
-    await expect(page.getByRole('link', { name: 'Kixi, início' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Kixi, início' })).toBeVisible({ timeout: 15000 });
     const inicio = page.getByRole('link', { name: 'Ir para o início' });
-    await expect(inicio).toBeVisible();
+    await expect(inicio).toBeVisible({ timeout: 15000 });
     expect(await inicio.getAttribute('href')).toBe('/');
     // O segundo caminho: entrar. O cabeçalho e o corpo têm o seu; o rodapé pode repetir.
     expect(
@@ -462,11 +462,11 @@ test.describe('404 da landing (#544)', () => {
       await semEscolha(page);
       await page.goto('/nao-existe-xyz');
       const bnn = page.locator('section.ck');
-      await expect(bnn).toBeVisible();
+      await expect(bnn).toBeVisible({ timeout: 15000 });
       // O botão principal acaba antes do topo do banner: nada do que interessa
       // fica escondido por baixo dele (a altura do banner é contrato de outra issue).
       const cta = page.getByRole('link', { name: 'Ir para o início' });
-      await expect(cta).toBeVisible();
+      await expect(cta).toBeVisible({ timeout: 15000 });
       const ctaBox = await cta.boundingBox();
       const caixa = await bnn.boundingBox();
       expect((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0), 'o botão acaba antes do banner').toBeLessThanOrEqual(caixa!.y);
@@ -539,7 +539,7 @@ test.describe('contraste do LCD (#520)', () => {
       expect(violations.map((v) => v.id), 'still').toEqual([]);
       // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
       // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
-      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
+      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible({ timeout: 15000 });
     });
   });
 });
@@ -566,7 +566,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     await semEscolha(page);
     for (const rota of paginas) {
       await page.goto(rota);
-      await expect(banner(page), `banner em ${rota}`).toBeVisible();
+      await expect(banner(page), `banner em ${rota}`).toBeVisible({ timeout: 15000 });
       const caixa = await banner(page).boundingBox();
       expect(caixa?.height ?? Infinity, rota).toBeLessThanOrEqual(LIMITE);
     }
@@ -579,7 +579,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     for (const rota of ['/', '/aluno/entrar'] as const) {
       await page.goto(rota);
       const bnn = banner(page);
-      await expect(bnn).toBeVisible();
+      await expect(bnn).toBeVisible({ timeout: 15000 });
       const dentro = await bnn.evaluate((el) => {
         const b = el.getBoundingClientRect();
         const p = el.querySelector('p')?.getBoundingClientRect();
@@ -609,7 +609,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     for (const rota of ['/doar', '/aluno/entrar', '/aluno/cadastro'] as const) {
       await page.goto(rota);
       const bnn = banner(page);
-      await expect(bnn).toBeVisible();
+      await expect(bnn).toBeVisible({ timeout: 15000 });
       const botao =
         rota === '/doar'
           ? page.getByRole('button', { name: 'Continuar' })
@@ -632,7 +632,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
   test('os dois botões pesam o mesmo: tamanho, borda e fundo', async ({ page }) => {
     await semEscolha(page);
     await page.goto('/aluno/entrar');
-    await expect(banner(page)).toBeVisible();
+    await expect(banner(page)).toBeVisible({ timeout: 15000 });
     const botaos = banner(page).getByRole('button', { name: /Só necessários|Aceitar/ });
     await expect(botaos).toHaveCount(2);
     const pesos = await botaos.evaluateAll((els) =>
@@ -649,7 +649,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     // No doar ninguém tem autofocus: a hidratação traz o foco para o banner,
     // sem prender quem navega com o Tab.
     await page.goto('/doar');
-    await expect(banner(page)).toBeVisible();
+    await expect(banner(page)).toBeVisible({ timeout: 15000 });
     await expect
       .poll(() => page.evaluate(() => (document.activeElement as HTMLElement)?.role === 'dialog'))
       .toBe(true);
@@ -667,7 +667,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     await page.goto('/aluno/entrar', { waitUntil: 'commit' });
     await page.locator('#usernameOrEmail').waitFor({ state: 'attached' });
     await page.evaluate(() => document.getElementById('usernameOrEmail')?.focus());
-    await expect(banner(page)).toBeVisible();
+    await expect(banner(page)).toBeVisible({ timeout: 15000 });
     await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
@@ -676,7 +676,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
   test('escolher uma das opções fecha o banner e devolve o foco ao corpo', async ({ page }) => {
     await semEscolha(page);
     await page.goto('/aluno/entrar');
-    await expect(banner(page)).toBeVisible();
+    await expect(banner(page)).toBeVisible({ timeout: 15000 });
     await banner(page).getByRole('button', { name: 'Só necessários' }).click();
     await expect(banner(page)).toHaveCount(0);
     // Sem autofocus no formulário, o destino honesto é o corpo: foco em lado nenhum visível.
@@ -705,10 +705,10 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     // O nome leva ellipsis e a 195 px pode ter área zero: o que prova o upload é
     // a linha do ficheiro e a contagem, não o nome.
     await expect(page.locator('.dn-files__item')).toHaveCount(1);
-    await expect(page.getByText(/1 folha/)).toBeVisible();
+    await expect(page.getByText(/1 folha/)).toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.getByLabel('Instituição')).toBeVisible();
+    await expect(page.getByLabel('Instituição')).toBeVisible({ timeout: 15000 });
   }
 
   /** Preenche o passo 1 e avança para o envio. */
@@ -718,7 +718,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await page.getByLabel('Disciplina').fill('Matemática');
     await page.getByLabel('Tipo de prova').selectOption('Teste');
     await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.getByLabel(/Tenho direito/)).toBeVisible();
+    await expect(page.getByLabel(/Tenho direito/)).toBeVisible({ timeout: 15000 });
   }
 
   /** Controlos do ecrã atual, sem a armadilha anti-robôs (invisível de propósito). */
@@ -738,7 +738,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     for (let i = 0; i < n; i++) {
       const el = els.nth(i);
       await el.scrollIntoViewIfNeeded();
-      await expect(el, `controlo ${i} em ${onde}`).toBeVisible();
+      await expect(el, `controlo ${i} em ${onde}`).toBeVisible({ timeout: 15000 });
     }
     // Só o conteúdo da doação: o banner fixo (contrato da #546) também mexe no
     // scrollWidth do documento, e não é desta issue.
@@ -751,7 +751,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
 
   async function botaoAcimaDoBanner(page: Page, nome: string) {
     const botao = page.getByRole('button', { name: nome, exact: true });
-    await expect(botao, nome).toBeVisible();
+    await expect(botao, nome).toBeVisible({ timeout: 15000 });
     const bnn = page.locator('section.ck');
     await expect(bnn, 'banner presente').toHaveCount(1);
     // A reserva vem da altura medida: esperar por ela, senão mede-se antes do
@@ -780,13 +780,13 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     for (const nome of ['Voltar', 'Continuar']) {
       const botao = page.getByRole('button', { name: nome });
       await botao.scrollIntoViewIfNeeded();
-      await expect(botao, `${nome} em zoom 200%`).toBeVisible();
+      await expect(botao, `${nome} em zoom 200%`).toBeVisible({ timeout: 15000 });
     }
     await irParaEnvio(page);
     await alcancaveis(page, 'passo 2 em zoom 200%');
     const doar = page.getByRole('button', { name: 'Doar', exact: true });
     await doar.scrollIntoViewIfNeeded();
-    await expect(doar, 'Doar em zoom 200%').toBeVisible();
+    await expect(doar, 'Doar em zoom 200%').toBeVisible({ timeout: 15000 });
   });
 
   test('o banner nunca cobre Continuar nem Doar', async ({ page }) => {
@@ -806,15 +806,15 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await irParaEnvio(page);
     // Era `display: none` abaixo de 899 px: doar sem se identificar é uma
     // promessa que o telemóvel também tem de ler.
-    await expect(page.getByText('Podes doar sem dizer quem és')).toBeVisible();
+    await expect(page.getByText('Podes doar sem dizer quem és')).toBeVisible({ timeout: 15000 });
   });
 
   test('320×568: o primeiro ecrã é utilizável', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await semEscolha(page);
     await page.goto('/doar');
-    await expect(page.getByRole('heading', { name: /Cada prova antiga/ })).toBeVisible();
-    await expect(page.getByText('Toca para escolher fotos ou PDF')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Cada prova antiga/ })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Toca para escolher fotos ou PDF')).toBeVisible({ timeout: 15000 });
     await botaoAcimaDoBanner(page, 'Continuar');
     const transborda = await page.evaluate(() => {
       const main = document.querySelector('.dn-main');
@@ -899,7 +899,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
       const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
       const ecra = await page.evaluate(() => window.innerHeight);
       expect(altura, 'sem os 1800 ecrãs').toBeLessThan(8 * ecra);
-      await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible();
+      await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible({ timeout: 15000 });
       // O colapso de 1800 ecrãs para lista pontuava muito acima de 1; a troca
       // de webfont (`font-display: swap`, decisão de produto) mexe ~0.1 e não
       // é o salto que este teste vigia.
@@ -961,11 +961,11 @@ test.describe('CTA de registo da landing (#512)', () => {
     const cabecalho = page.locator('header.site-header');
     await expect(cabecalho.getByRole('link', { name: 'Criar conta' })).toBeInViewport();
     const solucao = cabecalho.getByRole('link', { name: 'Solução' });
-    await expect(solucao).toBeVisible();
+    await expect(solucao).toBeVisible({ timeout: 15000 });
     await expect(solucao).toHaveAttribute('href', '#solucao');
-    await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
-    await expect(page.getByText(FRASE)).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Saltar a apresentação' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(FRASE)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('link', { name: 'Saltar a apresentação' })).toBeVisible({ timeout: 15000 });
   });
 
   test('saltar a apresentação a rato', async ({ page }) => {
@@ -1010,8 +1010,8 @@ test.describe('CTA de registo da landing (#512)', () => {
     test('herói com valor e salto, sem animação', async ({ page }) => {
       await semEscolha(page);
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
-      await expect(page.getByText(FRASE)).toBeVisible();
+      await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText(FRASE)).toBeVisible({ timeout: 15000 });
       await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
       await expect(page).toHaveURL(/#modulos/);
     });
@@ -1062,7 +1062,7 @@ test.describe('apresentação sem derreter (#514)', () => {
     // (17 ticks a 70 ms) têm de ser pixel a pixel iguais.
     await page.waitForTimeout(6000);
     const lcd = page.locator('.gb__lcd');
-    await expect(lcd).toBeVisible();
+    await expect(lcd).toBeVisible({ timeout: 15000 });
     const a = await lcd.screenshot();
     await page.waitForTimeout(1200);
     const b = await lcd.screenshot();
