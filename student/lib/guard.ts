@@ -25,7 +25,7 @@ export async function requireStudent(): Promise<Session> {
     redirect(await managerUrl());
   }
   if (roles.length !== 1 || !roles.includes('STUDENT')) {
-    redirect('/403?reason=role');
+    redirect('/403?reason=unknown');
   }
 
   return session;
