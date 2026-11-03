@@ -116,8 +116,8 @@ test('a fasquia do carimbo é metade da cotação, como na folha', () => {
 
 test('o cabeçalho do cartão junta classe, tipo, duração e ano letivo (#602)', () => {
   assert.equal(
-    simulationHeadline({ grade: '12.ª Classe', paperKind: 'Teste', subject: 'TLP', durationMinutes: 30, schoolYear: '2026/2027', variant: null }),
-    '12.ª Classe / Teste – TLP · 30 min · Ano letivo 2026/2027',
+    simulationHeadline({ grade: '12ª Classe', paperKind: 'Teste', subject: 'TLP', durationMinutes: 30, schoolYear: '2026/2027', variant: null }),
+    '12ª Classe / Teste – TLP · 30 min · Ano letivo 2026/2027',
   );
   assert.equal(simulationHeadline({ grade: null, paperKind: 'Exame', subject: null, durationMinutes: null, schoolYear: null, variant: 'A' }), 'Exame · Série A');
   // Sem nada do instantâneo não há linha: um backend antigo mostra só título e nota.

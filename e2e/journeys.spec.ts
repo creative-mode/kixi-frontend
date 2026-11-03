@@ -1711,8 +1711,12 @@ test.describe('cartão de prova no feed (#602)', () => {
     await expect(previa).toBeVisible();
     await expect(previa.getByText('Ministério da Educação')).toBeVisible();
     await expect(previa.getByText(/12ª Classe/)).toBeVisible();
+    // Na pré-visualização não há link para a corrigida: já se está nela.
+    await expect(previa.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
     await previa.getByRole('button', { name: 'Publicar no feed' }).click();
-    await expect(previa.getByText('Publicado no feed da turma.')).toBeVisible();
+    // O estado do mock persiste entre testes e runs locais: se já foi publicado
+    // (409), vale o mesmo para o que se quer provar.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
 
     // No feed, o cartão traz o mesmo cabeçalho, o carimbo e o link para a corrigida.
     await page.goto('/aluno/inicio');
@@ -1723,5 +1727,37 @@ test.describe('cartão de prova no feed (#602)', () => {
     await expect(cartao.getByText('Positiva')).toBeVisible();
     await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
+  });
+
+  test('um colega vê o cartão sem o link para a corrigida', async ({ browser, page }) => {
+    // Primeiro o dono publica (a simulação 1 do mock é do 12345 e está terminada).
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/resultado?prova=1');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    // O estado do mock persiste entre testes do mesmo run: se o teste anterior já
+    // publicou, o servidor responde 409 e vale o mesmo para o que se quer provar.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // O Nuno é da mesma turma e vê o cartão no feed, mas sem link: o
+    // `/resultado?prova={id}` lê a simulação de quem está a ver, não a do dono.
+    // Contexto à parte para não contaminar a sessão do dono com a do colega.
+    const colegaContext = await browser.newContext();
+    const colega = await colegaContext.newPage();
+    await colega.goto('/aluno/entrar');
+    await colega.getByLabel('Utilizador ou email').fill('nuno.dias');
+    await colega.locator('#password').fill(PASSWORD);
+    await colega.getByTestId('aluno-entrar-submeter').click();
+    await expect(colega).toHaveURL(/\/aluno\/inicio/);
+    const cartao = colega.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    await expect(cartao).toBeVisible();
+    await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
+    await expect(cartao.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
+    await colegaContext.close();
   });
 });
