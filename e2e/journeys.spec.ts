@@ -288,6 +288,10 @@ test.describe('jornadas críticas do Kixi', () => {
     const aviso = page.getByRole('alert').filter({ hasText: 'sem descrição' });
     await expect(aviso).toContainText('Há 1 imagem sem descrição (Imagem 5)');
     await expect(page).toHaveURL(/\/aluno\/publicar/);
+    // Carregar outra vez em «Publicar» não contorna o aviso: só «Publicar mesmo assim» publica sem descrição.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await expect(aviso).toBeVisible();
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
     await aviso.getByRole('button', { name: 'Escrever a descrição' }).click();
     await expect(page.getByLabel('Imagem 5: descrição da imagem')).toBeFocused();
     await expect(aviso).toHaveCount(0);
