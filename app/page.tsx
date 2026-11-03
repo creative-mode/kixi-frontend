@@ -29,6 +29,7 @@ import {
 import {
   TileSkeleton,
 } from "@/components/dashboard/dashboard-skeleton";
+import { LoadError } from "@/components/crud/load-state";
 import { StatementsTable } from "@/components/dashboard/statements-table";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,10 +65,25 @@ export default function ManagerDashboard() {
   // Only the latest request may write state, so a slow response for an old period cannot overwrite a newer one.
   const requestId = useRef(0);
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
+  const [countsError, setCountsError] = useState<string | null>(null);
+
+  const loadCounts = useCallback(async () => {
+    setCountsError(null);
+    try {
+      const r = await dashboardCounts();
+      // Sem `catch` os tiles ficavam em esqueleto para sempre: a falha pinta
+      // erro com retry, nunca "—" infinito. O `guard` trata a falha do servidor;
+      // o `catch` trata a rede, que lança no cliente antes de lá chegar.
+      if (r.ok) setCounts(r.data);
+      else setCountsError(r.error);
+    } catch (e: unknown) {
+      setCountsError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
+    }
+  }, []);
 
   useEffect(() => {
-    dashboardCounts().then((r) => r.ok && setCounts(r.data));
-  }, []);
+    void loadCounts();
+  }, [loadCounts]);
   const review = counts?.review ?? 0;
   const value = (n?: number) =>
     counts == null ? "—" : n == null || n < 0 ? "!" : String(n);
@@ -239,7 +255,11 @@ export default function ManagerDashboard() {
         aria-label="Cadastros"
         className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
       >
-        {counts == null
+        {countsError ? (
+          <div className="col-span-full">
+            <LoadError message={countsError} onRetry={() => void loadCounts()} />
+          </div>
+        ) : counts == null
           ? NAV_KEYS.map((k) => <TileSkeleton key={k} />)
           : NAV_KEYS.map((k) => {
               const e = ENTITIES[k];
