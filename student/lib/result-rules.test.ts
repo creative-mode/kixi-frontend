@@ -7,6 +7,7 @@ import {
   formatScore,
   givenAnswers,
   inOrder,
+  observation,
   optionTag,
   toReview,
   verdict,
@@ -139,4 +140,18 @@ test('sem enunciado comum não há contexto a mostrar, e a primeira da lista mos
 test('o tutor recebe as questões inteiras que o aluno errou', () => {
   const erradas = [rq(1, 301, { isCorrect: false }), rq(2, 302, { isCorrect: false }), rq(3, 6, { isCorrect: false })];
   assert.deepEqual(wholeNumbers(toReview(erradas)), [3, 6]);
+});
+
+test('a observação por baixo da nota é a do SchoolOps ou a da IA numa prova de plano, e vazia não é observação (kixi#542)', () => {
+  assert.equal(observation({ feedback: 'Do motor.', aiFeedback: 'Da IA.' }), 'Do motor.');
+  assert.equal(observation({ feedback: null, aiFeedback: '  Falta o tempo de vida.  ' }), 'Falta o tempo de vida.');
+  assert.equal(observation({ feedback: '', aiFeedback: '   ' }), null);
+  assert.equal(observation({}), null);
+});
+
+test('uma dissertativa corrigida pela IA não fica por corrigir', () => {
+  const q = { questionId: 1, number: 1, text: 'q', answerText: 'x', isCorrect: true, reviewStatus: 'AI_GRADED' };
+  assert.equal(verdict(q), 'correct');
+  const errada = { ...q, isCorrect: false };
+  assert.equal(verdict(errada), 'wrong');
 });

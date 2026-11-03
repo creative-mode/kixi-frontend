@@ -40,6 +40,7 @@ const GROUP_OF: Record<string, NavGroupId> = {
   '/donations': 'administracao',
   '/verification': 'administracao',
   '/moderacao': 'administracao',
+  '/moderacao/auditoria': 'administracao',
 };
 
 const TOP = new Set(['/', '/professor']);

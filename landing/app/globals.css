@@ -22,8 +22,7 @@
   --brand: #c8d49a; --brand-edge: #7d8c57; --brand-hover: #d8e2b0; --on-brand: #1b2413; --phosphor: #d0dba2; --focus: #d6dcb8;
 }
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 72px; scrollbar-width: none; }
-html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 body { margin: 0; background: var(--paper); color: var(--lp-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; line-height: 1.5; overflow-x: clip; }
 /* paper grain */
 body::after { content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none; opacity: .07; mix-blend-mode: overlay;
@@ -65,14 +64,19 @@ a { color: inherit; }
 .pres__hero { position: absolute; z-index: 3; left: var(--gutter); right: var(--gutter); top: 96px; text-align: center; pointer-events: none; }
 .pres__hero-title { margin: 0 auto; max-width: 20ch; font: 700 clamp(28px, min(4.8vw, 7.5svh), 60px)/1.05 var(--font-sans); letter-spacing: -0.04em; color: var(--lp-ink); text-wrap: balance; }
 .pres__hero-sub { margin: 12px auto 0; max-width: 40ch; font: 400 clamp(15px, 1.6vw, 19px)/1.45 var(--font-sans); color: var(--lp-dim); text-wrap: balance; }
-.site-header__cta { justify-self: end; }
+.site-header__actions { display: flex; gap: 8px; justify-self: end; align-items: center; }
 .site-header__nav { display: none; gap: 32px; }
 .site-header__nav a { text-decoration: none; font: 600 14px/1 var(--font-sans); padding: 12px 0; }
 .site-header__nav a:hover { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+/* a navegação por âncoras aparece a partir de desktop (#512): no telemóvel
+   o cabeçalho leva só a marca e os dois botões, para caberem em 360 px */
+@media (min-width: 960px) {
+  .site-header__in { grid-template-columns: auto 1fr auto; gap: 32px; }
+  .site-header__nav { display: flex; justify-content: center; }
+}
 
 /* presentation: one sticky stage, driven by scroll */
 .pres { position: relative; height: 1800svh; margin-top: -73px; } /* the stage starts under the sticky header, so the first screen is exactly one stage */
-.pres--still { margin-top: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .pres__prolog { position: absolute; inset: 72px var(--gutter) 0; z-index: 2; pointer-events: none; transform: translateX(calc(var(--px, 0) * var(--shift, 0%))); }
 .pres__prolog .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -93,7 +97,13 @@ a { color: inherit; }
 .pres__hint { position: absolute; left: 50%; bottom: clamp(20px, 6svh, 56px); margin-left: -16px; color: var(--lp-ink); z-index: 3; pointer-events: none; animation: kx-bob 1.1s steps(4, end) infinite; }
 @keyframes kx-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { .pres__hint { animation: none; } }
-.pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100vw - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
+/* saltar a apresentação (#512): no fluxo do herói, em cima e longe do banner de
+   cookies fixo; o herói não recebe ponteiro, o salto sim. O alvo tem ~44 px. */
+.pres__skip { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 16px; padding: 14px 20px; font: 600 12px/1.4 var(--font-sans); letter-spacing: .04em; color: var(--lp-ink); text-decoration: none; }
+.pres__hero .pres__skip { pointer-events: auto; }
+.pres__skip svg { animation: kx-bob 1.1s steps(4, end) infinite; }
+@media (prefers-reduced-motion: reduce) { .pres__skip svg { animation: none; } }
+.pres__rail { position: absolute; right: max(calc(var(--gutter) / 2 - 1px), calc((100% - var(--page) - 2 * var(--gutter)) / 2 + var(--gutter) / 2 - 1px)); top: 96px; bottom: 24px; width: 2px; background: color-mix(in srgb, var(--lp-ink) 22%, transparent); }
 .pres__rail span { display: block; height: 100%; background: var(--lp-ink); transform-origin: top; }
 /* narrow screens: the console owns the whole stage (centred), the cartridge scene keeps the lower part under its text */
 @media (max-width: 959px) {
@@ -101,14 +111,14 @@ a { color: inherit; }
   .pres__art { grid-row: 1 / -1; grid-column: 1; height: calc(100svh - 72px); }
   .pres__art .pres__block, .pres__art .pres__cart { inset: 46% 0 4% 6%; width: auto; height: auto; }
   /* A consola é dimensionada pela largura (a altura segue a proporção do desenho) e encostada ao topo do palco;
-     desce só o necessário para ficar logo abaixo do título (~112 px: o título ocupa ~2 linhas). Como a caixa
-     segue a proporção do desenho não sobra margem transparente, e o espaço fica igual em qualquer proporção de
-     ecrã. Antes descia 50svh e deixava um buraco de ~240 px no telemóvel. */
-  .pres__art .gb { inset: 0 0 auto 0; margin: 0 auto; width: min(100%, calc((100svh - 72px) * .561)); height: auto; max-height: none; --ht: calc(72px + 112px); }
+     desce só o necessário para ficar logo abaixo do herói (título + frase de valor). Como a caixa
+     segue a proporção do desenho não sobra margem transparente, e o espaço fica igual em
+     qualquer proporção de ecrã. Antes descia 50svh e deixava um buraco de ~240 px no telemóvel. */
+  .pres__art .gb { inset: 0 0 auto 0; margin: 0 auto; width: min(100%, calc((100svh - 72px) * .561)); height: auto; max-height: none; --ht: calc(72px + 240px); }
 }
-/* Num tablet o título cabe numa linha (mais curto): a consola sobe menos para não lhe encostar. */
+/* O herói tem frase de valor: no tablet o título continua curto, a consola sobe menos. */
 @media (min-width: 600px) and (max-width: 959px) {
-  .pres__art .gb { --ht: calc(72px + 92px); }
+  .pres__art .gb { --ht: calc(72px + 200px); }
 }
 @media (min-width: 960px) {
   .pres__stick { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: var(--gutter); }
@@ -117,11 +127,29 @@ a { color: inherit; }
   .pres__art { height: calc(100svh - 112px); }
   .pres__prolog { --shift: 22%; }
 }
-.pres--still { height: auto; padding-block: var(--sec-y); text-align: center; }
-.pres--still .wrap { display: flex; flex-direction: column; align-items: center; gap: 48px; }
-.pres__list { list-style: none; margin: 0; padding: 0; max-width: 640px; width: 100%; text-align: left; border-top: 1.6px solid var(--lp-ink); }
-.pres__list li { display: grid; gap: 4px; padding: 20px 0; border-bottom: 1.6px solid var(--lp-ink); }
-.pres__list strong { font: 400 12px/16px var(--font-pixel); }
+/* o cartucho parado: escondido no desenho animado, e a peça estática que aparece
+   com movimento reduzido, no lugar da consola animada */
+.pres__cart--flat { display: none; }
+/* movimento reduzido (#513): o desenho decide-se aqui e vale na primeira tinta.
+   Por JS chegava depois da hidratação e a página saltava de 1800 ecrãs para
+   uma lista. O palco vira secção normal: herói, cenas empilhadas e cartucho
+   parado. Vem depois das regras de ecrã para ganhar os empates. */
+@media (prefers-reduced-motion: reduce) {
+  .pres { height: auto; margin-top: 0; }
+  .pres__stick { position: static; height: auto; display: block; padding: calc(72px + clamp(24px, 6svh, 72px)) var(--gutter) clamp(24px, 6svh, 72px); text-align: center; }
+  .pres__hero { position: static; opacity: 1 !important; visibility: visible !important; transform: none !important; }
+  .pres__text { display: block; }
+  .pres__scene { align-items: center; margin-top: clamp(28px, 7svh, 72px); }
+  /* Primeira tinta (#513): o `reduced` nasce `false` no JS, por isso o SSR pinta as
+     cenas com `opacity: 0` ainda o CSS as empilha visíveis. O `!important` ganha ao
+     estilo inline até à hidratação decidir. O `inert` fica até lá: visível mas sem
+     Tab antes do JS chegar. */
+  .pres__scene { opacity: 1 !important; transform: none !important; }
+  .pres__art { height: auto; }
+  .pres__art .gb, .pres__block, .pres__art .pres__art--cart { display: none; }
+  .pres__art .pres__cart--flat { display: block; position: static; width: 100%; max-width: 560px; margin: clamp(28px, 7svh, 72px) auto 0; padding: 24px; background: var(--lcd-0); }
+  .pres__art .pres__cart--flat .pres__svg { height: auto; }
+}
 
 /* the drawing */
 .cart { display: block; overflow: hidden; }
@@ -134,7 +162,7 @@ a { color: inherit; }
 @media (min-width: 900px) { .aud { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
 .aud__col { --step: 8px; position: relative; display: flex; flex-direction: column; gap: 24px; min-height: 280px; padding: 32px 28px 36px; background: var(--lcd-0); color: var(--lcd-3); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
 .aud__col::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(60deg, rgba(15,56,15,.22) 0 1px, transparent 1px 6px); -webkit-mask-image: linear-gradient(160deg, transparent 45%, #000); mask-image: linear-gradient(160deg, transparent 45%, #000); }
-.aud__title { margin: 0; font: 400 13px/18px var(--font-pixel); color: var(--lcd-2); }
+.aud__title { margin: 0; font: 400 13px/18px var(--font-pixel); color: var(--lcd-3); } /* 6,02:1 sobre o lcd-0 (#520): 13 px precisa de 4,5 */
 .aud__line { position: relative; z-index: 1; margin: 0; font: 800 clamp(26px, 2.8vw, 34px)/1.08 var(--font-sans); letter-spacing: -0.03em; max-width: 12ch; text-wrap: balance; }
 
 .aud__list { position: relative; z-index: 1; margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; font: 500 15px/1.45 var(--font-sans); }
@@ -188,8 +216,7 @@ a { color: inherit; }
 .pres__block { --step: 16px; position: absolute; inset: 4% 0 4% 6%; background: var(--lcd-0); clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step))); }
 .pres__block::after, .gb__lcd::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 100% 4px, linear-gradient(90deg, rgba(15,56,15,.09) 1px, transparent 1px) 0 0 / 4px 100%; }
 /* the cartridge itself: shell grey, with the brand green on the layer in focus */
-.pres__art--cart, .still-plate { --lp-ink: #121c15; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; }
-.still-plate { position: relative; width: 100%; max-width: 560px; padding: 24px; background: var(--lcd-0); }
+.pres__art--cart, .pres__cart--flat { --lp-ink: #121c15; --paper: #aeab9d; --paper-2: #c9c6b8; --paper-3: #dedbcf; }
 .pres__art .pres__cart { z-index: 1; }
 /* the drawing is clipped by its own box: give it exactly the green screen's box, so layers leave the frame at its edge and never cut off in mid-air above or below it */
 @media (min-width: 960px) { .pres__art .pres__cart { inset: 4% 0 4% 6%; width: auto; height: auto; } }
@@ -197,7 +224,7 @@ a { color: inherit; }
 /* the console */
 .gb { --hs: .1; --ht: 50svh; transform-origin: 50% 0; transform: translateY(calc(var(--hero, 0) * (var(--ht) - 72px))) translateY(calc(var(--ej, 0) * 40%)) scale(calc((1 + var(--big, 1) * var(--hs)) * (1 - var(--ej, 0) * 0.12))); position: absolute; inset: 0; margin: auto; height: 100%; max-height: 100%; aspect-ratio: 300 / 492; max-width: 100%; will-change: transform; }
 .gb__body { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-2); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
+.gb__lcd { --lp-ink: var(--lcd-3); --lp-dim: var(--lcd-3); --paper: var(--lcd-1); --paper-2: var(--lcd-1); --paper-3: var(--lcd-0);
   position: absolute; left: 20.67%; top: 10.57%; width: 58.67%; height: 32.19%; overflow: hidden; background: var(--lcd-0); box-shadow: inset 4px 4px 0 rgba(15,56,15,.4); }
 /* power-off: the picture squeezes into a bright line, then the glass goes dark */
 .gb__lcd > svg { transform-origin: 50% 50%; transform: scaleY(calc(1 - var(--off, 0) * 0.97)); filter: brightness(calc(1 + var(--off, 0) * 0.6)); }
