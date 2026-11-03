@@ -11,11 +11,28 @@ import type { BuiltKind, PostBlock } from './post-blocks';
 export type PostType = BuiltKind | 'simulation';
 
 /** O cartão de uma publicação `simulation`, tal como era quando foi publicada: os números
- *  e o nome da escola são lidos no servidor, nunca enviados pelo cliente. */
+ *  e o nome da escola são lidos no servidor, nunca enviados pelo cliente.
+ *
+ *  Desde a #602 o instantâneo traz também o cabeçalho da folha (tipo da prova, classe,
+ *  disciplina, duração, ano letivo e série): é o que o cartão mostra no feed, sem nenhum
+ *  fetch extra por cartão. Os campos são opcionais porque um backend antigo devolve só
+ *  título, escola e nota — nesse caso o cartão degrada para o desenho antigo. */
 export interface SimulationCard {
   simulationId: number;
+  statementId?: number | null;
   statementTitle: string | null;
   schoolName: string | null;
+  /** O `examType` do enunciado («Teste», «Exame»…), tal como a folha o mostra. */
+  paperKind?: string | null;
+  /** A classe por extenso («12.ª Classe»), como no cabeçalho da folha. */
+  grade?: string | null;
+  /** A disciplina do enunciado. */
+  subject?: string | null;
+  durationMinutes?: number | null;
+  /** O ano letivo («2026/2027»), como no cabeçalho da folha. */
+  schoolYear?: string | null;
+  /** A série da prova, quando há várias. */
+  variant?: string | null;
   finalScore: number | null;
   maxScore: number | null;
   correctAnswers: number | null;
