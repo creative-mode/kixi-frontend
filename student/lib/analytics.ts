@@ -1,4 +1,9 @@
-import { GA_ID, readConsent } from './consent.ts';
+/**
+ * Contrato de eventos v1, igual nas três apps: lib/analytics.ts (gestor), student/lib/analytics.ts e
+ * landing/lib/analytics.ts são cópias byte a byte (apps Next separadas, sem pacote partilhado).
+ * Mudar um obriga a copiar para os outros dois: `lib/analytics-mirror.test.ts` falha enquanto divergirem.
+ */
+import { readConsent } from './consent.ts';
 
 export type AnalyticsApp = 'manager' | 'student' | 'landing';
 export type AnalyticsPage =
@@ -6,7 +11,7 @@ export type AnalyticsPage =
   | 'onboarding' | 'student_home' | 'exam' | 'result' | 'room'
   | 'dashboard' | 'forbidden' | 'not_found' | 'other';
 export type AnalyticsEvent =
-  | 'page_view' | 'cta_click' | 'signup_started' | 'signup_error' | 'sign_up' | 'login_success'
+  | 'page_view' | 'cta_clique' | 'signup_started' | 'signup_error' | 'sign_up' | 'login_success'
   | 'donation_started' | 'donation_step' | 'donation_error' | 'donation_submitted'
   | 'consent_choice' | 'error_view' | 'exam_started' | 'exam_submitted'
   | 'exam_room_joined' | 'exam_abandoned' | 'scroll_depth' | 'onboarding_completed' | 'tutor_used';
@@ -43,7 +48,8 @@ const UTM_ALLOWLIST = {
 } as const;
 const SIGNUP_FIELDS = ['first_name', 'last_name', 'username', 'email', 'password', 'confirm', 'form'] as const;
 const DONATION_FIELDS = ['files', 'institution', 'subject', 'exam_type', 'class_grade', 'school_year', 'donor_name', 'donor_email', 'notes', 'consent', 'form'] as const;
-const CTA_SURFACES = ['header', 'hero', 'faq', 'footer', 'auth_form', 'forbidden', 'not_found'] as const;
+/** De onde veio o clique num CTA da landing (`CtaOrigem`, #512). */
+const CTA_ORIGENS = ['header', 'outro', 'faq'] as const;
 const DONATION_STEPS = ['statement', 'origin', 'contact'] as const;
 
 function oneOf<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
@@ -102,9 +108,8 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
       }
       return { event, params: { app, page, ...sanitizeAttribution(rawAttribution) } };
     }
-    case 'cta_click':
-      return oneOf(params.surface, CTA_SURFACES) && oneOf(params.destination, ['signup', 'login'] as const)
-        ? { event, params: { surface: params.surface, destination: params.destination } } : null;
+    case 'cta_clique':
+      return oneOf(params.origem, CTA_ORIGENS) ? { event, params: { origem: params.origem } } : null;
     case 'signup_started':
       return params.surface === 'signup_form' ? { event, params: { surface: 'signup_form' } } : null;
     case 'signup_error':
@@ -150,10 +155,11 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
     case 'exam_abandoned':
       return params.app === 'student' ? { event, params: { app: 'student' } } : null;
     case 'scroll_depth':
-      return oneOf(params.app, ['manager', 'student', 'landing'] as const)
-        && oneOf(params.page, PAGES[params.app])
+      // Só a landing mede o scroll (docs/analytics-events.md): no gestor e no aluno é rejeitado.
+      return params.app === 'landing'
+        && oneOf(params.page, PAGES.landing)
         && [25, 50, 75, 100].includes(Number(params.depth))
-        ? { event, params: { app: params.app, page: params.page, depth: Number(params.depth) } } : null;
+        ? { event, params: { app: 'landing', page: params.page, depth: Number(params.depth) } } : null;
     default:
       return null;
   }
@@ -273,7 +279,8 @@ declare global {
 }
 
 const queue = createAnalyticsQueue({
-  hasConsent: () => typeof window !== 'undefined' && GA_ID !== '' && readConsent() === 'all',
+  // Sem `NEXT_PUBLIC_GA_ID` o `gtag` nunca é carregado: os eventos ficam na fila em memória (limitada) e não saem.
+  hasConsent: () => typeof window !== 'undefined' && readConsent() === 'all',
   getGtag: () => typeof window !== 'undefined' && typeof window.gtag === 'function'
     ? window.gtag as unknown as Gtag : undefined,
   getOrigin: () => typeof window !== 'undefined' ? window.location.origin : 'https://kixi.invalid',
@@ -282,7 +289,8 @@ const queue = createAnalyticsQueue({
   onDrained: () => { if (typeof window !== 'undefined') window.dispatchEvent(new Event(ANALYTICS_READY_EVENT)); },
 });
 
-export function track(event: string, params: AnalyticsParams = {}): TrackStatus {
+/** Só aceita nomes do contrato; parâmetros fora do schema são descartados por `sanitizeEvent`. */
+export function track(event: AnalyticsEvent, params: AnalyticsParams = {}): TrackStatus {
   return queue.track(event, params);
 }
 export function flushAnalytics(): number { return queue.flush(); }

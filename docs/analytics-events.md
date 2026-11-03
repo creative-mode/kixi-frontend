@@ -1,6 +1,8 @@
 # Analytics e eventos de UX (#517)
 
-As apps gestor, aluno e landing usam o mesmo schema e a mesma fila em memória, compilados localmente em cada app. Analytics só é carregado depois de a pessoa escolher **Aceitar**. A escolha “Só necessários” não é enviada para o Google Analytics; uma recusa não pode ser registada sem violar a própria recusa.
+As apps gestor, aluno e landing usam o mesmo schema e a mesma fila em memória, compilados localmente em cada app.
+
+**Regra de sincronização:** `lib/analytics.ts`, `student/lib/analytics.ts` e `landing/lib/analytics.ts` são cópias byte a byte (apps Next separadas, sem pacote partilhado). Qualquer mudança faz-se nas três; `lib/analytics-mirror.test.ts` falha enquanto divergirem. Um pacote partilhado fica como follow-up. Analytics só é carregado depois de a pessoa escolher **Aceitar**. A escolha “Só necessários” não é enviada para o Google Analytics; uma recusa não pode ser registada sem violar a própria recusa.
 
 `track(event, params)` devolve `sent`, `queued`, `denied`, `invalid` ou `overflow`. A fila só vive em memória, tem limite de 100 eventos e não persiste em localStorage, cookies ou URL. `FireEventOnce` limpa o marcador da URL somente depois de `sent` ou `queued`; eventos pendentes são enviados quando o gtag está pronto. A configuração envia `send_page_view: false` e define `page_location`/`page_referrer` canónicos também no contexto global do Google tag, antes de o carregar e nas mudanças de página. Nenhuma chamada manual passa uma URL completa.
 
@@ -14,7 +16,7 @@ Quando o consentimento não está ativo (`necessary` ou nulo), o contexto global
 
 ## Consentimento, filas e limites de retirada
 
-- Sem consentimento `all`, `track` devolve `denied`; o carregador GA não é iniciado. `necessary` e consentimento nulo não permitem medições.
+- Sem consentimento `all`, `track` devolve `denied`; o carregador GA não é iniciado. Sem `NEXT_PUBLIC_GA_ID` não há `gtag`: com consentimento os eventos ficam na fila em memória e nunca saem. `necessary` e consentimento nulo não permitem medições.
 - A passagem de `all` para `necessary` ou nulo ativa o bloqueio global `ga-disable-*` **sincronamente**, antes de persistir a escolha ou notificar o React. Limpa a fila da aplicação, remove comandos `event`/`config` ainda não consumidos no `dataLayer` (preservando a referência do array), limpa o contexto global de página do GA4 e apaga cookies `_ga` acessíveis ao JavaScript. Reabrir as definições usa a mesma retirada imediata.
 - A fila local nunca é reenviada após retirada. O stub de `gtag` só aceita novos comandos quando o bloqueio local está activo. Ao aceitar novamente, só eventos novos podem ser enviados; os page views e limiares de scroll já contabilizados na mesma montagem não são reiniciados.
 - Um pedido GA4 que já tenha sido enviado pela rede antes da retirada não pode ser cancelado ou removido retroactivamente pelo browser. Cookies `HttpOnly` também não são apagáveis por JavaScript. Não há persistência de eventos para tentar reenviá-los.
@@ -41,7 +43,7 @@ A seguinte configuração da propriedade GA4 é obrigatória para a proteção c
 | Evento | Aplicação e quando | Parâmetros permitidos |
 |---|---|---|
 | `page_view` | As três apps, em navegação/visita com consentimento | `app`: `manager\|student\|landing`; `page`: categoria controlada por app (`home`, `donation`, `privacy`, `cookies`, `login`, `signup`, `onboarding`, `student_home`, `exam`, `result`, `room`, `dashboard`, `forbidden`, `not_found`, `other`); UTMs permitidas acima |
-| `cta_click` | Landing/aluno, clique em CTA de criar conta/entrar | `surface`: `header\|hero\|faq\|footer\|auth_form\|forbidden\|not_found`; `destination`: `signup\|login` |
+| `cta_clique` | Landing, clique num CTA de criar conta (`CtaLink`, #512) | `origem`: `header\|outro\|faq` |
 | `signup_started` | Aluno, primeira interação no formulário de cadastro | `surface`: `signup_form` |
 | `signup_error` | Aluno, validação local ou falha do servidor | `field`: `first_name\|last_name\|username\|email\|password\|confirm\|form`; `category`: `validation\|server` |
 | `sign_up` | Aluno, cadastro confirmado após redirect | Somente UTMs permitidas |
@@ -63,10 +65,10 @@ A seguinte configuração da propriedade GA4 é obrigatória para a proteção c
 ## Exemplos
 
 ```ts
-track('cta_click', { surface: 'hero', destination: 'signup' });
+track('cta_clique', { origem: 'header' });
 track('signup_error', { field: 'email', category: 'validation' });
 track('donation_error', { step: 'statement', category: 'file_validation', field: 'files' });
 track('error_view', { app: 'student', kind: 'unexpected' });
 ```
 
-Não passar valores de formulário a `track`; parâmetros fora do catálogo não são enviados. A chamada só é aceite se houver consentimento e, quando o gtag ainda não estiver disponível, fica pendente na fila volátil limitada até inicialização.
+Não passar valores de formulário a `track`; parâmetros fora do catálogo não são enviados. A chamada só é aceite se houver consentimento e o nome estiver em `AnalyticsEvent` (`track` não aceita `string` solta); quando o gtag ainda não estiver disponível, fica pendente na fila volátil limitada até inicialização.

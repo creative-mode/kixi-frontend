@@ -101,7 +101,7 @@ test('retirada de consentimento desativa imediatamente a medição', () => {
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'sent');
   assert.equal(calls.length, 1);
   granted = false;
-  assert.equal(queue.track('cta_click', { surface: 'hero', destination: 'signup' }), 'denied');
+  assert.equal(queue.track('cta_clique', { origem: 'header' }), 'denied');
   assert.equal(calls.length, 1);
 });
 
@@ -112,7 +112,7 @@ test('reabertura das definições mantém a medição desativada', () => {
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'denied');
   assert.equal(calls.length, 0);
   granted = false;
-  assert.equal(queue.track('cta_click', { surface: 'hero', destination: 'signup' }), 'denied');
+  assert.equal(queue.track('cta_clique', { origem: 'header' }), 'denied');
   assert.equal(calls.length, 0);
 });
 
@@ -122,7 +122,7 @@ test('eventos pendentes não são enviados após retirada do consentimento', () 
   const calls: unknown[][] = [];
   const queue = createAnalyticsQueue({ hasConsent: () => granted, getGtag: () => ready ? ((...args: unknown[]) => calls.push(args)) : undefined, getOrigin: () => 'https://kixi.ao' });
   assert.equal(queue.track('page_view', { app: 'landing', page: 'home' }), 'queued');
-  assert.equal(queue.track('cta_click', { surface: 'hero', destination: 'signup' }), 'queued');
+  assert.equal(queue.track('cta_clique', { origem: 'header' }), 'queued');
   granted = false;
   assert.equal(queue.flush(), 0);
   assert.equal(queue.pendingCount(), 0);
@@ -156,4 +156,18 @@ test('comportamento consistente nas três aplicações', () => {
     assert.equal(params.page_referrer, '');
     assert.equal(params.app, app);
   }
+});
+
+test('cta_clique leva só a origem do CTA da landing (#512), como o CtaLink envia', () => {
+  assert.deepEqual(sanitizeEvent('cta_clique', { origem: 'outro' }), { event: 'cta_clique', params: { origem: 'outro' } });
+  assert.deepEqual(sanitizeEvent('cta_clique', { origem: 'faq', email: 'ana@example.ao' }), { event: 'cta_clique', params: { origem: 'faq' } });
+  assert.equal(sanitizeEvent('cta_clique', { origem: 'hero' }), null);
+  assert.equal(sanitizeEvent('cta_click', { surface: 'hero', destination: 'signup' }), null);
+});
+
+test('scroll_depth só é aceite na landing, como dizem os docs', () => {
+  assert.deepEqual(sanitizeEvent('scroll_depth', { app: 'landing', page: 'home', depth: 50 }), { event: 'scroll_depth', params: { app: 'landing', page: 'home', depth: 50 } });
+  assert.equal(sanitizeEvent('scroll_depth', { app: 'student', page: 'exam', depth: 50 }), null);
+  assert.equal(sanitizeEvent('scroll_depth', { app: 'manager', page: 'dashboard', depth: 50 }), null);
+  assert.equal(sanitizeEvent('scroll_depth', { app: 'landing', page: 'home', depth: 33 }), null);
 });
