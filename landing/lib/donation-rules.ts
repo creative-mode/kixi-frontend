@@ -9,9 +9,6 @@ export const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 export const ACCEPTED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf'] as const;
 export const ACCEPT_ATTR = '.jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf';
 
-/** Versão do texto de consentimento mostrado; o backend guarda a sua própria versão. */
-export const CONSENT_TEXT_VERSION = '2026-10-v1';
-
 export type DonationFields = {
   donorName: string;
   donorEmail: string;

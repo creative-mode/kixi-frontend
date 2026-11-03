@@ -17,7 +17,7 @@ import {
   decisionValida,
   isId,
   isReportStatus,
-  noteError,
+  notaDecisaoError,
   type AuditEntry,
   type Decision,
   type Report,
@@ -32,7 +32,7 @@ async function admin(): Promise<Result<undefined>> {
 }
 
 /** O `isId`/`isReportStatus` ficam aqui para o ecrã poder validar sem importar o backend. */
-export { decisionValida, noteError };
+export { decisionValida, notaDecisaoError };
 
 export async function listReports(status: ReportStatus | null): Promise<Result<Report[]>> {
   return guard(async () => {
@@ -75,7 +75,7 @@ export async function decideReport(
           : 'Decisão inválida.',
       );
     }
-    const erroNota = noteError(note);
+    const erroNota = notaDecisaoError(decision, note);
     if (erroNota) return fail(erroNota);
 
     const caminho = `/api/v1/moderation/reports/${reportId}/${decision === 'IGNORED' ? 'ignore' : decision === 'HIDDEN' ? 'hide' : 'suspend'}`;

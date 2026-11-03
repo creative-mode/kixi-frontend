@@ -27,6 +27,23 @@ function read(path) {
 
 const allUiSource = uiRoots.flatMap(sourceFiles);
 
+/** Os textos que chegam à interface: a árvore sintática exclui comentários e documentação e preserva os valores
+ *  reais de JSX, atributos acessíveis, mensagens e metadados. */
+function uiTexts(path) {
+  const file = ts.createSourceFile(path, read(path), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const texts = [];
+  const visit = (node) => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isJsxText(node)) texts.push(node.text);
+    if (ts.isTemplateExpression(node)) {
+      texts.push(node.head.text);
+      for (const span of node.templateSpans) texts.push(span.literal.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return texts;
+}
+
 test('a cópia da interface não reintroduz termos assinalados na Issue #511', () => {
   const forbidden = [
     /\b(?:você|senha|salvar|reciclagem|buke|ano\s+lectivo|tem\s+certeza)\b/iu,
@@ -35,23 +52,30 @@ test('a cópia da interface não reintroduz termos assinalados na Issue #511', (
   const hits = [];
 
   for (const path of allUiSource) {
-    // A árvore sintática exclui comentários/documentação e preserva os valores
-    // reais de JSX, atributos acessíveis, mensagens e metadados.
-    const file = ts.createSourceFile(path, read(path), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    const inspect = (text) => {
+    for (const text of uiTexts(path)) {
       if (forbidden.some((pattern) => pattern.test(text))) hits.push(`${relative(root, join(root, path))}: ${text.trim()}`);
-    };
-    const visit = (node) => {
-      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isJsxText(node)) inspect(node.text);
-      if (ts.isTemplateExpression(node)) {
-        inspect(node.head.text);
-        for (const span of node.templateSpans) inspect(span.literal.text);
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(file);
+    }
   }
   assert.deepEqual(hits, [], `termos proibidos encontrados:\n${hits.join('\n')}`);
+});
+
+// Um registo por superfície: o gestor trata por «você» (formal), o aluno e a landing por «tu».
+// Só frases que não deixam dúvida: «Fecha às», «Abre-se» ou «Escolha múltipla» não são imperativos.
+test('cada superfície usa um só registo: gestor formal, aluno e landing por tu', () => {
+  const surfaces = [
+    { roots: ['app', 'components', 'lib'], wrong: /\b(?:Tenta|Inicia sessão|Entra novamente|Escreve para|Contacta|Podes|Verifica (?:o|a)|Volta (?:a|ao)|A tua|O teu)\b/u },
+    {
+      roots: ['student/app', 'student/components', 'student/lib', 'landing/app', 'landing/components', 'landing/lib'],
+      wrong: /\b(?:Tente|Inicie sessão|Verifique|Volte|Contacte|Escreva|Selecione|Introduza|Aguarde|Clique|Peça|Preencha|Indique|Recarregue|Confirme|A sua sessão|Pode continuar)\b/u,
+    },
+  ];
+  const hits = [];
+  for (const { roots, wrong } of surfaces) {
+    for (const path of roots.flatMap(sourceFiles)) {
+      for (const text of uiTexts(path)) if (wrong.test(text)) hits.push(`${path}: ${text.trim()}`);
+    }
+  }
+  assert.deepEqual(hits, [], `registo misturado:\n${hits.join('\n')}`);
 });
 
 test('o controlo de fecho dos diálogos tem nome acessível em português', () => {
@@ -77,8 +101,9 @@ test('o conceito do menu do aluno usa sempre Ranking e a navegação móvel tem 
   assert.match(shell, /href: '\/ranking', label: 'Ranking'/);
   assert.match(ranking, /title: 'Ranking · Kixi'/);
   assert.match(rail, /linkLabel="Ranking"/);
-  assert.match(shell, /grid-cols-5/);
-  assert.match(shell, /<span className="max-w-full truncate[^>]*>\{it\.label\}<\/span>/);
+  // 4 colunas (#704) e o rótulo inteiro, sem `truncate`: a 320 px «Ranking» cabe numa coluna.
+  assert.match(shell, /grid-cols-4/);
+  assert.match(shell, /<span className="text-\[11px\] leading-tight">\{it\.label\}<\/span>/);
   assert.match(shell, /aria-current=\{on\(it\) \? 'page' : undefined\}/);
   assert.match(shell, /aria-\[current=page\]:font-semibold/);
   assert.match(shell, /aria-\[current=page\]:bg-primary\/10/);

@@ -6,6 +6,16 @@ import { appOrigin } from '@/lib/origin';
 export const metadata: Metadata = {
   title: 'Kixi',
   description: 'Provas, simulações e tutor para estudar com a tua turma.',
+  manifest: '/aluno/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Kixi',
+  },
+  icons: [
+    { rel: 'apple-touch-icon', sizes: '180x180', url: '/aluno/icon/icon-192x192.png' },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', url: '/aluno/icon/icon-192x192.png' },
+  ],
 };
 
 export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width', initialScale: 1 };

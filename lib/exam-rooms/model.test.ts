@@ -7,6 +7,11 @@ import {
   formatWall,
   gradesCsv,
   gradesToSend,
+  keyMatchCount,
+  matchesKey,
+  normalizeAnswer,
+  closeSummary,
+  participantCounts,
   invalidDrafts,
   parseScore,
   luandaNowInput,
@@ -260,4 +265,118 @@ test('um evento que o gestor não conhece mostra o código, não um rótulo inve
   // código cru diz ao professor que há ali algo novo, em vez de o esconder.
   const s = summarizeIntegrity([{ id: 1, kind: 'NOVO_EVENTO', at: '2026-10-18T09:00:00', questionId: null }]);
   assert.equal(s.byKind[0].label, 'NOVO_EVENTO');
+});
+
+// ── pré-visualização da correção pela chave e resumo do encerrar (#536) ──
+
+const reviewOf = (answers: [string | null, string][], key = 'Luanda', maxScore: number | null = 2) => ({
+  pending: answers.length,
+  graded: 0,
+  questions: [{
+    questionId: 1, number: 1, label: null, parentId: null, text: 'Capital?', maxScore, modelAnswer: key,
+    answers: answers.map(([text, status], i) => ({
+      answerId: i + 1, accountId: i + 1, displayName: null, answerText: text, status: status as 'PENDING_REVIEW' | 'GRADED', scoreObtained: null,
+    })),
+  }],
+});
+
+test('a chave ignora maiúsculas, acentos, pontuação e espaços a mais', () => {
+  assert.equal(normalizeAnswer('  Café,  COM  leite! '), 'cafe com leite');
+  assert.ok(matchesKey('LUANDA.', 'luanda'));
+  assert.ok(matchesKey('São Tomé', 'sao tome'));
+  assert.ok(!matchesKey('Benguela', 'Luanda'));
+});
+
+test('uma resposta em branco nunca coincide, nem com uma chave em branco', () => {
+  assert.ok(!matchesKey('', ''));
+  assert.ok(!matchesKey('   ', 'Luanda'));
+  assert.ok(!matchesKey(null, null));
+});
+
+test('conta só as respostas por corrigir que coincidem com a chave', () => {
+  const r = reviewOf([['Luanda', 'PENDING_REVIEW'], ['luanda!', 'PENDING_REVIEW'], ['Benguela', 'PENDING_REVIEW'], ['Luanda', 'GRADED'], [null, 'PENDING_REVIEW']]);
+  assert.equal(keyMatchCount(r, {}), 2);
+});
+
+test('a nota escrita à mão vence a da chave e não conta', () => {
+  const r = reviewOf([['Luanda', 'PENDING_REVIEW'], ['Luanda', 'PENDING_REVIEW']]);
+  assert.equal(keyMatchCount(r, { 1: '1' }), 1);
+  assert.equal(keyMatchCount(r, { 1: '9' }), 2, 'uma nota inválida não conta como escrita');
+});
+
+test('sem cotação ou sem chave a correção pela chave não toca em nada', () => {
+  assert.equal(keyMatchCount(reviewOf([['Luanda', 'PENDING_REVIEW']], 'Luanda', null), {}), 0);
+  assert.equal(keyMatchCount(reviewOf([['Luanda', 'PENDING_REVIEW']], ''), {}), 0);
+});
+
+const p = (status: string, joinedAt: string | null = null) => ({ status, joinedAt });
+
+test('os participantes por estado: a sala de espera já entrou', () => {
+  const counts = participantCounts([p('IN_PROGRESS', '09:00'), p('NOT_STARTED'), p('NOT_STARTED'), p('NOT_STARTED', '08:55'), p('FINISHED', '09:00')]);
+  assert.deepEqual(counts, { todos: 5, 'a-responder': 1, 'na-espera': 1, 'por-entrar': 2, entregaram: 1 });
+});
+
+test('o encerrar diz quantos ainda respondem e quantos nem entraram', () => {
+  const one = closeSummary({ todos: 5, 'a-responder': 1, 'na-espera': 0, 'por-entrar': 4, entregaram: 0 });
+  assert.equal(one.title, 'Encerrar a sala? 1 ainda a responder');
+  assert.match(one.description, /1 aluno ainda está a responder e será submetido/);
+  assert.match(one.description, /4 alunos ainda não entraram/);
+  const many = closeSummary({ todos: 8, 'a-responder': 3, 'na-espera': 0, 'por-entrar': 1, entregaram: 4 });
+  assert.match(many.description, /3 alunos ainda estão a responder e serão submetidos/);
+  assert.match(many.description, /1 aluno ainda não entrou\./);
+});
+
+test('sem ninguém a responder o encerrar diz isso, e sem dados cai no aviso genérico', () => {
+  const none = closeSummary({ todos: 3, 'a-responder': 0, 'na-espera': 0, 'por-entrar': 0, entregaram: 3 });
+  assert.equal(none.title, 'Encerrar a sala?');
+  assert.match(none.description, /Ninguém está a responder/);
+  assert.match(closeSummary(null).description, /Quem ainda estiver a responder/);
+});
+
+// Paridade com o backend: estes pares vêm de correr `ExamRoomCorrectionService.normalize` (Java 17) sobre cada
+// entrada. Se o backend mudar a regra, o número do botão «Corrigir pela chave» deixa de bater com o servidor:
+// volte a gerar a tabela e ajuste `normalizeAnswer`.
+const BACKEND_NORMALIZE: [string, string][] = [
+  ["Luanda", "luanda"],
+  ["  Caf\u00e9,  COM  leite! ", "cafe com leite"],
+  ["S\u00e3o Tom\u00e9 e Pr\u00edncipe", "sao tome e principe"],
+  ["A\u00e7\u00e3o", "acao"],
+  ["\u00c7A va", "ca va"],
+  ["na\u00efve fa\u00e7ade", "naive facade"],
+  ["It's a-b_c", "it s a b c"],
+  ["x^2 + y^2 = z^2", "x 2 y 2 z 2"],
+  ["12,5 km/h", "12 5 km h"],
+  ["\u00dcn\u00efc\u00f6d\u00e9", "unicode"],
+  ["\u00df", "\u00df"],
+  ["\u0130stanbul", "istanbul"],
+  ["\u0391\u0392\u0393 greek", "\u03b1\u03b2\u03b3 greek"],
+  ["tab\tand\nnewline", "tab and newline"],
+  ["---", ""],
+  ["", ""],
+  ["   ", ""],
+  ["\u00f1and\u00fa", "nandu"],
+  ["2.\u00ba lugar", "2 \u00ba lugar"],
+  ["dois\u2011pontos", "dois pontos"],
+  ["\u0152uvre", "\u0153uvre"],
+  ["\u01c5", "\u01c6"],
+];
+
+test('a normalização das respostas dá o mesmo que o backend, caso a caso', () => {
+  for (const [input, expected] of BACKEND_NORMALIZE) {
+    assert.equal(normalizeAnswer(input), expected, `entrada ${JSON.stringify(input)}`);
+  }
+});
+
+test('o tempo esgotado conta como entregue, e a sala de espera aparece no encerrar', () => {
+  const counts = participantCounts([p('EXPIRED', '09:00'), p('FINISHED', '09:00'), p('NOT_STARTED', '08:55'), p('NOT_STARTED', '08:56')]);
+  assert.equal(counts.entregaram, 2);
+  assert.equal(counts['na-espera'], 2);
+  const resumo = closeSummary(counts);
+  assert.match(resumo.description, /2 alunos estão na sala de espera/);
+});
+
+test('cada aluno cai num só filtro além de «Todos»', () => {
+  const todos = [p('IN_PROGRESS', '09:00'), p('NOT_STARTED'), p('NOT_STARTED', '08:55'), p('FINISHED', '09:00'), p('EXPIRED', '09:00')];
+  const c = participantCounts(todos);
+  assert.equal(c['a-responder'] + c['na-espera'] + c['por-entrar'] + c.entregaram, c.todos);
 });

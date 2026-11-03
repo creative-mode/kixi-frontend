@@ -1,3 +1,15 @@
+/*
+ * Landing page · tokens próprios (exceções ao design system principal).
+ *
+ * A landing NÃO consome os tokens do design-system (design-system/tokens.css):
+ * tem a sua própria paleta (marca, tinta, alvos, radar, pop, lila, superfícies),
+ * espaços, raios e fontes (Press Start 2P para o estilo pixel, Plus Jakarta Sans
+ * para o texto, JetBrains Mono para código). Os nomes são intencionalmente
+ * diferentes dos tokens DS (--brand, --tiro, --alvo, --radar, --pop, --lila,
+ * --surface, --ink, --line, --focus, --shadow-*) para não colidir com
+ * --background/--primary/--radius etc. do DS. O login e o cadastro apontam para
+ * as apps do aluno/gestor, que sim usam os tokens DS.
+ */
 @font-face{font-family:'Press Start 2P';src:url('/fonts/press-start-2p-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:'Plus Jakarta Sans';src:url('/fonts/plus-jakarta-sans-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:'Plus Jakarta Sans';src:url('/fonts/plus-jakarta-sans-latin-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}

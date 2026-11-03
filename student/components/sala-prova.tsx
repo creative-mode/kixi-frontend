@@ -19,6 +19,7 @@ import {
   isChoice,
   remainingMs,
   timer,
+  urgencyOf,
   type CellState,
   type ExamQuestion,
 } from '@/lib/exam-rules';
@@ -375,13 +376,30 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
   }, [left, flushAll]);
 
   // Avisos falados aos 5 e a 1 minuto: o cronómetro visual não chega a quem usa
-  // leitor de ecrã, e `role="timer"` não anuncia por si.
-  const bucket = left === null ? null : left <= 0 ? 0 : left <= 60_000 ? 1 : left <= 300_000 ? 5 : 99;
+  // leitor de ecrã, e `role="timer"` não anuncia por si. Os limiares leem-se do
+  // tempo que o aluno VÊ (`displayRemainingMs`), para o aviso e o número em tela
+  // dizerem a mesma coisa — o prazo real corre 10 s à frente da tolerância.
+  const visor = displayRemainingMs(left);
+  const bucket = visor === null ? null : left !== null && left <= 0 ? 0 : visor <= 60_000 ? 1 : visor <= 300_000 ? 5 : 99;
   useEffect(() => {
     if (bucket === 5) setAnnouncement('Faltam 5 minutos para o fim da prova.');
     else if (bucket === 1) setAnnouncement('Falta 1 minuto para o fim da prova.');
     else if (bucket === 0) setAnnouncement('O tempo da prova terminou.');
   }, [bucket]);
+
+  /** Quanto aperta o relógio para quem vê: âmbar nos 5 minutos, vermelho no minuto
+   *  final (M11). Só com a prova a decorrer — entregue ou expirada, o estado de
+   *  fechado já tem a sua cor e o seu cartão. */
+  const urgencia = closed ? 'calmo' : urgencyOf(visor);
+  /** Aviso visível do limiar a decorrer: 5 minutos, 1 minuto, ou nenhum. No último
+   *  minuto o relógio visível chega a 0:00 enquanto a tolerância do servidor ainda
+   *  corre — nesse vão não há «1 minuto» a dizer, senão o texto contrariava o
+   *  número em tela; o relógio vermelho fica e o fechado acaba de chegar. */
+  const limiar = urgencia === 'alerta' ? 5 : urgencia === 'critico' && visor !== null && visor > 0 ? 1 : null;
+  /** Cada limiar anuncia-se uma vez: dispensar o aviso não o traz de volta dentro do
+   *  mesmo limiar, e ao passar ao seguinte ele volta a aparecer (#487). */
+  const [limiaresDispensados, setLimiaresDispensados] = useState<ReadonlySet<number>>(() => new Set());
+  const avisoVisivel = limiar !== null && !limiaresDispensados.has(limiar);
 
   /** The map follows what the SERVER confirmed. A question whose latest value is not
    *  on the server (in flight, or failed) is `unsaved`, never `done`. */
@@ -548,7 +566,14 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             <div className="text-xs text-muted-foreground">{data.subtitle}</div>
           </div>
           <div
-            className={cn('ml-auto flex items-center gap-2 text-lg font-bold', closed && 'text-destructive')}
+            className={cn(
+              'ml-auto flex items-center gap-2 text-lg font-bold',
+              closed
+                ? 'text-destructive'
+                : urgencia === 'alerta'
+                  ? 'rounded-lg bg-warning-soft px-2 py-1 text-warning'
+                  : urgencia === 'critico' && 'rounded-lg bg-danger-soft px-2 py-1 text-destructive',
+            )}
             role="timer"
             aria-label={tempo === 'sem-limite' ? 'Sem limite de tempo' : 'Tempo restante'}
           >
@@ -560,11 +585,23 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             <span className="tabular-nums">
               {tempo === 'restante' ? formatClock(displayRemainingMs(left) ?? 0) : tempo === 'sem-limite' ? 'Sem tempo' : '—:—'}
             </span>
+            {/* O limiar em palavras, sempre visível durante ele (M11: estilo E texto,
+                nunca só a cor). Pequeno, porque o aviso destacável abaixo é que porta
+                o apelo à entrega. */}
+            {limiar === 5 && <small className="hidden text-xs font-semibold sm:inline">Faltam 5 minutos</small>}
+            {limiar === 1 && <small className="hidden text-xs font-semibold sm:inline">Falta 1 minuto</small>}
             {extraTime && (
               <small className="hidden text-xs font-semibold text-muted-foreground sm:inline">+25% de tempo</small>
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={openConfirm} disabled={closed}>Entregar</Button>
+          <Button
+            variant={urgencia === 'critico' ? 'default' : 'outline'}
+            size="sm"
+            onClick={openConfirm}
+            disabled={closed}
+          >
+            Entregar
+          </Button>
         </div>
         {!online && (
           <p
@@ -574,6 +611,35 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           >
             <WifiOff className="size-4 shrink-0" aria-hidden />
             {OFFLINE_BANNER}
+          </p>
+        )}
+        {/* O limiar no cabeçalho fixo, onde sempre se vê (decisão tomada ao planear
+            #487): apela à entrega junto do relógio que a provocou, e dispensa-se
+            porque é um aviso, não um bloqueio. Sem `role` de resposta automática:
+            quem usa leitor de ecrã já ouve a mensagem falada dos mesmos limiares,
+            e era ouvida duas vezes. */}
+        {avisoVisivel && limiar !== null && (
+          <p
+            data-testid="sala-tempo-aviso"
+            className={cn(
+              'flex flex-wrap items-center justify-center gap-2 border-t px-4 py-2 text-center text-[13px] font-medium',
+              limiar === 5
+                ? 'border-warning/30 bg-warning-soft text-warning'
+                : 'border-destructive/30 bg-danger-soft text-destructive',
+            )}
+          >
+            <Clock className="size-4 shrink-0" aria-hidden />
+            {limiar === 5 ? 'Faltam 5 minutos para o fim da prova.' : 'Falta 1 minuto. Entrega o que tens guardado.'}
+            <Button type="button" size="sm" onClick={openConfirm}>Entregar</Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={limiar === 5 ? 'text-warning' : 'text-destructive'}
+              onClick={() => { if (limiar !== null) setLimiaresDispensados((v) => new Set(v).add(limiar)); }}
+            >
+              Fechar
+            </Button>
           </p>
         )}
       </header>

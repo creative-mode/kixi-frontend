@@ -31,6 +31,7 @@ export function InicioFeed({
   authors = {},
   conversations = {},
   feedError,
+  mobileHighlights,
 }: {
   invitations?: Invitation[];
   invitationsError?: { message: string; status: number | null } | null;
@@ -41,6 +42,8 @@ export function InicioFeed({
   /** As conversas das primeiras publicações, já lidas no servidor: o painel abre sem ir à rede. */
   conversations?: Record<number, PostComment[]>;
   feedError?: string | null;
+  /** O progresso do telemóvel (#493), entregue pelo servidor com o seu próprio `Suspense`. */
+  mobileHighlights?: React.ReactNode;
 }) {
   const me = useMe();
   // As páginas seguintes ficam ao lado da primeira: a lista do servidor continua a ser a
@@ -97,6 +100,8 @@ export function InicioFeed({
   return (
     <Page className="gap-0 p-0 pb-24 md:pb-10">
       <PageHeader title="Início" className="m-0" />
+
+      {mobileHighlights}
 
       <div className="grid gap-3 px-4 pt-3 empty:hidden">
       <SalasDeProva invitations={pending} invitationsError={invitationsError} />

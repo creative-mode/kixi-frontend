@@ -2,6 +2,7 @@
 // @ts-nocheck
  
 import { liveStream } from '../exam-rooms';
+import { isPlanRoom } from './term-plans';
 import { add, analytics, db, json, mapSimulation, now, problem, rooms } from '../store';
 import type { MockContext } from './auth';
 
@@ -10,7 +11,7 @@ export async function roomAndSimulationRoutes({ method, path, url, auth, isStaff
   let m: RegExpMatchArray | null = null;
   void [m, url, auth, isStaff, readBody, loginResponse, isAdmin, activeInst, writeWorld, denyWrite];
   // ── exam rooms (BE-16/BE-17) ──
-  if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades|integrity))?$/))) {
+  if ((m = path.match(/^\/api\/(?:v1\/)?exam-rooms(?:\/(mine|owned|\d+))?(?:\/(participants|open|start|close|join|live|grades|integrity|review|grade))?$/))) {
     const me = Number(auth.sub);
     const roles = auth.roles ?? [];
     const admin = roles.includes('ADMIN');
@@ -26,6 +27,12 @@ export async function roomAndSimulationRoutes({ method, path, url, auth, isStaff
     if (Number.isFinite(id) && method === 'POST') {
       if (action === 'join') return out(rooms.join(id, me));
       if (!staff) return problem(403, 'Only teachers or ADMIN can manage exam rooms');
+      // As provas de um plano do trimestre são corrigidas pela IA no fluxo: ninguém as corrige à mão na sala (kixi#542).
+      if (action === 'grade') {
+        return isPlanRoom(id)
+          ? problem(409, 'As respostas das provas do plano do trimestre são corrigidas pela IA no fluxo; a nota só muda por reclamação')
+          : problem(405, 'Method not allowed');
+      }
       if (action === 'participants') return out(rooms.addParticipant(id, readBody(), me, admin));
       const next = { open: 'OPEN', start: 'RUNNING', close: 'CLOSED' }[action];
       if (next) return out(rooms.transition(id, me, admin, next));
@@ -33,6 +40,7 @@ export async function roomAndSimulationRoutes({ method, path, url, auth, isStaff
     if (Number.isFinite(id) && method === 'GET' && staff) {
       if (action === 'grades') return out(rooms.grades(id, me, admin));
       if (action === 'integrity') return out(rooms.integrity(id, me, admin));
+      if (action === 'review') return out(rooms.review(id, me, admin, isPlanRoom(id)));
       if (action === 'live') {
         const first = rooms.live(id, me, admin);
         return first.ok ? liveStream(() => rooms.live(id, me, admin)) : out(first);

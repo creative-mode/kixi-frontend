@@ -66,8 +66,12 @@ function Gallery({ images }: { images: PostBlock[] }) {
     <div className={cn('grid gap-2', images.length > 1 && 'sm:grid-cols-2')}>
       {images.map((b, i) => (
         <figure key={i} className="grid gap-1">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={assetUrl(b.url, 768)} alt={b.alt ?? ''} loading="lazy" className="max-h-[420px] w-full rounded-lg border bg-secondary object-contain" />
+          {/* A caixa tem a proporção (4:3) antes de a imagem chegar: o feed não salta quando ela carrega (CLS, #524).
+              O backend não guarda as dimensões de cada imagem, por isso a proporção é fixa e a imagem cabe dentro. */}
+          <div className="relative aspect-[4/3] max-h-[420px] w-full overflow-hidden rounded-lg border bg-secondary">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={assetUrl(b.url, 768)} alt={b.alt ?? ''} loading="lazy" decoding="async" className="absolute inset-0 size-full object-contain" />
+          </div>
           {b.caption && <figcaption className="text-[13px] text-muted-foreground">{b.caption}</figcaption>}
         </figure>
       ))}

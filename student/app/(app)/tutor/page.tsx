@@ -65,7 +65,9 @@ export default async function TutorPage({
           title="Não foi possível confirmar o estado da prova"
           message="Para não abrir o tutor durante uma prova a decorrer, temos de confirmar se tens uma tentativa a correr. Tenta de novo dentro de instantes."
           status={attempts.status}
-          back={{ href: `/prova/${statementId}`, label: 'Voltar à prova' }}
+          // O detalhe, e não a sala: sem o histórico confirmado não se sabe se há
+          // tentativa viva, e a sala começaria uma prova que o aluno veio estudar (#494).
+          back={{ href: `/prova/${statementId}/detalhe`, label: 'Voltar à prova' }}
         />
       </div>
     );

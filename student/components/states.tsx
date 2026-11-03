@@ -6,10 +6,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
-/** Invólucro centrado para os três estados. Só tokens do design system. */
-function Wrap({ children, label }: { children: React.ReactNode; label: string }) {
-  return (
-    <div role="status" aria-label={label} className="grid justify-items-center gap-3 px-5 py-10 text-center">
+/** Invólucro centrado para os três estados. Só tokens do design system.
+ *  O papel live vem de quem chama: carregar e erro anunciam-se (`status` e
+ *  `alert`); vazio é ausência de conteúdo e não interrompe o leitor de ecrã. */
+function Wrap({ children, label, role }: { children: React.ReactNode; label: string; role?: 'status' | 'alert' }) {
+  return role ? (
+    <div role={role} aria-label={label} className="grid justify-items-center gap-3 px-5 py-10 text-center">
+      {children}
+    </div>
+  ) : (
+    <div className="grid justify-items-center gap-3 px-5 py-10 text-center">
       {children}
     </div>
   );
@@ -18,7 +24,7 @@ function Wrap({ children, label }: { children: React.ReactNode; label: string })
 /** A carregar: anel + esqueletos. `lines` desenha barras de texto por baixo. */
 export function LoadingState({ label = 'A carregar…', lines = 0, className }: { label?: string; lines?: number; className?: string }) {
   return (
-    <Wrap label={label}>
+    <Wrap label={label} role="status">
       <Spinner className="size-8 text-primary" />
       <p className="text-sm text-muted-foreground">{label}</p>
       {lines > 0 && (
@@ -51,7 +57,9 @@ export function EmptyState({
   );
 }
 
-/** Erro: a API falhou ou não há rede — nunca ecrã branco, sempre com saída. */
+/** Erro: a API falhou ou não há rede — nunca ecrã branco, sempre com saída.
+ *  `role="alert"` em vez de `status`: a falha anuncia-se logo, sem ser preciso
+ *  procurá-la. */
 export function ErrorState({
   title = 'Algo falhou, mas não perdeste nada',
   message = 'Verifica a ligação à internet e tenta de novo. Se continuar, fala com o teu professor.',
@@ -64,7 +72,7 @@ export function ErrorState({
   retryLabel?: string;
 }) {
   return (
-    <Wrap label={title}>
+    <Wrap label={title} role="alert">
       <p className="text-[15px] font-bold text-foreground">{title}</p>
       <p className="max-w-sm text-sm text-muted-foreground">{message}</p>
       {onRetry && (

@@ -29,7 +29,8 @@ test('a barra inferior do aluno mostra rótulos e identifica a página atual', a
   await page.goto('/aluno/ranking');
 
   const nav = page.getByRole('navigation', { name: 'Principal' }).last();
-  for (const label of ['Início', 'Provas', 'Ranking', 'Pautas', 'Tutor']) {
+  // As Pautas saem da barra no telemóvel (#704): chega-se a elas pelo perfil.
+  for (const label of ['Início', 'Provas', 'Ranking', 'Tutor']) {
     await expect(nav.getByRole('link', { name: label })).toBeVisible();
     await expect(nav.getByRole('link', { name: label })).toContainText(label);
   }

@@ -170,3 +170,11 @@ export function moved<T>(list: T[], from: number, to: number): T[] {
   copy.splice(to, 0, item);
   return copy;
 }
+
+/**
+ * As imagens já enviadas sem descrição (posições na lista dada). Sem descrição a imagem vai com `alt=""` e um leitor
+ * de ecrã trata-a como decorativa: quem não vê nem sabe que ali há um esquema. Não impede de publicar, avisa (#524).
+ */
+export function imagesWithoutAlt(blocks: readonly Pick<PostBlock, 'type' | 'url' | 'alt'>[]): number[] {
+  return blocks.flatMap((b, i) => (b.type === 'image' && (b.url ?? '').trim() !== '' && (b.alt ?? '').trim() === '' ? [i] : []));
+}

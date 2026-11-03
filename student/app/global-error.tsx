@@ -6,7 +6,8 @@ import { useEffect } from 'react';
  * Última rede de segurança do app do aluno: apanha falhas no próprio
  * root layout, onde `app/error.tsx` não chega. Por isso traz o seu
  * próprio <html>/<body> e estilos inline (o globals.css do layout
- * pode não ter carregado).
+ * pode não ter carregado) — com os valores dos tokens do design system
+ * (`var(--…)` com recurso), para ter a mesma cara com ou sem CSS.
  */
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -15,14 +16,22 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
 
   return (
     <html lang="pt-AO">
-      <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif', background: '#f7f5ef', color: '#1c1a15' }}>
+      <body
+        style={{
+          margin: 0,
+          fontFamily: 'var(--font-sans, system-ui, sans-serif)',
+          background: 'var(--background, #f6f8f5)',
+          color: 'var(--foreground, #121c15)',
+        }}
+      >
         <main style={{ display: 'grid', placeItems: 'center', minHeight: '100dvh', padding: 16 }}>
           <div
+            role="alert"
             style={{
               width: '100%',
               maxWidth: 480,
-              background: '#fff',
-              border: '1px solid #e5e0d3',
+              background: 'var(--card, white)',
+              border: '1px solid var(--border, #e1e7de)',
               borderRadius: 12,
               padding: '24px 20px',
               textAlign: 'center',
@@ -32,7 +41,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             }}
           >
             <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Algo falhou, mas não perdeste nada</p>
-            <p style={{ margin: 0, fontSize: 14, opacity: 0.75 }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--muted-foreground, #617066)' }}>
               Verifica a ligação à internet e tenta de novo. Se continuar, fala com o teu professor.
             </p>
             <button
@@ -42,9 +51,9 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
                 marginTop: 8,
                 padding: '10px 16px',
                 borderRadius: 8,
-                border: '1px solid #1f5a2c',
-                background: '#1f5a2c',
-                color: '#fff',
+                border: '1px solid var(--primary, #1f5a2c)',
+                background: 'var(--primary, #1f5a2c)',
+                color: 'var(--primary-foreground, white)',
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: 'pointer',
