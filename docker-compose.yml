@@ -40,6 +40,10 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      # Domínios públicos onde /manager* não é exposto (responde 404 neutro).
+      # Obrigatório em produção; sem ele o gateway recusa arrancar para não
+      // expor rotas do gestor no domínio público por descuido.
+      PUBLIC_ORIGINS: ${PUBLIC_ORIGINS:-}
       MANAGER_HOST: manager
       MANAGER_PORT: 3002
       STUDENT_HOST: student

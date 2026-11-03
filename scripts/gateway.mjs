@@ -14,6 +14,13 @@ const PUBLIC_ORIGINS = (process.env.PUBLIC_ORIGINS ?? '')
   .map((h) => h.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/:.*$/, ''))
   .filter(Boolean);
 
+// Em produção, PUBLIC_ORIGINS é obrigatório: sem ele o gateway recusa arrancar
+// para não expor rotas do gestor por descuido.
+if (process.env.NODE_ENV === 'production' && PUBLIC_ORIGINS.length === 0) {
+  console.error('ERRO: PUBLIC_ORIGINS não definido em produção. O gateway recusa arrancar para não expor rotas do gestor.');
+  process.exit(1);
+}
+
 const isPublicHost = (host) => {
   if (!host) return false;
   const hostname = host.toLowerCase().replace(/:.*$/, ''); // remove porta

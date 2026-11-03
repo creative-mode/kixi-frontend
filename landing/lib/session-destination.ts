@@ -59,8 +59,8 @@ export function sessionDestination(
 ): string | null {
   const roles = sessionRoles(token, now);
   if (!roles) return null;
-  // O gestor não é redirecionado no domínio público: acede diretamente ao host isolado.
-  if (roles.includes('ADMIN') || roles.includes('TEACHER')) return null;
+  // Gestor e professor vão para o gestor (acede diretamente ao host isolado em produção).
+  if (roles.includes('ADMIN') || roles.includes('TEACHER')) return managerUrl.trim() || MANAGER_HOME;
   if (roles.length === 1 && roles[0] === 'STUDENT') return STUDENT_HOME;
   return null;
 }
