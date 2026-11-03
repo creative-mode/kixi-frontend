@@ -101,11 +101,13 @@
 
 @media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } .dn-lcd { padding: 10px; } }
 @media (max-width: 899px) {
+  /* Limita o palco à altura visível. Com apenas min-height, o track flexível
+     cresce com o conteúdo e o rodapé fixo de cookies acaba por tapar o CTA. */
+  .dn-stage { height: 100svh; min-height: 0; }
   /* A ajuda de privacidade fica sempre visível (#515): doar sem se identificar é
      uma promessa que o telemóvel também tem de ler. */
-  /* Reserva espaço para o banner de cookies e mantém o CTA acima dele; o conteúdo extra rola dentro do LCD. */
-  .dn-main { height: 100%; padding-bottom: calc(100px + clamp(18px, 4svh, 40px)); }
-  .dn-console { height: 100%; align-self: stretch; }
+  /* O espaço medido do banner já está reservado em .dn-main; o ecrã rola por dentro. */
+  .dn-console { align-self: stretch; }
   .dn-field textarea { min-height: 44px; }
   .dn-consent__row { font-size: 12px; line-height: 1.3; }
   .dn-lcd { padding: 12px; }
