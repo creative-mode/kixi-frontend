@@ -6,11 +6,22 @@ import http from 'node:http';
 import net from 'node:net';
 
 const PORT = Number(process.env.PORT ?? 3000);
-// Em Docker cada app é um contentor: MANAGER_HOST=manager, STUDENT_HOST=student, LANDING_HOST=landing.
-// No domínio público, `/manager` e `/manager/*` não são expostos: respondem 404 neutro
-// (comportando-se como qualquer rota desconhecida). O gestor só é acedido diretamente
-// no seu host isolado (mgr-*.sslip.io), nunca através do gateway público.
+// Hosts públicos onde /manager* não é exposto. A lista vem de PUBLIC_ORIGINS
+// (ex: kixi.creativemode.ao). Comparação exata, case-insensitive e sem porta,
+// para evitar vulnerabilidades como creativemode.ao.evil.com.
+const PUBLIC_ORIGINS = (process.env.PUBLIC_ORIGINS ?? '')
+  .split(',')
+  .map((h) => h.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/:.*$/, ''))
+  .filter(Boolean);
+
+const isPublicHost = (host) => {
+  if (!host) return false;
+  const hostname = host.toLowerCase().replace(/:.*$/, ''); // remove porta
+  return PUBLIC_ORIGINS.includes(hostname);
+};
+
 const ROUTES = [
+  { prefix: '/manager', host: process.env.MANAGER_HOST ?? '127.0.0.1', port: Number(process.env.MANAGER_PORT ?? 3002) },
   { prefix: '/aluno', host: process.env.STUDENT_HOST ?? '127.0.0.1', port: Number(process.env.STUDENT_PORT ?? 3003) },
 ];
 const LANDING = { host: process.env.LANDING_HOST ?? '127.0.0.1', port: Number(process.env.LANDING_PORT ?? 3004) };
@@ -70,8 +81,8 @@ const sessionHome = (req) => {
     const payload = JSON.parse(Buffer.from(decodeURIComponent(raw).split('.')[1], 'base64url').toString('utf8'));
     if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) return null;
     const roles = Array.isArray(payload.roles) ? payload.roles : [];
+    if (roles.includes('ADMIN') || roles.includes('TEACHER')) return '/manager';
     if (roles.includes('STUDENT')) return '/aluno/inicio';
-    // Gestor não é redirecionado no domínio público: acede diretamente ao host isolado.
   } catch {
     // cookie ilegível: segue para a landing
   }
@@ -89,19 +100,15 @@ const server = http.createServer((req, res) => {
     res.writeHead(302, { location: home, 'cache-control': 'private, no-store', vary: 'Cookie' });
     return res.end();
   }
-  // No domínio público (kixi.creativemode.ao), /manager* não é exposto: 404 neutro.
-  // Em desenvolvimento/local (localhost:3000) o gestor continua acessível através do gateway.
-  const isPublicDomain = req.headers.host?.includes('creativemode.ao');
-  if (isPublicDomain && (req.url === '/manager' || req.url.startsWith('/manager/') || req.url.startsWith('/manager?'))) {
+  // No domínio público (ex: kixi.creativemode.ao), /manager* não é exposto:
+  // responde 404 neutro, como qualquer rota desconhecida. Em desenvolvimento
+  // (localhost) o gestor continua acessível através do gateway.
+  const isPublic = isPublicHost(req.headers.host);
+  if (isPublic && (req.url === '/manager' || req.url.startsWith('/manager/') || req.url.startsWith('/manager?'))) {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     return res.end('Not Found');
   }
   const t = pick(req.url);
-  if (!t) {
-    // Qualquer outra rota desconhecida: 404 neutro.
-    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-    return res.end('Not Found');
-  }
   const up = http.request({ host: t.host, port: t.port, method: req.method, path: req.url, headers: forwarded(req) }, (r) => {
     res.writeHead(r.statusCode ?? 502, r.headers);
     r.pipe(res);
