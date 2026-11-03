@@ -38,10 +38,10 @@ export function SimulationCard({ card }: { card: SimulationCardData }) {
   const headline = simulationHeadline(card);
   const stampTone =
     passed === null
-      ? 'border-neutral-500 text-neutral-600'
+      ? 'border-neutral-700 text-neutral-700'
       : passed
-        ? 'border-green-700 text-green-700'
-        : 'border-red-700 text-red-700';
+        ? 'border-green-800 text-green-800'
+        : 'border-red-800 text-red-800';
   const stampWord = passed === null ? 'Sem cotação' : passed ? 'Positiva' : 'Negativa';
   const correctionHref = card.simulationId != null ? `/resultado?prova=${card.simulationId}` : null;
 
@@ -64,13 +64,13 @@ export function SimulationCard({ card }: { card: SimulationCardData }) {
           <div
             role="img"
             aria-label={`Nota: ${score ?? 'sem nota'}${card.maxScore != null ? ` de ${formatScore(card.maxScore)} valores` : ''}, ${stampWord.toLowerCase()}`}
-            className={cn('grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double px-4 py-1 text-center opacity-90', stampTone)}
+            className={cn('grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double px-4 py-1 text-center', stampTone)}
           >
-            <span className="text-[34px] leading-none font-black tabular-nums">{score ?? '—'}</span>
-            <span className="text-[10px] font-bold tracking-wider uppercase">
+            <span className="text-[34px] leading-none font-black tabular-nums" aria-hidden="true">{score ?? '—'}</span>
+            <span className="text-[10px] font-bold tracking-wider uppercase" aria-hidden="true">
               {card.maxScore != null ? `de ${formatScore(card.maxScore)} valores` : 'valores'}
             </span>
-            <span className="mt-0.5 text-[11px] font-black tracking-[0.2em] uppercase">{stampWord}</span>
+            <span className="mt-0.5 text-[11px] font-black tracking-[0.2em] uppercase" aria-hidden="true">{stampWord}</span>
           </div>
           {percent != null && (
             <div className="grid min-w-28 flex-1 gap-1">
@@ -88,7 +88,7 @@ export function SimulationCard({ card }: { card: SimulationCardData }) {
           {time && <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" aria-hidden />{time}</span>}
         </div>
         {correctionHref && (
-          <Link href={correctionHref} className="text-[13px] font-semibold text-primary hover:underline">
+          <Link href={correctionHref} className="inline-flex min-h-11 items-center text-[13px] font-semibold text-primary hover:underline">
             Ver a prova corrigida<span className="sr-only">: {card.statementTitle ?? 'prova'}</span>
           </Link>
         )}
