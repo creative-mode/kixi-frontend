@@ -1,4 +1,4 @@
-import { MAX_FILE_BYTES } from './donation-rules';
+import { MAX_FILE_BYTES } from './donation-rules.ts';
 
 /**
  * Validador de fotos de enunciados, feito no browser antes do envio.
