@@ -1,7 +1,6 @@
 /*
  * A fonte de texto (Plus Jakarta Sans) vem agora via next/font/local em
  * student/app/layout.tsx, com a mesma variável --ff-sans do gestor (app/layout.tsx).
- * O @font-face manual foi removido para eliminar FOUT/CLS e duplicação.
  */
 /* Modelo social do aluno: tela branca, módulos em cinza-verde claro e linhas finas. Só tema claro. */
 :root{
@@ -12,3 +11,11 @@
   --muted-foreground:#55625a;
   --radius:.75rem;
 }
+
+/* Modelo social do aluno: tela branca, módulos em cinza-verde claro e linhas finas. Só tema claro.
+ *
+ * Os tokens de cor, raio e sombras vêm exclusivamente do design system
+ * (design-system/tokens.css, sincronizado em ds-tokens.css). Este ficheiro não
+ * sobrepõe --background, --muted-foreground, --radius nem qualquer outro token
+ * DS, para que o aluno use os mesmos tokens do gestor e do design system. Apenas
+ * declara as fontes próprias do aluno. */

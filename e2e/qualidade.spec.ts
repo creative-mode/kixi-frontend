@@ -821,3 +821,336 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     expect(transborda, 'scroll horizontal a 320×568').toBe(false);
   });
 });
+
+/** Foco, setas e movimento reduzido na apresentação (#513): o CTA do fim era
+ *  focável invisível, as setas estavam sequestradas e o modo parado chegava
+ *  depois da hidratação, com a página a saltar de 1800 ecrãs para uma lista. */
+test.describe('foco e movimento da apresentação (#513)', () => {
+  /** Visitante da primeira vez: sem escolha guardada o banner aparece. */
+  async function primeiraVisita(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  test('o CTA do fim só é focável quando está visível', async ({ page }) => {
+    await primeiraVisita(page);
+    await page.goto('/');
+    // Por DOM e não por papel: apagada (`aria-hidden` + `inert`), a cena sai da
+    // árvore de acessibilidade — que é exatamente o que se quer provar.
+    const outro = page.locator('#solucao').locator('a', { hasText: 'Começar a estudar' });
+    // No topo a cena do fim está apagada: focar é pedir e não receber.
+    const noTopo = await outro.evaluate((el) => {
+      (el as HTMLElement).focus();
+      return document.activeElement === el;
+    });
+    expect(noTopo, 'CTA invisível não recebe foco').toBe(false);
+    // No fim da história a cena acende e o botão entra no Tab.
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
+    await expect(cenaOutro, 'a cena do fim acende').toHaveAttribute('aria-hidden', 'false', { timeout: 15000 });
+    await expect(outro).toBeVisible();
+    const noFim = await outro.evaluate((el) => {
+      (el as HTMLElement).focus();
+      return document.activeElement === el;
+    });
+    expect(noFim, 'CTA visível recebe foco').toBe(true);
+  });
+
+  test('as setas mantêm o passo nativo', async ({ page }) => {
+    await primeiraVisita(page);
+    await page.goto('/');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const antes = await page.evaluate(() => window.scrollY);
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(400);
+    const delta = (await page.evaluate(() => window.scrollY)) - antes;
+    expect(delta, 'a seta desce').toBeGreaterThan(0);
+    // O passo nativo anda cerca de uma linha; o sequestro andava meio ecrã.
+    expect(delta, 'passo nativo, não meio ecrã').toBeLessThan(200);
+  });
+
+  test.describe('movimento reduzido', () => {
+    // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('sem salto de layout e sem os 1800 ecrãs', async ({ page }) => {
+      await page.addInitScript(() => {
+        (window as unknown as { __cls?: number }).__cls = 0;
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            const e = entry as unknown as { hadRecentInput?: boolean; value?: number };
+            if (!e.hadRecentInput) (window as unknown as { __cls?: number }).__cls! += e.value ?? 0;
+          }
+        }).observe({ type: 'layout-shift', buffered: true });
+      });
+      await primeiraVisita(page);
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      await page.evaluate(() => document.fonts.ready);
+      // O `reduced` só existe depois da hidratação: sem ele as cenas continuam
+      // `aria-hidden` e a árvore de acessibilidade vem vazia.
+      const secao = page.locator('#solucao');
+      await expect
+        .poll(() => secao.locator('[aria-hidden="false"]').count(), { message: 'hidratação do modo reduzido', timeout: 30000 })
+        .toBeGreaterThan(0);
+      await page.waitForTimeout(2000);
+      // A apresentação nasce compacta: herói, cenas empilhadas e cartucho parado.
+      const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
+      const ecra = await page.evaluate(() => window.innerHeight);
+      expect(altura, 'sem os 1800 ecrãs').toBeLessThan(8 * ecra);
+      await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible();
+      // O colapso de 1800 ecrãs para lista pontuava muito acima de 1; a troca
+      // de webfont (`font-display: swap`, decisão de produto) mexe ~0.1 e não
+      // é o salto que este teste vigia.
+      const cls = await page.evaluate(() => (window as unknown as { __cls?: number }).__cls ?? 0);
+      expect(cls, 'sem salto de layout').toBeLessThan(0.15);
+      // Duas instâncias do cartucho no DOM (a animada escondida e a parada
+      // visível), zero ids repetidos: com ids fixos o `url(#…)` resolvia para a
+      // escondida e a visível perdia hachuras e filtro.
+      const ids = await page.evaluate(() => {
+        const todos = [...document.querySelectorAll('[id^="kx-"]')].map((el) => el.id);
+        return { total: todos.length, unicos: new Set(todos).size };
+      });
+      expect(ids.total, 'há cartuchos com ids').toBeGreaterThan(0);
+      expect(ids.unicos, 'ids repetidos no SVG').toBe(ids.total);
+    });
+  });
+});
+
+/** O CTA de registo da landing (#512): antes o 1.º ecrã só tinha "Entrar" e o
+ *  "Começar a estudar" morava ~18 ecrãs abaixo, com a barra de scroll escondida. */
+test.describe('CTA de registo da landing (#512)', () => {
+  const FRASE = 'Estuda o que vai mesmo sair';
+
+  async function semEscolha(page: Page) {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+  }
+
+  /** O clique no CTA sai da landing para /aluno: um array em memória morria com
+   *  a página, por isso o stub manda cada chamada `gtag` por sendBeacon para
+   *  uma rota que o teste intercepta. */
+  async function apanharCta(page: Page) {
+    const eventos: unknown[][] = [];
+    await page.route('**/__cta-teste', async (route) => {
+      eventos.push(route.request().postDataJSON() as unknown[]);
+      await route.fulfill({ status: 200, body: 'ok' });
+    });
+    await page.addInitScript(() => {
+      (window as unknown as { gtag?: unknown }).gtag = (...args: unknown[]) => {
+        void navigator.sendBeacon('/__cta-teste', JSON.stringify(args));
+      };
+    });
+    return eventos;
+  }
+
+  test('telemóvel 360x640: Criar conta e Entrar visíveis sem scroll', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await semEscolha(page);
+    await page.goto('/');
+    const cabecalho = page.locator('header.site-header');
+    const criar = cabecalho.getByRole('link', { name: 'Criar conta' });
+    await expect(criar).toBeInViewport();
+    await expect(criar).toHaveAttribute('href', '/aluno/cadastro');
+    await expect(cabecalho.getByRole('link', { name: 'Entrar' })).toBeInViewport();
+  });
+
+  test('portátil 1366x768: registo, âncoras e herói com valor e saída', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await semEscolha(page);
+    await page.goto('/');
+    const cabecalho = page.locator('header.site-header');
+    await expect(cabecalho.getByRole('link', { name: 'Criar conta' })).toBeInViewport();
+    const solucao = cabecalho.getByRole('link', { name: 'Solução' });
+    await expect(solucao).toBeVisible();
+    await expect(solucao).toHaveAttribute('href', '#solucao');
+    await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+    await expect(page.getByText(FRASE)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Saltar a apresentação' })).toBeVisible();
+  });
+
+  test('saltar a apresentação a rato', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
+    await expect(page).toHaveURL(/#modulos/);
+    await expect(page.locator('#modulos h2')).toBeInViewport();
+    // O foco segue para o destino: quem vai pelo teclado sente a chegada.
+    await expect(page.locator('#modulos h2')).toBeFocused();
+  });
+
+  test('saltar a apresentação a teclado', async ({ page }) => {
+    await semEscolha(page);
+    await page.goto('/');
+    const salto = page.getByRole('link', { name: 'Saltar a apresentação' });
+    await salto.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#modulos/);
+    await expect(page.locator('#modulos h2')).toBeInViewport();
+    // O foco segue para o destino: quem vai pelo teclado sente a chegada.
+    await expect(page.locator('#modulos h2')).toBeFocused();
+  });
+
+  test.describe('no telemóvel', () => {
+    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+    test('saltar a apresentação ao toque', async ({ page }) => {
+      await semEscolha(page);
+      await page.goto('/');
+      await page.getByRole('link', { name: 'Saltar a apresentação' }).tap();
+      await expect(page).toHaveURL(/#modulos/);
+      await expect(page.locator('#modulos h2')).toBeInViewport();
+      await expect(page.locator('#modulos h2')).toBeFocused();
+    });
+  });
+
+  test.describe('movimento reduzido', () => {
+    // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('herói com valor e salto, sem animação', async ({ page }) => {
+      await semEscolha(page);
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+      await expect(page.getByText(FRASE)).toBeVisible();
+      await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
+      await expect(page).toHaveURL(/#modulos/);
+    });
+  });
+
+  test('o clique regista a origem: header, outro e faq', async ({ page }) => {
+    await semEscolha(page);
+    const eventos = await apanharCta(page);
+    await page.goto('/');
+
+    await page.locator('header.site-header').getByRole('link', { name: 'Criar conta' }).click();
+    await expect.poll(() => eventos.length, 'clique no header').toBe(1);
+    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header' }]);
+    await page.goBack();
+
+    // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
+    await expect(outro).toBeVisible();
+    await outro.click();
+    await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
+    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro' }]);
+    await page.goBack();
+
+    const faq = page.locator('#perguntas').getByRole('link', { name: 'Começar a estudar' });
+    await faq.scrollIntoViewIfNeeded();
+    await faq.click();
+    await expect.poll(() => eventos.length, 'clique no faq').toBe(3);
+    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq' }]);
+  });
+});
+
+/** Apresentação sem derreter o telemóvel (#514): o scroll alimentava um `setState`
+ *  por frame e a demo do herói nunca parava. */
+test.describe('apresentação sem derreter (#514)', () => {
+  test('o h1 vem no HTML inicial, sem JS', async ({ request }) => {
+    const res = await request.get('/');
+    expect(res.ok()).toBeTruthy();
+    const html = await res.text();
+    expect(html).toContain('id="hero-title"');
+    expect(html).toContain('E se estudar fosse');
+  });
+
+  test('a demo do herói congela após 5 segundos', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForLoadState('networkidle');
+    // Passados os 5 s o intervalo pára: dois fotogramas com 1,2 s de distância
+    // (17 ticks a 70 ms) têm de ser pixel a pixel iguais.
+    await page.waitForTimeout(6000);
+    const lcd = page.locator('.gb__lcd');
+    await expect(lcd).toBeVisible();
+    const a = await lcd.screenshot();
+    await page.waitForTimeout(1200);
+    const b = await lcd.screenshot();
+    expect(a.equals(b), 'a demo continua a mexer').toBe(true);
+  });
+
+  test('scroll de uma ponta à outra sem tarefas longas em CPU fraca', async ({ page, context }) => {
+    // Moto G4 aproximado: CPU 4× mais lenta. Aproximação ao INP p75 < 200 ms —
+    // o p75 real é dado de campo; aqui trava-se o mecanismo (fio principal livre).
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.goto('/');
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
+    // Só a partir daqui: o que o carregamento (compiles, fontes) pesou antes
+    // não é scroll e não entra na conta.
+    const medida = await page.evaluate(() => new Promise<{ gaps: number[]; longas: number[] }>((done) => {
+      const gaps: number[] = [];
+      const longas: number[] = [];
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) longas.push((e as PerformanceEntry & { duration: number }).duration);
+      }).observe({ type: 'longtask' });
+      const ts: number[] = [];
+      const t0 = performance.now();
+      const tick = (t: number) => {
+        if (ts.length) gaps.push(t - ts[ts.length - 1]);
+        ts.push(t);
+        if (t - t0 < 8000) requestAnimationFrame(tick);
+        else done({ gaps, longas });
+      };
+      requestAnimationFrame(tick);
+      let i = 0;
+      const passo = () => {
+        if (i++ < 40) {
+          window.scrollBy(0, window.innerHeight / 4);
+          setTimeout(passo, 100);
+        }
+      };
+      passo();
+    }));
+    const ordenados = [...medida.gaps].sort((a, b) => a - b);
+    const p75 = ordenados[Math.floor(ordenados.length * 0.75)] ?? 0;
+    expect(ordenados.length, 'houve frames com scroll').toBeGreaterThan(40);
+    expect(Math.round(p75), 'p75 do intervalo entre frames').toBeLessThan(200);
+    const maxima = medida.longas.length ? Math.max(...medida.longas) : 0;
+    expect(Math.round(maxima), 'tarefa mais longa no scroll').toBeLessThan(200);
+  });
+});
+
+/** Cache da landing (#522): HTML público com s-maxage, Markdown e raiz sem cache
+ *  partilhada. Tudo por `request`, sem browser: são cabeçalhos, não pixels. */
+test.describe('cache da landing (#522)', () => {
+  test('HTML público sai com s-maxage e stale-while-revalidate', async ({ request }) => {
+    for (const rota of ['/doar', '/privacidade', '/cookies', '/about', '/contact']) {
+      const r = await request.get(rota, { headers: { Accept: 'text/html' } });
+      expect(r.ok(), rota).toBeTruthy();
+      const cc = r.headers()['cache-control'] ?? '';
+      expect(cc, `${rota} s-maxage`).toContain('s-maxage');
+      expect(cc, `${rota} swr`).toContain('stale-while-revalidate');
+      expect(cc, `${rota} sem no-store`).not.toContain('no-store');
+    }
+  });
+
+  test('Accept markdown recebe Markdown, nunca HTML em cache', async ({ request }) => {
+    const r = await request.get('/doar', { headers: { Accept: 'text/markdown' } });
+    expect(r.ok()).toBeTruthy();
+    expect(r.headers()['content-type'] ?? '').toContain('text/markdown');
+    // Servido no URL da página: uma cache por URL não o distingue do HTML,
+    // por isso não se guarda em lado nenhum.
+    expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+    expect(await r.text()).not.toContain('<html');
+  });
+
+  test('a rota Markdown direta também não se guarda', async ({ request }) => {
+    const r = await request.get('/api/markdown/doar', { headers: { Accept: 'text/markdown' } });
+    expect(r.ok()).toBeTruthy();
+    expect(r.headers()['content-type'] ?? '').toContain('text/markdown');
+    expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+  });
+
+  test('a raiz sem sessão não vai para cache partilhada', async ({ request }) => {
+    // Varia com o cookie (redirecionamento por sessão) e o `Vary` que o diria não
+    // sobrevive à renderização do Next: na dúvida, não se partilha. O 307 com
+    // sessão continua com no-store no código, mas precisa de APP_ORIGIN, que o
+    // CI não define — por isso aqui trava-se o resguardo, não o desvio.
+    const r = await request.get('/', { headers: { Accept: 'text/html' } });
+    expect(r.ok()).toBeTruthy();
+    expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+  });
+});

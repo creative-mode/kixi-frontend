@@ -70,12 +70,27 @@ const pad = (n: number) => String(n % 10000).padStart(4, '0');
 
 export function GameDemo({ paused = false }: { paused?: boolean }) {
   const [s, setS] = useState<State>(() => wave(1, 0));
+  // Conteúdo em movimento há mais de 5 s precisa de pausa (WCAG 2.2.2): a demo
+  // congela no último frame (#514). Sair do herói desmonta e repõe os 5 s.
+  // Aba escondida também pára: sem ninguém a ver, o intervalo é só bateria.
+  const [old, setOld] = useState(false);
+  const [hiddenTab, setHiddenTab] = useState(false);
 
   useEffect(() => {
-    if (paused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const onVis = () => setHiddenTab(document.hidden);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  useEffect(() => {
+    if (paused || old || hiddenTab || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const stop = window.setTimeout(() => setOld(true), 5000);
     const id = window.setInterval(() => setS((x) => step(x)), 70);
-    return () => window.clearInterval(id);
-  }, [paused]);
+    return () => {
+      window.clearTimeout(stop);
+      window.clearInterval(id);
+    };
+  }, [paused, old, hiddenTab]);
 
   const ship = spritePath('ship');
   const kinds = { moth: spritePath('moth'), fly: spritePath('fly') };

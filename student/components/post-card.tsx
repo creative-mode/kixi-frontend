@@ -190,7 +190,18 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </header>
         <div className="mt-1 grid gap-2.5">
           {post.title && <h3 className="font-semibold">{post.title}</h3>}
-          {post.simulation && <SimulationCard card={post.simulation} />}
+          {post.simulation && (
+            <SimulationCard
+              card={post.simulation}
+              // O `/resultado?prova={id}` lê a simulação de quem está a ver: só o
+              // dono recebe o link, para um colega não aterrar num 403 (#602).
+              correctionHref={
+                post.authorAccountId === myAccountId && post.simulation.simulationId != null
+                  ? `/resultado?prova=${post.simulation.simulationId}`
+                  : null
+              }
+            />
+          )}
           {post.simulation && post.content && (
             <p className="-mb-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">{REFLECTION_LABEL}</p>
           )}
