@@ -98,14 +98,14 @@ test('a sigla OGI encontra a disciplina da escola; sem ela, avisa e deixa a disc
   assert.equal(com.patch.subject, 'Organização e Gestão Industrial');
   const sem = draftFromExtraction(OGI_EXTRACTION, { subjects: ['Matemática', 'Física'] });
   assert.equal(sem.patch.subject, '');   // limpa a que o rascunho tinha: não é a desta prova
-  assert.match(sem.notes.join(' '), /disciplina «OGI» não existe nesta escola/);
+  assert.match(sem.notes.map((n) => n.text).join(' '), /disciplina «OGI» não existe nesta escola/);
 });
 
 test('sem cotação no papel as cotações ficam vazias e há uma nota a explicar como distribuir', () => {
   const { items, notes } = draftFromExtraction(OGI_EXTRACTION, { subjects: SUBJECTS });
   assert.equal(totalScore(items), 0);
-  assert.match(notes.join(' '), /Distribuir 20 valores/);
-  assert.match(notes.join(' '), /Marque Verdadeiro ou Falso/);
+  assert.match(notes.map((n) => n.text).join(' '), /Distribuir 20 valores/);
+  assert.match(notes.map((n) => n.text).join(' '), /Marque Verdadeiro ou Falso/);
 });
 
 test('a prova de OGI importada, distribuída e com o gabarito marcado, pode ser publicada', () => {
@@ -152,26 +152,44 @@ test('confiança baixa marca a questão e as alíneas para rever, e conta-as', (
   assert.equal(out.items[1].items?.every((i) => i.review), true);
   assert.equal(out.items[2].review, undefined);
   assert.equal(out.reviewCount, 3);
-  assert.match(out.notes.join(' '), /3 questão\(ões\) ficaram marcadas «rever»/);
+  assert.match(out.notes.map((n) => n.text).join(' '), /3 questão\(ões\) ficaram marcadas «rever»/);
+  // O aviso agregado aponta para a primeira questão marcada.
+  assert.equal(out.notes.find((n) => /ficaram marcadas/.test(n.text))?.question, 1);
+});
+
+test('aviso de baixa confiança numa questão aponta para ela', () => {
+  const out = draftFromExtraction(
+    {
+      questions: [
+        { type: 'dissertativa', text: 'q1', number: '1', confidence: 0.9 },
+        { type: 'dissertativa', text: 'q2', number: '2', confidence: 0.9 },
+      ],
+      warnings: [{ code: 'LOW_CONFIDENCE', field: 'question_2_text', confidence: 0.4 }],
+    },
+    { subjects: [] },
+  );
+  const aviso = out.notes.find((n) => /inseguro/.test(n.text));
+  assert.ok(aviso);
+  assert.equal(aviso?.question, 2);
 });
 
 test('cotação lida no papel é aproveitada e não gera a nota de cotação em falta', () => {
   const ex: ExamExtraction = { questions: [{ type: 'dissertativa', text: 'q1', cotacao: 4, confidence: 0.9 }, { type: 'dissertativa', text: 'q2', cotacao: 6, confidence: 0.9 }] };
   const out = draftFromExtraction(ex, { subjects: [] });
   assert.equal(totalScore(out.items), 10);
-  assert.doesNotMatch(out.notes.join(' '), /não traz cotação/);
+  assert.doesNotMatch(out.notes.map((n) => n.text).join(' '), /não traz cotação/);
 });
 
 test('sem questões legíveis diz-se isso, e nada do cabeçalho vazio apaga o rascunho', () => {
   const out = draftFromExtraction({ questions: [], title: '  ' }, { subjects: [] });
   assert.equal(out.items.length, 0);
-  assert.match(out.notes.join(' '), /Não foi possível ler questões/);
+  assert.match(out.notes.map((n) => n.text).join(' '), /Não foi possível ler questões/);
   assert.deepEqual(out.patch, {});
 });
 
 test('avisos de baixa confiança em campos do cabeçalho viram notas legíveis', () => {
   const out = draftFromExtraction({ questions: [{ type: 'dissertativa', text: 'q', confidence: 0.9 }], warnings: [{ code: 'LOW_CONFIDENCE', field: 'durationMinutes', confidence: 0.4 }] }, { subjects: [] });
-  assert.match(out.notes.join(' '), /inseguro com a duração/);
+  assert.match(out.notes.map((n) => n.text).join(' '), /inseguro com a duração/);
 });
 
 test('NATIVE_TEXT_GAP global marca para revisão mesmo com confiança alta e sem fórmula estruturada', () => {
@@ -212,7 +230,7 @@ test('needs_review global força revisão, mas NO_COTACAO continua apenas como c
   const unscored = draftFromExtraction({ needs_review: true, questions, warnings: [{ code: 'NO_COTACAO', field: 'questions', confidence: 1 }] }, { subjects: [] });
   assert.ok(unscored.items.every((question) => question.review !== true));
   assert.equal(unscored.reviewCount, 0);
-  assert.match(unscored.notes.join(' '), /não traz cotação/);
+  assert.match(unscored.notes.map((n) => n.text).join(' '), /não traz cotação/);
 });
 
 test('matchSubject: igual sem acentos, sigla nos dois sentidos, e nada quando não há', () => {
@@ -247,7 +265,7 @@ test('cada figura fica na questão a que o OCR a ligou, e o cabeçalho e a assin
   assert.deepEqual(items.map((q) => q.images?.length ?? 0), [0, 1, 2]);
   assert.deepEqual(items[2].images?.map((i) => i.kind), ['figure', 'table']);
   assert.equal(items[1].images?.[0].caption, 'Figura da questão 2');
-  assert.ok(notes.some((n) => /3 figura/.test(n)));
+  assert.ok(notes.some((n) => /3 figura/.test(n.text)));
   assert.equal(footerPreview?.dataUrl, PNG);
   assert.deepEqual(footerPreview?.text, []);
 });
@@ -266,7 +284,7 @@ test('conteúdo do rodapé mantém zona e texto fora das questões', () => {
   assert.equal(imported.items[0].text, 'Calcule o fluxo.');
   assert.equal(imported.footerPreview?.pageIndex, 0);
   assert.deepEqual(imported.footerPreview?.text, ['A coordenação', 'secretaria@example.ao']);
-  assert.match(imported.notes.join(' '), /Rodapé separado das questões/);
+  assert.match(imported.notes.map((n) => n.text).join(' '), /Rodapé separado das questões/);
 });
 
 test('só os recortes que existem entram, e só se forem imagens', () => {
