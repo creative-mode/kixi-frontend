@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { FileImage, FileText, ScanText, UploadCloud, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, FileText, ScanText, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +26,16 @@ const size = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1).repla
  * Fotografias ou PDF de uma prova: o OCR lê-as e o construtor fica preenchido para o professor rever.
  *
  * Nada é guardado aqui. `onExtracted` recebe o que o motor leu e quem chama decide o que fazer com isso
- * (o construtor transforma-o em rascunho e avisa do que ficou por decidir).
+ * (o construtor transforma-o em rascunho e avisa do que ficou por decidir). Os originais (`originals`)
+ * seguem junto para a revisão os mostrar lado a lado; a sua posse passa para quem recebe.
  */
-export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extraction: ExamExtraction, names: string) => boolean | void; onClose: () => void }) {
+export interface OriginalPage {
+  name: string;
+  url: string;
+  kind: 'image' | 'pdf';
+}
+
+export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extraction: ExamExtraction, names: string, originals: OriginalPage[]) => boolean | void; onClose: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,8 +45,34 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** Miniaturas: uma por objeto File, criadas uma vez. A posse dos URLs passa
+   *  para o construtor no sucesso (`transferidas`); o resto revoga-se ao sair. */
+  const urls = useRef(new Map<File, string>());
+  const transferidas = useRef(new Set<string>());
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  function urlDe(f: File): string {
+    let url = urls.current.get(f);
+    if (!url) {
+      url = URL.createObjectURL(f);
+      urls.current.set(f, url);
+    }
+    return url;
+  }
+
+  function esquecer(f: File) {
+    const url = urls.current.get(f);
+    urls.current.delete(f);
+    if (url && !transferidas.current.has(url)) URL.revokeObjectURL(url);
+  }
+
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    // Só o que nunca saiu daqui: o construtor toma conta do que recebeu.
+    for (const url of urls.current.values()) {
+      if (!transferidas.current.has(url)) URL.revokeObjectURL(url);
+    }
+    urls.current.clear();
+  }, []);
 
   function recordRenderTimings(
     requestId: string,
@@ -63,8 +96,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
       performance.getEntriesByType('mark').filter((entry) => entry.name.startsWith(`${prefix}.`)).forEach((entry) => performance.clearMarks(entry.name));
       performance.getEntriesByType('measure').filter((entry) => entry.name.startsWith(`${prefix}.`)).forEach((entry) => performance.clearMeasures(entry.name));
     };
-    const report = () => {
-      if (reported) return;
+    const report = () => {      if (reported) return;
       reported = true;
       measure('request-to-first-useful-render', 'request-start', 'first-useful-render');
       measure('request-to-editor-ready', 'request-start', 'editor-ready');
@@ -87,14 +119,14 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
       return fieldset.querySelector<HTMLElement>(':scope > div [role="textbox"]')?.textContent?.trim() ?? '';
     });
 
-    return (extraction: ExamExtraction, names: string) => {
+    return (extraction: ExamExtraction, names: string, originals: OriginalPage[] = []) => {
       const expectedItems = draftFromExtraction(extraction, { subjects: [] }).items;
       const expected = expectedItems.map((item) => serializeMathText(item.text, item.formulas, item.blocks));
       const previous = values(fields()).slice(0, expected.length);
       counts.questionCount = Math.min(10_000, expected.length);
       // A callback may ask a blocking confirmation before replacing the current
       // draft. Start observing only after it returns, and skip declined imports.
-      if (onExtracted(extraction, names) === false) {
+      if (onExtracted(extraction, names, originals) === false) {
         report();
         return;
       }
@@ -165,16 +197,44 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
   function add(list: FileList | File[]) {
     const { files: next, rejected } = addOcrFiles(files, Array.from(list));
     rejected.forEach((r) => toast.error(r));
+    // Miniaturas prontas já aqui: criá-las no render seria um efeito colateral.
+    for (const f of next) urlDe(f);
     setFiles(next);
     setError(null);
   }
 
+  function remover(i: number) {
+    setFiles((cur) => {
+      esquecer(cur[i]);
+      return cur.filter((_, k) => k !== i);
+    });
+  }
+
+  /** A ordem das páginas conta: subir/descer por teclado, sem arrastar. */
+  function mover(i: number, dir: -1 | 1) {
+    setFiles((cur) => {
+      const j = i + dir;
+      if (j < 0 || j >= cur.length) return cur;
+      const next = [...cur];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
+  const chave = (f: File, i: number) => `${f.name}-${f.size}-${f.lastModified}-${i}`;
+  const eImagem = (f: File) => f.type.startsWith('image/');
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const problem = ocrFilesProblem(files);
+    await ler(files);
+  }
+
+  /** Lê estes ficheiros. Sem argumento lê a lista toda; com um, repete-se só essa página. */
+  async function ler(alvos: File[]) {
+    const problem = ocrFilesProblem(alvos);
     if (problem) { setError(problem); return; }
     const form = new FormData();
-    files.forEach((f) => form.append('files', f, f.name));
+    alvos.forEach((f) => form.append('files', f, f.name));
     setBusy(true);
     setError(null);
     setStage('A enviar ficheiros…');
@@ -188,7 +248,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
     const pageTimings: Record<string, number> = {};
     const counts: Record<OcrCountKey, number> = {
       pageCount: 0,
-      fileCount: files.length,
+      fileCount: alvos.length,
       questionCount: 0,
       imageCount: 0,
       imageDecodeSuccessCount: 0,
@@ -248,9 +308,16 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
         },
       }, controller.signal);
       const apply = recordRenderTimings(requestId, marks, serverTimings, counts);
-      apply(extraction, files.map((f) => f.name).join(', '));
+      // Os originais seguem para a revisão, lado a lado com o rascunho: a posse
+      // dos URLs passa para o construtor.
+      const originals: OriginalPage[] = alvos.map((f) => {
+        const url = urlDe(f);
+        transferidas.current.add(url);
+        return { name: f.name, url, kind: eImagem(f) ? 'image' : 'pdf' };
+      });
+      apply(extraction, alvos.map((f) => f.name).join(', '), originals);
       reported = true;
-      setFiles([]);
+      setFiles((cur) => cur.filter((f) => !alvos.includes(f)));
     } catch (caught) {
       marks['request-end'] ??= performance.now();
       if (caught instanceof DOMException && caught.name === 'AbortError') counts.cancelledRequestCount = 1;
@@ -295,12 +362,21 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
           </div>
 
           {files.length > 0 && (
-            <ol className="grid gap-2" aria-label="Ficheiros a importar">
+            <ol className="grid gap-2" aria-label="Ficheiros a importar, por ordem de leitura">
               {files.map((f, i) => (
-                <li key={`${f.name}-${i}`} className="flex min-w-0 items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-primary">{f.type === 'application/pdf' ? <FileText size={16} aria-hidden /> : <FileImage size={16} aria-hidden />}</span>
-                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{i + 1}. {f.name}</span><span className="text-xs text-muted-foreground">{size(f.size)}</span></span>
-                  <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0" aria-label={`Remover ${f.name}`} disabled={busy} onClick={() => setFiles((cur) => cur.filter((_, k) => k !== i))}><X size={14} /></Button>
+                <li key={chave(f, i)} className="flex min-w-0 items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
+                  {eImagem(f) ? (
+                    <img src={urlDe(f)} alt="" aria-hidden className="size-8 shrink-0 rounded-md bg-accent object-cover" />
+                  ) : (
+                    <span className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-primary"><FileText size={16} aria-hidden /></span>
+                  )}
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{i + 1}. {f.name}</span><span className="text-xs text-muted-foreground">{eImagem(f) ? 'Imagem' : 'PDF'} · {size(f.size)}</span></span>
+                  <span className="flex shrink-0 items-center gap-0.5" role="group" aria-label={`Ordem de ${f.name}`}>
+                    <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={`Subir ${f.name}`} disabled={busy || i === 0} onClick={() => mover(i, -1)}><ArrowUp size={14} /></Button>
+                    <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={`Descer ${f.name}`} disabled={busy || i === files.length - 1} onClick={() => mover(i, 1)}><ArrowDown size={14} /></Button>
+                  </span>
+                  <Button type="button" size="sm" variant="outline" aria-label={`Ler só ${f.name}`} disabled={busy} onClick={() => void ler([f])}>Ler este</Button>
+                  <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0" aria-label={`Remover ${f.name}`} disabled={busy} onClick={() => remover(i)}><X size={14} /></Button>
                 </li>
               ))}
             </ol>
@@ -312,6 +388,21 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
               <span className="font-medium">{stage}</span>
               {uploadPercent !== null && <span className="text-xs text-muted-foreground">Envio: {uploadPercent}%</span>}
               {pageProgress && <span className="ml-auto text-xs text-muted-foreground">{pageProgress.page}/{pageProgress.pageCount} páginas</span>}
+            </div>
+          ) : null}
+          {busy && pageProgress && pageProgress.pageCount > 0 ? (
+            <div
+              role="progressbar"
+              aria-valuenow={Math.min(pageProgress.page, pageProgress.pageCount)}
+              aria-valuemin={0}
+              aria-valuemax={pageProgress.pageCount}
+              aria-label="Progresso da leitura das páginas"
+              className="h-2 overflow-hidden rounded-full bg-secondary"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${Math.round((Math.min(pageProgress.page, pageProgress.pageCount) / pageProgress.pageCount) * 100)}%` }}
+              />
             </div>
           ) : null}
           <div className="flex justify-end gap-2">

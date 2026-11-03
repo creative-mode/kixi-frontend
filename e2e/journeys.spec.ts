@@ -6,6 +6,21 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin@kixi.ao';
 const TEACHER_USERNAME = process.env.E2E_TEACHER_USERNAME ?? 'professor@kixi.ao';
 
+/** BMP de 1 px branco, construído por código: evita um base64 literal no teste. */
+function pixelBmp(): Buffer {
+  const bmp = Buffer.alloc(58);
+  bmp.write('BM', 0);
+  bmp.writeUInt32LE(58, 2);
+  bmp.writeUInt32LE(54, 10);
+  bmp.writeUInt32LE(40, 14);
+  bmp.writeInt32LE(1, 18);
+  bmp.writeInt32LE(1, 22);
+  bmp.writeUInt16LE(1, 26);
+  bmp.writeUInt16LE(24, 28);
+  bmp.fill(255, 54, 57);
+  return bmp;
+}
+
 function samplePdf(): Buffer {
   const stream = 'BT /F1 18 Tf 20 90 Td (OCR test) Tj ET';
   const objects = [
@@ -968,6 +983,110 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect.poll(async () => systemDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\begin{cases}');
     await systemDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
     await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
+  });
+
+  test('OCR: miniaturas, ordem por teclado e leitura de uma só página (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles([
+      { name: 'foto1.bmp', mimeType: 'image/bmp', buffer: png },
+      { name: 'foto2.bmp', mimeType: 'image/bmp', buffer: png },
+    ]);
+    const lista = page.getByRole('list', { name: 'Ficheiros a importar, por ordem de leitura' });
+    await expect(lista.locator('li')).toHaveCount(2);
+    // Miniatura por ficheiro, e a ordem muda por teclado (subir/descer).
+    expect(await lista.locator('img').count()).toBe(2);
+    await expect(lista.getByRole('button', { name: 'Subir foto1.bmp' })).toBeDisabled();
+    await expect(lista.getByRole('button', { name: 'Descer foto1.bmp' })).toBeEnabled();
+    await lista.getByRole('button', { name: 'Subir foto2.bmp' }).click();
+    await expect(lista.locator('li').first()).toContainText('1. foto2.bmp');
+    await expect(lista.getByRole('button', { name: 'Subir foto2.bmp' })).toBeDisabled();
+    // Repetir só uma página, sem reler tudo.
+    await expect(lista.getByRole('button', { name: 'Ler só foto1.bmp' })).toBeVisible();
+  });
+
+  test('OCR: progresso com barra, notas que levam à questão e originais lado a lado (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const jobId = randomUUID();
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        {
+          number: '1', type: 'dissertativa', confidence: 0.9, cotacao: 10,
+          text: 'Define velocidade média.',
+          formulas: [{ raw: 'v', latex: 'v', confidence: 0.5, layoutConfidence: 0.5, kind: 'formula' }],
+        },
+        { number: '2', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Explica a inércia.' },
+      ],
+      warnings: [
+        { code: 'LOW_CONFIDENCE_FORMULA', field: 'question_1_formula_1', confidence: 0.5 },
+        { code: 'LOW_CONFIDENCE', field: 'question_2_text', confidence: 0.4 },
+      ],
+      unmapped_content: [{ zone: 'rodape', text: 'Contacto: 923 000 000' }],
+      images_to_upload: [{ region: 'rodape', data_url: 'data:image/bmp;base64,' + pixelBmp().toString('base64') }],
+    };
+    // O trabalho demora de propósito: a barra de progresso tem de se ver.
+    await page.route('**/manager/api/ocr/extract', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, requestId: randomUUID(), statusUrl: `/manager/api/ocr/jobs/${jobId}` }),
+      });
+    });
+    let polls = 0;
+    await page.route(`**/manager/api/ocr/jobs/${jobId}`, async (route) => {
+      if (route.request().method() === 'DELETE') {
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      if (route.request().method() !== 'GET') return route.fallback();
+      polls += 1;
+      if (polls === 1) {
+        // Primeiro estado: já há páginas contadas, mas a leitura continua — é
+        // nesta janela que a barra fica visível.
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ jobId, status: 'PROCESSING', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'progress', result: null, error: null }),
+        });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: extraction, error: null }),
+      });
+    });
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'foto1.png', mimeType: 'image/png', buffer: png,
+    });
+    await page.getByRole('button', { name: 'Ler só foto1.png' }).click();
+    const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
+    await expect(barra).toBeVisible();
+    await expect(barra).toHaveAttribute('aria-valuemax', '1');
+    await expect(barra).toHaveAttribute('aria-valuemin', '0');
+    // Cada aviso aponta para a sua questão; o clique leva lá o foco.
+    await page.getByRole('button', { name: 'Ir para a questão 2' }).click();
+    await expect(page.locator('#questao-2')).toBeFocused();
+    // O rodapé tem âncora própria e as páginas originais ficam ao lado.
+    await expect(page.getByRole('link', { name: 'Ver rodapé original' })).toBeVisible();
+    await expect(page.getByTestId('ocr-originais')).toBeVisible();
+    await page.getByRole('button', { name: 'Ver foto1.png em tamanho real' }).click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toContainText('foto1.png');
+    await expect(dialogo.locator('img')).toBeVisible();
+    await page.keyboard.press('Escape');
   });
 
   test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
