@@ -375,7 +375,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
                     <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={`Subir ${f.name}`} disabled={busy || i === 0} onClick={() => mover(i, -1)}><ArrowUp size={14} /></Button>
                     <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={`Descer ${f.name}`} disabled={busy || i === files.length - 1} onClick={() => mover(i, 1)}><ArrowDown size={14} /></Button>
                   </span>
-                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void ler([f])}>Ler este</Button>
+                  <Button type="button" size="sm" variant="outline" aria-label={`Ler só ${f.name}`} disabled={busy} onClick={() => void ler([f])}>Ler este</Button>
                   <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0" aria-label={`Remover ${f.name}`} disabled={busy} onClick={() => remover(i)}><X size={14} /></Button>
                 </li>
               ))}

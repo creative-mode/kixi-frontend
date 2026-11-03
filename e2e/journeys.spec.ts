@@ -1039,12 +1039,24 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
         body: JSON.stringify({ jobId, requestId: randomUUID(), statusUrl: `/manager/api/ocr/jobs/${jobId}` }),
       });
     });
+    let polls = 0;
     await page.route(`**/manager/api/ocr/jobs/${jobId}`, async (route) => {
       if (route.request().method() === 'DELETE') {
         await route.fulfill({ status: 204 });
         return;
       }
       if (route.request().method() !== 'GET') return route.fallback();
+      polls += 1;
+      if (polls === 1) {
+        // Primeiro estado: já há páginas contadas, mas a leitura continua — é
+        // nesta janela que a barra fica visível.
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ jobId, status: 'PROCESSING', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'progress', result: null, error: null }),
+        });
+        return;
+      }
       await new Promise((r) => setTimeout(r, 1500));
       await route.fulfill({
         status: 200,
@@ -1070,7 +1082,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // O rodapé tem âncora própria e as páginas originais ficam ao lado.
     await expect(page.getByRole('link', { name: 'Ver rodapé original' })).toBeVisible();
     await expect(page.getByTestId('ocr-originais')).toBeVisible();
-    await page.getByRole('button', { name: 'Ver foto1.bmp em tamanho real' }).click();
+    await page.getByRole('button', { name: 'Ver foto1.png em tamanho real' }).click();
     const dialogo = page.getByRole('dialog');
     await expect(dialogo).toContainText('foto1.png');
     await expect(dialogo.locator('img')).toBeVisible();
