@@ -855,11 +855,8 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                     {/* A URL vem do armazenamento do backend, por isso é um img simples:
                         next/image exigiria o domínio na lista e um tamanho configurado
                         do lado de quem guarda a imagem. */}
-                    {/* A caixa reserva o espaço antes de a figura chegar: a questão não salta a meio da leitura (CLS, #524). */}
-                    <div className="relative aspect-[4/3] max-h-[70vh] w-full overflow-hidden rounded-lg border bg-card">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={assetUrl(image.imageUrl, 768)} decoding="async" alt={image.caption ?? ''} className="absolute inset-0 size-full object-contain" />
-                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={assetUrl(image.imageUrl, 768)} decoding="async" alt={image.caption ?? ''} className="w-full rounded-lg border" />
                     {image.caption && (
                       <figcaption className="text-[13px] text-muted-foreground">{image.caption}</figcaption>
                     )}
