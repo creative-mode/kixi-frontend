@@ -1226,17 +1226,17 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await gestorLogin(page);
     await avariarPOST(page, '**/manager/statements');
     await page.goto('/manager/statements');
-    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
-    await expect(scope).toBeVisible();
+    // A falha da lista tem prioridade no painel e esconde a do scope: só há um
+    // retry de cada vez. Primeiro sai o da lista...
     const tentar = page.getByRole('button', { name: 'Tentar novamente' });
     await expect(tentar.first()).toBeVisible();
     expect(await graves(page), 'enunciados em erro').toEqual([]);
     await page.unroute('**/manager/statements');
-    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
-    await expect(scope).toHaveCount(0);
-    // Resta o da lista: é o último e também sai com retry.
-    await expect(tentar).toHaveCount(1);
     await tentar.first().click();
+    // ...depois aparece o do scope, que também sai com retry.
+    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
+    await expect(scope).toBeVisible();
+    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
     await expect(tentar).toHaveCount(0);
   });
 
