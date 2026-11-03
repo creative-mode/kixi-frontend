@@ -1,6 +1,6 @@
 /** Cache curta em memória (#393), sem servidor e sem React.
  *
- *  Serve para o que quase não muda e se pede em cada navegação: as disciplinas, os anos lectivos,
+ *  Serve para o que quase não muda e se pede em cada navegação: as disciplinas, os anos letivos,
  *  as escolas, as fotos de outras contas. Tem prazo, tem limite de entradas (não cresce com o que o
  *  cliente variar) e junta pedidos iguais em curso, para dez pessoas a abrir a mesma página não
  *  fazerem dez leituras. O que falhou nunca fica guardado. */

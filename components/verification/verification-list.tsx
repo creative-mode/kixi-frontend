@@ -195,7 +195,7 @@ export function VerificationList() {
                     {here && (
                       <div className="grid gap-2 border-t pt-3">
                         {here.kind === 'revoke' ? (
-                          <p className="text-sm">Revogar o selo tira o símbolo de verificada a esta escola e aos seus professores. Confirma?</p>
+                          <p className="text-sm">Revogar o selo tira o símbolo de verificada a esta escola e aos seus professores. Confirme a revogação.</p>
                         ) : (
                           <>
                             <label htmlFor={`nota-${r.id}`} className="text-sm font-medium">

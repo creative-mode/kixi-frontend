@@ -61,7 +61,7 @@ export function decisionExigeNota(decision: Decision): boolean {
 export function notaDecisaoError(decision: Decision, note: string): string | null {
   const limpa = note.trim();
   if (decisionExigeNota(decision) && limpa.length < NOTA_MINIMA) {
-    return `Para ${decision === 'HIDDEN' ? 'ocultar' : 'suspender'} escreve uma nota com pelo menos ${NOTA_MINIMA} caracteres: é ela que explica a decisão daqui a meses.`;
+    return `Para ${decision === 'HIDDEN' ? 'ocultar' : 'suspender'} escreva uma nota com pelo menos ${NOTA_MINIMA} caracteres: é ela que explica a decisão daqui a meses.`;
   }
   return noteError(note);
 }

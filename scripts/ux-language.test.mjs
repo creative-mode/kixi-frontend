@@ -44,6 +44,8 @@ function uiTexts(path) {
   return texts;
 }
 
+// Âmbito: o texto que chega à interface (literais, JSX e atributos). Comentários e documentação ficam fora de
+// propósito, para um comentário poder citar o termo antigo; estão limpos à mão, não por este teste.
 test('a cópia da interface não reintroduz termos assinalados na Issue #511', () => {
   const forbidden = [
     /\b(?:você|senha|salvar|reciclagem|buke|ano\s+lectivo|tem\s+certeza)\b/iu,
@@ -60,10 +62,44 @@ test('a cópia da interface não reintroduz termos assinalados na Issue #511', (
 });
 
 // Um registo por superfície: o gestor trata por «você» (formal), o aluno e a landing por «tu».
-// Só frases que não deixam dúvida: «Fecha às», «Abre-se» ou «Escolha múltipla» não são imperativos.
+// O «tu» do gestor apanha-se em duas partes, sem distinguir maiúsculas:
+// - formas que só existem na 2.ª pessoa, em qualquer sítio da frase («Precisas», «podes», «a tua», «Confirma?»);
+// - imperativos que também são 3.ª pessoa («entra», «guarda», «volta»), só no início de uma frase: «o professor
+//   entra na plataforma» ou «Bem-vindo de volta» não são tratamento. «Abre»/«Fecha» ficam de fora («Abre às 10:00»).
+const LETTER = '\\p{L}';
+const TU_ANYWHERE = new RegExp(`(?<![${LETTER}-])(?:precisas|podes|tens|queres|sabes|deves|estás|vais|consegues|entras|contigo|a tua|o teu|as tuas|os teus|tua|teu)(?![${LETTER}-])|(?<![${LETTER}])confirma\\?`, 'iu');
+const TU_SENTENCE_START = new RegExp(`(?:^|[.!?:]\\s+)(?:entra|guarda|escolhe|toca|indica|tenta|inicia|verifica|volta|contacta|escreve|confirma|clica|carrega|faz|vê|seleciona|introduz|aguarda|preenche|adiciona|cria|experimenta|pede|revê|corrige|atualiza|recarrega|insere)(?![${LETTER}-])`, 'iu');
+const managerUsesTu = (text) => TU_ANYWHERE.test(text.trim()) || TU_SENTENCE_START.test(text.trim());
+
+test('a regra do gestor apanha o tratamento por tu e deixa passar a 3.ª pessoa', () => {
+  // As frases que já escaparam a uma versão anterior da regra (revisão do #681).
+  for (const tu of [
+    'Esta sessão não dá acesso ao Kixi Manager. Entra com outra conta.',
+    'Precisas de iniciar sessão para continuar.',
+    'Guarda as alterações, aprova e publica no catálogo do aluno',
+    'Revogar o selo tira o símbolo de verificada a esta escola e aos seus professores. Confirma?',
+    // Pedaço de template a seguir a `${...}` (lib/moderation/model.ts): é assim que a árvore sintática o vê.
+    ' escreve uma nota com pelo menos ',
+    'A tua sessão expirou.',
+    'Podes continuar a escrever a fórmula em LaTeX.',
+  ]) assert.ok(managerUsesTu(tu), `devia apanhar: ${tu}`);
+  for (const formal of [
+    'Entre com outra conta.',
+    'Precisa de iniciar sessão para continuar.',
+    'Confirme a revogação.',
+    'Com acesso, o professor entra na plataforma e monta provas.',
+    'Bem-vindo de volta',
+    'Estilo removido: o tutor volta ao modo padrão.',
+    'Prova guardada. Continua oculta até a publicar.',
+    'Abre às',
+    'Escolha múltipla',
+    'Confirmação',
+  ]) assert.ok(!managerUsesTu(formal), `não devia apanhar: ${formal}`);
+});
+
 test('cada superfície usa um só registo: gestor formal, aluno e landing por tu', () => {
   const surfaces = [
-    { roots: ['app', 'components', 'lib'], wrong: /\b(?:Tenta|Inicia sessão|Entra novamente|Escreve para|Contacta|Podes|Verifica (?:o|a)|Volta (?:a|ao)|A tua|O teu)\b/u },
+    { roots: ['app', 'components', 'lib'], wrong: { test: managerUsesTu } },
     {
       roots: ['student/app', 'student/components', 'student/lib', 'landing/app', 'landing/components', 'landing/lib'],
       wrong: /\b(?:Tente|Inicie sessão|Verifique|Volte|Contacte|Escreva|Selecione|Introduza|Aguarde|Clique|Peça|Preencha|Indique|Recarregue|Confirme|A sua sessão|Pode continuar)\b/u,

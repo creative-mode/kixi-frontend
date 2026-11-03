@@ -10,7 +10,7 @@ import { formatAverage } from '@/lib/ranking-rules';
 import { sinceLabel } from '@/lib/attempt-history';
 
 /**
- * A experiência: a cronologia por ano lectivo, com as escolas e classes que a pessoa frequentou (ou, no
+ * A experiência: a cronologia por ano letivo, com as escolas e classes que a pessoa frequentou (ou, no
  * professor, o que leccionou). É pública. Só o próprio aluno (`own`) pode abrir um ano e ver o seu histórico
  * académico; para os outros a entrada nem é um botão.
  */
