@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, FileText, ScanText, UploadCloud, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ScanText, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { addOcrFiles, OCR_ACCEPT, ocrFilesProblem } from '@/lib/crud/ocr-files';
 import { streamExamOcr, type OcrStreamEvent } from '@/lib/exam/ocr-stream';
 import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
+import { moveAnnouncement, newSourceId } from '@/lib/exam/sources';
+import { pdfPageCount } from '@/lib/exam/pdf';
+import { SourceThumb } from './source-thumb';
 import {
   buildOcrTelemetryPayload,
   createOcrRequestId,
@@ -49,6 +52,22 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
    *  para o construtor no sucesso (`transferidas`); o resto revoga-se ao sair. */
   const urls = useRef(new Map<File, string>());
   const transferidas = useRef(new Set<string>());
+  /** Id por ficheiro, estável na reordenação: o `<li>` não remonta e o foco
+   *  sobrevive a subir e descer. Por objeto File, o mesmo ficheiro adicionado
+   *  duas vezes continua a ter chaves distintas. */
+  const ids = useRef(new Map<File, string>());
+  const [announce, setAnnounce] = useState('');
+  /** Páginas já contadas por PDF (`pdfPageCount`); até saber, a linha mostra só «PDF». */
+  const [pageCounts, setPageCounts] = useState(new Map<File, number>());
+
+  function idDe(f: File): string {
+    let id = ids.current.get(f);
+    if (!id) {
+      id = newSourceId();
+      ids.current.set(f, id);
+    }
+    return id;
+  }
 
   function urlDe(f: File): string {
     let url = urls.current.get(f);
@@ -62,6 +81,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
   function esquecer(f: File) {
     const url = urls.current.get(f);
     urls.current.delete(f);
+    ids.current.delete(f);
     if (url && !transferidas.current.has(url)) URL.revokeObjectURL(url);
   }
 
@@ -72,7 +92,22 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
       if (!transferidas.current.has(url)) URL.revokeObjectURL(url);
     }
     urls.current.clear();
+    ids.current.clear();
   }, []);
+
+  // Conta as páginas de cada PDF da lista uma vez (a cache de `loadPdf` partilha
+  // o documento com a miniatura — uma só leitura). Sem PDF legível fica «PDF» a seco.
+  useEffect(() => {
+    let alive = true;
+    for (const f of files) {
+      if (f.type.startsWith('image/') || pageCounts.has(f)) continue;
+      void pdfPageCount(f).then((n) => {
+        if (!alive || n == null) return;
+        setPageCounts((cur) => (cur.get(f) === n ? cur : new Map(cur).set(f, n)));
+      });
+    }
+    return () => { alive = false; };
+  }, [files, pageCounts]);
 
   function recordRenderTimings(
     requestId: string,
@@ -219,17 +254,22 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+    // O anúncio usa a lista corrente do render; um clique numa borda não anuncia nada.
+    const j = i + dir;
+    if (j < 0 || j >= files.length) return;
+    setAnnounce(moveAnnouncement(files[i].name, i, j));
   }
 
-  const chave = (f: File, i: number) => `${f.name}-${f.size}-${f.lastModified}-${i}`;
   const eImagem = (f: File) => f.type.startsWith('image/');
+  /** Páginas contadas do PDF, ou `null` enquanto não se sabe (mostra «PDF» a seco). */
+  const pageOf = (f: File) => pageCounts.get(f) ?? null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     await ler(files);
   }
 
-  /** Lê estes ficheiros. Sem argumento lê a lista toda; com um, repete-se só essa página. */
+  /** Lê estes ficheiros. Sem argumento lê a lista toda; com um, repete-se só esse ficheiro. */
   async function ler(alvos: File[]) {
     const problem = ocrFilesProblem(alvos);
     if (problem) { setError(problem); return; }
@@ -364,13 +404,13 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
           {files.length > 0 && (
             <ol className="grid gap-2" aria-label="Ficheiros a importar, por ordem de leitura">
               {files.map((f, i) => (
-                <li key={chave(f, i)} className="flex min-w-0 items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
+                <li key={idDe(f)} className="flex min-w-0 items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
                   {eImagem(f) ? (
                     <img src={urlDe(f)} alt="" aria-hidden className="size-8 shrink-0 rounded-md bg-accent object-cover" />
                   ) : (
-                    <span className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-primary"><FileText size={16} aria-hidden /></span>
+                    <SourceThumb file={f} kind="pdf" className="size-8 rounded-md" />
                   )}
-                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{i + 1}. {f.name}</span><span className="text-xs text-muted-foreground">{eImagem(f) ? 'Imagem' : 'PDF'} · {size(f.size)}</span></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{i + 1}. {f.name}</span><span className="text-xs text-muted-foreground">{eImagem(f) ? 'Imagem' : pageOf(f) ? `PDF · ${pageOf(f)} ${pageOf(f) === 1 ? 'página' : 'páginas'}` : 'PDF'} · {size(f.size)}</span></span>
                   <span className="flex shrink-0 items-center gap-0.5" role="group" aria-label={`Ordem de ${f.name}`}>
                     <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={`Subir ${f.name}`} disabled={busy || i === 0} onClick={() => mover(i, -1)}><ArrowUp size={14} /></Button>
                     <Button type="button" size="icon" variant="ghost" className="size-8" aria-label={`Descer ${f.name}`} disabled={busy || i === files.length - 1} onClick={() => mover(i, 1)}><ArrowDown size={14} /></Button>
@@ -381,6 +421,9 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
               ))}
             </ol>
           )}
+          {/* O anúncio da reordenação vai a leitores de ecrã: o foco fica no botão,
+              a mudança de posição explica-se por aqui. */}
+          <p className="sr-only" role="status" aria-live="polite">{announce}</p>
           {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
           {busy && stage ? (
             <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm" role="status" aria-live="polite">
@@ -396,6 +439,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
               aria-valuenow={Math.min(pageProgress.page, pageProgress.pageCount)}
               aria-valuemin={0}
               aria-valuemax={pageProgress.pageCount}
+              aria-valuetext={`${Math.min(pageProgress.page, pageProgress.pageCount)} de ${pageProgress.pageCount} páginas lidas`}
               aria-label="Progresso da leitura das páginas"
               className="h-2 overflow-hidden rounded-full bg-secondary"
             >

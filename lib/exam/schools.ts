@@ -130,6 +130,8 @@ function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
     options: kind === 'group' ? [] : options,
     ...(kind ? { kind } : {}),
     ...(kind === 'group' ? { items } : {}),
+    ...(typeof raw?.sourcePageIndex === 'number' && raw.sourcePageIndex >= 0 ? { sourcePageIndex: raw.sourcePageIndex } : {}),
+    ...(typeof raw?.sourceNumber === 'string' && raw.sourceNumber.trim() ? { sourceNumber: raw.sourceNumber.trim() } : {}),
     ...mathContentFields((raw ?? {}) as Record<string, unknown>),
     ...(raw?.review === true ? { review: true } : {}),
     ...(raw?.reviewed === true ? { reviewed: true } : {}),

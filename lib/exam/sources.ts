@@ -18,6 +18,15 @@ export function newSourceId(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `src-${Math.random().toString(36).slice(2)}`;
 }
 
+/** Um ficheiro à espera de leitura, com o id que o mantém no foco quando a lista muda. */
+export interface SourceFile {
+  id: string;
+  file: File;
+  kind: SourceKind;
+  /** Páginas do PDF, quando já se sabe (imagens contam 1; `null` para PDF por abrir). */
+  pageCount: number | null;
+}
+
 /** As páginas de um conjunto de ficheiros, na ordem em que foram adicionadas. */
 export interface SourcePageRef {
   /** Índice 0-based em `sources`. */

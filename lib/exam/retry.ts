@@ -62,14 +62,20 @@ export function mergePageRetry(
   }
 
   const first = Math.min(...positions);
-  const last = Math.max(...positions);
   // Uma página relida reescreve o que dela saiu: as questões novas herdam a página,
   // mesmo quando o backend desta leitura parcial a devolveu a 0 (só conhece a sua página).
   const replacements = pageIndex != null
     ? retried.map((question) => (pageOf(question) === null ? { ...question, sourcePageIndex: pageIndex } : question))
     : retried;
+  // As posições da página podem não ser contíguas: o professor pode ter reordenado
+  // as questões antes de repetir a leitura. Remonta-se posição a posição — apagar
+  // o intervalo entre a primeira e a última apagava o que ficou no meio delas.
+  const saem = new Set(positions);
+  const items: DraftQuestion[] = current.flatMap((question, i) =>
+    i === first ? [...replacements, ...(saem.has(i) ? [] : [question])] : saem.has(i) ? [] : [question],
+  );
   return {
-    items: [...current.slice(0, first), ...replacements, ...current.slice(last + 1)],
+    items,
     replaced: positions.length,
     added: replacements.length,
     ambiguous: false,
