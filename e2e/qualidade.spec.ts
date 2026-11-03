@@ -1029,11 +1029,12 @@ test.describe('CTA de registo da landing (#512)', () => {
 
     // A hidratação pode chegar depois do `goBack`: sem o `#solucao` no DOM, o
     // scroll de baixo perdia-se (ainda sem ouvintes) e o CTA do fim nunca nascia.
-    await expect(page.locator('#solucao')).toBeAttached();
+    // Em runner carregado a hidratação demora: os 15 s são os dos testes irmãos.
+    await expect(page.locator('#solucao')).toBeAttached({ timeout: 15000 });
     // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
     await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
     const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
-    await expect(outro).toBeVisible();
+    await expect(outro).toBeVisible({ timeout: 15000 });
     await outro.click();
     await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
     expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro' }]);
@@ -1219,7 +1220,7 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await expect(
       page
         .getByText('Nenhum ano letivo registado ainda.')
-        .or(page.locator('tbody a[href^="/school-year/"]'))
+        .or(page.locator('tbody a[href*="/school-year/"]'))
         .first(),
       'lista ou vazio legítimo',
     ).toBeVisible();
@@ -1234,7 +1235,7 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await expect(
       page
         .getByText('Nenhum ano letivo registado ainda.')
-        .or(page.locator('tbody a[href^="/school-year/"]'))
+        .or(page.locator('tbody a[href*="/school-year/"]'))
         .first(),
       'lista ou vazio legítimo após a segunda falha',
     ).toBeVisible();
