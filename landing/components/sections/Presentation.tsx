@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
+
 import { Cartridge } from './Cartridge';
 import { Cta } from './CtaLink';
-import { GameDemo } from './GameDemo';
 import { GameDemo } from './GameDemo';
 import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
@@ -129,6 +129,7 @@ export function Presentation() {
       cancelAnimationFrame(raf);
     };
   },
+
 
   // As setas andam com o browser (#513): o passo nativo é o que o teclado, o
   // leitor de ecrã e o próprio utilizador esperam. O passo de meio ecrã por

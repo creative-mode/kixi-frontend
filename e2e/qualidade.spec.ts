@@ -1043,7 +1043,6 @@ test.describe('CTA de registo da landing (#512)', () => {
     expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq' }]);
   });
 });
-
 /** Apresentação sem derreter o telemóvel (#514): o scroll alimentava um `setState`
  *  por frame e a demo do herói nunca parava. */
 test.describe('apresentação sem derreter (#514)', () => {
