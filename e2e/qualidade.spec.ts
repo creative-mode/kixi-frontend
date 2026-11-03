@@ -64,18 +64,6 @@ const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
  *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
  *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
  *  `getByRole` nem a via ("element(s) not found"). */
-async function irAoFim(page: Page) {
-  await expect
-    .poll(
-      async () => {
-        await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
-        return page.evaluate(() => window.innerHeight + window.scrollY >= document.body.scrollHeight - 2);
-      },
-      { message: 'chegar ao fim da página', timeout: 15000 },
-    )
-    .toBe(true);
-}
-
 for (const vp of VIEWPORTS) {
   test.describe(`acessibilidade, ${vp.nome}`, () => {
     test.use({ viewport: vp.size, isMobile: vp.size.width < 500 });
