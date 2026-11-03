@@ -68,6 +68,8 @@ export function ModerationQueue() {
   const [nota, setNota] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const notaRef = useRef<HTMLTextAreaElement>(null);
+  /** Quem abriu o diálogo: o Esc e o cancelar devolvem-lhe o foco. */
+  const openerRef = useRef<HTMLButtonElement | null>(null);
 
   // O foco vai para a nota depois de o diálogo montar: com `autoFocus` o React
   // focava antes de o FocusScope do Radix registar o botão que abriu, e no
@@ -102,8 +104,9 @@ export function ModerationQueue() {
   const contagens = useMemo(() => moderationCounts(reports ?? []), [reports]);
   const paginaDecididas = useMemo(() => paginate(decididas, pagina, DECIDED_PAGE_SIZE), [decididas, pagina]);
 
-  function abrir(report: Report, decision: Decision) {
+  function abrir(report: Report, decision: Decision, opener: HTMLButtonElement | null) {
     setNota('');
+    openerRef.current = opener;
     setAAbrir({ report, decision });
   }
 
@@ -213,7 +216,7 @@ export function ModerationQueue() {
                             <Button
                               key={d} size="sm"
                               variant={d === 'IGNORED' ? 'outline' : d === 'HIDDEN' ? 'destructive' : 'default'}
-                              onClick={() => abrir(r, d)}
+                              onClick={(e) => abrir(r, d, e.currentTarget)}
                               data-testid={`moderacao-${VERBO[d]}-${r.id}`}
                             >
                               {DECISION_LABEL[d]}
@@ -240,7 +243,14 @@ export function ModerationQueue() {
             if (!aberto) setAAbrir(null);
           }}
         >
-          <DialogContent>
+          <DialogContent
+            onCloseAutoFocus={(e) => {
+              // O regresso automático nem sempre acerta (o foco pode já ter
+              // saído do botão quando o diálogo montou): devolve-se à mão.
+              e.preventDefault();
+              openerRef.current?.focus();
+            }}
+          >
             {aAbrir && (
               <>
                 <DialogHeader>
