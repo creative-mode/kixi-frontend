@@ -173,8 +173,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
               {error ? (
                 <TableRow>
                   <TableCell colSpan={cols} className="py-12 text-center">
-                    <p className="mb-3 text-sm text-destructive">{error}</p>
-                    <Button size="sm" variant="outline" onClick={load}>Tentar de novo</Button>
+                    <LoadError message={error} onRetry={() => void load()} />
                   </TableCell>
                 </TableRow>
               ) : scope?.error ? (
