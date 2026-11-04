@@ -119,7 +119,7 @@ export function SchoolYearForm({ initialData }: SchoolYearFormProps) {
       }, 1000);
     } else {
       setError();
-      reportActionError(result.error || 'Erro ao salvar ano letivo.');
+      reportActionError(result.error || 'Erro ao guardar o ano letivo.');
     }
   };
 
