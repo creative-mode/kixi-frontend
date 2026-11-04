@@ -32,10 +32,15 @@ const ehCaixa = (codigo) => codigo >= 0x2500 && codigo <= 0x257f;
 const ehDocumentacao = (caminho) => /\.(md|mdx)$/.test(caminho);
 
 /**
- * Ficheiros que existem para conter código mau de propósito. Uma lista, não um padrão:
- * alargar isto é desligar o alarme, e há um teste que fixa o conteúdo desta lista.
+ * Ficheiros que existem para conter código mau de propósito, ou que não são código nosso
+ * (bundles vendorizados e minificados de terceiros: editar um deles era corrompê-lo).
+ * Uma lista, não um padrão: alargar isto é desligar o alarme, e há um teste que fixa o
+ * conteúdo desta lista.
  */
-const EXCLUIDOS = new Set(['.github/scripts/self-review.test.js']);
+const EXCLUIDOS = new Set([
+  '.github/scripts/self-review.test.js',
+  'public/pdf.worker.min.mjs',
+]);
 
 /** A linha inteira de um hash de integridade do npm: `"integrity": "sha512-<base64>",`. */
 const HASH_DE_INTEGRIDADE = /^\s*"integrity":\s*"sha\d+-[A-Za-z0-9+/=]+",?\s*$/;
@@ -104,8 +109,13 @@ function checarTexto(linhas) {
     if (HASH_DE_INTEGRIDADE.test(texto)) continue;
     // Sem a flag `i`: com ela o `pp` de um identificador em camelCase casa com o `P` e
     // cada `appPath` do repositório aparece como texto estragado.
+    // Um URL não é texto de ninguém: o nome do patrocinador na funding URL do @napi-rs (o
+    // tipo usa um nome com o`s` dobrados demais) saiu do npm, não das minhas mãos.
+    const urls = [...texto.matchAll(/https?:\/\/\S+/g)].map((m) => [m.index, m.index + m[0].length]);
+    const dentroDeUmUrl = (pos) => urls.some(([a, b]) => pos >= a && pos < b);
     for (const m of texto.matchAll(/\b\w*(?:([a-zà-ú])\1{2,})\w*\b/g)) {
       if (m[0].toLowerCase() === 'www') continue;
+      if (dentroDeUmUrl(m.index)) continue;
       problemas.push({ caminho, linha, regra: 'texto/repeticao', detalhe: `"${m[0]}"` });
     }
   }
