@@ -27,7 +27,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         href="#conteudo"
         className="sr-only left-4 top-4 z-[60] rounded-md bg-card px-4 py-3 text-sm font-semibold shadow-md focus:not-sr-only focus:absolute"
       >
-        Saltar para o conteudo
+        Saltar para o conteúdo
       </a>
       <main
         id="conteudo"

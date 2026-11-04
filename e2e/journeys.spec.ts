@@ -85,7 +85,7 @@ async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) 
 //#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
 async function managerLogin(page: Page, username: string, landing: RegExp, heading: string) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(username);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(username);
   // O campo da palavra-passe nao tem label associado, so `id`: e por isso que
   // vai por `#` e nao por `getByLabel`. Os outros quatro campos usam label.
   await page.locator('#password').fill(PASSWORD);
@@ -2002,7 +2002,7 @@ test.describe('navegação do telemóvel (#704)', () => {
     const barra = page.getByTestId('nav-mobile');
     const itens = barra.getByRole('link');
     await expect(itens).toHaveCount(4);
-    for (const nome of ['Início', 'Provas', 'Liga', 'Tutor']) {
+    for (const nome of ['Início', 'Provas', 'Ranking', 'Tutor']) {
       await expect(barra.getByRole('link', { name: nome })).toBeVisible();
     }
     await expect(barra.getByRole('link', { name: 'Pautas' })).toHaveCount(0);

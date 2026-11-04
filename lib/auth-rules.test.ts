@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import { forwardedFor, loginLimitMessage } from './auth-rules.ts';
 
 test('o limite de tentativas do login diz quanto esperar', () => {
-  assert.equal(loginLimitMessage(429, '61'), 'Demasiadas tentativas. Tenta de novo daqui a 2 minutos.');
-  assert.equal(loginLimitMessage(429, '10'), 'Demasiadas tentativas. Tenta de novo daqui a 1 minuto.');
-  assert.equal(loginLimitMessage(429, null), 'Demasiadas tentativas. Tenta de novo daqui a pouco.');
+  assert.equal(loginLimitMessage(429, '61'), 'Demasiadas tentativas. Tente de novo daqui a 2 minutos.');
+  assert.equal(loginLimitMessage(429, '10'), 'Demasiadas tentativas. Tente de novo daqui a 1 minuto.');
+  assert.equal(loginLimitMessage(429, null), 'Demasiadas tentativas. Tente de novo daqui a pouco.');
 });
 
 test('outros estados não viram a mensagem do limite', () => {

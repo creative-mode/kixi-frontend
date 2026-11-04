@@ -26,7 +26,7 @@ async function alunoLogin(page: Page) {
 
 async function gestorLogin(page: Page) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(ADMIN);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(ADMIN);
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
   await expect(page).toHaveURL(/\/manager\/?$/);
@@ -85,7 +85,7 @@ for (const vp of VIEWPORTS) {
 
     test('gestor: o erro do login fica no ecrã e é anunciado (#542)', async ({ page }) => {
       await page.goto('/manager/login');
-      await page.getByLabel('Username ou email').fill('nao-existe');
+      await page.getByLabel('Nome de utilizador ou e-mail').fill('nao-existe');
       await page.locator('#password').fill('errada');
       await page.getByTestId('gestor-entrar-submeter').click();
 
@@ -96,7 +96,7 @@ for (const vp of VIEWPORTS) {
       // O defeito era o toast sumir aos ~4 s: passado mais tempo do que isso, tem de continuar.
       await page.waitForTimeout(6000);
       await expect(alerta).toBeVisible();
-      await expect(page.getByLabel('Username ou email')).toHaveValue('nao-existe');
+      await expect(page.getByLabel('Nome de utilizador ou e-mail')).toHaveValue('nao-existe');
 
       // Um só <main>, o do layout: a página não repete o landmark.
       await expect(page.locator('main')).toHaveCount(1);

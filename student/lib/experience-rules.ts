@@ -1,5 +1,5 @@
 /**
- * A experiência de um perfil (cronologia por escola e ano lectivo) e o histórico académico de um ano.
+ * A experiência de um perfil (cronologia por escola e ano letivo) e o histórico académico de um ano.
  * Sem servidor e sem React, para o `node --test` as cobrir. Só organiza o que o backend devolveu.
  *
  * Contrato: `GET /profiles/accounts/{accountId}/experience` (público, sem notas) e
@@ -65,7 +65,7 @@ export function parseExperience(raw: unknown): ExperienceEntry[] {
   return out;
 }
 
-/** O ano lectivo começa no ano da primeira metade: «2026/2027» → 2026; sem ano legível vai para o fim. */
+/** O ano letivo começa no ano da primeira metade: «2026/2027» → 2026; sem ano legível vai para o fim. */
 const startYear = (label: string): number => Number(/\d{4}/.exec(label)?.[0] ?? 0);
 
 export interface YearGroup { schoolYear: string; schoolYearId: number | null; entries: ExperienceEntry[] }

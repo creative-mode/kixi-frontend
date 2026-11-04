@@ -8,17 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { CONTACT_EMAIL } from '@/lib/constants';
+import { AccessHelp } from '@/components/access-help';
 import { KixiLogo } from '@/components/kixi-logo';
 import { Eye, EyeOff, CircleAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { appRelativePath, MANAGER_BASE_PATH, managerNext } from '@/lib/safe-next';
 
 function noticeFor(reason: string | null) {
-  if (reason === 'session-expired') return 'A tua sessão expirou. Entra novamente para continuar.';
+  if (reason === 'session-expired') return 'A sua sessão expirou. Inicie sessão novamente para continuar.';
   if (reason === 'logged-out') return 'Sessão terminada com segurança.';
-  if (reason === 'invalid-session') return 'Esta sessão não dá acesso ao Kixi Manager. Entra com outra conta.';
-  if (reason === 'required') return 'Precisas de iniciar sessão para continuar.';
+  if (reason === 'invalid-session') return 'Esta sessão não dá acesso ao Kixi Manager. Entre com outra conta.';
+  if (reason === 'required') return 'Precisa de iniciar sessão para continuar.';
   return null;
 }
 
@@ -51,7 +51,7 @@ function LoginContent() {
       const result = await loginAction(formData);
 
       if (result.success) {
-        toast.success('Login realizado com sucesso!', {
+        toast.success('Sessão iniciada com sucesso!', {
           description: 'A redirecionar para o painel...',
           duration: 3000,
         });
@@ -99,7 +99,7 @@ function LoginContent() {
             até a página estar pronta (com o botão por defeito desativado, o Enter também não submete). */}
         <form method="post" onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
-            <Label htmlFor="usernameOrEmail">Username ou email</Label>
+            <Label htmlFor="usernameOrEmail">Nome de utilizador ou e-mail</Label>
             <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username" autoFocus />
           </div>
           <div className="grid gap-2">
@@ -121,20 +121,7 @@ function LoginContent() {
           </Button>
         </form>
       </div>
-      <p className="text-center text-xs text-muted-foreground">
-        Problemas no acesso?{' '}
-        {CONTACT_EMAIL ? (
-          <>
-            Escreve para{' '}
-            <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-2 hover:text-foreground">
-              {CONTACT_EMAIL}
-            </a>
-            .
-          </>
-        ) : (
-          'Contacta o suporte técnico.'
-        )}
-      </p>
+      <AccessHelp />
     </div>
   );
 }
