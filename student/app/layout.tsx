@@ -1,9 +1,22 @@
 import type { Metadata, Viewport } from 'next';
+import localFont from 'next/font/local';
 import './globals.css';
 import { CookieBanner } from '@/components/consent/Consent';
 import { PageViewTracker } from '@/components/analytics/trackers';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { appOrigin } from '@/lib/origin';
+
+// Tipo do design system, self-hosted com next/font (#521): sem FOUT nem salto de layout nos títulos. O aluno usa a
+// mono do sistema. A variável vai no <html>, e não no <body>, porque `--font-sans: var(--ff-sans, …)` resolve-se no :root.
+const jakarta = localFont({
+  src: [
+    { path: './fonts/plus-jakarta-sans-latin-400-normal.woff2', weight: '400' },
+    { path: './fonts/plus-jakarta-sans-latin-600-normal.woff2', weight: '600' },
+    { path: './fonts/plus-jakarta-sans-latin-700-normal.woff2', weight: '700' },
+  ],
+  variable: '--ff-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Kixi',
@@ -24,7 +37,7 @@ export const viewport: Viewport = { themeColor: '#1f5a2c', width: 'device-width'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-AO" data-theme="light" data-reduce-motion="false" suppressHydrationWarning>
+    <html lang="pt-AO" data-theme="light" data-reduce-motion="false" className={jakarta.variable} suppressHydrationWarning>
       <head>
         {/* Aplica a preferência de movimento guardados antes de pintar, para não piscar. */}
         <script dangerouslySetInnerHTML={{ __html: "try{var m=localStorage.getItem('kixi-reduce-motion');if(m)document.documentElement.setAttribute('data-reduce-motion',m)}catch(e){}" }} />
