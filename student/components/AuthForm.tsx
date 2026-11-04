@@ -12,6 +12,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { Progress } from '@/components/ui/progress';
 import { cadastroAction, entrarAction, type FormState } from '@/lib/auth-actions';
 import { signupField, track } from '@/lib/analytics';
+import { useSlowAfter } from '@/lib/use-slow-after';
 
 type Errors = Record<string, string>;
 type Rules = Record<string, (value: string, all: FormData) => string | undefined>;
@@ -24,6 +25,18 @@ function Submit({ children, testId }: { children: React.ReactNode; testId?: stri
       {pending && <Loader2 className="animate-spin" />}
       {pending ? 'A processar…' : children}
     </Button>
+  );
+}
+
+/** Passados 4 s sem resposta, diz que está a demorar (#543): o botão já está desativado, e quem espera
+ *  não carrega outra vez. A região existe sempre, para o leitor de ecrã anunciar quando o texto aparece. */
+function SlowNotice() {
+  const { pending } = useFormStatus();
+  const slow = useSlowAfter(pending);
+  return (
+    <p role="status" aria-live="polite" className={slow ? 'text-sm text-muted-foreground' : 'sr-only'} data-testid="aviso-lento">
+      {slow ? 'Está a demorar mais do que o normal. Espera mais um pouco: o pedido continua e não é preciso carregar outra vez.' : null}
+    </p>
   );
 }
 
@@ -116,6 +129,7 @@ export function EntrarForm({ next }: { next?: string }) {
               Esqueci-me da palavra-passe
             </Link>
           </p>
+          <SlowNotice />
           <Submit testId="aluno-entrar-submeter">Entrar</Submit>
         </FieldGroup>
       </form>
@@ -217,6 +231,7 @@ export function CadastroForm() {
             <PasswordInput id="confirm" name="confirm" autoComplete="new-password" onBlur={(e) => validateField(e.currentTarget.form, 'confirm', signupRules, setErrors)} {...bad('confirm')} />
             <FieldError id="confirm-err">{errors.confirm}</FieldError>
           </Field>
+          <SlowNotice />
           <Submit testId="aluno-cadastro-submeter">Criar conta</Submit>
         </FieldGroup>
       </form>

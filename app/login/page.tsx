@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { AccessHelp } from '@/components/access-help';
+import { useSlowAfter } from '@/lib/use-slow-after';
 import { KixiLogo } from '@/components/kixi-logo';
 import { Eye, EyeOff, CircleAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
@@ -31,6 +32,8 @@ function useHydrated() {
 function LoginContent() {
   const hydrated = useHydrated();
   const [isLoading, setIsLoading] = useState(false);
+  // #543: passados 4 s sem resposta, diz que está a demorar, em vez de deixar «A entrar...» sem explicação.
+  const slow = useSlowAfter(isLoading);
   const [show, setShow] = useState(false);
   // O erro fica no ecrã até à próxima tentativa (kixi-frontend#542): um toast de 4 s
   // desaparecia antes de quem escreve devagar ou lê com leitor de ecrã o ter lido.
@@ -116,7 +119,10 @@ function LoginContent() {
               Esqueci-me da palavra-passe
             </Link>
           </p>
-<Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated} data-testid="gestor-entrar-submeter">
+          <p role="status" aria-live="polite" className={slow ? 'text-sm text-muted-foreground' : 'sr-only'} data-testid="aviso-lento">
+            {slow ? 'Está a demorar mais do que o normal. Aguarde mais um pouco: o pedido continua e não é preciso carregar outra vez.' : null}
+          </p>
+          <Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated} data-testid="gestor-entrar-submeter">
             {isLoading ? (<><Spinner className="size-4" />A entrar...</>) : 'Entrar'}
           </Button>
         </form>
