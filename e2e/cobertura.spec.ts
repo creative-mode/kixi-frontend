@@ -136,3 +136,32 @@ test('teclado: o skip link aparece com foco visível e leva ao conteúdo', async
   await expect(page.getByRole('link', { name: 'Saltar para o conteúdo' })).toBeFocused();
   expect(await focoVisivel(page), '/aluno/inicio').toBe('ok');
 });
+
+/** Atrasa a resposta do envio do formulário (a server action) para lá dos 4 s, sem mexer no servidor. */
+async function atrasarEnvio(page: Page, caminho: string, ms: number) {
+  await page.route(`**${caminho}`, async (route) => {
+    if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, ms));
+    await route.continue();
+  });
+}
+
+// Um teste por app: cada um com a sua sessão (a do aluno levaria o login do gestor para outro lado).
+for (const entrada of [
+  { rota: '/aluno/entrar', utilizador: 'Utilizador ou email', valor: '12345', botao: 'aluno-entrar-submeter', depois: /\/aluno\/inicio/ },
+  { rota: '/manager/login', utilizador: 'Nome de utilizador ou e-mail', valor: process.env.E2E_ADMIN_USERNAME ?? 'admin@kixi.ao', botao: 'gestor-entrar-submeter', depois: /\/manager\/?$/ },
+]) {
+  test(`login lento (#543) em ${entrada.rota}: passados 4 s diz que está a demorar, com o botão desativado`, async ({ page }) => {
+    test.setTimeout(45_000);
+    await atrasarEnvio(page, entrada.rota, 6000);
+    await page.goto(entrada.rota);
+    await page.getByLabel(entrada.utilizador).fill(entrada.valor);
+    await page.locator('#password').fill(PASSWORD);
+    const aviso = page.getByTestId('aviso-lento');
+    await page.getByTestId(entrada.botao).click();
+    await expect(page.getByTestId(entrada.botao), entrada.rota).toBeDisabled();
+    await page.waitForTimeout(2500);
+    await expect(aviso, `${entrada.rota}: antes dos 4 s não há aviso`).toHaveText('');
+    await expect(aviso, entrada.rota).toContainText('Está a demorar mais do que o normal', { timeout: 4000 });
+    await expect(page, entrada.rota).toHaveURL(entrada.depois, { timeout: 15_000 });
+  });
+}
