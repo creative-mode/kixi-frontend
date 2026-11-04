@@ -9,7 +9,7 @@ import { apiFetch } from '@/lib/mock/fetch';
 import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
 import { friendlyMessage } from '@/lib/crud/messages';
 import { mergeCurricula } from '@/lib/exam/curriculum';
-import type { BuilderQuestionIdentity, RequestQuestion } from '@/lib/exam/draft';
+import { questionWriteBody, type BuilderQuestionIdentity, type RequestQuestion } from '@/lib/exam/draft';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string; code?: 'SESSION_EXPIRED' };
@@ -457,16 +457,7 @@ export async function updateManualStatement(
         failures.push(`A questão ${question.serverId} já não existe nesta prova. Atualize a página antes de guardar novamente.`);
         return null;
       }
-      const body = {
-        text: question.text,
-        questionType: question.type,
-        maxScore: question.maxScore,
-        modelAnswer: question.modelAnswer ?? null,
-        ocrReviewed: question.reviewed ?? false,
-        ...(parentId != null ? { parentId } : {}),
-        ...(question.serverId == null && parentId != null ? { label: question.label } : {}),
-        ...(question.type === 'group' ? { groupLayout: question.groupLayout ?? 'lettered' } : {}),
-      };
+      const body = questionWriteBody(question, parentId);
       const changed = !current || current.text !== body.text
         || current.questionType !== body.questionType
         || current.maxScore !== body.maxScore

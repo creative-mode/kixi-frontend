@@ -705,3 +705,36 @@ export function applyUpdateIdentities<T extends { items: DraftQuestion[] }>(draf
     }),
   };
 }
+
+/** The body of `POST`/`PUT /statements/{id}/questions[/{qid}]` for one question of the builder. */
+export interface QuestionWriteBody {
+  text: string;
+  questionType: QuestionKind;
+  maxScore: number | null;
+  modelAnswer: string | null;
+  ocrReviewed: boolean;
+  parentId?: number;
+  label?: string;
+  groupLayout?: GroupLayout;
+}
+
+/**
+ * What the in-place update sends for one question or alínea.
+ *
+ * `parentId` and `label` go only when the alínea is created (`serverId` absent). The group
+ * of an alínea is fixed on creation: `QuestionService.update` answers 400 («A question's
+ * group is set on creation and cannot be moved») to any non-null `parentId`, even the same
+ * group. Sending it on a `PUT` made every re-save of an edited alínea fail.
+ */
+export function questionWriteBody(question: RequestQuestion, parentId: number | null): QuestionWriteBody {
+  const creatingChild = question.serverId == null && parentId != null;
+  return {
+    text: question.text,
+    questionType: question.type,
+    maxScore: question.maxScore,
+    modelAnswer: question.modelAnswer ?? null,
+    ocrReviewed: question.reviewed ?? false,
+    ...(creatingChild ? { parentId, label: question.label } : {}),
+    ...(question.type === 'group' ? { groupLayout: question.groupLayout ?? 'lettered' } : {}),
+  };
+}

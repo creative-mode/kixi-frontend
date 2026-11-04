@@ -24,6 +24,7 @@ import {
   optionsFor,
   optionsReady,
   problems,
+  questionWriteBody,
   round2,
   toRequest,
   toUpdateRequest,
@@ -32,6 +33,7 @@ import {
   type DraftItem,
   type DraftOption,
   type DraftQuestion,
+  type RequestQuestion,
 } from './draft.ts';
 
 const open = (text: string, points: number | '' = 2): DraftQuestion => ({ text, points, options: [] });
@@ -583,4 +585,38 @@ test('applyUpdateIdentities identifica as alíneas novas de um grupo existente',
   const items = identified.items[0].items ?? [];
   assert.equal(items[1].serverId, 33);
   assert.deepEqual(items[1].options.map((o) => o.serverId), [331, 332]);
+});
+
+test('editar uma alínea já guardada não manda parentId nem label no PUT', () => {
+  const group: DraftQuestion = {
+    text: 'Grupo', points: '', options: [], kind: 'group', serverId: 30,
+    items: [{ text: 'a editada', points: 2, options: [], kind: 'open', serverId: 32 }],
+  };
+  const [request] = toUpdateRequest([group]);
+  const body = questionWriteBody(request.items![0] as RequestQuestion, 30);
+  assert.equal('parentId' in body, false);
+  assert.equal('label' in body, false);
+  assert.equal(body.text, 'a editada');
+  assert.equal(body.maxScore, 2);
+});
+
+test('uma alínea nova num grupo já guardado é criada com o grupo e a letra', () => {
+  const group: DraftQuestion = {
+    text: 'Grupo', points: '', options: [], kind: 'group', serverId: 30,
+    items: [
+      { text: 'a', points: 1, options: [], kind: 'open', serverId: 32 },
+      { text: 'b nova', points: 1, options: [], kind: 'open' },
+    ],
+  };
+  const [request] = toUpdateRequest([group]);
+  const body = questionWriteBody(request.items![1] as RequestQuestion, 30);
+  assert.equal(body.parentId, 30);
+  assert.equal(body.label, 'b');
+});
+
+test('a pergunta de topo nunca leva parentId, e o grupo leva a disposição', () => {
+  const group: DraftQuestion = { text: 'Grupo', points: '', options: [], kind: 'group', serverId: 30, items: [] };
+  const body = questionWriteBody(toUpdateRequest([group])[0], null);
+  assert.equal('parentId' in body, false);
+  assert.equal(body.groupLayout, 'lettered');
 });
