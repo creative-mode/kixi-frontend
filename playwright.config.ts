@@ -22,6 +22,18 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
+  // #523: o portátil corre tudo; o telemóvel (Pixel 5) e o movimento reduzido correm só a cobertura dos pontos
+  // de entrada e de erro (`cobertura.spec.ts`). As jornadas pressupõem o portátil, e a qualidade já tem os seus
+  // casos de telemóvel e de movimento reduzido dentro de cada teste.
+  projects: [
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile-pixel-5', use: { ...devices['Pixel 5'] }, testMatch: /cobertura\.spec\.ts$/ },
+    {
+      name: 'reduced-motion',
+      use: { ...devices['Desktop Chrome'], contextOptions: { reducedMotion: 'reduce' } },
+      testMatch: /cobertura\.spec\.ts$/,
+    },
+  ],
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
