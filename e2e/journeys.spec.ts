@@ -21,25 +21,33 @@ function pixelBmp(): Buffer {
   return bmp;
 }
 
-function samplePdf(): Buffer {
-  const stream = 'BT /F1 18 Tf 20 90 Td (OCR test) Tj ET';
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-  ];
+function samplePdf(pages = 1): Buffer {
+  // PDF mínimo com `pages` páginas: cada uma com um texto «OCR test page n» — o
+  // numeroamento não se usa para decidir o conteúdo, só o Count e a geometria.
+  const pageNumbers = Array.from({ length: pages }, (_, i) => 3 + 3 * i);
+  const objects = new Map<number, string>();
+  objects.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  objects.set(2, `<< /Type /Pages /Kids [${pageNumbers.map((n) => `${n} 0 R`).join(' ')}] /Count ${pages} >>`);
+  for (let i = 0; i < pages; i += 1) {
+    const pageNumber = 3 + 3 * i;
+    const contentsNumber = pageNumber + 1;
+    const fontNumber = pageNumber + 2;
+    const contentStream = `BT /F1 18 Tf 20 90 Td (OCR test page ${i + 1}) Tj ET`;
+    objects.set(pageNumber, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents ${contentsNumber} 0 R /Resources << /Font << /F1 ${fontNumber} 0 R >> >> >>`);
+    objects.set(contentsNumber, `<< /Length ${Buffer.byteLength(contentStream)} >>\nstream\n${contentStream}\nendstream`);
+    objects.set(fontNumber, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
+  }
+  const maxObject = Math.max(...objects.keys());
   let pdf = '%PDF-1.4\n';
   const offsets = [0];
-  for (const [index, object] of objects.entries()) {
+  for (let n = 1; n <= maxObject; n += 1) {
     offsets.push(Buffer.byteLength(pdf));
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    pdf += `${n} 0 obj\n${objects.get(n)}\nendobj\n`;
   }
   const xrefOffset = Buffer.byteLength(pdf);
-  pdf += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+  pdf += `xref\n0 ${maxObject + 1}\n0000000000 65535 f \n`;
   pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
-  pdf += `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  pdf += `trailer\n<< /Size ${maxObject + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   return Buffer.from(pdf);
 }
 
@@ -77,6 +85,52 @@ async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) 
         error: null,
       }),
     });
+  });
+}
+
+type OcrJobStep = {
+  /** Extração devolvida quando o trabalho chega ao fim. */
+  extraction: Record<string, unknown>;
+  /** Estado do primeiro poll; o segundo devolve o resultado da leitura. */
+  first: { status: string; pageCount: number; completedPages: number; currentPage: number; eventType: string; result: Record<string, unknown> | null };
+};
+
+/**
+ * Trabalhos OCR em sequência: a leitura inicial de um PDF (PROCESSING → SUCCEEDED) e,
+ * depois, a repetição de uma página (um só poll, que já chega ao fim). Cada POST cria o
+ * próximo job; cada job devolve o seu ciclo de polls.
+ */
+async function mockAsyncOcrJobs(page: Page, steps: OcrJobStep[]) {
+  const jobs = steps.map((step) => ({ id: randomUUID(), step, polls: 0 }));
+  const byId = new Map(jobs.map((job) => [job.id, job] as const));
+  let next = 0;
+  await page.route('**/manager/api/ocr/extract', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    // Se a aplicação repetir um pedido, mantém o último resultado da sequência.
+    const job = jobs[Math.min(next, jobs.length - 1)];
+    if (!job) throw new Error('mockAsyncOcrJobs precisa de pelo menos um trabalho OCR');
+    next += 1;
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify({ jobId: job.id, requestId: randomUUID(), statusUrl: `/manager/api/ocr/jobs/${job.id}` }),
+    });
+  });
+  await page.route('**/manager/api/ocr/jobs/**', async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    if (route.request().method() !== 'GET') return route.fallback();
+    const jobId = new URL(route.request().url()).pathname.split('/').pop() ?? '';
+    const job = byId.get(jobId);
+    if (!job) return route.fallback();
+    job.polls += 1;
+    const first = job.polls === 1 ? job.step.first : null;
+    const body = first
+      ? { jobId: job.id, status: first.status, pageCount: first.pageCount, completedPages: first.completedPages, currentPage: first.currentPage, eventType: first.eventType, result: first.result, error: null }
+      : { jobId: job.id, status: 'SUCCEEDED', pageCount: job.step.first.pageCount, completedPages: job.step.first.pageCount, currentPage: job.step.first.pageCount, eventType: 'result', result: job.step.extraction, error: null };
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
 }
 
@@ -1122,6 +1176,72 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(dialogo).toContainText('foto1.png');
     await expect(dialogo.locator('img')).toBeVisible();
     await page.keyboard.press('Escape');
+  });
+
+  test('OCR: PDF de duas páginas lê as duas, mostra a miniatura e pode repetir a página 2 (#718)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const leituraDuasPaginas = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        { number: '1', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Define velocidade média.' },
+        { number: '2', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Explica a inércia.' },
+      ],
+      warnings: [],
+      unmapped_content: [],
+    };
+    const repeticaoPagina2 = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        { number: '2', type: 'dissertativa', confidence: 0.95, cotacao: 10, text: 'Explica a inércia com a correção pedida.' },
+      ],
+      warnings: [],
+    };
+    await mockAsyncOcrJobs(page, [
+      // A leitura inicial conta duas páginas: a barra de progresso acompanha até à segunda.
+      { extraction: leituraDuasPaginas, first: { status: 'PROCESSING', pageCount: 2, completedPages: 1, currentPage: 1, eventType: 'progress', result: null } },
+      // A repetição de uma página é um só trabalho, que já chega ao fim.
+      { extraction: repeticaoPagina2, first: { status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: repeticaoPagina2 } },
+    ]);
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'prova-dois-paginas.pdf',
+      mimeType: 'application/pdf',
+      buffer: samplePdf(2),
+    });
+    await expect(page.getByText(/PDF · 2 páginas/)).toBeVisible();
+    await page.getByTestId('gestor-statements-import-submetter').click();
+
+    const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
+    await expect(barra).toBeVisible();
+    await expect(barra).toHaveAttribute('aria-valuemax', '2');
+    await expect(page.getByText(/A ler página 1 de 2/)).toBeVisible();
+    await expect(page.getByText(/Prova lida/)).toBeVisible();
+
+    const originais = page.getByTestId('ocr-originais');
+    await expect(originais).toBeVisible();
+    // Um PDF de duas páginas tem uma repetição por página, e a primeira renderiza a miniatura.
+    await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 1 de prova-dois-paginas.pdf' })).toBeVisible();
+    await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' })).toBeVisible();
+    await expect(originais.getByRole('button', { name: 'Ver prova-dois-paginas.pdf em tamanho real' }).locator('img')).toBeVisible();
+
+    // A leitura inicial nasceu com as duas questões do PDF.
+    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia.');
+
+    // A repetição relê só a página 2 e substitui no rascunho as questões dela.
+    await page.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' }).click();
+    await expect(page.getByText('Página 2 relida: 1 questão(ões) no lugar de 1.')).toBeVisible();
+    // A página 1 do original continua inteira; a página 2 é a que foi relida.
+    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia com a correção pedida.');
   });
 
   test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
