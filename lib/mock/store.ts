@@ -596,6 +596,17 @@ export function analytics(path: string, url: URL, auth: any) {
   const classFilter = Number(url.searchParams.get('classId') ?? 0);
   const instFilter = Number(url.searchParams.get('institutionId') ?? 0);
   const instName = INSTITUTIONS.find((i) => i.id === instFilter)?.name;
+  // As contagens do painel (creative-mode/kixi#416): o tamanho de cada lista ativa, num só pedido. O professor não
+  // recebe as chaves das listas que só o ADMIN pode ler, como no backend.
+  if (path === '/api/v1/analytics/counts') {
+    const ADMIN_ONLY = new Set(['roles', 'accounts', 'users', 'teachers', 'teaching-assignments', 'sessions']);
+    const KEYS = ['school-years', 'terms', 'subjects', 'courses', 'classes', 'roles', 'accounts', 'users', 'institutions', 'teachers',
+      'enrollments', 'teaching-assignments', 'sessions', 'simulation-answers', 'statements', 'simulations'];
+    const out: Record<string, number> = {};
+    for (const key of KEYS) if (admin || !ADMIN_ONLY.has(key)) out[key] = ((db as any)[key] ?? []).filter((r: any) => !r.deletedAt).length;
+    out.review = active.filter((s: any) => s.needsReview).length;
+    return json(200, out);
+  }
   if (path === '/api/v1/analytics/overview') {
     return json(200, {
       scope: admin ? 'ADMIN' : 'TEACHER', institutions: INSTITUTIONS.length, classes: INSTITUTIONS.reduce((n, i) => n + i.classes, 0),

@@ -1,5 +1,6 @@
 'use server';
 
+import { dashboardCountsFrom } from '@/lib/crud/dashboard-counts';
 import { revalidatePath } from 'next/cache';
 import { getAuthHeaders, getCurrentUser } from '@/lib/auth.server';
 import { API_HOST } from '@/lib/constants';
@@ -11,10 +12,10 @@ import { mergeCurricula } from '@/lib/exam/curriculum';
 import type { BuilderQuestionIdentity, RequestQuestion } from '@/lib/exam/draft';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
-export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
+export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string; code?: 'SESSION_EXPIRED' };
 
 const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
-const fail = (error: string): Result<never> => ({ ok: false, error });
+const fail = (error: string, code?: 'SESSION_EXPIRED'): Result<never> => ({ ok: false, error, ...(code ? { code } : {}) });
 
 async function message(res: Response): Promise<string> {
   return friendlyMessage(res.status, await res.text().catch(() => ''));
@@ -50,7 +51,7 @@ export async function listRows(key: string, trash = false): Promise<Result<Row[]
   return guard(async () => {
     const e = entity(key);
     const res = await call(`${e.api}${trash ? '/trash' : ''}`);
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     return ok((await res.json()) as Row[]);
   });
 }
@@ -58,7 +59,7 @@ export async function listRows(key: string, trash = false): Promise<Result<Row[]
 export async function getRow(key: string, id: string | number): Promise<Result<Row>> {  return guard(async () => {
     const e = entity(key);
     const res = await call(`${e.api}/${safeId(id)}`);
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     return ok((await res.json()) as Row);
   });
 }
@@ -97,7 +98,7 @@ export async function createRow(key: string, values: Row): Promise<Result<Row>> 
     const e = entity(key);
     if (!e.canCreate) return fail('Esta entidade não pode ser criada aqui.');
     const res = await call(e.api, { method: 'POST', body: JSON.stringify(body(key, values)) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });
@@ -108,7 +109,7 @@ export async function updateRow(key: string, id: string | number, values: Row): 
     const e = entity(key);
     if (!e.canEdit) return fail('Esta entidade não pode ser editada.');
     const res = await call(`${e.api}/${safeId(id)}`, { method: 'PUT', body: JSON.stringify(body(key, values)) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });
@@ -571,22 +572,36 @@ export async function updateManualStatement(
 }
 
 // ── dashboard ───────────────────────────────────────────────────────────────
+/**
+ * As contagens do painel num só pedido (`GET /analytics/counts`, creative-mode/kixi#416), em vez de descarregar as
+ * 17 listas para ler o `length`. Um backend que ainda não tenha o endpoint responde 404: aí conta-se como antes, pelas
+ * listas, para o painel não depender da ordem em que front e backend chegam a cada ambiente.
+ */
 export async function dashboardCounts(): Promise<Result<Record<string, number>>> {
   return guard(async () => {
-    const keys = Object.keys(ENTITIES) as EntityKey[];
-    const entries = await Promise.all(
-      keys.map(async (k) => {
-        const res = await call(ENTITIES[k].api).catch(() => null);
-        if (!res?.ok) return [k, -1] as const;
-        const rows = (await res.json()) as Row[];
-        return [k, rows.length] as const;
-      }),
-    );
-    const counts: Record<string, number> = Object.fromEntries(entries);
-    const review = await call('/api/v1/statements/review').catch(() => null);
-    counts.review = review?.ok ? ((await review.json()) as Row[]).length : -1;
-    return ok(counts);
+    const keys = [...(Object.keys(ENTITIES) as EntityKey[]), 'review'];
+    const res = await call('/api/v1/analytics/counts').catch(() => null);
+    if (res?.ok) return ok(dashboardCountsFrom(await res.json(), keys));
+    if (res?.status === 404) return ok(await countByLists());
+    return ok(dashboardCountsFrom({}, keys));
   });
+}
+
+/** O caminho antigo: uma lista inteira por entidade, só para contar. Fica para um backend sem `/analytics/counts`. */
+async function countByLists(): Promise<Record<string, number>> {
+  const keys = Object.keys(ENTITIES) as EntityKey[];
+  const entries = await Promise.all(
+    keys.map(async (k) => {
+      const res = await call(ENTITIES[k].api).catch(() => null);
+      if (!res?.ok) return [k, -1] as const;
+      const rows = (await res.json()) as Row[];
+      return [k, rows.length] as const;
+    }),
+  );
+  const counts: Record<string, number> = Object.fromEntries(entries);
+  const review = await call('/api/v1/statements/review').catch(() => null);
+  counts.review = review?.ok ? ((await review.json()) as Row[]).length : -1;
+  return counts;
 }
 
 // ── institutions: affiliations, teacher access, manual statements ───────────

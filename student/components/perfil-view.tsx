@@ -110,6 +110,19 @@ export function PerfilView({
             ))}
           </ul>
         )}
+        {/* As Pautas saíram da barra inferior do telemóvel para a barra voltar a alinhar
+            (#704); esta é a porta para elas em mobile e desktop. */}
+        <Link
+          href="/pautas"
+          className="mt-4 flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Ico name="award" size={22} /></span>
+          <span className="min-w-0 flex-1 leading-snug">
+            <b className="block text-[15px]">As minhas pautas</b>
+            <span className="text-[13px] text-muted-foreground">As tuas notas de cada trimestre, depois de a escola fechar a pauta.</span>
+          </span>
+          <Ico name="chevron" size={20} className="shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
       </ProfileHero>
 
       <Tabs defaultValue={initialTab}>

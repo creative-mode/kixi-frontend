@@ -6,6 +6,21 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin@kixi.ao';
 const TEACHER_USERNAME = process.env.E2E_TEACHER_USERNAME ?? 'professor@kixi.ao';
 
+/** BMP de 1 px branco, construído por código: evita um base64 literal no teste. */
+function pixelBmp(): Buffer {
+  const bmp = Buffer.alloc(58);
+  bmp.write('BM', 0);
+  bmp.writeUInt32LE(58, 2);
+  bmp.writeUInt32LE(54, 10);
+  bmp.writeUInt32LE(40, 14);
+  bmp.writeInt32LE(1, 18);
+  bmp.writeInt32LE(1, 22);
+  bmp.writeUInt16LE(1, 26);
+  bmp.writeUInt16LE(24, 28);
+  bmp.fill(255, 54, 57);
+  return bmp;
+}
+
 function samplePdf(): Buffer {
   const stream = 'BT /F1 18 Tf 20 90 Td (OCR test) Tj ET';
   const objects = [
@@ -70,7 +85,7 @@ async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) 
 //#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
 async function managerLogin(page: Page, username: string, landing: RegExp, heading: string) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(username);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(username);
   // O campo da palavra-passe nao tem label associado, so `id`: e por isso que
   // vai por `#` e nao por `getByLabel`. Os outros quatro campos usam label.
   await page.locator('#password').fill(PASSWORD);
@@ -265,6 +280,57 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   });
 
+  test('imagens do feed: aviso ao publicar sem descrição e espaço reservado antes de a imagem chegar (#524)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const id = randomUUID().slice(0, 6);
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
+    await page.goto('/aluno/publicar');
+    await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
+    await page.getByLabel('Título 1', { exact: true }).fill(`Esquema ${id}`);
+    await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
+    await page.getByLabel('Lista 3: linha 1').fill('Endereço da rede');
+    await page.getByRole('button', { name: 'Imagem', exact: true }).click();
+    await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
+    await expect(page.getByText('Imagem pronta')).toBeVisible();
+
+    // Sem descrição não publica logo: avisa, nomeia a imagem e deixa escolher.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    const aviso = page.getByRole('alert').filter({ hasText: 'sem descrição' });
+    await expect(aviso).toContainText('Há 1 imagem sem descrição (Imagem 5)');
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    // Carregar outra vez em «Publicar» não contorna o aviso: só «Publicar mesmo assim» publica sem descrição.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await expect(aviso).toBeVisible();
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await aviso.getByRole('button', { name: 'Escrever a descrição' }).click();
+    await expect(page.getByLabel('Imagem 5: descrição da imagem')).toBeFocused();
+    await expect(aviso).toHaveCount(0);
+    // «Publicar mesmo assim» respeita a escolha: a imagem fica sem descrição, mas o aluno foi avisado.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await aviso.getByRole('button', { name: 'Publicar mesmo assim' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // No feed a imagem vem numa caixa com proporção fixa: o espaço existe antes de ela chegar, e não muda quando chega.
+    let soltar: () => void = () => {};
+    const retida = new Promise<void>((resolve) => { soltar = resolve; });
+    await page.route('**/uploads/**', async (route) => { await retida; await route.continue(); });
+    await page.reload();
+    const figura = page.getByRole('article').filter({ hasText: `Esquema ${id}` }).first().locator('figure img');
+    await figura.scrollIntoViewIfNeeded();
+    const caixa = figura.locator('..');
+    await expect(caixa).toHaveCSS('aspect-ratio', '4 / 3');
+    const antes = await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    expect(antes).toBeGreaterThan(100);
+    soltar();
+    await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+    expect(await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height))).toBe(antes);
+  });
+
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto('/aluno/entrar');
@@ -420,6 +486,41 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('button', { name: /Comentar/ }).first().click();
     await expect(page.getByLabel('Escrever um comentário')).toHaveCSS('height', '44px');
     await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
+  });
+
+  test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    // Sem endpoint de recuperação, a página dá instruções úteis sem simular um pedido.
+    await page.goto('/aluno/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacta o teu professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+
+    await page.goto('/aluno/prova/2');
+    await expect(page).toHaveURL(/\/aluno\/entrar\?/);
+    // O destino vai no `next`, validado contra URLs externos (lib/safe-next.ts). Os dois formatos são válidos:
+    // relativo à app (`/prova/2`, o que o safe-next produz) ou com o basePath (`/aluno/prova/2`, o que o proxy pode emitir).
+    await expect(page).toHaveURL(/next=(?:%2Fprova%2F2|%2Faluno%2Fprova%2F2)/i);
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/2/);
+  });
+
+  test('gestor: sessão em falta regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    await page.goto('/manager/classes');
+    await expect(page).toHaveURL(/\/manager\/login\?/);
+    await expect(page).toHaveURL(/next=(?:%2Fclasses|%2Fmanager%2Fclasses)/i);
+
+    await page.locator('#usernameOrEmail').fill(ADMIN_USERNAME);
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('gestor-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+
+    await page.goto('/manager/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacte o professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+    // Um só landmark principal: o do AuthLayout (a página não abre outro <main>).
+    await expect(page.locator('main')).toHaveCount(1);
   });
 
   test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {
@@ -919,6 +1020,110 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
   });
 
+  test('OCR: miniaturas, ordem por teclado e leitura de uma só página (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles([
+      { name: 'foto1.bmp', mimeType: 'image/bmp', buffer: png },
+      { name: 'foto2.bmp', mimeType: 'image/bmp', buffer: png },
+    ]);
+    const lista = page.getByRole('list', { name: 'Ficheiros a importar, por ordem de leitura' });
+    await expect(lista.locator('li')).toHaveCount(2);
+    // Miniatura por ficheiro, e a ordem muda por teclado (subir/descer).
+    expect(await lista.locator('img').count()).toBe(2);
+    await expect(lista.getByRole('button', { name: 'Subir foto1.bmp' })).toBeDisabled();
+    await expect(lista.getByRole('button', { name: 'Descer foto1.bmp' })).toBeEnabled();
+    await lista.getByRole('button', { name: 'Subir foto2.bmp' }).click();
+    await expect(lista.locator('li').first()).toContainText('1. foto2.bmp');
+    await expect(lista.getByRole('button', { name: 'Subir foto2.bmp' })).toBeDisabled();
+    // Repetir só uma página, sem reler tudo.
+    await expect(lista.getByRole('button', { name: 'Ler só foto1.bmp' })).toBeVisible();
+  });
+
+  test('OCR: progresso com barra, notas que levam à questão e originais lado a lado (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const jobId = randomUUID();
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        {
+          number: '1', type: 'dissertativa', confidence: 0.9, cotacao: 10,
+          text: 'Define velocidade média.',
+          formulas: [{ raw: 'v', latex: 'v', confidence: 0.5, layoutConfidence: 0.5, kind: 'formula' }],
+        },
+        { number: '2', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Explica a inércia.' },
+      ],
+      warnings: [
+        { code: 'LOW_CONFIDENCE_FORMULA', field: 'question_1_formula_1', confidence: 0.5 },
+        { code: 'LOW_CONFIDENCE', field: 'question_2_text', confidence: 0.4 },
+      ],
+      unmapped_content: [{ zone: 'rodape', text: 'Contacto: 923 000 000' }],
+      images_to_upload: [{ region: 'rodape', data_url: 'data:image/bmp;base64,' + pixelBmp().toString('base64') }],
+    };
+    // O trabalho demora de propósito: a barra de progresso tem de se ver.
+    await page.route('**/manager/api/ocr/extract', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, requestId: randomUUID(), statusUrl: `/manager/api/ocr/jobs/${jobId}` }),
+      });
+    });
+    let polls = 0;
+    await page.route(`**/manager/api/ocr/jobs/${jobId}`, async (route) => {
+      if (route.request().method() === 'DELETE') {
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      if (route.request().method() !== 'GET') return route.fallback();
+      polls += 1;
+      if (polls === 1) {
+        // Primeiro estado: já há páginas contadas, mas a leitura continua — é
+        // nesta janela que a barra fica visível.
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ jobId, status: 'PROCESSING', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'progress', result: null, error: null }),
+        });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: extraction, error: null }),
+      });
+    });
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'foto1.png', mimeType: 'image/png', buffer: png,
+    });
+    await page.getByRole('button', { name: 'Ler só foto1.png' }).click();
+    const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
+    await expect(barra).toBeVisible();
+    await expect(barra).toHaveAttribute('aria-valuemax', '1');
+    await expect(barra).toHaveAttribute('aria-valuemin', '0');
+    // Cada aviso aponta para a sua questão; o clique leva lá o foco.
+    await page.getByRole('button', { name: 'Ir para a questão 2' }).click();
+    await expect(page.locator('#questao-2')).toBeFocused();
+    // O rodapé tem âncora própria e as páginas originais ficam ao lado.
+    await expect(page.getByRole('link', { name: 'Ver rodapé original' })).toBeVisible();
+    await expect(page.getByTestId('ocr-originais')).toBeVisible();
+    await page.getByRole('button', { name: 'Ver foto1.png em tamanho real' }).click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toContainText('foto1.png');
+    await expect(dialogo.locator('img')).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+
   test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     await page.goto('/manager/exam-builder');
@@ -1003,6 +1208,65 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(reopenedDialog.getByRole('status')).toContainText('editor visual não carregou');
     await page.keyboard.press('Escape');
     await expect(reopenedDialog).toHaveCount(0);
+  });
+
+  test('gestor: protege a saída com alterações e navega logo quando o formulário está limpo (#508)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/classes/new');
+    const code = page.getByLabel('Código');
+    await code.fill('RASCUNHO');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    const warning = page.getByRole('alertdialog', { name: 'Descartar alterações?' });
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await page.getByRole('button', { name: 'Sair do sistema' }).first().click();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes\/new/);
+
+    await page.goBack();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await code.fill('');
+    for (const value of ['OUTRO', 'MAIS UM']) {
+      await code.fill(value);
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(true);
+      await code.fill('');
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+    }
+    // Um único Voltar deve sair depois de vários ciclos sujo → limpo.
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/manager\/classes\/new/);
+    await expect(warning).toHaveCount(0);
+
+    await page.goto('/manager/classes/new');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+    await expect(warning).toHaveCount(0);
+  });
+
+  test('painel: cada cartão diz o mesmo número que a lista, com as contagens num só pedido (#389)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    const cadastros = page.getByRole('region', { name: 'Cadastros' });
+    const contagem = async (nome: string) => {
+      const texto = await cadastros.getByRole('link', { name: new RegExp(`^${nome}`) }).innerText();
+      return Number(texto.match(/(\d+)\s+ativos/)![1]);
+    };
+    await expect(cadastros.getByRole('link', { name: /^Disciplinas/ })).toContainText('ativos');
+    const esperado = { Disciplinas: await contagem('Disciplinas'), Cursos: await contagem('Cursos'), Turmas: await contagem('Turmas') };
+    expect(esperado.Disciplinas, 'o simulado tem disciplinas').toBeGreaterThan(0);
+
+    // O número do cartão é o tamanho da lista que ele abre.
+    for (const [nome, caminho] of [['Disciplinas', 'subjects'], ['Cursos', 'courses'], ['Turmas', 'classes']] as const) {
+      await page.goto(`/manager/${caminho}`);
+      const linhas = page.locator('tbody tr');
+      if (esperado[nome] === 0) await expect(linhas.first()).toContainText(/Ainda não há|Nenhum/);
+      else await expect(linhas).toHaveCount(esperado[nome]);
+    }
   });
 
   test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
@@ -1121,6 +1385,16 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(code).toBeFocused();
     await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveCount(0);
     await expect(page.locator('[id$="-erro"]')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+
+    // O envio normal também remove a sentinela antes de navegar para a lista.
+    await code.fill(`T${id}`);
+    await name.fill(`Outra disciplina ${id}`);
+    await page.getByRole('button', { name: /^Criar/ }).click();
+    await expect(page).toHaveURL(/\/manager\/subjects$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/manager\/subjects\/new$/);
+    await expect(page.getByRole('alertdialog', { name: 'Descartar alterações?' })).toHaveCount(0);
 
     // A disciplina criada está na lista.
     await page.goto('/manager/subjects');
@@ -1258,6 +1532,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
  
   test('admin: a estrutura da escola não envia duas vezes o mesmo formulário (#532)', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    const curso = `C${id.slice(0, 5)}`;
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await page.goto('/manager/institutions/new');
     await page.getByLabel('Código').fill(`E2E${id}`);
@@ -1268,14 +1543,15 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     const form = page.getByRole('form', { name: 'Novo curso' });
     const code = form.getByLabel('Código do curso');
-    await code.fill(`C${id.slice(0, 5)}`);
+    await code.fill(curso);
     await form.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
 
     // Atrasa a gravação para que o segundo Enter chegue com o primeiro pedido ainda a correr.
-    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+    const delayCreate = async (route: import('@playwright/test').Route) => {
       if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 600));
       await route.continue();
-    });
+    };
+    await page.route(/\/institutions\/\d+\/structure/, delayCreate);
     const name = form.getByLabel('Nome do curso');
     await name.press('Enter');
     await name.press('Enter');
@@ -1291,6 +1567,27 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Curso criado')).toHaveCount(1);
     await expect(code).toBeFocused();
     await expect(code).toHaveValue('');
+
+    // A confirmação fica aberta enquanto a remoção corre e o toast permite desfazê-la.
+    await page.unroute(/\/institutions\/\d+\/structure/, delayCreate);
+    let releaseDelete!: () => void;
+    const deleteReleased = new Promise<void>((resolve) => { releaseDelete = resolve; });
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST' && route.request().headers()['next-action']) await deleteReleased;
+      await route.continue();
+    });
+    await page.getByRole('button', { name: `Mover curso ${curso} para a lixeira` }).click();
+    const confirm = page.getByRole('alertdialog', { name: 'Mover este curso para a lixeira?' });
+    await confirm.getByRole('button', { name: 'Mover para a lixeira' }).click();
+    try {
+      await expect(confirm).toBeVisible();
+      await expect(confirm.getByRole('button', { name: /A processar/ })).toBeDisabled();
+    } finally {
+      releaseDelete();
+    }
+    await expect(page.getByTestId(`course-${curso}`)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Desfazer' }).click();
+    await expect(page.getByTestId(`course-${curso}`)).toHaveCount(1);
   });
 
   test('admin: atribuir e afiliar só ocupam o seu formulário e travam as ações destrutivas (#532)', async ({ page }) => {
@@ -1345,12 +1642,12 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(novoCurso).toHaveAttribute('aria-busy', 'false');
     await expect(novoCurso.getByRole('button')).toHaveText('Novo curso');
     await expect(afiliar).toHaveAttribute('aria-busy', 'false');
-    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Apagar turma 9Z' })).toBeDisabled();
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Mover turma 9Z para a lixeira' })).toBeDisabled();
 
     await expect(page.getByText('Professor atribuído')).toBeVisible();
     await expect(atribuir).toHaveAttribute('aria-busy', 'false');
-    await expect(cartao.getByRole('button', { name: `Apagar curso ${curso}` })).toBeEnabled();
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeEnabled();
     await expect(page.getByTestId('class-9Z').locator('select').first()).toBeFocused();
   });
 
@@ -1637,3 +1934,114 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByLabel('Título')).toHaveValue('Prova de OGI da semana passada');
   });
  });
+
+/** O cartão de prova no feed (#602): cabeçalho da folha em miniatura e nota em
+ *  carimbo, com link para a prova corrigida — sem fetch extra por cartão. */
+test.describe('cartão de prova no feed (#602)', () => {
+  test('publicar o resultado mostra o cabeçalho e o carimbo no início', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // A simulação 1 do mock está terminada (16,4 em 20): publica-se do resultado.
+    await page.goto('/aluno/resultado?prova=1');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await expect(previa.getByText('Ministério da Educação')).toBeVisible();
+    await expect(previa.getByText(/12ª Classe/)).toBeVisible();
+    // Na pré-visualização não há link para a corrigida: já se está nela.
+    await expect(previa.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    // O estado do mock persiste entre testes e runs locais: se já foi publicado
+    // (409), vale o mesmo para o que se quer provar.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // No feed, o cartão traz o mesmo cabeçalho, o carimbo e o link para a corrigida.
+    await page.goto('/aluno/inicio');
+    const cartao = page.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    await expect(cartao).toBeVisible();
+    await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
+    await expect(cartao.getByText(/Ano letivo/)).toBeVisible();
+    await expect(cartao.getByText('Positiva')).toBeVisible();
+    await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
+  });
+
+  test('um colega vê o cartão sem o link para a corrigida', async ({ browser, page }) => {
+    // Primeiro o dono publica (a simulação 1 do mock é do 12345 e está terminada).
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/resultado?prova=1');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    // O estado do mock persiste entre testes do mesmo run: se o teste anterior já
+    // publicou, o servidor responde 409 e vale o mesmo para o que se quer provar.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // O Nuno é da mesma turma e vê o cartão no feed, mas sem link: o
+    // `/resultado?prova={id}` lê a simulação de quem está a ver, não a do dono.
+    // Contexto à parte para não contaminar a sessão do dono com a do colega.
+    const colegaContext = await browser.newContext();
+    const colega = await colegaContext.newPage();
+    await colega.goto('/aluno/entrar');
+    await colega.getByLabel('Utilizador ou email').fill('nuno.dias');
+    await colega.locator('#password').fill(PASSWORD);
+    await colega.getByTestId('aluno-entrar-submeter').click();
+    await expect(colega).toHaveURL(/\/aluno\/inicio/);
+    const cartao = colega.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    await expect(cartao).toBeVisible();
+    await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
+    await expect(cartao.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
+    await colegaContext.close();
+  });
+});
+
+/** A barra inferior do telemóvel tem 4 colunas (#704). Com 5 itens o último caía
+ *  para uma segunda linha; as Pautas passaram a viver no perfil. */
+test.describe('navegação do telemóvel (#704)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('a barra tem 4 itens numa só linha e as pautas abrem pelo perfil', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const barra = page.getByTestId('nav-mobile');
+    const itens = barra.getByRole('link');
+    await expect(itens).toHaveCount(4);
+    for (const nome of ['Início', 'Provas', 'Ranking', 'Tutor']) {
+      await expect(barra.getByRole('link', { name: nome })).toBeVisible();
+    }
+    await expect(barra.getByRole('link', { name: 'Pautas' })).toHaveCount(0);
+
+    // Uma linha: com o Tutor numa segunda linha a barra teria ~120 px, não ~64.
+    const caixa = await barra.boundingBox();
+    expect(caixa?.height ?? 0).toBeGreaterThanOrEqual(56);
+    expect(caixa?.height ?? 0).toBeLessThan(80);
+
+    // As pautas continuam alcançáveis: pelo perfil, que é como se chega no telemóvel.
+    await page.goto('/aluno/perfil');
+    await page.getByRole('link', { name: /As minhas pautas/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/pautas/);
+    await expect(page.getByRole('heading', { name: 'As minhas pautas' })).toBeVisible();
+  });
+
+  test('no desktop a barra lateral mantém as Pautas', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await expect(page.locator('header nav[aria-label="Principal"]').getByRole('link', { name: 'Pautas' })).toBeVisible();
+    await expect(page.getByTestId('nav-mobile')).toBeHidden();
+  });
+});

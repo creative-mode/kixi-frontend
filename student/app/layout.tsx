@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { CookieBanner } from '@/components/consent/Consent';
+import { PageViewTracker } from '@/components/analytics/trackers';
+import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { appOrigin } from '@/lib/origin';
 
 export const metadata: Metadata = {
@@ -31,6 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
        *  ganha esse espaço, para que nenhuma página acabe com ações por baixo dele. */}
       <body className="pb-[var(--ck-banner-h,0px)]">
         {children}
+        {/* #714: page_view por rota; `?entrou` é o marcador que o login deixa no destino (lib/auth-actions.ts). */}
+        <PageViewTracker app="student" />
+        <FireEventOnce param="entrou" event="login_success" params={{ app: 'student' }} />
         {/* #219: analítica mínima, só depois deste banner ser aceite. */}
         <CookieBanner landingOrigin={appOrigin()} />
       </body>

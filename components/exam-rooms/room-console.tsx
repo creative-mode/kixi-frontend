@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DoorOpen, Play, Square, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DetailSkeleton } from '@/components/crud/loading';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
+import { LoadError } from '@/components/crud/load-state';
 import { changeRoomStatus, getRoom, inviteRoomClass, type StatementChoice } from '@/app/actions/exam-rooms';
 import {
   closeSummary,
@@ -61,11 +63,16 @@ export function RoomConsole({ id }: { id: number }) {
   const [now, setNow] = useState(() => luandaNowInput());
 
   const load = useCallback(async () => {
-    const res = await getRoom(id);
-    if (res.ok) {
-      setData(res.data);
-      setError(null);
-    } else setError(res.error);
+    try {
+      const res = await getRoom(id);
+      if (res.ok) {
+        setData(res.data);
+        setError(null);
+      } else setError(res.error);
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
+      setError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
+    }
   }, [id]);
 
   useEffect(() => {
@@ -89,7 +96,13 @@ export function RoomConsole({ id }: { id: number }) {
     return () => window.clearTimeout(task);
   }, [stale, load]);
 
-  if (error) return <p className="py-12 text-center text-sm text-destructive">{error}</p>;
+  if (error) {
+    return (
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
+        <LoadError message={error} onRetry={() => void load()} />
+      </div>
+    );
+  }
   if (!data) return <div className="mx-auto max-w-6xl p-4 md:p-8"><DetailSkeleton /></div>;
 
   const { room, statement, classLabel } = data;
@@ -103,7 +116,7 @@ export function RoomConsole({ id }: { id: number }) {
     setBusy(true);
     const res = await changeRoomStatus(id, action);
     setBusy(false);
-    if (!res.ok) return void toast.error(res.error);
+    if (!res.ok) return void reportActionError(res.error);
     toast.success(action === 'close' ? 'Sala encerrada. As notas estão abaixo.' : action === 'start' ? 'Prova iniciada.' : 'Sala aberta.');
     setData((d) => (d ? { ...d, room: res.data } : d));
   }
@@ -124,7 +137,7 @@ export function RoomConsole({ id }: { id: number }) {
     const res = await inviteRoomClass(id, room.classId);
     setBusy(false);
     if (res.ok) toast.success('Turma convidada. Quem já estava convidado não é repetido.');
-    else toast.error(res.error);
+    else reportActionError(res.error);
   }
 
   const reasons = (Object.keys(actions) as RoomAction[]).map((k) => actions[k].reason).filter(Boolean);

@@ -11,6 +11,10 @@ import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { gradeRoom, roomReview } from '@/app/actions/exam-rooms';
 import { AI_LEVEL_LABEL, aiStateLabel, gradesToSend, invalidDrafts, keyMatchCount, type ReviewQuestion, type RoomReview, type ScoreDrafts } from '@/lib/exam-rooms/model';
+import { useUnsavedChanges } from '@/components/crud/use-unsaved-changes';
+import { useSessionAccount } from '@/components/session-account';
+import { clearFormDraft, clearStaleFormDrafts, loadFormDraft, saveFormDraft } from '@/lib/form-drafts';
+import { reportActionError } from '@/lib/notify-session-expired';
 
 const fmt = (n: number | null) => (n === null ? '—' : new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(n));
 const labelOf = (q: ReviewQuestion) => `${q.number ?? ''}${q.label ?? ''}`;
@@ -21,6 +25,10 @@ const labelOf = (q: ReviewQuestion) => `${q.number ?? ''}${q.label ?? ''}`;
  * o resto fica para o professor, e tudo se grava de uma vez.
  */
 export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: number; onChanged: () => void; onPlanLinked?: (planLinked: boolean) => void }) {
+  const accountId = useSessionAccount();
+  const formId = `room-correction:${roomId}`;
+  const [draftReady, setDraftReady] = useState(false);
+  const [restored, setRestored] = useState(false);
   const [review, setReview] = useState<RoomReview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<ScoreDrafts>({});
@@ -28,6 +36,27 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
   const [onlyPending, setOnlyPending] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const noteId = useId();
+  const { dialog: unsavedDialog } = useUnsavedChanges(Object.keys(drafts).length > 0);
+
+  useEffect(() => {
+    clearStaleFormDrafts(window.sessionStorage);
+    const saved = accountId === null ? null : loadFormDraft<ScoreDrafts>(window.sessionStorage, formId, accountId);
+    // Como no construtor de provas (#362), o setState sai do corpo do efeito para não
+    // disparar em cima do render; a sessãoStorage é lida uma vez, no arranque.
+    const task = window.setTimeout(() => {
+      if (saved && Object.keys(saved).length > 0) {
+        setDrafts(saved);
+        setRestored(true);
+      }
+      setDraftReady(true);
+    }, 0);
+    return () => window.clearTimeout(task);
+  }, [accountId, formId]);
+
+  useEffect(() => {
+    if (!draftReady || accountId === null || Object.keys(drafts).length === 0) return;
+    saveFormDraft(window.sessionStorage, formId, drafts, accountId);
+  }, [accountId, draftReady, drafts, formId]);
 
   const load = useCallback(async () => {
     const res = await roomReview(roomId);
@@ -61,11 +90,13 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
     setBusy(true);
     const res = await gradeRoom(roomId, toSend, byKey);
     setBusy(false);
-    if (!res.ok) return void toast.error(res.error);
+    if (!res.ok) return void reportActionError(res.error, res.code);
     const { graded, byKey: viaKey, failed } = res.data;
     if (failed.length) toast.error(`${failed.length} nota(s) não foram gravadas: ${[...new Set(failed.map((f) => f.message))].join(' · ')}`);
     if (graded > 0) toast.success(viaKey > 0 ? `${graded} resposta(s) corrigida(s), ${viaKey} pela chave.` : `${graded} nota(s) gravada(s).`);
     else if (!failed.length) toast.message(byKey ? 'Nenhuma resposta coincide com a chave.' : 'Não há notas por gravar.');
+    clearFormDraft(window.sessionStorage, formId);
+    setRestored(false);
     setDrafts({});
     await load();
     onChanged();
@@ -98,6 +129,7 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
         </div>
       </CardHeader>
       <CardContent className="grid gap-6">
+        {restored ? <p role="status" className="text-sm text-muted-foreground">Retomámos as notas que estavam por gravar neste separador.</p> : null}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <p id={noteId} className="min-w-0 flex-1 text-sm text-muted-foreground">
             {review.pending === 0 ? 'Todas as respostas abertas estão corrigidas.' : `${review.pending} resposta(s) por corrigir, ${keyMatches} a coincidir com a chave.`}{' '}
@@ -167,6 +199,7 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
         ))}
       </CardContent>
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
+      {unsavedDialog}
     </Card>
   );
 }
