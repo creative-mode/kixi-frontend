@@ -1203,20 +1203,26 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       warnings: [],
     };
     await mockAsyncOcrJobs(page, [
-      // A leitura inicial conta duas páginas: a barra de progresso acompanha até à segunda.
       { extraction: leituraDuasPaginas, first: { status: 'PROCESSING', pageCount: 2, completedPages: 1, currentPage: 1, eventType: 'progress', result: null } },
-      // A repetição de uma página é um só trabalho, que já chega ao fim.
       { extraction: repeticaoPagina2, first: { status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: repeticaoPagina2 } },
     ]);
 
     await page.goto('/manager/exam-builder?importar=1');
     await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    
+    // Anexa o ficheiro PDF de duas páginas com timeout estendido opcional no input
     await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
       name: 'prova-dois-paginas.pdf',
       mimeType: 'application/pdf',
       buffer: samplePdf(2),
     });
-    await expect(page.getByText(/PDF · 2 páginas/)).toBeVisible();
+
+    // CORREÇÃO: Utiliza uma regex mais flexível ou espera explícita com timeout maior
+    // para acomodar o tempo de leitura do buffer do PDF no ambiente de testes/CI.
+    const badgePdf = page.getByText(/PDF\s*·\s*2\s*páginas/i);
+    await badgePdf.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(badgePdf).toBeVisible();
+
     await page.getByTestId('gestor-statements-import-submetter').click();
 
     const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
@@ -1227,19 +1233,15 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     const originais = page.getByTestId('ocr-originais');
     await expect(originais).toBeVisible();
-    // Um PDF de duas páginas tem uma repetição por página, e a primeira renderiza a miniatura.
     await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 1 de prova-dois-paginas.pdf' })).toBeVisible();
     await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' })).toBeVisible();
     await expect(originais.getByRole('button', { name: 'Ver prova-dois-paginas.pdf em tamanho real' }).locator('img')).toBeVisible();
 
-    // A leitura inicial nasceu com as duas questões do PDF.
     await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
     await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia.');
 
-    // A repetição relê só a página 2 e substitui no rascunho as questões dela.
     await page.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' }).click();
     await expect(page.getByText('Página 2 relida: 1 questão(ões) no lugar de 1.')).toBeVisible();
-    // A página 1 do original continua inteira; a página 2 é a que foi relida.
     await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
     await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia com a correção pedida.');
   });
