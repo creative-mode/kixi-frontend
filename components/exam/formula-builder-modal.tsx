@@ -108,7 +108,7 @@ function MathLiveField({
     return (
       <div className="space-y-2">
         <p role="status" className="text-sm text-muted-foreground">
-          O editor visual não carregou. Podes continuar a escrever a fórmula em LaTeX.
+          O editor visual não carregou. Pode continuar a escrever a fórmula em LaTeX.
         </p>
         <textarea
           aria-label="Fórmula em LaTeX"

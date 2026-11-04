@@ -14,7 +14,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   }, [error]);
 
   return (
-    <html lang="pt">
+    <html lang="pt-AO">
       <body
         style={{
           margin: 0,
@@ -41,7 +41,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           >
             <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Algo falhou.</p>
             <p style={{ margin: 0, fontSize: 14, color: 'var(--muted-foreground, #617066)' }}>
-              Tenta de novo. Se continuar, fecha e volta a entrar.
+              Tente de novo. Se continuar, feche e volte a entrar.
             </p>
             <button
               type="button"

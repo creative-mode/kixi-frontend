@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyBlock, isPostImage, moved, payloadOf, problemOf, summaryOf, TEMPLATES, templateBlocks, toPayload, type PostBlock } from './post-blocks.ts';
+import { emptyBlock, imagesWithoutAlt, isPostImage, moved, payloadOf, problemOf, summaryOf, TEMPLATES, templateBlocks, toPayload, type PostBlock } from './post-blocks.ts';
 
 const text = (t: string): PostBlock => ({ type: 'text', text: t });
 const choice = (q: string, items: string[], correct: number): PostBlock => ({ type: 'choice', text: q, items, correct });
@@ -76,4 +76,20 @@ test('mover um bloco troca a posição e os limites não fazem nada', () => {
   assert.deepEqual(moved([1, 2, 3], 0, 1), [2, 1, 3]);
   assert.deepEqual(moved([1, 2, 3], 0, -1), [1, 2, 3]);
   assert.deepEqual(moved([1, 2, 3], 2, 3), [1, 2, 3]);
+});
+
+test('as imagens enviadas sem descrição são apontadas pela posição, para o aviso as poder nomear', () => {
+  const blocks: PostBlock[] = [
+    { type: 'text', text: 'Um texto' },
+    { type: 'image', url: '/uploads/images/posts/a.png', alt: '' },
+    { type: 'image', url: '/uploads/images/posts/b.png', alt: 'Esquema da rede' },
+    { type: 'image', url: '/uploads/images/posts/c.png', alt: '   ' },
+    { type: 'image', url: '/uploads/images/posts/d.png' },
+  ];
+  assert.deepEqual(imagesWithoutAlt(blocks), [1, 3, 4]);
+});
+
+test('uma imagem ainda por escolher não conta: o aviso é sobre o que vai ser publicado', () => {
+  assert.deepEqual(imagesWithoutAlt([{ type: 'image', url: '', alt: '' }, { type: 'image' }]), []);
+  assert.deepEqual(imagesWithoutAlt([]), []);
 });

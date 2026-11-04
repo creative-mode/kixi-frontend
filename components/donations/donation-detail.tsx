@@ -116,7 +116,7 @@ export function DonationDetailView({ id }: { id: number }) {
             <CardContent>
               <dl className="grid gap-4 sm:grid-cols-2">
                 <Fact label="Classe ou turma">{donation.classGrade}</Fact>
-                <Fact label="Ano lectivo">{donation.schoolYear}</Fact>
+                <Fact label="Ano letivo">{donation.schoolYear}</Fact>
                 <Fact label="Doador">{donation.donorName}</Fact>
                 <Fact label="E-mail">{donation.donorEmail}</Fact>
                 <Fact label="Recebida">{when(donation.createdAt)}</Fact>

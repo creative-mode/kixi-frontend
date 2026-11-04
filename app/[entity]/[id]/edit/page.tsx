@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { CrudForm } from '@/components/crud/crud-form';
 import { entityByPath } from '@/lib/crud/entities';
@@ -12,5 +13,10 @@ export default async function EditPage({ params }: { params: Promise<{ entity: s
   const { entity: path, id } = await params;
   const entity = entityByPath(path);
   if (!entity || !entity.canEdit) notFound();
-  return <CrudForm entityKey={entity.key} id={decodeURIComponent(id)} />;
+  // O formulário lê a vista da lista no endereço (`?q=`): pede um `Suspense`.
+  return (
+    <Suspense>
+      <CrudForm entityKey={entity.key} id={decodeURIComponent(id)} />
+    </Suspense>
+  );
 }

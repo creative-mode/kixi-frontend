@@ -4,13 +4,16 @@ import assert from 'node:assert/strict';
 import {
   DECISION_LABEL,
   DECISIONS,
+  NOTA_MINIMA,
   REASONS,
   REASON_KEYS,
   TARGET_LABEL,
   contarPorMotivo,
+  decisionExigeNota,
   decisionValida,
   isDecision,
   isReportReason,
+  notaDecisaoError,
   noteError,
   porAlvo,
   type Report,
@@ -76,6 +79,22 @@ test('a nota tem limite e o erro diz qual e', () => {
   assert.equal(noteError('curta'), null);
   assert.equal(noteError('   '), null);
   assert.match(noteError('x'.repeat(501)) ?? '', /500 caracteres/);
+});
+
+test('ocultar e suspender pedem nota escrita, ignorar nao', () => {
+  assert.ok(decisionExigeNota('HIDDEN'));
+  assert.ok(decisionExigeNota('SUSPENDED'));
+  assert.ok(!decisionExigeNota('IGNORED'));
+  assert.equal(notaDecisaoError('IGNORED', ''), null);
+  assert.equal(notaDecisaoError('IGNORED', '   '), null);
+  // Falta ou curta: sem nota a decisão não confirma.
+  assert.match(notaDecisaoError('HIDDEN', '') ?? '', new RegExp(`${NOTA_MINIMA} caracteres`));
+  assert.match(notaDecisaoError('SUSPENDED', 'curta') ?? '', new RegExp(`${NOTA_MINIMA} caracteres`));
+  assert.equal(notaDecisaoError('HIDDEN', 'x'.repeat(NOTA_MINIMA)), null);
+  assert.equal(notaDecisaoError('SUSPENDED', 'motivo suficiente e claro'), null);
+  // O máximo continua a valer para as três.
+  assert.match(notaDecisaoError('HIDDEN', 'x'.repeat(501)) ?? '', /500 caracteres/);
+  assert.match(notaDecisaoError('IGNORED', 'x'.repeat(501)) ?? '', /500 caracteres/);
 });
 
 test('as contagens por motivo Consideram so o que esta por decidir', () => {

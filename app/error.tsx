@@ -19,9 +19,9 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         <CardContent>
           <div role="alert" className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
             <TriangleAlert className="size-5 text-warning" aria-hidden />
-            <p className="text-base font-semibold text-foreground">Algo falhou. Tenta de novo.</p>
+            <p className="text-base font-semibold text-foreground">Algo falhou. Tente de novo.</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Se continuar, volta ao início e segue a partir daí.
+              Se continuar, volte ao início e siga a partir daí.
             </p>
             <div className="mt-1 flex flex-wrap justify-center gap-2">
               <Button type="button" onClick={reset}>

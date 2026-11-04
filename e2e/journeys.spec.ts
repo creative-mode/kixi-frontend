@@ -6,6 +6,21 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin@kixi.ao';
 const TEACHER_USERNAME = process.env.E2E_TEACHER_USERNAME ?? 'professor@kixi.ao';
 
+/** BMP de 1 px branco, construído por código: evita um base64 literal no teste. */
+function pixelBmp(): Buffer {
+  const bmp = Buffer.alloc(58);
+  bmp.write('BM', 0);
+  bmp.writeUInt32LE(58, 2);
+  bmp.writeUInt32LE(54, 10);
+  bmp.writeUInt32LE(40, 14);
+  bmp.writeInt32LE(1, 18);
+  bmp.writeInt32LE(1, 22);
+  bmp.writeUInt16LE(1, 26);
+  bmp.writeUInt16LE(24, 28);
+  bmp.fill(255, 54, 57);
+  return bmp;
+}
+
 function samplePdf(): Buffer {
   const stream = 'BT /F1 18 Tf 20 90 Td (OCR test) Tj ET';
   const objects = [
@@ -70,7 +85,7 @@ async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) 
 //#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
 async function managerLogin(page: Page, username: string, landing: RegExp, heading: string) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(username);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(username);
   // O campo da palavra-passe nao tem label associado, so `id`: e por isso que
   // vai por `#` e nao por `getByLabel`. Os outros quatro campos usam label.
   await page.locator('#password').fill(PASSWORD);
@@ -265,6 +280,57 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   });
 
+  test('imagens do feed: aviso ao publicar sem descrição e espaço reservado antes de a imagem chegar (#524)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const id = randomUUID().slice(0, 6);
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
+    await page.goto('/aluno/publicar');
+    await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
+    await page.getByLabel('Título 1', { exact: true }).fill(`Esquema ${id}`);
+    await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
+    await page.getByLabel('Lista 3: linha 1').fill('Endereço da rede');
+    await page.getByRole('button', { name: 'Imagem', exact: true }).click();
+    await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
+    await expect(page.getByText('Imagem pronta')).toBeVisible();
+
+    // Sem descrição não publica logo: avisa, nomeia a imagem e deixa escolher.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    const aviso = page.getByRole('alert').filter({ hasText: 'sem descrição' });
+    await expect(aviso).toContainText('Há 1 imagem sem descrição (Imagem 5)');
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    // Carregar outra vez em «Publicar» não contorna o aviso: só «Publicar mesmo assim» publica sem descrição.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await expect(aviso).toBeVisible();
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await aviso.getByRole('button', { name: 'Escrever a descrição' }).click();
+    await expect(page.getByLabel('Imagem 5: descrição da imagem')).toBeFocused();
+    await expect(aviso).toHaveCount(0);
+    // «Publicar mesmo assim» respeita a escolha: a imagem fica sem descrição, mas o aluno foi avisado.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await aviso.getByRole('button', { name: 'Publicar mesmo assim' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // No feed a imagem vem numa caixa com proporção fixa: o espaço existe antes de ela chegar, e não muda quando chega.
+    let soltar: () => void = () => {};
+    const retida = new Promise<void>((resolve) => { soltar = resolve; });
+    await page.route('**/uploads/**', async (route) => { await retida; await route.continue(); });
+    await page.reload();
+    const figura = page.getByRole('article').filter({ hasText: `Esquema ${id}` }).first().locator('figure img');
+    await figura.scrollIntoViewIfNeeded();
+    const caixa = figura.locator('..');
+    await expect(caixa).toHaveCSS('aspect-ratio', '4 / 3');
+    const antes = await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    expect(antes).toBeGreaterThan(100);
+    soltar();
+    await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+    expect(await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height))).toBe(antes);
+  });
+
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto('/aluno/entrar');
@@ -420,6 +486,41 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByRole('button', { name: /Comentar/ }).first().click();
     await expect(page.getByLabel('Escrever um comentário')).toHaveCSS('height', '44px');
     await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
+  });
+
+  test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    // Sem endpoint de recuperação, a página dá instruções úteis sem simular um pedido.
+    await page.goto('/aluno/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacta o teu professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+
+    await page.goto('/aluno/prova/2');
+    await expect(page).toHaveURL(/\/aluno\/entrar\?/);
+    // O destino vai no `next`, validado contra URLs externos (lib/safe-next.ts). Os dois formatos são válidos:
+    // relativo à app (`/prova/2`, o que o safe-next produz) ou com o basePath (`/aluno/prova/2`, o que o proxy pode emitir).
+    await expect(page).toHaveURL(/next=(?:%2Fprova%2F2|%2Faluno%2Fprova%2F2)/i);
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/2/);
+  });
+
+  test('gestor: sessão em falta regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    await page.goto('/manager/classes');
+    await expect(page).toHaveURL(/\/manager\/login\?/);
+    await expect(page).toHaveURL(/next=(?:%2Fclasses|%2Fmanager%2Fclasses)/i);
+
+    await page.locator('#usernameOrEmail').fill(ADMIN_USERNAME);
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('gestor-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+
+    await page.goto('/manager/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacte o professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+    // Um só landmark principal: o do AuthLayout (a página não abre outro <main>).
+    await expect(page.locator('main')).toHaveCount(1);
   });
 
   test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {
@@ -917,6 +1018,110 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect.poll(async () => systemDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\begin{cases}');
     await systemDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
     await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
+  });
+
+  test('OCR: miniaturas, ordem por teclado e leitura de uma só página (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles([
+      { name: 'foto1.bmp', mimeType: 'image/bmp', buffer: png },
+      { name: 'foto2.bmp', mimeType: 'image/bmp', buffer: png },
+    ]);
+    const lista = page.getByRole('list', { name: 'Ficheiros a importar, por ordem de leitura' });
+    await expect(lista.locator('li')).toHaveCount(2);
+    // Miniatura por ficheiro, e a ordem muda por teclado (subir/descer).
+    expect(await lista.locator('img').count()).toBe(2);
+    await expect(lista.getByRole('button', { name: 'Subir foto1.bmp' })).toBeDisabled();
+    await expect(lista.getByRole('button', { name: 'Descer foto1.bmp' })).toBeEnabled();
+    await lista.getByRole('button', { name: 'Subir foto2.bmp' }).click();
+    await expect(lista.locator('li').first()).toContainText('1. foto2.bmp');
+    await expect(lista.getByRole('button', { name: 'Subir foto2.bmp' })).toBeDisabled();
+    // Repetir só uma página, sem reler tudo.
+    await expect(lista.getByRole('button', { name: 'Ler só foto1.bmp' })).toBeVisible();
+  });
+
+  test('OCR: progresso com barra, notas que levam à questão e originais lado a lado (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const jobId = randomUUID();
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        {
+          number: '1', type: 'dissertativa', confidence: 0.9, cotacao: 10,
+          text: 'Define velocidade média.',
+          formulas: [{ raw: 'v', latex: 'v', confidence: 0.5, layoutConfidence: 0.5, kind: 'formula' }],
+        },
+        { number: '2', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Explica a inércia.' },
+      ],
+      warnings: [
+        { code: 'LOW_CONFIDENCE_FORMULA', field: 'question_1_formula_1', confidence: 0.5 },
+        { code: 'LOW_CONFIDENCE', field: 'question_2_text', confidence: 0.4 },
+      ],
+      unmapped_content: [{ zone: 'rodape', text: 'Contacto: 923 000 000' }],
+      images_to_upload: [{ region: 'rodape', data_url: 'data:image/bmp;base64,' + pixelBmp().toString('base64') }],
+    };
+    // O trabalho demora de propósito: a barra de progresso tem de se ver.
+    await page.route('**/manager/api/ocr/extract', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, requestId: randomUUID(), statusUrl: `/manager/api/ocr/jobs/${jobId}` }),
+      });
+    });
+    let polls = 0;
+    await page.route(`**/manager/api/ocr/jobs/${jobId}`, async (route) => {
+      if (route.request().method() === 'DELETE') {
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      if (route.request().method() !== 'GET') return route.fallback();
+      polls += 1;
+      if (polls === 1) {
+        // Primeiro estado: já há páginas contadas, mas a leitura continua — é
+        // nesta janela que a barra fica visível.
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ jobId, status: 'PROCESSING', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'progress', result: null, error: null }),
+        });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: extraction, error: null }),
+      });
+    });
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'foto1.png', mimeType: 'image/png', buffer: png,
+    });
+    await page.getByRole('button', { name: 'Ler só foto1.png' }).click();
+    const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
+    await expect(barra).toBeVisible();
+    await expect(barra).toHaveAttribute('aria-valuemax', '1');
+    await expect(barra).toHaveAttribute('aria-valuemin', '0');
+    // Cada aviso aponta para a sua questão; o clique leva lá o foco.
+    await page.getByRole('button', { name: 'Ir para a questão 2' }).click();
+    await expect(page.locator('#questao-2')).toBeFocused();
+    // O rodapé tem âncora própria e as páginas originais ficam ao lado.
+    await expect(page.getByRole('link', { name: 'Ver rodapé original' })).toBeVisible();
+    await expect(page.getByTestId('ocr-originais')).toBeVisible();
+    await page.getByRole('button', { name: 'Ver foto1.png em tamanho real' }).click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toContainText('foto1.png');
+    await expect(dialogo.locator('img')).toBeVisible();
+    await page.keyboard.press('Escape');
   });
 
   test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
@@ -1797,7 +2002,7 @@ test.describe('navegação do telemóvel (#704)', () => {
     const barra = page.getByTestId('nav-mobile');
     const itens = barra.getByRole('link');
     await expect(itens).toHaveCount(4);
-    for (const nome of ['Início', 'Provas', 'Liga', 'Tutor']) {
+    for (const nome of ['Início', 'Provas', 'Ranking', 'Tutor']) {
       await expect(barra.getByRole('link', { name: nome })).toBeVisible();
     }
     await expect(barra.getByRole('link', { name: 'Pautas' })).toHaveCount(0);

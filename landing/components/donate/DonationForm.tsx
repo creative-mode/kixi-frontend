@@ -15,7 +15,7 @@ import {
 } from '@/lib/donation-rules';
 import { inspectImage, messageFor, prepareFileForUpload, type Assessment } from '@/lib/image-quality';
 import { imagesFrom } from '@/lib/clipboard-images';
-import { track } from '@/lib/analytics';
+import { attributionFromSearch, donationField, donationStep, track } from '@/lib/analytics';
 import { CONTACT_EMAIL } from '@/lib/content';
 
 type Phase = 'editing' | 'sending' | 'done';
@@ -38,6 +38,20 @@ export function DonationForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const startedAt = useRef<number>(0);
+  /** #714: `donation_started` sai uma vez por doação, à primeira interação (campo, ficheiro ou colar). Só conta
+   *  feito quando `track` o aceita: quem preenche antes de aceitar os cookies emite-o na interação seguinte. */
+  const tracked = useRef(false);
+  const markStarted = () => {
+    if (tracked.current) return;
+    const status = track('donation_started', attributionFromSearch(window.location.search));
+    tracked.current = status === 'sent' || status === 'queued';
+  };
+  /** O primeiro campo com erro do ecrã `at`, no nome do contrato: nunca o valor, só qual é. */
+  const trackInvalid = (at: number, found: FieldErrors) => {
+    const field = STEP_FIELDS[at]?.find((n) => found[n]);
+    if (!field) return;
+    track('donation_error', { step: donationStep(at), category: field === 'files' ? 'file_validation' : 'validation', field: donationField(field) });
+  };
   const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [problem, setProblem] = useState<string | null>(null);
@@ -95,6 +109,7 @@ export function DonationForm() {
 
   function addFiles(list: FileList | readonly File[] | null) {
     if (!list) return;
+    markStarted();
     const next = [...files];
     for (const file of Array.from(list)) {
       if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
@@ -190,11 +205,13 @@ export function DonationForm() {
           setReference(body.reference);
           setPhase('done');
           // #219 "doação submetida": sem o conteúdo, só que uma aconteceu.
-          track('donation_submitted');
+          track('donation_submitted', attributionFromSearch(window.location.search));
           resolve();
           return;
         }
         setPhase('editing');
+        // 429 é «demasiados pedidos», não avaria: no funil separa-se de um erro do servidor.
+        track('donation_error', { step: 'contact', category: request.status === 429 ? 'rate_limit' : 'server' });
         if (body.fieldErrors) setErrors(body.fieldErrors);
         setProblem(body.error ?? `Resposta inesperada do servidor (${request.status}).`);
         setRetryable(request.status === 429 || request.status >= 500);
@@ -203,6 +220,7 @@ export function DonationForm() {
 
       request.onerror = () => {
         setPhase('editing');
+        track('donation_error', { step: 'contact', category: 'upload' });
         setProblem('Sem ligação nem confirmação. A doação pode ter sido registada; verifica antes de tentar outra vez. Os ficheiros continuam aqui.');
         setRetryable(true);
         resolve();
@@ -210,6 +228,7 @@ export function DonationForm() {
 
       request.ontimeout = () => {
         setPhase('editing');
+        track('donation_error', { step: 'contact', category: 'upload' });
         setProblem('O envio demorou e não recebemos confirmação. A doação pode ter sido registada; verifica antes de tentar outra vez. Os ficheiros continuam aqui.');
         setRetryable(true);
         resolve();
@@ -258,10 +277,12 @@ export function DonationForm() {
     });
     if (mine.length > 0) {
       setProblem(null);
+      trackInvalid(step, found);
       goTo(step, mine[0]);
       return;
     }
     setProblem(null);
+    track('donation_step', { step: donationStep(step + 1) });
     goTo(step + 1);
   }
 
@@ -277,6 +298,7 @@ export function DonationForm() {
     if (Object.keys(found).length > 0) {
       setProblem('Confirma os campos assinalados.');
       const at = STEP_FIELDS.findIndex((names) => names.some((n) => found[n]));
+      trackInvalid(at < 0 ? step : at, found);
       goTo(at < 0 ? step : at, Object.keys(found)[0]);
       return;
     }
@@ -338,6 +360,7 @@ export function DonationForm() {
               setPhase('editing');
               setStep(0);
               startedAt.current = Date.now();
+              tracked.current = false;
               formRef.current?.reset();
             }}
           >
@@ -357,7 +380,7 @@ export function DonationForm() {
   const preparedTotal = files.reduce((sum, file) => sum + (resized[keyOf(file)]?.size ?? file.size), 0);
 
   return (
-    <form ref={formRef} className="dn-console" onSubmit={onSubmit} noValidate aria-busy={sending}>
+    <form ref={formRef} className="dn-console" onSubmit={onSubmit} onChange={markStarted} noValidate aria-busy={sending}>
       <div className="dn-label">
         <div className="dn-pips" role="img" aria-label={`Passo ${step + 1} de ${STEPS.length}`}>{STEPS.map((name, i) => <span key={name} className={i <= step ? 'is-on' : ''} />)}</div>
       </div>
@@ -473,7 +496,7 @@ export function DonationForm() {
               {fieldError('classGrade')}
             </div>
             <div className="dn-field">
-              <label htmlFor={id('schoolYear')}>Ano lectivo</label>
+              <label htmlFor={id('schoolYear')}>Ano letivo</label>
               <input id={id('schoolYear')} data-field="schoolYear" name="schoolYear" maxLength={9} placeholder="2024/2025" inputMode="numeric"
                 aria-describedby={describe('schoolYear')} aria-invalid={errors.schoolYear ? true : undefined} />
               {fieldError('schoolYear')}

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CONSENT_EVENT, GA_ID, readConsent, writeConsent, type Consent } from '@/lib/consent';
+import { CONSENT_EVENT, GA_ID, readConsent, setAnalyticsEnabled, writeConsent, type Consent } from '@/lib/consent';
+import { flushAnalytics, pageForPath, safePageLocation, track } from '@/lib/analytics';
 
 declare global {
   interface Window {
@@ -20,7 +21,17 @@ function loadAnalytics() {
     window.dataLayer!.push(arguments);
   };
   window.gtag('js', new Date());
-  window.gtag('config', GA_ID, { anonymize_ip: true, allow_google_signals: false, allow_ad_personalization_signals: false });
+  // Sem page view automático (o `config` mandá-lo-ia com a URL real, query incluída) e com o contexto de página
+  // já canónico: qualquer evento automático do Google tag sai com origem + rota, sem query nem referrer (#517).
+  const page = safePageLocation('landing', pageForPath('landing', window.location.pathname), window.location.origin);
+  window.gtag('config', GA_ID, {
+    anonymize_ip: true,
+    allow_google_signals: false,
+    allow_ad_personalization_signals: false,
+    send_page_view: false,
+    page_location: page,
+    page_referrer: '',
+  });
   const s = document.createElement('script');
   s.id = 'kixi-ga';
   s.async = true;
@@ -28,19 +39,6 @@ function loadAnalytics() {
   // Um bloqueador de anúncios pode recusar o script: falha em silêncio, a página não depende dele.
   s.onerror = () => {};
   document.head.appendChild(s);
-}
-
-/** Retirar o consentimento: pára a medição desta página e apaga os cookies do Google Analytics. */
-function stopAnalytics() {
-  if (GA_ID) (window as unknown as Record<string, boolean>)[`ga-disable-${GA_ID}`] = true;
-  const host = location.hostname.split('.');
-  const domains = [location.hostname, ...host.map((_, i) => '.' + host.slice(i).join('.')).filter((d) => d.split('.').length > 2)];
-  for (const name of document.cookie.split(';').map((c) => c.split('=')[0].trim())) {
-    if (name !== '_ga' && !name.startsWith('_ga_')) continue;
-    for (const d of [undefined, ...domains]) {
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${d ? `; domain=${d}` : ''}`;
-    }
-  }
 }
 
 /** O banner de cookies. Aceitar liga a analítica, "só necessários" não pede nada a terceiros.
@@ -98,9 +96,14 @@ export function CookieBanner() {
 
   useEffect(() => {
     if (choice === 'all') {
-      if (GA_ID) (window as unknown as Record<string, boolean>)[`ga-disable-${GA_ID}`] = false;
+      setAnalyticsEnabled(true);
       loadAnalytics();
-    } else if (choice === 'necessary') stopAnalytics();
+      // O que se pôs na fila antes de haver `gtag` (o page_view da chegada, por exemplo) sai agora (#714).
+      flushAnalytics();
+    } else if (choice === 'necessary') {
+      // Pára a medição desta página e apaga os cookies do Google Analytics (lib/consent.ts).
+      setAnalyticsEnabled(false);
+    }
   }, [choice]);
 
   if (choice !== null) return null;
@@ -115,6 +118,8 @@ export function CookieBanner() {
   };
   const escolher = (c: Consent) => {
     writeConsent(c);
+    // Só o aceitar se mede: registar uma recusa seria medir quem disse que não.
+    if (c === 'all') track('consent_choice', { choice: 'all', app: 'landing' });
     devolverFoco();
   };
 

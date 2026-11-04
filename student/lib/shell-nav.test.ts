@@ -5,7 +5,7 @@ import { mobileNavItems, type ShellNavItem } from './shell-nav.ts';
 const items: ShellNavItem[] = [
   { href: '/inicio', label: 'Início', icon: 'home', also: [] },
   { href: '/provas', label: 'Provas', icon: 'file', also: ['/prova'] },
-  { href: '/ranking', label: 'Liga', icon: 'trophy', also: [] },
+  { href: '/ranking', label: 'Ranking', icon: 'trophy', also: [] },
   { href: '/pautas', label: 'Pautas', icon: 'award', also: [], mobileHidden: true },
   { href: '/tutor', label: 'Tutor', icon: 'chat', also: [] },
   { href: '/pesquisa', label: 'Pesquisar', icon: 'search', also: [], desktopOnly: true },
@@ -14,7 +14,7 @@ const items: ShellNavItem[] = [
 test('a barra do telemóvel tem 4 itens, numa linha, sem Pautas nem Pesquisa (#704)', () => {
   const mobile = mobileNavItems(items);
   assert.equal(mobile.length, 4);
-  assert.deepEqual(mobile.map((i) => i.label), ['Início', 'Provas', 'Liga', 'Tutor']);
+  assert.deepEqual(mobile.map((i) => i.label), ['Início', 'Provas', 'Ranking', 'Tutor']);
 });
 
 test('o desktop continua a ver todos os itens, incluindo Pautas', () => {

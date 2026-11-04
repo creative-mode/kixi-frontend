@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +14,9 @@ import { createRow, getRow, listOptions, listRows, updateRow } from '@/app/actio
 import { ENTITIES, gender, newLabel, type EntityKey, type Field, type Row } from '@/lib/crud/entities';
 import { errorSummary, fieldError, validate, type FieldErrors } from '@/lib/crud/validation';
 import { PageHead } from './page-head';
+import { useSessionAccount } from '@/components/session-account';
+import { clearFormDraft, clearStaleFormDrafts, loadChangedFormDraft, saveChangedFormDraft } from '@/lib/form-drafts';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { FormSkeleton } from './loading';
 import { useUnsavedChanges } from './use-unsaved-changes';
 
@@ -23,10 +26,13 @@ const blankValues = (fields: Field[]): Row => Object.fromEntries(fields.map((f) 
 export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string }) {
   const entity = ENTITIES[entityKey];
   const router = useRouter();
+  const accountId = useSessionAccount();
   const editing = id !== undefined;
+  const formId = useMemo(() => `crud:${entityKey}:${id ?? 'new'}`, [entityKey, id]);
   const fields = useMemo(() => entity.fields.filter((f) => !(editing && f.createOnly)), [entity, editing]);
 
   const [values, setValues] = useState<Row>({});
+  const [draftBase, setDraftBase] = useState<Row>({});
   const [options, setOptions] = useState<Record<string, { value: number; label: string }[]>>({});
   // full rows of deriveFrom entities (to build derived payloads, e.g. year from class)
   const [lookups, setLookups] = useState<Record<string, Map<number, Row>>>({});
@@ -37,9 +43,14 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState<string>('');
+  const [restored, setRestored] = useState(false);
   const [baseline, setBaseline] = useState('');
   const dirty = !loading && baseline !== '' && JSON.stringify(values) !== baseline;
   const { guard, leaveAfterSave, dialog } = useUnsavedChanges(dirty);
+  // A lista traz a vista no endereço (`?q=&sort=&dir=&page=`): o voltar, o
+  // cancelar e o guardar devolvem-na, para o editar não perder a pesquisa.
+  const backQs = useSearchParams().toString();
+  const listHref = backQs ? `/${entity.path}?${backQs}` : `/${entity.path}`;
 
   useEffect(() => {
     let alive = true;
@@ -77,12 +88,22 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       }
       if (!alive) return;
       setOptions(opts);
-      setValues(initial);
+      // O que ficou a meio neste separador volta quando o professor regressa (sessionStorage).
+      clearStaleFormDrafts(window.sessionStorage);
+      setDraftBase(initial);
+      const saved = accountId === null ? null : loadChangedFormDraft<Row>(window.sessionStorage, formId, accountId, initial);
+      setValues(saved && Object.keys(saved).length > 0 ? { ...initial, ...saved } : initial);
+      setRestored(Boolean(saved && Object.keys(saved).length > 0));
       setBaseline(JSON.stringify(initial));
       setLoading(false);
     })();
     return () => { alive = false; };
-  }, [entity, entityKey, editing, id]);
+  }, [accountId, entity, entityKey, editing, formId, id]);
+
+  useEffect(() => {
+    if (loading || accountId === null || Object.keys(values).length === 0) return;
+    saveChangedFormDraft(window.sessionStorage, formId, values, draftBase, accountId);
+  }, [accountId, draftBase, formId, loading, values]);
 
   const set = (name: string, v: string) => {
     setValues((s) => ({ ...s, [name]: v }));
@@ -111,6 +132,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       toast.success(editing ? `${entity.singular} ${gender(entity, 'atualizado')}` : `${entity.singular} ${gender(entity, 'criado')}`);
       if (another) {
         // Fica no formulário: limpo, sem erros e com o foco no primeiro campo, pronto para o registo seguinte.
+        clearFormDraft(window.sessionStorage, formId);
         setValues(blankValues(entity.fields));
         setErrors({});
         setAttempted(false);
@@ -120,11 +142,12 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
       }
       // Uma escola nova ainda está vazia: leva direto ao assistente de estrutura (cursos, turmas, professores).
       const createdId = !editing && entityKey === 'institutions' ? Number((res.data as Row | undefined)?.id) : NaN;
+      clearFormDraft(window.sessionStorage, formId);
       leaveAfterSave(() => {
-        router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : `/${entity.path}`);
+        router.push(Number.isInteger(createdId) && createdId > 0 ? `/institutions/${createdId}/structure?nova=1` : listHref);
         router.refresh();
       });
-    } else toast.error(res.error);
+    } else reportActionError(res.error, res.code);
   }
 
   const onSubmit = (e: React.FormEvent) => {
@@ -138,7 +161,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
         entity={entity}
         title={editing ? `Editar ${entity.singular.toLowerCase()}` : `${newLabel(entity)} ${entity.singular.toLowerCase()}`}
         subtitle={editing ? title : entity.description}
-        back={{ href: `/${entity.path}`, label: 'Voltar à lista' }}
+        back={{ href: listHref, label: 'Voltar à lista' }}
       />
       <Card>
         <CardContent className="p-6">
@@ -148,6 +171,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
             <p className="py-8 text-center text-sm text-destructive">{loadError}</p>
           ) : (
             <form onSubmit={onSubmit} className="space-y-5" noValidate aria-busy={saving}>
+              {restored ? <p role="status" className="text-sm text-muted-foreground">Retomámos o que tinha escrito neste separador.</p> : null}
               {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
               {summary ? <p role="alert" className="rounded-md border border-destructive/40 bg-danger-soft px-3 py-2 text-sm text-destructive">{summary.text}</p> : null}
               {fields.map((f) => {
@@ -195,7 +219,7 @@ export function CrudForm({ entityKey, id }: { entityKey: EntityKey; id?: string 
               })}
               {/* O rato não tira o foco ao campo: senão o blur insere o erro, o botão desce e o clique perde-se. */}
               <div className="flex justify-end gap-3 pt-2" onMouseDown={(e) => e.preventDefault()}>
-                <Button type="button" variant="outline" onClick={() => guard(() => router.push(`/${entity.path}`))} disabled={saving}>Cancelar</Button>
+                <Button type="button" variant="outline" onClick={() => guard(() => router.push(listHref))} disabled={saving}>Cancelar</Button>
                 {/* Uma escola nova leva ao assistente da estrutura: não há «criar outro» para ela. */}
                 {!editing && entityKey !== 'institutions' ? <Button type="button" variant="outline" onClick={() => void save(true)} disabled={saving}>Guardar e criar outro</Button> : null}
                 <Button type="submit" disabled={saving}>{saving ? 'A guardar…' : editing ? 'Guardar alterações' : `Criar ${entity.singular.toLowerCase()}`}</Button>
