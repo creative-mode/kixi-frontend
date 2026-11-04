@@ -122,12 +122,16 @@ test('o controlo de fecho dos diálogos tem nome acessível em português', () =
 
 test('o login e o estado de carregamento do gestor usam cópia PT-AO', () => {
   const login = read('app/login/page.tsx');
-  const schoolYearForm = read('components/school-year/school-year-form.tsx');
+  // O ano letivo usa o formulário genérico (#510): a cópia do carregamento vem do CrudForm.
+  const crudForm = read('components/crud/crud-form.tsx');
   assert.match(login, /<Label htmlFor="usernameOrEmail">Nome de utilizador ou e-mail<\/Label>/);
   assert.doesNotMatch(login, /Username ou email/);
   assert.match(login, /Sessão iniciada com sucesso/);
-  assert.match(schoolYearForm, /A atualizar\.\.\./);
-  assert.match(schoolYearForm, /A adicionar\.\.\./);
+  for (const page of ['app/school-year/new/page.tsx', 'app/school-year/[id]/edit/page.tsx']) {
+    assert.match(read(page), /<CrudForm entityKey="school-years"/, page);
+  }
+  assert.match(crudForm, /'A guardar…'/);
+  assert.doesNotMatch(crudForm, /Atualizando|Adicionando|Salvando/);
 });
 
 test('o conceito do menu do aluno usa sempre Ranking e a navegação móvel tem rótulos', () => {

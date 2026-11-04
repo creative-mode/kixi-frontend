@@ -12,8 +12,9 @@ import { BASE_PATH } from '@/lib/constants';
 import { getDonation, reviewDonation } from '@/app/actions/donations';
 import { canOpenInBuilder, canReview, fileSize, isImage, type DonationDetail } from '@/lib/donations/model';
 import { DonationStatusBadge } from './donations-list';
+import { formatLuandaDateTime } from '@/lib/format';
 
-const when = (iso: string | null) => (iso ? iso.slice(0, 16).replace('T', ' ') : '—');
+const when = (iso: string | null) => formatLuandaDateTime(iso);
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
