@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEvent, type AnalyticsApp } from './analytics.ts';
+import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEvent, type AnalyticsApp, attributionFromSearch, donationField, donationStep, scrollDepthsReached, signupField } from './analytics.ts';
 
 test('fila: envia eventos quando gtag está disponível e mantém o schema privado', () => {
   const calls: unknown[][] = [];
@@ -171,3 +171,34 @@ test('scroll_depth só é aceite na landing, como dizem os docs', () => {
   assert.equal(sanitizeEvent('scroll_depth', { app: 'manager', page: 'dashboard', depth: 50 }), null);
   assert.equal(sanitizeEvent('scroll_depth', { app: 'landing', page: 'home', depth: 33 }), null);
 });
+
+test('UTMs do endereço: só as permitidas, o resto descartado', () => {
+  assert.deepEqual(attributionFromSearch('?utm_source=whatsapp&utm_medium=social&email=ana@kixi.ao&utm_term=x'), { utm_source: 'whatsapp', utm_medium: 'social' });
+  assert.deepEqual(attributionFromSearch(''), {});
+});
+
+test('scroll_depth: limiares pela parte vista da página, sem passar de 100', () => {
+  assert.deepEqual(scrollDepthsReached(0, 800, 4000), []);
+  assert.deepEqual(scrollDepthsReached(1200, 800, 4000), [25, 50]);
+  assert.deepEqual(scrollDepthsReached(3200, 800, 4000), [25, 50, 75, 100]);
+  assert.deepEqual(scrollDepthsReached(3199.6, 800, 4000), [25, 50, 75, 100], 'meio píxel de folga no fim');
+  assert.deepEqual(scrollDepthsReached(-50, 800, 4000), [], 'o elástico do iOS não conta');
+  assert.deepEqual(scrollDepthsReached(0, 800, 0), []);
+});
+
+test('campos e passos no nome do contrato: o sanitize aceita-os, e o que não se conhece vai para form', () => {
+  assert.equal(signupField('firstName'), 'first_name');
+  assert.equal(signupField('confirm'), 'confirm');
+  assert.equal(signupField('outro'), 'form');
+  assert.equal(donationField('institutionName'), 'institution');
+  assert.equal(donationField('donorEmail'), 'donor_email');
+  assert.equal(donationField('website'), 'form');
+  assert.deepEqual([0, 1, 2, 7, -1].map(donationStep), ['statement', 'origin', 'contact', 'contact', 'statement']);
+  for (const name of ['firstName', 'lastName', 'username', 'email', 'password', 'confirm', 'x']) {
+    assert.ok(sanitizeEvent('signup_error', { field: signupField(name), category: 'validation' }), name);
+  }
+  for (const name of ['files', 'institutionName', 'subjectName', 'examType', 'classGrade', 'schoolYear', 'donorName', 'donorEmail', 'notes', 'consent', 'x']) {
+    assert.ok(sanitizeEvent('donation_error', { step: donationStep(1), category: 'validation', field: donationField(name) }), name);
+  }
+});
+

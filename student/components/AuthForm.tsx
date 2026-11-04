@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { CircleAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Progress } from '@/components/ui/progress';
 import { cadastroAction, entrarAction, type FormState } from '@/lib/auth-actions';
+import { signupField, track } from '@/lib/analytics';
 
 type Errors = Record<string, string>;
 type Rules = Record<string, (value: string, all: FormData) => string | undefined>;
@@ -148,13 +149,25 @@ export function CadastroForm() {
   const [pw, setPw] = useState('');
   const v = state?.fields ?? {};
   const level = LEVELS[strength(pw)];
+  // #714: o funil do cadastro. Só o nome do campo e a categoria, nunca o que se escreveu.
+  const started = useRef(false);
+  const onChange = () => {
+    if (started.current) return;
+    started.current = true;
+    track('signup_started', { surface: 'signup_form' });
+  };
+  useEffect(() => {
+    if (state?.error) track('signup_error', { field: 'form', category: 'server' });
+  }, [state]);
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     const form = e.currentTarget;
     const found = check(form, signupRules);
     setErrors(found);
-    if (Object.keys(found).length) {
+    const first = Object.keys(found)[0];
+    if (first) {
       e.preventDefault();
+      track('signup_error', { field: signupField(first), category: 'validation' });
       focusFirstError(form, found);
     }
   };
@@ -162,7 +175,7 @@ export function CadastroForm() {
 
   return (
     <div className="grid gap-6">
-      <form action={action} onSubmit={onSubmit} noValidate>
+      <form action={action} onSubmit={onSubmit} onChange={onChange} noValidate>
         <FieldGroup className="gap-4">
           <ServerError state={state} />
           <div className="grid gap-4 sm:grid-cols-2">

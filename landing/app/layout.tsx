@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { SITE_URL } from '@/lib/content';
 import { CookieBanner } from '@/components/consent/Consent';
+import { PageViewTracker, ScrollDepthTracker } from '@/components/analytics/trackers';
 import './globals.css';
 import '@/styles/legal.css';
 
@@ -23,6 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-AO" data-theme="light">
       <body>
         {children}
+        {/* #714: page_view por rota e scroll_depth, só com consentimento (lib/analytics.ts). */}
+        <PageViewTracker app="landing" />
+        <ScrollDepthTracker />
         <CookieBanner />
       </body>
     </html>

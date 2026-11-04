@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CONSENT_EVENT, GA_ID, readConsent, writeConsent, type Consent } from '@/lib/consent';
-import { pageForPath, safePageLocation } from '@/lib/analytics';
+import { CONSENT_EVENT, GA_ID, readConsent, setAnalyticsEnabled, writeConsent, type Consent } from '@/lib/consent';
+import { flushAnalytics, pageForPath, safePageLocation, track } from '@/lib/analytics';
 
 declare global {
   interface Window {
@@ -48,19 +48,6 @@ function loadAnalytics() {
   document.head.appendChild(s);
 }
 
-/** Retirar o consentimento: pára a medição desta página e apaga os cookies do Google Analytics. */
-function stopAnalytics() {
-  if (GA_ID) (window as unknown as Record<string, boolean>)[`ga-disable-${GA_ID}`] = true;
-  const host = location.hostname.split('.');
-  const domains = [location.hostname, ...host.map((_, i) => '.' + host.slice(i).join('.')).filter((d) => d.split('.').length > 2)];
-  for (const name of document.cookie.split(';').map((c) => c.split('=')[0].trim())) {
-    if (name !== '_ga' && !name.startsWith('_ga_')) continue;
-    for (const d of [undefined, ...domains]) {
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${d ? `; domain=${d}` : ''}`;
-    }
-  }
-}
-
 /** O banner de cookies. Aceitar liga a analítica, "só necessários" não pede nada a terceiros.
  *  `landingOrigin` vem do servidor (APP_ORIGIN): sem ele, "Saber mais" não tem onde apontar
  *  — a página de cookies vive só na landing — e fica de fora em vez de ligar a um 404.
@@ -81,9 +68,14 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
 
   useEffect(() => {
     if (choice === 'all') {
-      if (GA_ID) (window as unknown as Record<string, boolean>)[`ga-disable-${GA_ID}`] = false;
+      setAnalyticsEnabled(true);
       loadAnalytics();
-    } else if (choice === 'necessary') stopAnalytics();
+      // O que se pôs na fila antes de haver `gtag` (o page_view da chegada, por exemplo) sai agora (#714).
+      flushAnalytics();
+    } else if (choice === 'necessary') {
+      // Pára a medição desta página e apaga os cookies do Google Analytics (lib/consent.ts).
+      setAnalyticsEnabled(false);
+    }
   }, [choice]);
 
   // A altura real do banner fica em `--ck-banner-h` (#506). A barra inferior do `Shell` sobe por
@@ -135,6 +127,8 @@ export function CookieBanner({ landingOrigin }: { landingOrigin: string | null }
   };
   const escolher = (c: Consent) => {
     writeConsent(c);
+    // Só o aceitar se mede: registar uma recusa seria medir quem disse que não.
+    if (c === 'all') track('consent_choice', { choice: 'all', app: 'student' });
     devolverFoco();
   };
 

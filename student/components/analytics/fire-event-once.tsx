@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { track, type AnalyticsEvent } from '@/lib/analytics';
+import { track, type AnalyticsEvent, type AnalyticsParams } from '@/lib/analytics';
 
 /**
  * Dispara um evento mínimo (kixi-frontend#219) quando a página chega com um parâmetro
@@ -14,7 +14,7 @@ import { track, type AnalyticsEvent } from '@/lib/analytics';
  * O parâmetro é de uso único: dispara-se o evento e limpa-se a URL com `replace` (sem
  * nova entrada no histórico), para um refresh à mão não o repetir.
  */
-export function FireEventOnce(props: { param: string; event: AnalyticsEvent }) {
+export function FireEventOnce(props: { param: string; event: AnalyticsEvent; params?: AnalyticsParams }) {
   // `useSearchParams` opta a página fora da pré-renderização estática sem isto (o
   // Next exige um limite de Suspense); embrulhar aqui poupa cada ponto de chamada
   // de lembrar-se disso.
@@ -25,7 +25,7 @@ export function FireEventOnce(props: { param: string; event: AnalyticsEvent }) {
   );
 }
 
-function FireEventOnceInner({ param, event }: { param: string; event: AnalyticsEvent }) {
+function FireEventOnceInner({ param, event, params }: { param: string; event: AnalyticsEvent; params?: AnalyticsParams }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -33,7 +33,7 @@ function FireEventOnceInner({ param, event }: { param: string; event: AnalyticsE
 
   useEffect(() => {
     if (!present) return;
-    track(event);
+    track(event, params);
     const rest = new URLSearchParams(searchParams);
     rest.delete(param);
     const query = rest.toString();

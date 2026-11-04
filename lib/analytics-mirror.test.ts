@@ -11,3 +11,8 @@ test('o contrato de analítica é o mesmo no gestor, no aluno e na landing', () 
   assert.equal(read('student/lib/analytics.ts'), manager, 'student/lib/analytics.ts divergiu de lib/analytics.ts');
   assert.equal(read('landing/lib/analytics.ts'), manager, 'landing/lib/analytics.ts divergiu de lib/analytics.ts');
 });
+
+test('os componentes que disparam eventos da navegação são os mesmos na landing e no aluno', () => {
+  assert.equal(read('landing/components/analytics/trackers.tsx'), read('student/components/analytics/trackers.tsx'),
+    'landing/components/analytics/trackers.tsx divergiu de student/components/analytics/trackers.tsx');
+});
