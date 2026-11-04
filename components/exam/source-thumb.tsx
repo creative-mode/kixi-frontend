@@ -30,12 +30,15 @@ export function SourceThumb({ file, kind, page = 1, className = 'h-12 w-12 round
             await doc.renderPage(page, canvas, 0.6);
             const url = canvas.toDataURL('image/jpeg', 0.8);
             if (alive) setSrc(url);
+          } catch (e) {
+            console.error('DIAG SourceThumb render', e instanceof Error ? e.stack || e.message : String(e));
+            throw e;
           } finally {
             canvas.width = 0;
             canvas.height = 0;
           }
         })
-        .catch(() => undefined);
+        .catch((e) => { console.error('DIAG SourceThumb', e instanceof Error ? e.stack || e.message : String(e)); });
     }
     return () => {
       alive = false;
