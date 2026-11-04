@@ -192,26 +192,36 @@ function itemFrom(sub: ExtractionSubitem, fallback: LeafKind, parentReview: bool
   };
 }
 
+/** O que a leitura sabe sobre a proveniência de uma questão no original. */
+export interface ExtractionOrigin {
+  /** Índice 0-based da página original a que tudo o que a extração devolveu pertence («repetir uma página»). */
+  sourcePageIndex?: number | null;
+}
+
 function questionFrom(q: ExtractionQuestion, warningReview = false, globalReview = false): { question: DraftQuestion; review: number } {
   const type = (q.type ?? '').toLowerCase();
   const math = mathContentFields({ ...q, rawText: q.rawText ?? q.text ?? '' });
   const review = globalReview || warningReview || (typeof q.confidence === 'number' && q.confidence < REVIEW_BELOW) || mathNeedsReview(math.formulas, math.blocks);
   const subs = (q.subitems_content ?? []).filter((s) => clean(s.text));
   const text = cleanQuestionText(q.text);
+  // O número impresso sobrevive à revisão: «Repetir esta página» volta a identificar
+  // as questões mantenendo o que a prova trazia («7», «7a»), mesmo que o construtor
+  // as ordene por outra.
+  const sourceNumber = (q.number ?? '').trim() || undefined;
 
   if (subs.length > 0 && (type === 'verdadeiro_falso' || type === 'composta' || type === 'dissertativa' || type === '')) {
     const fallback: LeafKind = type === 'verdadeiro_falso' ? 'true_false' : 'open';
     const items = subs.map((s) => itemFrom(s, fallback, review));
-    return { question: { text, points: '', options: [], kind: 'group', items, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...math, ...(review ? { review: true } : {}) }, review: items.filter((item) => item.review).length };
+    return { question: { text, points: '', options: [], kind: 'group', items, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: items.filter((item) => item.review).length };
   }
   if (type === 'verdadeiro_falso') {
-    return { question: { text: clean(q.text) || text, points: points(q.cotacao), options: trueFalseOptions(), kind: 'true_false', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+    return { question: { text: clean(q.text) || text, points: points(q.cotacao), options: trueFalseOptions(), kind: 'true_false', ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: review ? 1 : 0 };
   }
   const options = type === 'multipla_escolha' ? optionsFrom(q.options) : [];
   if (options.length > 0) {
-    return { question: { text, points: points(q.cotacao), options, kind: 'multiple_choice', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+    return { question: { text, points: points(q.cotacao), options, kind: 'multiple_choice', ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: review ? 1 : 0 };
   }
-  return { question: { text, points: points(q.cotacao), options: [], kind: 'open', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+  return { question: { text, points: points(q.cotacao), options: [], kind: 'open', ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: review ? 1 : 0 };
 }
 
 const FIGURE_NAMES: Record<string, string> = { figure: 'Figura', table: 'Tabela', formula: 'Fórmula' };
@@ -246,7 +256,7 @@ function gradeLabel(grade: string | null | undefined): string | null {
  * O rascunho a partir da extração. Não toca em nada que a extração não trouxe, e devolve as notas
  * que o ecrã mostra por cima do editor.
  */
-export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionContext): ImportedDraft {
+export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionContext, origin: ExtractionOrigin = {}): ImportedDraft {
   const patch: Partial<ExamDraft> = {};
   const notes: ImportedNote[] = [];
   const nota = (text: string, extra?: Omit<ImportedNote, 'text'>) => notes.push({ text, ...extra });
@@ -293,9 +303,15 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
     });
   };
   const built = kept.map((question) => questionFrom(question, hasQuestionReviewWarning(question.number), globalReview));
+  // «Repetir esta página»: tudo o que esta leitura parcial devolveu veio de uma página
+  // do original, por isso o índice dela acompanha as questões — é o que identifica as
+  // questões desta página quando a leitura voltar a ser repetida.
   const items = built.map((b, i) => {
+    const question: DraftQuestion = typeof origin.sourcePageIndex === 'number' && origin.sourcePageIndex >= 0
+      ? { ...b.question, sourcePageIndex: origin.sourcePageIndex }
+      : b.question;
     const images = imagesOf(kept[i].number, extraction.images_to_upload);
-    return images.length > 0 ? { ...b.question, images } : b.question;
+    return images.length > 0 ? { ...question, images } : question;
   });
   const footerImage = (extraction.images_to_upload ?? []).find(
     (image) => image.region === 'rodape' && typeof image.data_url === 'string' && image.data_url.startsWith('data:image/'),

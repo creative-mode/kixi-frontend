@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ export function QuestionEditor({
   onChange,
   onRemove,
   onMove,
+  onOpenOriginal,
 }: {
   item: ExamItem;
   index: number;
@@ -41,6 +42,8 @@ export function QuestionEditor({
   onChange: (patch: Partial<ExamItem>) => void;
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
+  /** Leva a vista à página do original donde a questão saiu. Presente quando há original. */
+  onOpenOriginal?: (pageIndex: number) => void;
 }) {
   const n = index + 1;
   const kind = kindOf(item);
@@ -123,12 +126,19 @@ export function QuestionEditor({
           </>
         )}
         {mathNeedsReview(item.formulas, item.blocks) && !item.reviewed ? <Badge variant="warning">fórmula a rever</Badge> : null}
+        {item.sourcePageIndex != null && onOpenOriginal && (
+          <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => onOpenOriginal(item.sourcePageIndex!)}>
+            <BookOpen size={14} aria-hidden />Página {item.sourcePageIndex + 1} do original
+          </Button>
+        )}
       </div>
 
       {kind === 'group' ? (
         <div className="grid gap-2 pl-8">
+          {/* «Ir para a questão» chega ao fieldset pelo id `questao-n`; cada alínea
+              tem `data-leaf`, para «Ir para a questão 3a» apanhar a alínea certa. */}
           {items.map((it, j) => (
-            <div key={j} className={it.label?.includes('.') ? 'ml-5' : undefined}>
+            <div key={j} data-leaf={`${n}${sourceItemLabel(it, j)}`} className={it.label?.includes('.') ? 'ml-5' : undefined}>
               <ItemEditor
                 item={it}
                 label={sourceItemLabel(it, j)}

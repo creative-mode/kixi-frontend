@@ -18,7 +18,11 @@ import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
-import { applyServerIds, applyUpdateIdentities, distributeScore, figuresOf, move, problems, toRequest, toUpdateRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { applyServerIds, applyUpdateIdentities, distributeScore, figuresOf, move, problemDetails, toRequest, toUpdateRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { renderPdfPageToImage, pdfPageCount } from '@/lib/exam/pdf';
+import { mergePageRetry } from '@/lib/exam/retry';
+import { flattenSourcePages, pageAtSources } from '@/lib/exam/sources';
+import { streamExamOcr } from '@/lib/exam/ocr-stream';
 import { missingToSave, readinessParts, saveBlocker } from '@/lib/exam/readiness';
 import { cn } from '@/lib/utils';
 import { draftFromExtraction, type ExamExtraction, type ImportedNote } from '@/lib/exam/extraction';
@@ -26,6 +30,7 @@ import type { OriginalPage } from './exam-importer';
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
+import { SourceThumb } from './source-thumb';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { useUnsavedChanges } from '@/components/crud/use-unsaved-changes';
 
@@ -112,17 +117,47 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [originais, setOriginais] = useState<OriginalPage[] | null>(null);
   const originaisRef = useRef<OriginalPage[] | null>(null);
   const [originalAberto, setOriginalAberto] = useState<OriginalPage | null>(null);
+  /** Nº de páginas de cada PDF dos originais (chave = object URL); imagens contam 1. */
+  const [pdfs, setPdfs] = useState(new Map<string, number>());
+  /** Os PDF reconstituídos dos URLs, para reler uma página sem novo upload do ficheiro. */
+  const pdfFiles = useRef(new Map<string, File>());
+  /** A página a reler, enquanto corre (chave `${url}#${page}`): uma de cada vez. */
+  const [relendo, setRelendo] = useState<string | null>(null);
 
   function trocarOriginais(next: OriginalPage[] | null) {
     for (const o of originaisRef.current ?? []) URL.revokeObjectURL(o.url);
     originaisRef.current = next;
+    pdfFiles.current.clear();
+    setPdfs(new Map());
     setOriginais(next);
   }
 
   useEffect(() => () => {
     for (const o of originaisRef.current ?? []) URL.revokeObjectURL(o.url);
     originaisRef.current = null;
+    pdfFiles.current.clear();
   }, []);
+
+  // Conta as páginas de cada PDF dos originais uma vez: sem isto, «Repetir a
+  // leitura» não sabe que páginas existem. Imagens não precisam — contam 1.
+  useEffect(() => {
+    let alive = true;
+    for (const o of originais ?? []) {
+      if (o.kind !== 'pdf' || pdfs.has(o.url)) continue;
+      void (async () => {
+        try {
+          const blob = await (await fetch(o.url)).blob();
+          const f = new File([blob], o.name, { type: 'application/pdf' });
+          pdfFiles.current.set(o.url, f);
+          const n = await pdfPageCount(f);
+          if (alive && n != null) setPdfs((cur) => (cur.get(o.url) === n ? cur : new Map(cur).set(o.url, n)));
+        } catch {
+          // Sem PDF legível fica sem painel de páginas; o cartão continua a abrir no dialog.
+        }
+      })();
+    }
+    return () => { alive = false; };
+  }, [originais, pdfs]);
   const [saved, setSaved] = useState<SavedExam | null>(null);
   const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
@@ -427,16 +462,72 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     return commitImport(extraction, names, originals);
   }
 
-  /** Leva à questão indicada pela nota ("Ir para a questão N"): faz scroll e
-   *  entrega o foco ao fieldset, para rato, teclado e leitor de ecrã. */
-  function irParaQuestao(n: number) {
+  /** Leva à questão indicada (as notas dizem «Ir para a questão N», as pendências
+   *  «Rever a questão N»): faz scroll e entrega o foco, para rato, teclado e leitor
+   *  de ecrã. Com `label` (uma alínea, ex.: `a`), o foco vai ao controlo da alínea,
+   *  não ao fieldset inteiro. */
+  function irParaQuestao(n: number, label?: string) {
     const alvo = document.getElementById(`questao-${n}`);
     if (!alvo) {
       toast.error(`A questão ${n} já não está nesta posição. Procure-a pelo número no editor.`);
       return;
     }
     alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    window.setTimeout(() => (alvo as HTMLElement).focus({ preventScroll: true }), 350);
+    window.setTimeout(() => {
+      const leaf = label ? alvo.querySelector<HTMLElement>(`[data-leaf="${n}${label}"]`) : null;
+      const controlo = leaf?.querySelector<HTMLElement>('textarea, input, select, button, [role="textbox"]');
+      if (controlo) { controlo.focus({ preventScroll: true }); return; }
+      (alvo as HTMLElement).focus({ preventScroll: true });
+    }, 350);
+  }
+
+  /** «Repetir a leitura» de uma página de PDF do original: renderiza a página, lê-a
+   *  de novo e troca, no rascunho, as questões que vieram dela. O resto do rascunho
+   *  fica como estava — é a correção local, sem ler a prova outra vez. */
+  async function repetirLeitura(o: OriginalPage, page: number, pageIndex: number) {
+    if (relendo) return;
+    setRelendo(`${o.url}#${page}`);
+    try {
+      const f = pdfFiles.current.get(o.url) ?? null;
+      if (!f) { toast.error(`Não foi possível abrir «${o.name}» para reler a página ${page}.`); return; }
+      const image = await renderPdfPageToImage(f, page);
+      if (!image) { toast.error(`Não foi possível renderizar a página ${page} de «${o.name}».`); return; }
+      const form = new FormData();
+      form.append('files', image, image.name);
+      const extraction = await streamExamOcr(form, { onUploadProgress: () => undefined, onEvent: () => undefined });
+      const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] }, { sourcePageIndex: pageIndex });
+      if (imported.items.length === 0) {
+        toast.error(`A página ${page} de «${o.name}» não rendeu questões. Nada mudou.`);
+        return;
+      }
+      const merged = mergePageRetry(draft.items, imported.items, pageIndex);
+      if (merged.ambiguous) {
+        const message = `As questões da página ${page} não puderam ser localizadas no rascunho. Acrescentar as ${imported.items.length} que o OCR leu ao fim da prova?`;
+        if (!window.confirm(message)) return;
+        setDraft((d) => ({ ...d, items: [...d.items, ...imported.items] }));
+      } else {
+        setDraft((d) => ({ ...d, items: merged.items }));
+      }
+      // As notas desta leitura entram sem repetir o que o rascunho já mostrava.
+      setNotes((cur) => [...cur, ...imported.notes.filter((n) => !cur.some((c) => c.text === n.text))]);
+      setSaved(null);
+      toast.success(`Página ${page} relida: ${merged.ambiguous ? imported.items.length : merged.added} questão(ões) no lugar de ${merged.replaced}.`);
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'A releitura da página falhou.');
+    } finally {
+      setRelendo(null);
+    }
+  }
+
+  /** Abre o original de onde uma questão saiu (a página ao índice global da leitura). */
+  function abrirOriginal(pageIndex: number) {
+    const list = originais ?? [];
+    const alvo = pageAtSources((i) => (list[i]?.kind === 'image' ? 1 : pdfs.get(list[i].url) ?? 1), list.length, pageIndex);
+    if (!alvo) {
+      toast.error('A página deste original já não está entre as páginas lidas.');
+      return;
+    }
+    setOriginalAberto(list[alvo.sourceIndex]);
   }
 
   /** O OCR sobre os ficheiros da doação: o mesmo caminho do importador, sem ficheiros novos. */
@@ -454,7 +545,13 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   /** Reordena no rascunho; a ordem vai no pedido de criação, que é quem a guarda. */
   const moveItem = (i: number, direction: -1 | 1) => set('items', move(draft.items, i, direction));
   const total = totalScore(draft.items);
-  const problemas = problems(draft.items);
+  /** Problemas com destino: cada linha tem as questões/alíneas que a explicam. */
+  const detalhes = problemDetails(draft.items);
+  const problemas = detalhes.map((d) => d.message);
+  /** Páginas por original, na ordem global da leitura (índice 0-based): imagens
+   *  contam 1; um PDF conta o que já foi apurado (até lá, 1). */
+  const contagens = originais?.map((o) => (o.kind === 'image' ? 1 : pdfs.get(o.url) ?? 1)) ?? [];
+  const paginasOriginais = flattenSourcePages(originais ?? [], contagens);
   const ready2print = !!school && !!subject && draft.items.some((i) => i.text.trim());
   const canSave = ready2print && classChosen;
   /** O motivo dos botões desativados, em texto: um `title` não chega a quem usa toque ou teclado. */
@@ -625,9 +722,9 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                 <CardDescription>As páginas lidas, na ordem da leitura. Toque para ver em tamanho real.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="flex flex-wrap gap-2">
-                  {originais.map((o) => (
-                    <li key={o.url}>
+                <ul className="flex flex-wrap gap-4">
+                  {originais.map((o, oi) => (
+                    <li key={o.url} className="grid gap-1">
                       <button
                         type="button"
                         onClick={() => setOriginalAberto(o)}
@@ -637,10 +734,34 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                         {o.kind === 'image' ? (
                           <img src={o.url} alt="" aria-hidden className="h-20 w-full rounded object-cover" />
                         ) : (
-                          <span className="grid h-20 w-full place-items-center rounded bg-accent text-primary"><FileText size={20} aria-hidden /></span>
+                          /* Página 1 renderizada: o File veio do URL no efeito de contagem. */
+                          pdfFiles.current.has(o.url)
+                            ? <SourceThumb file={pdfFiles.current.get(o.url)!} kind="pdf" className="h-20 w-full rounded object-cover" />
+                            : <span className="grid h-20 w-full place-items-center rounded bg-accent text-primary"><FileText size={20} aria-hidden /></span>
                         )}
                         <span className="truncate text-[11px] text-muted-foreground">{o.name}</span>
                       </button>
+                      {/* Páginas de um PDF: cada uma pode ser relida sozinha — o rascunho
+                          troca só as questões que vieram dela (`mergePageRetry`). */}
+                      {o.kind === 'pdf' && pdfFiles.current.has(o.url) && (pdfs.get(o.url) ?? 0) > 1 && (
+                        <div className="flex flex-wrap gap-1">
+                          {paginasOriginais.filter((p) => p.sourceIndex === oi).map((p) => (
+                            <button
+                              key={p.pageIndex}
+                              type="button"
+                              className="grid w-12 gap-0.5 rounded-md border bg-card p-0.5 text-center transition-colors hover:border-primary disabled:opacity-60"
+                              disabled={relendo !== null}
+                              aria-label={`Repetir a leitura da página ${p.page} de ${o.name}`}
+                              onClick={() => void repetirLeitura(o, p.page, p.pageIndex)}
+                            >
+                              <SourceThumb file={pdfFiles.current.get(o.url)!} kind="pdf" page={p.page} className="h-10 w-full rounded object-cover" />
+                              <span className="grid h-3.5 place-items-center text-[10px] tabular-nums text-muted-foreground">
+                                {relendo === `${o.url}#${p.page}` ? <Spinner className="size-3" /> : p.page}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -751,6 +872,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                   onChange={(patch) => setItem(i, patch)}
                   onRemove={() => set('items', draft.items.filter((_, j) => j !== i))}
                   onMove={(direction) => moveItem(i, direction)}
+                  onOpenOriginal={originais ? abrirOriginal : undefined}
                 />
               ))}
               <Button variant="outline" size="sm" className="justify-self-start" onClick={() => set('items', [...draft.items, { text: '', points: '', options: [] }])}><Plus aria-hidden /> Questão</Button>
@@ -769,8 +891,28 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                 )}
               </div>
               {problemas.length > 0 && (
-                <ul role="status" className="grid gap-1 rounded-lg bg-warning-soft px-3 py-2 text-[13px] text-warning">
-                  {problemas.map((p) => <li key={p}>{p}</li>)}
+                <ul role="status" className="grid gap-2 rounded-lg bg-warning-soft px-3 py-2 text-[13px] text-warning">
+                  {detalhes.map((p) => (
+                    <li key={p.message} className="grid gap-1.5">
+                      <span>{p.message}</span>
+                      {p.targets.length > 0 && (
+                        <span className="flex flex-wrap gap-1">
+                          {p.targets.map((t) => (
+                            <Button
+                              key={`${t.question}-${t.label ?? ''}`}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              data-testid={`ir-para-questao-${t.question}${t.label ?? ''}`}
+                              onClick={() => irParaQuestao(t.question, t.label)}
+                            >
+                              Rever a questão {t.question}{t.label ?? ''}
+                            </Button>
+                          ))}
+                        </span>
+                      )}
+                    </li>
+                  ))}
                 </ul>
               )}
             </CardContent>

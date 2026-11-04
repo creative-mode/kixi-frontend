@@ -99,7 +99,19 @@ test('o separador de secção em comentário passa', () => {
 });
 
 test('um URL não conta como repetição', () => {
+  // Tanto o `www` do endereço como o nome real de um patrocínio que o npm escreve
+  // (`Brooooooklyn` é um utilizador do GitHub) passam: URLs não são texto de ninguém.
   assert.deepEqual(checarTexto(linha('ver https://kixi.ao/www/docs')), []);
+  assert.deepEqual(
+    checarTexto(linha('        "url": "https://github.com/sponsors/Brooooooklyn"', 'package-lock.json')),
+    [],
+  );
+});
+
+test('repetição fora do URL continua a ser apanhada', () => {
+  // Um URL no meio da linha não isenta o que está antes dele.
+  assert.deepEqual(regras(checarTexto(linha('aguuu, ver https://kixi.ao/docs'))),
+    ['texto/repeticao']);
 });
 
 test('limite conhecido: letra dobrada não é apanhada, e é o caso realista', () => {
@@ -174,20 +186,25 @@ test('um hash de integridade com letras repetidas não é texto estragado', () =
 });
 
 test('o resto do package-lock.json continua a ser verificado', () => {
-  // só a linha do hash é isenta: um campo que não é `integrity`, ou texto a seguir ao hash, apanha-se
-  assert.deepEqual(regras(checarTexto(linha('      "resolved": "https://registry.npmjs.org/aaa/-/pacote-1.0.0.tgz",', 'package-lock.json'))),
-    ['texto/repeticao']);
+  // Um URL do registry passa (é endereço, não texto), mas texto a seguir ao hash, ou fora
+  // de URL, apanha-se.
+  assert.deepEqual(checarTexto(linha('      "resolved": "https://registry.npmjs.org/aaa/-/pacote-1.0.0.tgz",', 'package-lock.json')), []);
   assert.deepEqual(regras(checarTexto(linha('      "integrity": "sha512-abc", "nome": "aguuu"', 'package-lock.json'))),
     ['texto/repeticao']);
 });
 
 // ── a lista de exclusões ─────────────────────────────────────────────────────────
 
-test('a exclusão é só este ficheiro de testes', () => {
-  // Este ficheiro existe para conter exemplos maus. Se a lista crescer, o gate passa a
-  // ignorar código que ninguém pediu para ignorar, e é assim que um alarme é desligado
-  // sem ninguém decidir que o devia estar desligado.
-  assert.deepEqual([...EXCLUIDOS], ['.github/scripts/self-review.test.js']);
+test('a exclusão é só o teste próprio e bundles vendorizados', () => {
+  // Este ficheiro existe para conter exemplos maus. `public/pdf.worker.min.mjs` é o bundle
+  // minificado de pdfjs-dist: código de terceiros que ninguém edita — "arranjar-lhe" um
+  // triplo `t` era corromper o worker. Se a lista crescer mais, o gate passa a ignorar
+  // código que ninguém pediu para ignorar, e é assim que um alarme é desligado sem ninguém
+  // decidir que o devia estar desligado.
+  assert.deepEqual([...EXCLUIDOS].sort(), [
+    '.github/scripts/self-review.test.js',
+    'public/pdf.worker.min.mjs',
+  ]);
 });
 
 test('excluir o ficheiro não exclui os restantes', () => {
