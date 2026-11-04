@@ -22,6 +22,11 @@ export interface DraftOption {
   correct: boolean;
 }
 
+/** O que o OCR leu e o painel «Original» abrange: uma fotografia ou um PDF. */
+export type SourceKind = 'image' | 'pdf';
+
+export const REVIEWABLE_TIP = 'rever';
+
 /** The kinds of question the builder writes. `group` is a question with sub-items (alíneas):
  *  it carries the common statement and no answer of its own, the answers live in its items. */
 export type QuestionKind = 'open' | 'multiple_choice' | 'true_false' | 'group';
@@ -73,6 +78,10 @@ export interface DraftQuestion extends MathContentFields {
   modelAnswer?: string;
   /** Figures of the question, in page order. */
   images?: DraftImage[];
+  /** Página (0-based) do upload original de que o OCR a leu; só vive no navegador. */
+  sourcePageIndex?: number;
+  /** Número impresso da questão no papel, para a repetição de uma página acertar na troca. */
+  sourceNumber?: string;
 }
 
 type ReviewableContent = Pick<DraftQuestion, 'text' | 'formulas' | 'blocks' | 'reviewed'>;
@@ -329,6 +338,98 @@ export function groupScore(q: DraftQuestion): number {
 }
 
 /**
+ * O mesmo problema com para quem vai: cada linha aponta às questões e alíneas que a
+ * explicam, para o construtor dizer «Ir para a questão 3a» em vez de só ler a frase.
+ *
+ * `problems()` continua a existir para a contagem e para quem só quer as frases.
+ */
+export interface ProblemTarget {
+  /** Número 1-based da questão de topo. */
+  question: number;
+  /** Rótulo da alínea, quando o problema é de uma (ex.: `a`). */
+  label?: string;
+}
+
+export interface ProblemDetail {
+  message: string;
+  targets: ProblemTarget[];
+}
+
+const leafTargets = (leaves: Leaf[]): ProblemTarget[] => leaves.map((l) => ({
+  // `leavesOf` já dá o `question` 1-based e o rótulo completo (`3a`, `5`): uma folha
+  // de topo tem rótulo numérico e não traz alínea, uma alínea traz só a letra.
+  question: l.question,
+  ...(!/^[0-9]+$/.test(l.label) ? { label: l.label.slice(String(l.question).length) } : {}),
+}));
+
+export function problemDetails(questions: DraftQuestion[]): ProblemDetail[] {
+  const out: ProblemDetail[] = [];
+  const filled = questions.filter((q) => q.text.trim());
+  const leaves = leavesOf(questions);
+  const labels = (list: Leaf[]) => list.map((l) => l.label).join(', ');
+
+  const withoutKey = leaves.filter((l) => l.kind === 'multiple_choice' && l.options.length > 0 && !l.options.some((o) => o.correct));
+  if (withoutKey.length > 0) {
+    out.push({ message: `Falta marcar a resposta correcta na questão ${labels(withoutKey)}.`, targets: leafTargets(withoutKey) });
+  }
+  const withoutTruth = leaves.filter((l) => l.kind === 'true_false' && trueFalseAnswer(l.options) === null);
+  if (withoutTruth.length > 0) {
+    out.push({ message: `Falta marcar Verdadeiro ou Falso na questão ${labels(withoutTruth)}.`, targets: leafTargets(withoutTruth) });
+  }
+  const optionsEmpty = leaves.filter((l) => l.options.length > 0 && l.options.some((o) => o.text.trim().length === 0));
+  if (optionsEmpty.length > 0) {
+    out.push({ message: 'Há opções por escrever. Cada opção precisa de texto.', targets: leafTargets(optionsEmpty) });
+  }
+  // O rótulo em falta é o outro invariante, e `optionsFor` já não o inventa: se
+  // chegasse vazio, ia sair vazio e o `UNIQUE (question_id, option_label)` rebentava
+  // a meio do POST. Dizer aqui é mais barato do que apanhar essa excepção depois.
+  const unlabelled = leaves.filter((l) => l.options.some((o) => !o.label));
+  if (unlabelled.length > 0) {
+    out.push({ message: `Há opções sem rótulo na questão ${labels(unlabelled)}. Apaga-as e escreve-as de novo.`, targets: leafTargets(unlabelled) });
+  }
+  const emptyGroups = filled.filter((q) => kindOf(q) === 'group' && (q.items ?? []).length === 0);
+  if (emptyGroups.length > 0) {
+    out.push({
+      message: `A questão ${emptyGroups.map((q) => filled.indexOf(q) + 1).join(', ')} tem alíneas mas nenhuma escrita.`,
+      targets: emptyGroups.map((q) => ({ question: filled.indexOf(q) + 1 })),
+    });
+  }
+  const emptyItems = leaves.filter((l) => l.question && !l.text.trim() && /[a-z]$/.test(l.label));
+  if (emptyItems.length > 0) {
+    out.push({ message: `Há alíneas por escrever: ${labels(emptyItems)}.`, targets: leafTargets(emptyItems) });
+  }
+  const pendingReview: string[] = [];
+  const pendingTargets: ProblemTarget[] = [];
+  filled.forEach((question, index) => {
+    if ((question.review || mathNeedsReview(question.formulas, question.blocks)) && !question.reviewed) {
+      pendingReview.push(String(index + 1));
+      pendingTargets.push({ question: index + 1 });
+    }
+    (question.items ?? []).forEach((item, itemIndex) => {
+      if ((item.review || mathNeedsReview(item.formulas, item.blocks)) && !item.reviewed) {
+        const label = sourceItemLabel(item, itemIndex);
+        pendingReview.push(`${index + 1}${label}`);
+        pendingTargets.push({ question: index + 1, label });
+      }
+    });
+  });
+  if (pendingReview.length > 0) {
+    out.push({
+      message: `Reveja a confiança OCR antes de publicar: ${pendingReview.join(', ')}.`,
+      targets: pendingTargets,
+    });
+  }
+  const unscored = leaves.filter((l) => l.text.trim() && l.points === '');
+  if (unscored.length > 0) {
+    out.push({
+      message: `${unscored.length} questão(ões) sem cotação, e uma questão sem cotação não conta para o total.`,
+      targets: leafTargets(unscored),
+    });
+  }
+  return out;
+}
+
+/**
  * Whether a statement like this can be approved.
  *
  * Both failures come from `StatementService`: `answerKeyComplete` refuses a question that
@@ -339,53 +440,12 @@ export function groupScore(q: DraftQuestion): number {
  * True/false is a question with two options, so the first rule covers it with its own words.
  */
 export function problems(questions: DraftQuestion[]): string[] {
-  const out: string[] = [];
-  const filled = questions.filter((q) => q.text.trim());
-  const leaves = leavesOf(questions);
-  const labels = (list: Leaf[]) => list.map((l) => l.label).join(', ');
+  return problemDetails(questions).map((p) => p.message);
+}
 
-  const withoutKey = leaves.filter((l) => l.kind === 'multiple_choice' && l.options.length > 0 && !l.options.some((o) => o.correct));
-  if (withoutKey.length > 0) {
-    out.push(`Falta marcar a resposta correcta na questão ${labels(withoutKey)}.`);
-  }
-  const withoutTruth = leaves.filter((l) => l.kind === 'true_false' && trueFalseAnswer(l.options) === null);
-  if (withoutTruth.length > 0) {
-    out.push(`Falta marcar Verdadeiro ou Falso na questão ${labels(withoutTruth)}.`);
-  }
-  if (leaves.some((l) => l.options.length > 0 && l.options.some((o) => o.text.trim().length === 0))) {
-    out.push('Há opções por escrever. Cada opção precisa de texto.');
-  }
-  // O rótulo em falta é o outro invariante, e `optionsFor` já não o inventa: se
-  // chegasse vazio, ia sair vazio e o `UNIQUE (question_id, option_label)` rebentava
-  // a meio do POST. Dizer aqui é mais barato do que apanhar essa excepção depois.
-  const unlabelled = leaves.filter((l) => l.options.some((o) => !o.label));
-  if (unlabelled.length > 0) {
-    out.push(`Há opções sem rótulo na questão ${labels(unlabelled)}. Apaga-as e escreve-as de novo.`);
-  }
-  const emptyGroups = filled.filter((q) => kindOf(q) === 'group' && (q.items ?? []).length === 0);
-  if (emptyGroups.length > 0) {
-    out.push(`A questão ${emptyGroups.map((q) => filled.indexOf(q) + 1).join(', ')} tem alíneas mas nenhuma escrita.`);
-  }
-  const emptyItems = leaves.filter((l) => l.question && !l.text.trim() && /[a-z]$/.test(l.label));
-  if (emptyItems.length > 0) {
-    out.push(`Há alíneas por escrever: ${labels(emptyItems)}.`);
-  }
-  const pendingReview = filled.flatMap((question, index) => {
-    const pending: string[] = [];
-    if ((question.review || mathNeedsReview(question.formulas, question.blocks)) && !question.reviewed) pending.push(String(index + 1));
-    (question.items ?? []).forEach((item, itemIndex) => {
-      if ((item.review || mathNeedsReview(item.formulas, item.blocks)) && !item.reviewed) pending.push(`${index + 1}${sourceItemLabel(item, itemIndex)}`);
-    });
-    return pending;
-  });
-  if (pendingReview.length > 0) {
-    out.push(`Reveja a confiança OCR antes de publicar: ${pendingReview.join(', ')}.`);
-  }
-  const missing = unscored(questions);
-  if (missing > 0) {
-    out.push(`${missing} questão(ões) sem cotação, e uma questão sem cotação não conta para o total.`);
-  }
-  return out;
+/** A mensagem original de «sem cotação», reutilizada nos testes: a frase cargo o número de folhas. */
+export function unscoredCount(questions: DraftQuestion[]): number {
+  return leavesOf(questions).filter((l) => l.text.trim() && l.points === '').length;
 }
 
 /**
