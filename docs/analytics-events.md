@@ -11,7 +11,7 @@ As apps gestor, aluno e landing usam o mesmo schema e a mesma fila em memória, 
 - `components/analytics/trackers.tsx` (igual em `landing/` e `student/`, verificado por `lib/analytics-mirror.test.ts`): `PageViewTracker` (um `page_view` por rota, com `setSafePageContext` antes), `ScrollDepthTracker` (só na landing) e `ErrorView` (páginas 403, 404 e de erro).
 - Banner de consentimento (`components/consent/Consent.tsx`): ao aceitar, `setAnalyticsEnabled(true)`, carrega o Google tag e chama `flushAnalytics()`, por isso o que ficou na fila antes do `gtag` (o `page_view` da chegada, por exemplo) sai nessa altura; regista `consent_choice`. «Só necessários» chama `setAnalyticsEnabled(false)`, a única limpeza de cookies. `ANALYTICS_READY_EVENT` é disparado quando a fila fica vazia.
 - Cadastro do aluno (`student/components/AuthForm.tsx`): `signup_started` à primeira alteração; `signup_error` com o primeiro campo inválido ou `form` quando o servidor recusa.
-- Login do aluno: o destino leva `?entrou=1` (`lib/auth-actions.ts`) e o layout dispara `login_success` com `FireEventOnce`, que tira o marcador do endereço.
+- Login do aluno: o destino leva `?entrou=1` (`lib/auth-actions.ts`) e o layout dispara `login_success` com `FireEventOnce`, que tira o marcador do endereço. O marcador sai sempre, mesmo sem consentimento: um login feito antes de aceitar os cookies não fica registado (o mesmo vale para os outros marcadores do `FireEventOnce`, como o `sign_up`).
 - Doação (`landing/components/donate/DonationForm.tsx`): `donation_started` à primeira interação (campo, ficheiro ou colar), `donation_step` ao avançar de ecrã, `donation_error` com o ecrã, a categoria e o primeiro campo inválido desse ecrã.
 - Sala de prova: `exam_abandoned` só no «Sair» do aviso de saída.
 - **O gestor não mede:** não tem banner nem carregador de GA, por isso lá `track` devolve sempre `denied`. `login_success` e `page_view` do gestor ficam no contrato para o dia em que se decidir medir, com banner próprio.
@@ -37,7 +37,7 @@ Quando o consentimento não está ativo (`necessary` ou nulo), o contexto global
 - `FireEventOnce` só dispara quando a página chega com o parâmetro e remove-o com `replace`, por isso um refresh não o repete.
 - `page_view`: um por rota (`usePathname`); o Strict Mode e as mudanças de consentimento não o repetem. Sem consentimento é `denied` e não conta: ao aceitar, sai o desta página.
 - `scroll_depth`: cada limiar (25, 50, 75, 100) uma vez por montagem da página, medido só em eventos de scroll.
-- `signup_started` e `donation_started`: uma vez por formulário («Doar outro enunciado» recomeça).
+- `signup_started` e `donation_started`: uma vez por formulário («Doar outro enunciado» recomeça). Só contam feitos quando `track` os aceita: quem preenche antes de aceitar os cookies emite o início na interação seguinte, e o funil não fica com passos sem começo.
 - `error_view`: uma vez por montagem da página de erro.
 
 A reabertura das definições (consentimento a nulo) desativa imediatamente a medição; eventos já na fila são descartados e não são reenviados ao reaceitar.
@@ -61,7 +61,7 @@ A seguinte configuração da propriedade GA4 é obrigatória para a proteção c
 | `login_success` | Aluno, autenticação confirmada (o gestor não mede) | `app`: `manager\|student`; UTMs permitidas |
 | `donation_started` | Landing, primeira interação com o formulário | Somente UTMs permitidas |
 | `donation_step` | Landing, transição após validação de etapa | `step`: `origin\|contact` (a primeira etapa é `statement`) |
-| `donation_error` | Landing, validação, ficheiro, upload ou servidor | `step`: `statement\|origin\|contact`; `category`: `validation\|file_validation\|upload\|server`; `field`: `files\|institution\|subject\|exam_type\|class_grade\|school_year\|donor_name\|donor_email\|notes\|consent\|form` (opcional) |
+| `donation_error` | Landing, validação, ficheiro, upload ou servidor | `step`: `statement\|origin\|contact`; `category`: `validation\|file_validation\|upload\|rate_limit\|server` (`rate_limit` é o 429; `upload` é sem ligação ou sem resposta a tempo); `field`: `files\|institution\|subject\|exam_type\|class_grade\|school_year\|donor_name\|donor_email\|notes\|consent\|form` (opcional) |
 | `donation_submitted` | Landing, resposta HTTP 201 confirmada | Somente UTMs permitidas |
 | `consent_choice` | App respetiva, só ao **aceitar** analytics (uma recusa não se mede) | `app`: `manager\|student\|landing`; `choice`: `all` |
 | `error_view` | Landing e aluno, páginas 403/404 ou fronteira de erro | `kind`: `forbidden\|not_found\|unexpected`; `app`: `manager\|student\|landing` |

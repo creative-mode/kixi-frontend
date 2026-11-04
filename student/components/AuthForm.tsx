@@ -149,12 +149,13 @@ export function CadastroForm() {
   const [pw, setPw] = useState('');
   const v = state?.fields ?? {};
   const level = LEVELS[strength(pw)];
-  // #714: o funil do cadastro. Só o nome do campo e a categoria, nunca o que se escreveu.
+  // #714: o funil do cadastro. Só o nome do campo e a categoria, nunca o que se escreveu. O início só conta feito
+  // quando `track` o aceita: quem escreve antes de aceitar os cookies emite-o na alteração seguinte.
   const started = useRef(false);
   const onChange = () => {
     if (started.current) return;
-    started.current = true;
-    track('signup_started', { surface: 'signup_form' });
+    const status = track('signup_started', { surface: 'signup_form' });
+    started.current = status === 'sent' || status === 'queued';
   };
   useEffect(() => {
     if (state?.error) track('signup_error', { field: 'form', category: 'server' });

@@ -180,7 +180,7 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
       return oneOf(params.step, DONATION_STEPS) ? { event, params: { step: params.step } } : null;
     case 'donation_error':
       return oneOf(params.step, DONATION_STEPS)
-        && oneOf(params.category, ['validation', 'file_validation', 'upload', 'server'] as const)
+        && oneOf(params.category, ['validation', 'file_validation', 'upload', 'rate_limit', 'server'] as const)
         && (params.field === undefined || oneOf(params.field, DONATION_FIELDS))
         ? { event, params: { step: params.step, category: params.category, ...(params.field ? { field: params.field } : {}) } } : null;
     case 'consent_choice':

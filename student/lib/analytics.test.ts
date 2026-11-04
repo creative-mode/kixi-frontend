@@ -202,3 +202,9 @@ test('campos e passos no nome do contrato: o sanitize aceita-os, e o que não se
   }
 });
 
+
+test('donation_error separa o 429 (rate_limit) de um erro do servidor', () => {
+  assert.deepEqual(sanitizeEvent('donation_error', { step: 'contact', category: 'rate_limit' }), { event: 'donation_error', params: { step: 'contact', category: 'rate_limit' } });
+  assert.deepEqual(sanitizeEvent('donation_error', { step: 'contact', category: 'server' }), { event: 'donation_error', params: { step: 'contact', category: 'server' } });
+  assert.equal(sanitizeEvent('donation_error', { step: 'contact', category: 'timeout' }), null);
+});

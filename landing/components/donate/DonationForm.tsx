@@ -38,12 +38,13 @@ export function DonationForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const startedAt = useRef<number>(0);
-  /** #714: `donation_started` sai uma vez por doação, à primeira interação (campo, ficheiro ou colar). */
+  /** #714: `donation_started` sai uma vez por doação, à primeira interação (campo, ficheiro ou colar). Só conta
+   *  feito quando `track` o aceita: quem preenche antes de aceitar os cookies emite-o na interação seguinte. */
   const tracked = useRef(false);
   const markStarted = () => {
     if (tracked.current) return;
-    tracked.current = true;
-    track('donation_started', attributionFromSearch(window.location.search));
+    const status = track('donation_started', attributionFromSearch(window.location.search));
+    tracked.current = status === 'sent' || status === 'queued';
   };
   /** O primeiro campo com erro do ecrã `at`, no nome do contrato: nunca o valor, só qual é. */
   const trackInvalid = (at: number, found: FieldErrors) => {
@@ -209,7 +210,8 @@ export function DonationForm() {
           return;
         }
         setPhase('editing');
-        track('donation_error', { step: 'contact', category: 'server' });
+        // 429 é «demasiados pedidos», não avaria: no funil separa-se de um erro do servidor.
+        track('donation_error', { step: 'contact', category: request.status === 429 ? 'rate_limit' : 'server' });
         if (body.fieldErrors) setErrors(body.fieldErrors);
         setProblem(body.error ?? `Resposta inesperada do servidor (${request.status}).`);
         setRetryable(request.status === 429 || request.status >= 500);
