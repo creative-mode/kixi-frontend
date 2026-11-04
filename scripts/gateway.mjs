@@ -6,7 +6,27 @@ import http from 'node:http';
 import net from 'node:net';
 
 const PORT = Number(process.env.PORT ?? 3000);
-// Em Docker cada app é um contentor: MANAGER_HOST=manager, STUDENT_HOST=student, LANDING_HOST=landing.
+// Hosts públicos onde /manager* não é exposto. A lista vem de PUBLIC_ORIGINS
+// (ex: kixi.creativemode.ao). Comparação exata, case-insensitive e sem porta,
+// para evitar vulnerabilidades como creativemode.ao.evil.com.
+const PUBLIC_ORIGINS = (process.env.PUBLIC_ORIGINS ?? '')
+  .split(',')
+  .map((h) => h.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/:.*$/, ''))
+  .filter(Boolean);
+
+// Em produção, PUBLIC_ORIGINS é obrigatório: sem ele o gateway recusa arrancar
+// para não expor rotas do gestor por descuido.
+if (process.env.NODE_ENV === 'production' && PUBLIC_ORIGINS.length === 0) {
+  console.error('ERRO: PUBLIC_ORIGINS não definido em produção. O gateway recusa arrancar para não expor rotas do gestor.');
+  process.exit(1);
+}
+
+const isPublicHost = (host) => {
+  if (!host) return false;
+  const hostname = host.toLowerCase().replace(/:.*$/, ''); // remove porta
+  return PUBLIC_ORIGINS.includes(hostname);
+};
+
 const ROUTES = [
   { prefix: '/manager', host: process.env.MANAGER_HOST ?? '127.0.0.1', port: Number(process.env.MANAGER_PORT ?? 3002) },
   { prefix: '/aluno', host: process.env.STUDENT_HOST ?? '127.0.0.1', port: Number(process.env.STUDENT_PORT ?? 3003) },
@@ -68,7 +88,10 @@ const sessionHome = (req) => {
     const payload = JSON.parse(Buffer.from(decodeURIComponent(raw).split('.')[1], 'base64url').toString('utf8'));
     if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) return null;
     const roles = Array.isArray(payload.roles) ? payload.roles : [];
-    if (roles.includes('ADMIN') || roles.includes('TEACHER')) return '/manager';
+    // No host público a landing conhece NEXT_PUBLIC_MANAGER_URL e encaminha a
+    // sessão para o domínio isolado. Deixar o gateway responder aqui enviaria
+    // o utilizador para /manager no domínio público, que devolve 404.
+    if ((roles.includes('ADMIN') || roles.includes('TEACHER')) && !isPublicHost(req.headers.host)) return '/manager';
     if (roles.includes('STUDENT')) return '/aluno/inicio';
   } catch {
     // cookie ilegível: segue para a landing
@@ -86,6 +109,14 @@ const server = http.createServer((req, res) => {
   if (home) {
     res.writeHead(302, { location: home, 'cache-control': 'private, no-store', vary: 'Cookie' });
     return res.end();
+  }
+  // No domínio público (ex: kixi.creativemode.ao), /manager* não é exposto:
+  // responde 404 neutro, como qualquer rota desconhecida. Em desenvolvimento
+  // (localhost) o gestor continua acessível através do gateway.
+  const isPublic = isPublicHost(req.headers.host);
+  if (isPublic && (req.url === '/manager' || req.url.startsWith('/manager/') || req.url.startsWith('/manager?'))) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('Not Found');
   }
   const t = pick(req.url);
   const up = http.request({ host: t.host, port: t.port, method: req.method, path: req.url, headers: forwarded(req) }, (r) => {

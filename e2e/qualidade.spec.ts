@@ -40,6 +40,48 @@ async function graves(page: Page) {
     .map((v) => `${v.id} x${v.nodes.length}: ${v.nodes[0]?.html.slice(0, 120)}`);
 }
 
+/** O host público não deve revelar o gestor; a origem local e hosts parecidos
+ *  continuam a chegar ao gestor, sem falsos positivos por sufixo. */
+test.describe('rotas do gestor no gateway (#541)', () => {
+  test('no host público devolve 404 sem redirecionamento', async ({ request }) => {
+    for (const rota of ['/manager', '/manager/login', '/manager/qualquer'] as const) {
+      for (const host of ['kixi.creativemode.ao', 'Kixi.Creativemode.Ao:443']) {
+        const resposta = await request.get(rota, {
+          headers: { Host: host },
+          maxRedirects: 0,
+        });
+        expect(resposta.status(), `${rota} com Host ${host}`).toBe(404);
+        expect(resposta.headers().location, `${rota} não expõe Location`).toBeUndefined();
+      }
+    }
+  });
+
+  test('continua acessível em localhost e não confunde um sufixo parecido com o domínio público', async ({ request }) => {
+    for (const host of ['localhost:3000', 'kixi.creativemode.ao.evil.com']) {
+      const resposta = await request.get('/manager/login', {
+        headers: { Host: host },
+        maxRedirects: 0,
+      });
+      expect(resposta.status(), `o gestor continua encaminhado com Host ${host}`).not.toBe(404);
+    }
+  });
+
+  test('encaminha a sessão de gestor do host público para o host isolado', async ({ request }) => {
+    const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 300, roles: ['ADMIN'] }))
+      .toString('base64url');
+    const resposta = await request.get('/', {
+      headers: {
+        Host: 'kixi.creativemode.ao',
+        Cookie: `auth_token=e30.${payload}.assinatura-e2e`,
+      },
+      maxRedirects: 0,
+    });
+
+    expect(resposta.status()).toBe(307);
+    expect(resposta.headers().location).toBe('https://manager.e2e.invalid/');
+  });
+});
+
 /** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
  *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
  *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o

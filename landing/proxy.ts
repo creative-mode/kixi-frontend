@@ -75,6 +75,8 @@ export function proxy(request: NextRequest) {
     const destination = sessionDestination(
       request.cookies.get(SESSION_COOKIE)?.value,
       process.env.NEXT_PUBLIC_MANAGER_URL,
+      Date.now(),
+      process.env.NODE_ENV === 'production',
     );
     const redirect = destination ? sessionRedirect(request, destination) : null;
     if (redirect) return redirect;
