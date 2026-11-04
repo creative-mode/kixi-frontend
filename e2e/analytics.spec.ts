@@ -109,6 +109,31 @@ test.describe('analítica ligada aos ecrãs (#714)', () => {
     for (const params of [...de('signup_started'), ...de('signup_error')]) expect(JSON.stringify(params)).not.toContain('Ana');
   });
 
+  test('cadastro: escrever antes de aceitar os cookies não perde o signup_started', async ({ page }) => {
+    const { eventos, de } = await apanharEventos(page, null);
+    await page.goto('/aluno/cadastro');
+    await page.locator('#firstName').fill('Ana');
+    await page.waitForTimeout(300);
+    expect(eventos, 'sem consentimento nada sai').toEqual([]);
+    await page.getByRole('button', { name: 'Aceitar' }).click();
+    await page.locator('#lastName').fill('Silva');
+    await expect.poll(() => de('signup_started').length).toBe(1);
+    await page.locator('#username').fill('ana.silva');
+    await page.waitForTimeout(300);
+    expect(de('signup_started'), 'uma vez por formulário').toHaveLength(1);
+  });
+
+  test('doação: começar antes de aceitar não perde o donation_started', async ({ page }) => {
+    const { eventos, de } = await apanharEventos(page, null);
+    await page.goto('/doar');
+    await page.locator('input[type="file"]').first().setInputFiles({ name: 'prova.png', mimeType: 'image/png', buffer: Buffer.from('x') });
+    await page.waitForTimeout(300);
+    expect(eventos, 'sem consentimento nada sai').toEqual([]);
+    await page.getByRole('button', { name: 'Aceitar' }).click();
+    await page.locator('input[type="file"]').first().setInputFiles({ name: 'outra.png', mimeType: 'image/png', buffer: Buffer.from('y') });
+    await expect.poll(() => de('donation_started').length).toBe(1);
+  });
+
   test('aluno: entrar manda login_success uma vez e tira o marcador do endereço', async ({ page }) => {
     const { de } = await apanharEventos(page, 'all');
     await page.goto('/aluno/entrar');
