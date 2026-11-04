@@ -23,7 +23,7 @@ function pixelBmp(): Buffer {
 
 function samplePdf(pages = 1): Buffer {
   // PDF mínimo com `pages` páginas: cada uma com um texto «OCR test page n» — o
-  // numeroamento não se usa para decidir o conteúdo, só o Count e a geometria.
+  // numeração não se usa para decidir o conteúdo, só o Count e a geometria.
   const pageNumbers = Array.from({ length: pages }, (_, i) => 3 + 3 * i);
   const objects = new Map<number, string>();
   objects.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
@@ -91,25 +91,32 @@ async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) 
 type OcrJobStep = {
   /** Extração devolvida quando o trabalho chega ao fim. */
   extraction: Record<string, unknown>;
-  /** Estado do primeiro poll; o segundo devolve o resultado da leitura. */
+  /** Estado do primeiro poll; os seguintes devolvem o resultado da leitura. */
   first: { status: string; pageCount: number; completedPages: number; currentPage: number; eventType: string; result: Record<string, unknown> | null };
+  /** Se existir, o poll que traz o resultado espera por esta promessa: o teste tem
+   *  tempo de afirmar o estado «a ler» sem depender do intervalo entre polls. */
+  gate?: Promise<void>;
 };
 
 /**
  * Trabalhos OCR em sequência: a leitura inicial de um PDF (PROCESSING → SUCCEEDED) e,
  * depois, a repetição de uma página (um só poll, que já chega ao fim). Cada POST cria o
- * próximo job; cada job devolve o seu ciclo de polls.
+ * próximo job. Um POST a mais do que os passos previstos é um erro (500), e não um
+ * reaproveitamento do último resultado: era assim que uma releitura da prova inteira
+ * passaria despercebida. `posts` guarda o corpo de cada POST para o teste o inspecionar.
  */
 async function mockAsyncOcrJobs(page: Page, steps: OcrJobStep[]) {
-  const jobs: { id: string; step: OcrJobStep; polls: number }[] = steps.map((step) => ({ id: randomUUID(), step, polls: 0 }));
-  const byId = new Map(jobs.map((job) => [job.id, job] as const));
-  let next = 0;
+  const jobs = steps.map((step) => ({ id: randomUUID(), step, polls: 0 }));
+  const byId = new Map<string, (typeof jobs)[number]>(jobs.map((job) => [job.id, job] as const));
+  const posts: string[] = [];
   await page.route('**/manager/api/ocr/extract', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
-    // Se a aplicação repetir um pedido, mantém o último resultado da sequência.
-    const job = jobs[Math.min(next, jobs.length - 1)];
-    if (!job) throw new Error('mockAsyncOcrJobs precisa de pelo menos um trabalho OCR');
-    next += 1;
+    const job = jobs[posts.length];
+    posts.push(route.request().postDataBuffer()?.toString('latin1') ?? '');
+    if (!job) {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'POST OCR inesperado no teste' }) });
+      return;
+    }
     await route.fulfill({
       status: 202,
       contentType: 'application/json',
@@ -122,16 +129,22 @@ async function mockAsyncOcrJobs(page: Page, steps: OcrJobStep[]) {
       return;
     }
     if (route.request().method() !== 'GET') return route.fallback();
-    const jobId = new URL(route.request().url()).pathname.split('/').pop() ?? '';
-    const job = byId.get(jobId);
+    const job = byId.get(new URL(route.request().url()).pathname.split('/').pop() ?? '');
     if (!job) return route.fallback();
     job.polls += 1;
-    const first = job.polls === 1 ? job.step.first : null;
-    const body = first
-      ? { jobId: job.id, status: first.status, pageCount: first.pageCount, completedPages: first.completedPages, currentPage: first.currentPage, eventType: first.eventType, result: first.result, error: null }
-      : { jobId: job.id, status: 'SUCCEEDED', pageCount: job.step.first.pageCount, completedPages: job.step.first.pageCount, currentPage: job.step.first.pageCount, eventType: 'result', result: job.step.extraction, error: null };
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    const { first, extraction, gate } = job.step;
+    if (job.polls === 1) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ jobId: job.id, ...first, error: null }) });
+      return;
+    }
+    await gate;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ jobId: job.id, status: 'SUCCEEDED', pageCount: first.pageCount, completedPages: first.pageCount, currentPage: first.pageCount, eventType: 'result', result: extraction, error: null }),
+    });
   });
+  return { posts };
 }
 
 // Admin e professor não aterram no mesmo sítio: o admin vai ao dashboard, o professor
@@ -1202,8 +1215,10 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       ],
       warnings: [],
     };
-    await mockAsyncOcrJobs(page, [
-      { extraction: leituraDuasPaginas, first: { status: 'PROCESSING', pageCount: 2, completedPages: 1, currentPage: 1, eventType: 'progress', result: null } },
+    let libertarLeitura: () => void = () => undefined;
+    const leituraLibertada = new Promise<void>((resolve) => { libertarLeitura = resolve; });
+    const { posts } = await mockAsyncOcrJobs(page, [
+      { extraction: leituraDuasPaginas, gate: leituraLibertada, first: { status: 'PROCESSING', pageCount: 2, completedPages: 1, currentPage: 1, eventType: 'progress', result: null } },
       { extraction: repeticaoPagina2, first: { status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: repeticaoPagina2 } },
     ]);
 
@@ -1215,30 +1230,42 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       buffer: samplePdf(2),
     });
 
-    const badgePdf = page.getByText(/PDF\s*·\s*2\s*páginas/i);
-    await expect(badgePdf).toBeVisible({ timeout: 10000 });
+    // A contagem «2 páginas» aparece na linha do ficheiro, antes de ler.
+    await expect(page.getByText(/PDF\s*·\s*2\s*páginas/i)).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('gestor-statements-import-submetter').click();
+    await page.getByTestId('gestor-statements-import-submeter').click();
 
     const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
     await expect(barra).toBeVisible();
     await expect(barra).toHaveAttribute('aria-valuemax', '2');
     await expect(page.getByText(/A ler página 1 de 2/)).toBeVisible();
+    libertarLeitura();
     await expect(page.getByText(/Prova lida/)).toBeVisible();
 
     const originais = page.getByTestId('ocr-originais');
     await expect(originais).toBeVisible();
     await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 1 de prova-dois-paginas.pdf' })).toBeVisible();
     await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' })).toBeVisible();
-    await expect(originais.getByRole('button', { name: 'Ver prova-dois-paginas.pdf em tamanho real' }).locator('img')).toBeVisible();
+    // A miniatura da página 1 sai do canvas como data URL — não o ícone de reserva.
+    await expect(originais.getByRole('button', { name: 'Ver prova-dois-paginas.pdf em tamanho real' }).locator('img'))
+      .toHaveAttribute('src', /^data:image\/jpeg;base64,/);
 
     await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
     await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia.');
+
+    expect(posts).toHaveLength(1);
+    expect(posts[0].match(/name="files"/g)).toHaveLength(1);
+    expect(posts[0]).toMatch(/Content-Type: application\/pdf/i);
 
     await page.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' }).click();
     await expect(page.getByText('Página 2 relida: 1 questão(ões) no lugar de 1.')).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
     await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia com a correção pedida.');
+
+    // Só a página 2 foi relida: um segundo POST, com uma única imagem — não a prova toda.
+    expect(posts).toHaveLength(2);
+    expect(posts[1].match(/name="files"/g)).toHaveLength(1);
+    expect(posts[1]).toMatch(/Content-Type: image\//i);
   });
 
   test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
