@@ -1191,9 +1191,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await page.keyboard.press('Escape');
   });
 
-  test.only('OCR: PDF de duas páginas lê as duas, mostra a miniatura e pode repetir a página 2 (#718)', async ({ page }) => {
-    page.on('console', (m) => console.log('[DIAG browser]', m.type(), m.text().slice(0, 600)));
-    page.on('pageerror', (e) => console.log('[DIAG pageerror]', e.message.slice(0, 600)));
+  test('OCR: PDF de duas páginas lê as duas, mostra a miniatura e pode repetir a página 2 (#718)', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     const leituraDuasPaginas = {
       status: 'success',
