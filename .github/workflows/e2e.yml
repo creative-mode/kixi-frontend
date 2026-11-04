@@ -23,7 +23,6 @@ jobs:
       E2E_TEACHER_USERNAME: professor@kixi.ao
       E2E_PASSWORD: Kixi1234!
       APP_ORIGIN: http://localhost:3000
-      NEXT_PUBLIC_MANAGER_URL: https://manager.e2e.invalid
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,7 +45,7 @@ jobs:
         run: |
           npm run build
           npm --prefix student run build
-          npm --prefix landing run build
+          NEXT_PUBLIC_MANAGER_URL=https://manager.e2e.invalid npm --prefix landing run build
       - run: npm run test:e2e
         env:
           CI: true
