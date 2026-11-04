@@ -1209,19 +1209,14 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/manager/exam-builder?importar=1');
     await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
-    
-    // Anexa o ficheiro PDF de duas páginas com timeout estendido opcional no input
     await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
       name: 'prova-dois-paginas.pdf',
       mimeType: 'application/pdf',
       buffer: samplePdf(2),
     });
 
-    // CORREÇÃO: Utiliza uma regex mais flexível ou espera explícita com timeout maior
-    // para acomodar o tempo de leitura do buffer do PDF no ambiente de testes/CI.
     const badgePdf = page.getByText(/PDF\s*·\s*2\s*páginas/i);
-    await badgePdf.waitFor({ state: 'visible', timeout: 10000 });
-    await expect(badgePdf).toBeVisible();
+    await expect(badgePdf).toBeVisible({ timeout: 10000 });
 
     await page.getByTestId('gestor-statements-import-submetter').click();
 
