@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getActiveSchoolYears, softDeleteSchoolYear } from '@/app/actions/school-year';
+import { getActiveSchoolYears, restoreSchoolYear, softDeleteSchoolYear } from '@/app/actions/school-year';
 import {
   Table,
   TableBody,
@@ -19,11 +19,15 @@ import { Eye, Edit, Trash2, Plus, Calendar, Archive } from 'lucide-react';
 import type { SchoolYearResponse } from '@/types/school-year';
 import { Spinner } from '@/components/ui/spinner';
 import { TableRowsSkeleton } from '@/components/crud/loading';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
+import { LoadStateRow, type LoadStatus } from '@/components/crud/load-state';
 
 export default function SchoolYearsManager() {
   const [schoolYears, setSchoolYears] = useState<SchoolYearResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   useEffect(() => {
     loadSchoolYears();
@@ -31,36 +35,55 @@ export default function SchoolYearsManager() {
 
   async function loadSchoolYears() {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await getActiveSchoolYears();
       setSchoolYears(data);
     } catch (error: unknown) {
-      console.error('Erro ao carregar anos letivos:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao carregar anos letivos');
+      // Uma falha do servidor não é "lista vazia": guarda-se o erro para o
+      // painel de retry, em vez de se pintar o CTA de "criar primeiro".
+      setLoadError(error instanceof Error ? error.message : 'Erro ao carregar anos letivos');
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleSoftDelete(year: SchoolYearResponse) {
-    if (!confirm(`Tem certeza que deseja mover o ano letivo ${year.startYear}–${year.endYear} para a lixeira?`)) {
-      return;
-    }
-
+  async function handleSoftDelete(year: SchoolYearResponse): Promise<boolean> {
     setDeletingId(year.id);
     try {
       const result = await softDeleteSchoolYear(year.id);
       if (result.success) {
-        toast.success(`Ano letivo ${year.startYear}–${year.endYear} movido para a lixeira`);
+        toast.success(`Ano letivo ${year.startYear}–${year.endYear} movido para a lixeira`, {
+          duration: 10_000,
+          action: { label: 'Desfazer', onClick: async () => {
+            const restored = await restoreSchoolYear(year.id);
+            if (restored.success) { toast.success('Ano letivo restaurado'); await loadSchoolYears(); }
+            else toast.error(restored.error || 'Erro ao restaurar');
+          } },
+        });
         await loadSchoolYears();
+        return true;
       } else {
         toast.error(result.error || 'Erro ao eliminar');
+        return false;
       }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Erro ao eliminar');
+      return false;
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function askSoftDelete(year: SchoolYearResponse) {
+    setConfirm({
+      title: 'Mover para a lixeira?',
+      description: `O ano letivo ${year.startYear}–${year.endYear} poderá ser restaurado pela lixeira.`,
+      action: 'Mover para a lixeira',
+      busyLabel: 'A mover para a lixeira…',
+      destructive: true,
+      run: () => handleSoftDelete(year),
+    });
   }
 
   return (
@@ -111,25 +134,36 @@ export default function SchoolYearsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRowsSkeleton cols={6} />
-              ) : schoolYears.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                      <Calendar size={32} className="text-muted-foreground" />
-                      <span className="text-sm">Nenhum ano letivo registado ainda.</span>
-                      <Button asChild size="sm" className="mt-2 ">
-                        <Link href="/school-year/new">
-                          <Plus size={14} className="mr-1" />
-                          Criar primeiro ano letivo
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                schoolYears.map((year) => (
+              {(() => {
+                const state: LoadStatus = loading
+                  ? { status: 'loading' }
+                  : loadError
+                    ? { status: 'error', message: loadError, onRetry: () => void loadSchoolYears() }
+                    : schoolYears.length === 0
+                      ? { status: 'empty' }
+                      : { status: 'ok' };
+                if (state.status !== 'ok') {
+                  return (
+                    <LoadStateRow
+                      state={state}
+                      cols={6}
+                      loading={<TableRowsSkeleton cols={6} />}
+                      empty={
+                        <>
+                          <Calendar size={32} className="text-muted-foreground" aria-hidden />
+                          <span className="text-sm">Nenhum ano letivo registado ainda.</span>
+                          <Button asChild size="sm" className="mt-2 ">
+                            <Link href="/school-year/new">
+                              <Plus size={14} className="mr-1" />
+                              Criar primeiro ano letivo
+                            </Link>
+                          </Button>
+                        </>
+                      }
+                    />
+                  );
+                }
+                return schoolYears.map((year) => (
                   <TableRow key={year.id} className="hover:bg-accent/50 border-border transition-colors">
                     <TableCell className="font-semibold text-foreground">
                       {year.startYear} – {year.endYear}
@@ -161,8 +195,8 @@ export default function SchoolYearsManager() {
                           size="sm"
                           className="text-muted-foreground hover:text-destructive hover:bg-danger-soft"
                           disabled={deletingId === year.id}
-                          aria-label={`Mover o ano letivo ${year.startYear}–${year.endYear} para a reciclagem`}
-                          onClick={() => handleSoftDelete(year)}
+                          aria-label={`Mover o ano letivo ${year.startYear}–${year.endYear} para a lixeira`}
+                          onClick={() => askSoftDelete(year)}
                         >
                           {deletingId === year.id ? (
                             <Spinner className="size-4" />
@@ -173,12 +207,13 @@ export default function SchoolYearsManager() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                ));
+              })()}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }

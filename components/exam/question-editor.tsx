@@ -58,7 +58,7 @@ export function QuestionEditor({
   }
 
   return (
-    <fieldset className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border p-3">
+    <fieldset id={`questao-${n}`} tabIndex={-1} className="grid min-w-0 scroll-mt-20 grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border p-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
       <Confirm state={confirm} onClose={() => setConfirm(null)} />
       <legend className="sr-only">Questão {n}</legend>
       <div className="flex min-w-0 flex-wrap items-start gap-2 sm:flex-nowrap">

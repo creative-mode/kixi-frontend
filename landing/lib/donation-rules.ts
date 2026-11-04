@@ -9,9 +9,6 @@ export const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 export const ACCEPTED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf'] as const;
 export const ACCEPT_ATTR = '.jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf';
 
-/** Versão do texto de consentimento mostrado; o backend guarda a sua própria versão. */
-export const CONSENT_TEXT_VERSION = '2026-10-v1';
-
 export type DonationFields = {
   donorName: string;
   donorEmail: string;
@@ -70,7 +67,7 @@ export function validateFields(f: DonationFields): FieldErrors {
   if (f.donorEmail && (f.donorEmail.length > 150 || !EMAIL.test(f.donorEmail))) {
     errors.donorEmail = 'Indica um e-mail válido ou deixa em branco.';
   }
-  if (f.schoolYear && !YEAR.test(f.schoolYear)) errors.schoolYear = 'Ano lectivo como 2024/2025 (ou 2025).';
+  if (f.schoolYear && !YEAR.test(f.schoolYear)) errors.schoolYear = 'Ano letivo, por exemplo 2024/2025 (ou 2025).';
   if (!(EXAM_TYPES as readonly string[]).includes(f.examType)) errors.examType = 'Escolhe o tipo de prova.';
   if (!f.consent) errors.consent = 'Tens de aceitar para podermos receber a doação.';
   return errors;

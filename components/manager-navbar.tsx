@@ -24,6 +24,7 @@ import {
   Gift,
   BadgeCheck,
   Flag,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ import { resetTeacherScope } from "@/hooks/use-teacher-scope";
 import { activeHref, groupLinks } from "@/lib/nav-rules";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
+import { guardGlobalUnsavedChanges } from "./crud/use-unsaved-changes";
 
 import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 
@@ -51,6 +53,7 @@ const allNavLinks: NavLink[] = [
   { href: "/donations", label: "Doações", icon: Gift },
   { href: "/verification", label: "Verificação", icon: BadgeCheck },
   { href: "/moderacao", label: "Moderação", icon: Flag },
+  { href: "/moderacao/auditoria", label: "Auditoria", icon: ScrollText },
   ...NAV_KEYS.map((k) => {
     const e = ENTITIES[k];
     return { href: `/${e.path}`, label: e.plural, icon: e.icon };
@@ -102,8 +105,10 @@ function writeCollapsed(next: boolean) {
 }
 
 function logout() {
-  resetTeacherScope();
-  logoutAction();
+  guardGlobalUnsavedChanges(() => {
+    resetTeacherScope();
+    logoutAction();
+  });
 }
 
 function NavList({

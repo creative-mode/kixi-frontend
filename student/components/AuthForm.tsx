@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { CircleAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Progress } from '@/components/ui/progress';
 import { cadastroAction, entrarAction, type FormState } from '@/lib/auth-actions';
+import { signupField, track } from '@/lib/analytics';
+import { useSlowAfter } from '@/lib/use-slow-after';
 
 type Errors = Record<string, string>;
 type Rules = Record<string, (value: string, all: FormData) => string | undefined>;
@@ -23,6 +25,18 @@ function Submit({ children, testId }: { children: React.ReactNode; testId?: stri
       {pending && <Loader2 className="animate-spin" />}
       {pending ? 'A processar…' : children}
     </Button>
+  );
+}
+
+/** Passados 4 s sem resposta, diz que está a demorar (#543): o botão já está desativado, e quem espera
+ *  não carrega outra vez. A região existe sempre, para o leitor de ecrã anunciar quando o texto aparece. */
+function SlowNotice() {
+  const { pending } = useFormStatus();
+  const slow = useSlowAfter(pending);
+  return (
+    <p role="status" aria-live="polite" className={slow ? 'text-sm text-muted-foreground' : 'sr-only'} data-testid="aviso-lento">
+      {slow ? 'Está a demorar mais do que o normal. Espera mais um pouco: o pedido continua e não é preciso carregar outra vez.' : null}
+    </p>
   );
 }
 
@@ -80,7 +94,7 @@ const signupRules: Rules = {
   confirm: (x, all) => (x === String(all.get('password') ?? '') ? undefined : 'As palavras-passe não coincidem.'),
 };
 
-export function EntrarForm() {
+export function EntrarForm({ next }: { next?: string }) {
   const [state, action] = useActionState(entrarAction, undefined);
   const [errors, setErrors] = useState<Errors>({});
 
@@ -97,6 +111,7 @@ export function EntrarForm() {
   return (
     <div className="grid gap-6">
       <form action={action} onSubmit={onSubmit} noValidate>
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <FieldGroup>
           <ServerError state={state} />
           <Field>
@@ -109,6 +124,12 @@ export function EntrarForm() {
             <PasswordInput id="password" name="password" autoComplete="current-password" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-err' : undefined} onBlur={(e) => validateField(e.currentTarget.form, 'password', loginRules, setErrors)} />
             <FieldError id="password-err">{errors.password}</FieldError>
           </Field>
+          <p className="text-right text-sm">
+            <Link href="/recuperar" className="inline-flex min-h-11 items-center px-1 font-medium text-primary underline-offset-4 hover:underline">
+              Esqueci-me da palavra-passe
+            </Link>
+          </p>
+          <SlowNotice />
           <Submit testId="aluno-entrar-submeter">Entrar</Submit>
         </FieldGroup>
       </form>
@@ -142,13 +163,26 @@ export function CadastroForm() {
   const [pw, setPw] = useState('');
   const v = state?.fields ?? {};
   const level = LEVELS[strength(pw)];
+  // #714: o funil do cadastro. Só o nome do campo e a categoria, nunca o que se escreveu. O início só conta feito
+  // quando `track` o aceita: quem escreve antes de aceitar os cookies emite-o na alteração seguinte.
+  const started = useRef(false);
+  const onChange = () => {
+    if (started.current) return;
+    const status = track('signup_started', { surface: 'signup_form' });
+    started.current = status === 'sent' || status === 'queued';
+  };
+  useEffect(() => {
+    if (state?.error) track('signup_error', { field: 'form', category: 'server' });
+  }, [state]);
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     const form = e.currentTarget;
     const found = check(form, signupRules);
     setErrors(found);
-    if (Object.keys(found).length) {
+    const first = Object.keys(found)[0];
+    if (first) {
       e.preventDefault();
+      track('signup_error', { field: signupField(first), category: 'validation' });
       focusFirstError(form, found);
     }
   };
@@ -156,7 +190,7 @@ export function CadastroForm() {
 
   return (
     <div className="grid gap-6">
-      <form action={action} onSubmit={onSubmit} noValidate>
+      <form action={action} onSubmit={onSubmit} onChange={onChange} noValidate>
         <FieldGroup className="gap-4">
           <ServerError state={state} />
           <div className="grid gap-4 sm:grid-cols-2">
@@ -197,6 +231,7 @@ export function CadastroForm() {
             <PasswordInput id="confirm" name="confirm" autoComplete="new-password" onBlur={(e) => validateField(e.currentTarget.form, 'confirm', signupRules, setErrors)} {...bad('confirm')} />
             <FieldError id="confirm-err">{errors.confirm}</FieldError>
           </Field>
+          <SlowNotice />
           <Submit testId="aluno-cadastro-submeter">Criar conta</Submit>
         </FieldGroup>
       </form>

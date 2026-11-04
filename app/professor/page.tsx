@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, DoorOpen, FilePen, ScanText } from 'lucide-react';
+import { ArrowRight, DoorOpen, FilePen, RefreshCw, ScanText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TableRowsSkeleton } from '@/components/crud/loading';
+import { LoadError } from '@/components/crud/load-state';
 import { listRows, listStatements } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { MyAssignmentsCard } from '@/components/academic/teacher-overview';
@@ -64,16 +65,39 @@ function byMostRecent(rows: Row[]): Row[] {
 export default function TeacherHome() {
   const [rooms, setRooms] = useState<Row[] | null>(null);
   const [pending, setPending] = useState<Row[] | null>(null);
+  // Uma falha nunca pinta "vazio": cada lista distingue erro, espera, vazio e dados.
+  const [roomsError, setRoomsError] = useState<string | null>(null);
+  const [pendingError, setPendingError] = useState<string | null>(null);
   // Teachers only see their own classes/subjects (admins see all).
-  const scope = useTeacherScope();
+  const { scope, retry: retryScope } = useTeacherScope();
 
   const load = useCallback(async () => {
-    const [roomRes, reviewRes] = await Promise.all([
-      listRows('simulations'),
-      listStatements('review'),
-    ]);
-    setRooms(roomRes.ok ? roomRes.data : []);
-    setPending(reviewRes.ok ? reviewRes.data : []);
+    setRoomsError(null);
+    setPendingError(null);
+    try {
+      const [roomRes, reviewRes] = await Promise.all([
+        listRows('simulations'),
+        listStatements('review'),
+      ]);
+      // A rede lança no cliente, fora do `guard` do servidor: sem isto o
+      // `Promise.all` rejeitava e as listas ficavam no esqueleto para sempre.
+      if (roomRes.ok) setRooms(roomRes.data);
+      else {
+        setRooms([]);
+        setRoomsError(roomRes.error);
+      }
+      if (reviewRes.ok) setPending(reviewRes.data);
+      else {
+        setPending([]);
+        setPendingError(reviewRes.error);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.';
+      setRooms([]);
+      setPending([]);
+      setRoomsError(msg);
+      setPendingError(msg);
+    }
   }, []);
 
   useEffect(() => {
@@ -149,12 +173,16 @@ export default function TeacherHome() {
       </Link>
 
       {scopeError ? (
-        <p
-          role="status"
+        <div
+          role="alert"
           className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          Não foi possível determinar as suas turmas, por isso as listas abaixo ficam vazias: {scopeError}
-        </p>
+          <p>Não foi possível determinar as suas turmas, por isso as listas abaixo ficam vazias: {scopeError}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={retryScope}>
+            <RefreshCw size={14} aria-hidden />
+            Tentar novamente
+          </Button>
+        </div>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -187,7 +215,13 @@ export default function TeacherHome() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {latestRooms === null ? (
+                {roomsError ? (
+                  <TableRow>
+                    <TableCell colSpan={simulations.columns.length} className="py-12 text-center">
+                      <LoadError message={`Não foi possível carregar as simulações: ${roomsError}`} onRetry={() => void load()} />
+                    </TableCell>
+                  </TableRow>
+                ) : latestRooms === null ? (
                   <TableRowsSkeleton cols={simulations.columns.length} rows={3} />
                 ) : latestRooms.length === 0 ? (
                   <TableRow>
@@ -246,7 +280,13 @@ export default function TeacherHome() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {toReview === null ? (
+                {pendingError ? (
+                  <TableRow>
+                    <TableCell colSpan={statements.columns.length + 1} className="py-12 text-center">
+                      <LoadError message={`Não foi possível carregar os enunciados por rever: ${pendingError}`} onRetry={() => void load()} />
+                    </TableCell>
+                  </TableRow>
+                ) : toReview === null ? (
                   <TableRowsSkeleton cols={statements.columns.length + 1} rows={3} />
                 ) : toReview.length === 0 ? (
                   <TableRow>

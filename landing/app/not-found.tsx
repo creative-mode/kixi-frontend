@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Footer } from '@/components/sections/Footer';
 import { Header } from '@/components/sections/Header';
 import { LOGIN_URL } from '@/lib/content';
+import { ErrorView } from '@/components/analytics/trackers';
 
 export const metadata: Metadata = {
   title: 'Página não encontrada · Kixi',
@@ -28,6 +29,7 @@ function button(href: string, label: string) {
 export default function NotFound() {
   return (
     <div className="wrap nf">
+      <ErrorView app="landing" kind="not_found" />
       <a href="#conteudo" className="skip">Saltar para o conteúdo</a>
       <Header />
       <main id="conteudo" tabIndex={-1} className="lp-stack">

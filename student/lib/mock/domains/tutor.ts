@@ -201,6 +201,14 @@ export async function tutorRoutes({ method, pathname, search, filter, body, text
     return json(db.schoolYears);
   }
 
+  // GET /school-years/{id}: o `loadPaperMeta` da folha lê o ano letivo daqui.
+  const schoolYear = pathname.match(/^\/school-years\/(\d+)$/);
+  if (schoolYear && method === 'GET') {
+    const row = db.schoolYears.find((y) => y.id === Number(schoolYear[1]));
+    if (!row) return problem(404, 'School year not found');
+    return json(row);
+  }
+
   if (pathname === '/classes' && method === 'GET') {
     const institutionId = filter('institutionId');
     const courseId = filter('courseId');
@@ -210,6 +218,14 @@ export async function tutorRoutes({ method, pathname, search, filter, body, text
       return true;
     });
     return json(rows.map((row) => classResponse(db, row)));
+  }
+
+  // GET /classes/{id}: o `loadPaperMeta` da folha lê a classe (grade) daqui.
+  const klass = pathname.match(/^\/classes\/(\d+)$/);
+  if (klass && method === 'GET') {
+    const row = db.classes.find((c) => c.id === Number(klass[1]));
+    if (!row) return problem(404, 'Class not found');
+    return json(classResponse(db, row));
   }
 
   if (pathname === '/enrollments' && method === 'GET') {

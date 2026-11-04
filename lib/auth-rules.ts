@@ -9,7 +9,7 @@ export function loginLimitMessage(status: number, retryAfter: string | null): st
   const seconds = Number(retryAfter?.trim());
   const minutes = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds / 60) : null;
   const wait = minutes == null ? 'daqui a pouco' : minutes <= 1 ? 'daqui a 1 minuto' : `daqui a ${minutes} minutos`;
-  return `Demasiadas tentativas. Tenta de novo ${wait}.`;
+  return `Demasiadas tentativas. Tente de novo ${wait}.`;
 }
 
 /** Repassa ao backend apenas o último salto da cadeia validada pelo gateway. */

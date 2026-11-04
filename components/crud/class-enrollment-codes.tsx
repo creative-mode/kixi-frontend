@@ -112,7 +112,7 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
           </p>
 
           {loading ? (
-            <div className="grid gap-2" aria-label="A carregar"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
+            <div role="status" aria-label="A carregar" className="grid gap-2"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
           ) : codes.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Ainda não há códigos para esta turma.</p>
           ) : (
