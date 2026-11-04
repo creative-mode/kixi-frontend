@@ -11,5 +11,5 @@ export async function pautasRoutes({ method, pathname, account, staff, db }: Moc
   const klass = enrollment && db.classes.find((c) => c.id === enrollment.classId);
   const year = enrollment && db.schoolYears.find((y) => y.id === enrollment.schoolYearId);
   if (!klass || !year) return json([]);
-  return json(ownTermSheets({ accountId: account.id, className: klass.code, schoolYear: `${year.startYear}/${year.endYear}`, subjects: db.subjects }));
+  return json(ownTermSheets({ accountId: account.id, className: klass.code, schoolYear: `${year.startYear}/${year.endYear}`, subjects: db.subjects, processNumber: `P-${year.startYear}/${String(account.id).padStart(4, '0')}` }));
 }

@@ -27,6 +27,8 @@ function Grade({ value, emphasis = false }: { value: number | null; emphasis?: b
  * triângulo, e a nota fica sublinhada. Quem faltou aparece como «Incompleta», com as notas por preencher.
  */
 export function TermSheetTable({ rows, caption }: { rows: TermSheetRow[]; caption: string }) {
+  // kixi#512: a coluna só existe se a escola tem pelo menos um número; um aluno sem número fica com «sem número», sem erro.
+  const withProcess = rows.some((row) => row.processNumber);
   return (
     <Table>
       <caption className="sr-only">{caption}</caption>
@@ -34,6 +36,7 @@ export function TermSheetTable({ rows, caption }: { rows: TermSheetRow[]; captio
         <TableRow>
           <TableHead scope="col" className="w-12">Nº</TableHead>
           <TableHead scope="col">Nome</TableHead>
+          {withProcess ? <TableHead scope="col">Processo</TableHead> : null}
           <TableHead scope="col" className="text-right">MAC</TableHead>
           <TableHead scope="col" className="text-right">P1</TableHead>
           <TableHead scope="col" className="text-right">P2</TableHead>
@@ -50,6 +53,11 @@ export function TermSheetTable({ rows, caption }: { rows: TermSheetRow[]; captio
               <TableRow key={row.accountId} data-status={row.status}>
                 <TableCell className="tabular-nums text-muted-foreground">{row.number}</TableCell>
                 <TableCell className="font-medium">{row.name}</TableCell>
+                {withProcess ? (
+                  <TableCell className="tabular-nums">
+                    {row.processNumber ? row.processNumber : <span className="text-muted-foreground" aria-label="sem número">{SEM_NOTA}</span>}
+                  </TableCell>
+                ) : null}
                 <TableCell className="text-right tabular-nums"><Grade value={row.mac} /></TableCell>
                 <TableCell className="text-right tabular-nums"><Grade value={row.p1} /></TableCell>
                 <TableCell className="text-right tabular-nums"><Grade value={row.p2} /></TableCell>

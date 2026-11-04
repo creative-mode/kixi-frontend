@@ -471,6 +471,20 @@ export async function setInstitutionLink(institutionId: number, kind: LinkKind, 
     return ok(undefined);
   });
 }
+/**
+ * O número de processo do aluno nesta escola (kixi#512): só o administrador o escreve; vazio apaga-o. O backend cria a
+ * ligação aluno–escola se ainda não existir e recusa um número já usado por outro aluno da escola (409).
+ */
+export async function setStudentProcessNumber(institutionId: number, userId: number, processNumber: string | null): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/institutions/${safeId(institutionId)}/students/${safeId(userId)}/process-number`, {
+      method: 'PUT',
+      body: JSON.stringify({ processNumber }),
+    });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row);
+  });
+}
 /** Schools the current account may build statements for (admin: all; teacher: affiliated ones). */
 export async function myInstitutions(): Promise<Result<Row[]>> {
   return guard(async () => {

@@ -1712,3 +1712,61 @@ test.describe('listagens com pesquisa, ordenação e paginação (#526)', () => 
     expect(await page.locator('tbody tr').count(), 'linhas renderizadas').toBeLessThanOrEqual(25);
   });
 });
+
+/** O número de processo do aluno na escola (kixi#512): o administrador escreve-o na ligação aluno–escola, e as pautas
+ *  do gestor e do aluno mostram-no; quem não tem número aparece sem ele, sem erro. */
+test.describe('número de processo do aluno (#512)', () => {
+  test('gestor: escreve o número na escola, vê o erro de formato e o número fica guardado', async ({ page }) => {
+    const numero = `E2E-${Date.now().toString(36).toUpperCase()}`;
+    await gestorLogin(page);
+    await page.goto('/manager/institutions');
+    await page.getByRole('row', { name: /ITEL/ }).first().getByRole('button', { name: 'Afiliações' }).click();
+    const dialogo = page.getByRole('dialog');
+    await dialogo.getByRole('tab', { name: 'Alunos' }).click();
+
+    // Só os alunos ligados à escola têm campo: o aluno semeado está ligado ao ITEL.
+    const campo = dialogo.getByLabel(/Número de processo de/).first();
+    await expect(campo).toBeVisible();
+
+    // O que não se imprime numa pauta fica escrito por baixo, ligado ao campo, e nada vai ao servidor.
+    await campo.fill('<script>');
+    await campo.press('Enter');
+    await expect(dialogo.getByRole('alert').filter({ hasText: 'Só letras' })).toBeVisible();
+    await expect(campo).toHaveAttribute('aria-invalid', 'true');
+
+    await campo.fill(numero);
+    await campo.press('Enter');
+    await expect(page.getByText('Número de processo guardado').first()).toBeVisible();
+    expect(await graves(page), 'diálogo dos alunos').toEqual([]);
+
+    // Fecha e volta a abrir: o número veio do servidor, não do estado do ecrã.
+    await page.keyboard.press('Escape');
+    await page.getByRole('row', { name: /ITEL/ }).first().getByRole('button', { name: 'Afiliações' }).click();
+    await page.getByRole('dialog').getByRole('tab', { name: 'Alunos' }).click();
+    await expect(page.getByRole('dialog').getByLabel(/Número de processo de/).first()).toHaveValue(numero);
+
+    // Vazio apaga-o (e deixa a base como estava para a repetição do teste).
+    await page.getByRole('dialog').getByLabel(/Número de processo de/).first().fill('');
+    await page.getByRole('dialog').getByLabel(/Número de processo de/).first().press('Enter');
+    await expect(page.getByText('Número de processo removido').first()).toBeVisible();
+  });
+
+  test('gestor: a pauta mostra o número de quem o tem e «sem número» a quem não tem', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/pautas');
+    await page.getByRole('button', { name: /Redes/ }).first().click();
+    const tabela = page.getByRole('table', { name: /Pauta de/ });
+    await expect(tabela.getByRole('columnheader', { name: 'Processo' })).toBeVisible();
+    await expect(tabela.getByRole('cell', { name: 'P-2026/0042' })).toBeVisible();
+    await expect(tabela.getByLabel('sem número').first()).toBeVisible();
+    expect(await graves(page), 'pauta do gestor').toEqual([]);
+  });
+
+  test('aluno: as suas pautas mostram o seu número de processo', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/pautas');
+    await expect(page.getByTestId('pautas-processo')).toContainText('Nº de processo');
+    await expect(page.getByTestId('pautas-processo')).toContainText(/P-\d{4}\/\d{4}/);
+    expect(await graves(page), 'pautas do aluno').toEqual([]);
+  });
+});
