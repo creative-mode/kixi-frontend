@@ -88,7 +88,10 @@ const sessionHome = (req) => {
     const payload = JSON.parse(Buffer.from(decodeURIComponent(raw).split('.')[1], 'base64url').toString('utf8'));
     if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) return null;
     const roles = Array.isArray(payload.roles) ? payload.roles : [];
-    if (roles.includes('ADMIN') || roles.includes('TEACHER')) return '/manager';
+    // No host público a landing conhece NEXT_PUBLIC_MANAGER_URL e encaminha a
+    // sessão para o domínio isolado. Deixar o gateway responder aqui enviaria
+    // o utilizador para /manager no domínio público, que devolve 404.
+    if ((roles.includes('ADMIN') || roles.includes('TEACHER')) && !isPublicHost(req.headers.host)) return '/manager';
     if (roles.includes('STUDENT')) return '/aluno/inicio';
   } catch {
     // cookie ilegível: segue para a landing

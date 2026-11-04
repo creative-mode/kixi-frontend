@@ -79,7 +79,7 @@ Equivalentes no PowerShell: `$env:KIXI_MOCK='true'; npm run dev` e
 | `JWT_SECRET` | raiz, student | sim quando `KIXI_MOCK=false` (igual à do backend) |
 | `KIXI_MOCK` | raiz, student | sim; definir explicitamente `false` (backend real) ou `true` (dados de demonstração) |
 | `APP_ORIGIN` | raiz, student | sim em prod (ex.: `https://kixi.ao`) — endereço público do gateway |
-| `NEXT_PUBLIC_MANAGER_URL` | student | não (fallback: `${APP_ORIGIN}/manager`) |
+| `NEXT_PUBLIC_MANAGER_URL` | student, landing | sim em produção quando `PUBLIC_ORIGINS` está definido; URL pública do host isolado do gestor |
 | `NEXT_PUBLIC_APP_URL` | landing | não |
 | `PORT`, `*_HOST`, `*_PORT` | gateway | não (defeitos: 3000/3002/3003/3004) |
 
@@ -88,6 +88,10 @@ sua app — a landing e a `/403` canónica. Não se pode confiar em `Host` nem e
 `x-forwarded-host` para isso: ambos vêm de quem fez o pedido, e um redireccionamento
 construído a partir deles deixa o utilizador seguir para um domínio à escolha do atacante.
 Atrás do gateway define `APP_ORIGIN` com o endereço público.
+
+Quando `PUBLIC_ORIGINS` estiver definido, `/manager*` deixa de existir nos domínios públicos.
+Define também `NEXT_PUBLIC_MANAGER_URL` com o URL do host isolado do gestor; a landing e o
+aluno usam-no para encaminhar sessões de gestão sem voltar ao caminho público `/manager`.
 
 **`APP_ORIGIN` é obrigatório em produção.** Sem ele, `resolveOrigin` recusa, e o erro diz o
 nome da variável: uma configuração em falta aparece no deploy, e não como um login que não
