@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/states';
+import { ErrorView } from '@/components/analytics/trackers';
 
 export const metadata = { title: 'Página não encontrada · Kixi' };
 
@@ -8,6 +9,7 @@ export const metadata = { title: 'Página não encontrada · Kixi' };
 export default function NotFound() {
   return (
     <main className="mx-auto grid w-full max-w-[760px] place-items-center p-4 py-16 md:p-7">
+      <ErrorView app="student" kind="not_found" />
       <h1 className="sr-only">Página não encontrada</h1>
       <div className="w-full rounded-xl border bg-card px-5 py-6">
         <EmptyState

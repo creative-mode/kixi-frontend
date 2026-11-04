@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/states';
+import { ErrorView } from '@/components/analytics/trackers';
 
 /** 404 dentro da área autenticada: o Shell já tem o `main`, por isso aqui não há outro. */
 export default function NotFound() {
   return (
     <div className="p-4 py-16">
+      <ErrorView app="student" kind="not_found" />
       <h1 className="sr-only">Página não encontrada</h1>
       <div className="w-full rounded-xl border bg-card px-5 py-6">
         <EmptyState

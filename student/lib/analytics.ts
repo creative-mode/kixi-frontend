@@ -67,6 +67,44 @@ export function sanitizeAttribution(input: URLSearchParams): Partial<Record<keyo
   return output;
 }
 
+/** As UTMs permitidas de um `location.search`, para os eventos que as levam (`page_view`, `sign_up`, doação). */
+export function attributionFromSearch(search: string): AnalyticsParams {
+  return sanitizeAttribution(new URLSearchParams(search));
+}
+
+/** Limiares de `scroll_depth`, por ordem. */
+export const SCROLL_DEPTHS = [25, 50, 75, 100] as const;
+
+/** Os limiares já atingidos: a parte vista (topo + altura da janela) sobre a altura da página. */
+export function scrollDepthsReached(scrollTop: number, viewportHeight: number, scrollHeight: number): number[] {
+  if (!(scrollHeight > 0)) return [];
+  // Meio píxel de folga: o fim da página dá 99,9 % com zoom ou píxeis fracionários.
+  const seen = Math.min(100, ((Math.max(0, scrollTop) + viewportHeight + 0.5) / scrollHeight) * 100);
+  return SCROLL_DEPTHS.filter((depth) => seen >= depth);
+}
+
+/** O campo do cadastro, no nome do contrato (`signup_error`). Um campo que não é do formulário fica `form`. */
+export function signupField(name: string): (typeof SIGNUP_FIELDS)[number] {
+  const map: Record<string, (typeof SIGNUP_FIELDS)[number]> = {
+    firstName: 'first_name', lastName: 'last_name', username: 'username', email: 'email', password: 'password', confirm: 'confirm',
+  };
+  return map[name] ?? 'form';
+}
+
+/** O campo da doação, no nome do contrato (`donation_error`). Um campo que não é do formulário fica `form`. */
+export function donationField(name: string): (typeof DONATION_FIELDS)[number] {
+  const map: Record<string, (typeof DONATION_FIELDS)[number]> = {
+    files: 'files', institutionName: 'institution', subjectName: 'subject', examType: 'exam_type', classGrade: 'class_grade',
+    schoolYear: 'school_year', donorName: 'donor_name', donorEmail: 'donor_email', notes: 'notes', consent: 'consent',
+  };
+  return map[name] ?? 'form';
+}
+
+/** O ecrã da doação (0, 1, 2), no nome do contrato (`donation_step`/`donation_error`). */
+export function donationStep(index: number): (typeof DONATION_STEPS)[number] {
+  return DONATION_STEPS[Math.min(Math.max(0, Math.trunc(index)), DONATION_STEPS.length - 1)];
+}
+
 export function pageForPath(app: AnalyticsApp, pathname: string): AnalyticsPage {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (app === 'landing') {
@@ -142,7 +180,7 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
       return oneOf(params.step, DONATION_STEPS) ? { event, params: { step: params.step } } : null;
     case 'donation_error':
       return oneOf(params.step, DONATION_STEPS)
-        && oneOf(params.category, ['validation', 'file_validation', 'upload', 'server'] as const)
+        && oneOf(params.category, ['validation', 'file_validation', 'upload', 'rate_limit', 'server'] as const)
         && (params.field === undefined || oneOf(params.field, DONATION_FIELDS))
         ? { event, params: { step: params.step, category: params.category, ...(params.field ? { field: params.field } : {}) } } : null;
     case 'consent_choice':

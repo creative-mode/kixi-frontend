@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { displayNumber } from '@/lib/question-number';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { assetUrl } from '@/lib/assets';
+import { track } from '@/lib/analytics';
 
 const CELL = {
   done: 'border-transparent bg-accent text-accent-foreground',
@@ -194,7 +195,8 @@ function SairDaProva({ href, onCancel }: { href: string; onCancel: () => void })
         </p>
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
-            <Link href={href}>Sair</Link>
+            {/* #714: só a saída confirmada conta como abandono; o «Continuar a prova» não. */}
+            <Link href={href} onClick={() => track('exam_abandoned', { app: 'student' })}>Sair</Link>
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={onCancel}>
             Continuar a prova
