@@ -15,6 +15,8 @@ import { mathNeedsReview, serializeMathText, type MathContentFields, type MathFo
 
 /** One option of a multiple-choice question. `label` is the identity the backend gives it. */
 export interface DraftOption {
+  /** Backend identity, retained only after the manual statement is created. */
+  serverId?: number;
   label: string;
   text: string;
   correct: boolean;
@@ -28,6 +30,7 @@ export type GroupLayout = 'lettered' | 'brace';
 
 /** An alínea: a question of its own inside a `group`. The label (a, b, c…) is generated. */
 export interface DraftItem extends MathContentFields {
+  serverId?: number;
   /** Source label when OCR imports a paper whose alíneas do not start at a. */
   label?: string;
   text: string;
@@ -53,6 +56,7 @@ export interface DraftImage {
 }
 
 export interface DraftQuestion extends MathContentFields {
+  serverId?: number;
   text: string;
   /** `''` means "not scored yet". It is not the same as zero, and the difference matters below. */
   points: number | '';
@@ -450,13 +454,18 @@ export function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export interface RequestOption { label: string; text: string; correct: boolean }
+export interface RequestOption { label: string; text: string; correct: boolean; serverId?: number }
 export interface RequestItem {
+  serverId?: number;
+  modelAnswer?: string | null;
   label: string; text: string; type: LeafKind; maxScore: number | null; options: RequestOption[];
   /** Matches ManualStatementRequest.Item; blocks are encoded in text and formulas. */
   rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
 }
 export interface RequestQuestion {
+  serverId?: number;
+  label?: string;
+  modelAnswer?: string | null;
   text: string;
   type: QuestionKind;
   /** `null` for a group: its score is the sum of its items. */
@@ -468,6 +477,12 @@ export interface RequestQuestion {
   groupLayout?: GroupLayout;
   /** Matches ManualStatementRequest.Question; `needsReview` is derived by the backend. */
   rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
+}
+
+export interface BuilderQuestionIdentity {
+  serverId: number;
+  options: number[];
+  items?: BuilderQuestionIdentity[];
 }
 
 function formulaEvidence(formulas?: MathFormula[], blocks?: MathContentBlock[]): MathFormula[] | undefined {
@@ -543,4 +558,183 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
         ...ocrEvidence(q),
       };
     });
+}
+
+/** Adds stable backend identities to the manual-create shape for an in-place update. */
+export function toUpdateRequest(questions: DraftQuestion[]): RequestQuestion[] {
+  const desired = toRequest(questions);
+  const sources = questions.filter((question) => question.text.trim());
+  const identifyOptions = (requested: RequestOption[], source: DraftOption[]) => requested.map((option) => {
+    const prior = source.find((candidate) => candidate.label === option.label);
+    return { ...option, ...(prior?.serverId ? { serverId: prior.serverId } : {}) };
+  });
+  return desired.map((question, index) => {
+    const source = sources[index];
+    const identified: RequestQuestion = {
+      ...question,
+      ...(source.serverId ? { serverId: source.serverId } : {}),
+      modelAnswer: source.modelAnswer?.trim() || null,
+      options: identifyOptions(question.options, source.options),
+    };
+    if (question.items && source.items) {
+      const sourceItems = source.items.filter((item) => item.text.trim());
+      identified.items = question.items.map((item, itemIndex) => {
+        const sourceItem = sourceItems[itemIndex];
+        return {
+          ...item,
+          ...(sourceItem.serverId ? { serverId: sourceItem.serverId } : {}),
+          modelAnswer: sourceItem.modelAnswer?.trim() || null,
+          options: identifyOptions(item.options, sourceItem.options),
+        };
+      });
+    }
+    return identified;
+  });
+}
+
+/** A statement row as `GET /statements/{id}/full` returns it; only the fields read below. */
+export type ServerRow = Record<string, unknown>;
+
+function byOrderIndex(rows: unknown): ServerRow[] {
+  if (!Array.isArray(rows)) return [];
+  return [...(rows as ServerRow[])].sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
+}
+
+/**
+ * Gives each requested option the id of the server option it became.
+ *
+ * The pairing is by position after sorting the server options by `orderIndex`: the
+ * backend stores the options in the order they were sent, so position N of the request is
+ * the option with the N-th `orderIndex`. Pairing by `optionLabel` instead depended on the
+ * server answering in insertion order and on labels being unique and non-empty — when either
+ * failed, the ids went to the wrong option without any error. The request label then finds
+ * the draft option, because `optionsFor` sends labels exactly as the draft has them.
+ */
+function withServerOptionIds<T extends { label: string; serverId?: number }>(
+  options: T[], requested: readonly RequestOption[], serverOptions: unknown,
+): T[] {
+  const saved = byOrderIndex(serverOptions);
+  const ids = new Map<string, number>();
+  requested.forEach((option, index) => {
+    const id = Number(saved[index]?.id);
+    if (Number.isInteger(id) && id > 0 && !ids.has(option.label)) ids.set(option.label, id);
+  });
+  return options.map((option) => {
+    const id = ids.get(option.label);
+    return id ? { ...option, serverId: id } : option;
+  });
+}
+
+/**
+ * After a create, copies the ids the backend assigned into the draft, so the next save
+ * updates the same questions and options instead of creating a second statement.
+ *
+ * Questions with no text are skipped exactly as `toRequest` skips them, so the indexes of
+ * the draft and of the server stay aligned.
+ */
+export function applyServerIds<T extends { items: DraftQuestion[] }>(draft: T, statement: ServerRow): T {
+  const questions = byOrderIndex(statement.questions);
+  const topLevel = questions.filter((question) => question.parentId == null);
+  const requests = toRequest(draft.items);
+  let questionIndex = 0;
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const request = requests[questionIndex];
+      const savedQuestion = topLevel[questionIndex++];
+      if (!savedQuestion || !request) return item;
+      const id = Number(savedQuestion.id);
+      const identified = { ...item, serverId: id, options: withServerOptionIds(item.options, request.options, savedQuestion.options) };
+      if (kindOf(item) !== 'group') return identified;
+      const savedItems = questions.filter((question) => Number(question.parentId) === id);
+      let itemIndex = 0;
+      return {
+        ...identified,
+        items: (item.items ?? []).map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const requested = request.items?.[itemIndex];
+          const savedItem = savedItems[itemIndex++];
+          if (!savedItem || !requested) return subItem;
+          return { ...subItem, serverId: Number(savedItem.id), options: withServerOptionIds(subItem.options, requested.options, savedItem.options) };
+        }),
+      };
+    }),
+  };
+}
+
+/**
+ * After an in-place update, copies the identities `updateManualStatement` returns into the
+ * draft. The action answers in the order of `toUpdateRequest`, and each option id is at the
+ * position of the requested option, so the request is rebuilt here to map them back.
+ */
+export function applyUpdateIdentities<T extends { items: DraftQuestion[] }>(draft: T, identities: BuilderQuestionIdentity[]): T {
+  const requests = toUpdateRequest(draft.items);
+  const updateOptions = <O extends { label: string; serverId?: number }>(
+    options: O[], requestOptions: RequestOption[], ids: number[],
+  ) => options.map((option) => {
+    const index = requestOptions.findIndex((requested) => requested.label === option.label);
+    const id = index >= 0 ? ids[index] : undefined;
+    return id ? { ...option, serverId: id } : option;
+  });
+  let requestIndex = 0;
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const request = requests[requestIndex];
+      const identity = identities[requestIndex++];
+      if (!request || !identity) return item;
+      const identified = {
+        ...item,
+        serverId: identity.serverId,
+        options: updateOptions(item.options, request.options, identity.options),
+      };
+      if (!item.items || !request.items || !identity.items) return identified;
+      let subIndex = 0;
+      return {
+        ...identified,
+        items: item.items.map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const requested = request.items?.[subIndex];
+          const saved = identity.items?.[subIndex++];
+          if (!requested || !saved) return subItem;
+          return { ...subItem, serverId: saved.serverId, options: updateOptions(subItem.options, requested.options, saved.options) };
+        }),
+      };
+    }),
+  };
+}
+
+/** The body of `POST`/`PUT /statements/{id}/questions[/{qid}]` for one question of the builder. */
+export interface QuestionWriteBody {
+  text: string;
+  questionType: QuestionKind;
+  maxScore: number | null;
+  modelAnswer: string | null;
+  ocrReviewed: boolean;
+  parentId?: number;
+  label?: string;
+  groupLayout?: GroupLayout;
+}
+
+/**
+ * What the in-place update sends for one question or alínea.
+ *
+ * `parentId` and `label` go only when the alínea is created (`serverId` absent). The group
+ * of an alínea is fixed on creation: `QuestionService.update` answers 400 («A question's
+ * group is set on creation and cannot be moved») to any non-null `parentId`, even the same
+ * group. Sending it on a `PUT` made every re-save of an edited alínea fail.
+ */
+export function questionWriteBody(question: RequestQuestion, parentId: number | null): QuestionWriteBody {
+  const creatingChild = question.serverId == null && parentId != null;
+  return {
+    text: question.text,
+    questionType: question.type,
+    maxScore: question.maxScore,
+    modelAnswer: question.modelAnswer ?? null,
+    ocrReviewed: question.reviewed ?? false,
+    ...(creatingChild ? { parentId, label: question.label } : {}),
+    ...(question.type === 'group' ? { groupLayout: question.groupLayout ?? 'lettered' } : {}),
+  };
 }

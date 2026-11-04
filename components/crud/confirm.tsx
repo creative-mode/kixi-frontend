@@ -16,12 +16,19 @@ export interface ConfirmState {
   title: string;
   description: string;
   action: string;
+  /** Text of the cancel button (defaults to «Cancelar»). */
+  cancelLabel?: string;
+  /** Runs when the user explicitly picks the cancel button (not on Esc or outside click). */
+  onCancel?: () => void;
+  /** Block Esc so the dialog only closes through one of its two buttons. */
+  requireChoice?: boolean;
   destructive?: boolean;
   /** Return false (or throw) to leave the dialog open so the user can recover. */
   run: () => unknown | Promise<unknown>;
   busyLabel?: string;
   cancelRun?: () => unknown | Promise<unknown>;
-  cancelLabel?: string;
+  /** Text of the cancel button while `cancelRun` is in progress. */
+  cancelBusyLabel?: string;
 }
 
 /** One confirmation dialog for a whole list: set `state` to open it, null to close. */
@@ -30,13 +37,14 @@ export function Confirm({ state, onClose }: { state: ConfirmState | null; onClos
   const close = () => { if (!busy) onClose(); };
   return (
     <AlertDialog open={!!state} onOpenChange={(open) => !open && close()}>
-      <AlertDialogContent>
+      <AlertDialogContent onEscapeKeyDown={(event) => { if (state?.requireChoice) event.preventDefault(); }}>
         <AlertDialogHeader>
           <AlertDialogTitle>{state?.title}</AlertDialogTitle>
           <AlertDialogDescription>{state?.description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy} onClick={async (event) => {
+            state?.onCancel?.();
             if (!state?.cancelRun) return;
             event.preventDefault();
             if (busy) return;
@@ -47,7 +55,7 @@ export function Confirm({ state, onClose }: { state: ConfirmState | null; onClos
             } catch {
               // Keep the dialog open if the alternative action cannot complete.
             } finally { setBusy(false); }
-          }}>{busy && state?.cancelLabel ? state.cancelLabel : 'Cancelar'}</AlertDialogCancel>
+          }}>{busy && state?.cancelBusyLabel ? state.cancelBusyLabel : (state?.cancelLabel ?? 'Cancelar')}</AlertDialogCancel>
           <AlertDialogAction
             className={state?.destructive ? 'bg-destructive text-destructive-foreground' : undefined}
             disabled={busy}
