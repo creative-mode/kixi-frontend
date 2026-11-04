@@ -1088,7 +1088,9 @@ test.describe('CTA de registo da landing (#512)', () => {
   async function apanharCta(page: Page) {
     const eventos: unknown[][] = [];
     await page.route('**/__cta-teste', async (route) => {
-      eventos.push(route.request().postDataJSON() as unknown[]);
+      // Com consentimento também passam page_view e o `set` do contexto: contam só os cliques nos CTA.
+      const args = route.request().postDataJSON() as unknown[];
+      if (args[0] === 'event' && args[1] === 'cta_clique') eventos.push(args);
       await route.fulfill({ status: 200, body: 'ok' });
     });
     await page.addInitScript(() => {
@@ -1174,13 +1176,14 @@ test.describe('CTA de registo da landing (#512)', () => {
   });
 
   test('o clique regista a origem: header, outro e faq', async ({ page }) => {
-    await semEscolha(page);
+    // Só se mede com consentimento (#517): sem escolha, `track` devolve `denied`.
+    await page.addInitScript(() => localStorage.setItem('kixi-consent', 'all'));
     const eventos = await apanharCta(page);
     await page.goto('/');
 
     await page.locator('header.site-header').getByRole('link', { name: 'Criar conta' }).click();
     await expect.poll(() => eventos.length, 'clique no header').toBe(1);
-    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header' }]);
+    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
     // A hidratação pode chegar depois do `goBack`: sem o `#solucao` no DOM, o
@@ -1203,14 +1206,14 @@ test.describe('CTA de registo da landing (#512)', () => {
       .toBe(true);
     await outro.click();
     await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
-    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro' }]);
+    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
     const faq = page.locator('#perguntas').getByRole('link', { name: 'Começar a estudar' });
     await faq.scrollIntoViewIfNeeded();
     await faq.click();
     await expect.poll(() => eventos.length, 'clique no faq').toBe(3);
-    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq' }]);
+    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
   });
 });
 

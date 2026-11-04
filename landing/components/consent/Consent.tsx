@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CONSENT_EVENT, GA_ID, readConsent, writeConsent, type Consent } from '@/lib/consent';
+import { pageForPath, safePageLocation } from '@/lib/analytics';
 
 declare global {
   interface Window {
@@ -20,7 +21,17 @@ function loadAnalytics() {
     window.dataLayer!.push(arguments);
   };
   window.gtag('js', new Date());
-  window.gtag('config', GA_ID, { anonymize_ip: true, allow_google_signals: false, allow_ad_personalization_signals: false });
+  // Sem page view automático (o `config` mandá-lo-ia com a URL real, query incluída) e com o contexto de página
+  // já canónico: qualquer evento automático do Google tag sai com origem + rota, sem query nem referrer (#517).
+  const page = safePageLocation('landing', pageForPath('landing', window.location.pathname), window.location.origin);
+  window.gtag('config', GA_ID, {
+    anonymize_ip: true,
+    allow_google_signals: false,
+    allow_ad_personalization_signals: false,
+    send_page_view: false,
+    page_location: page,
+    page_referrer: '',
+  });
   const s = document.createElement('script');
   s.id = 'kixi-ga';
   s.async = true;
