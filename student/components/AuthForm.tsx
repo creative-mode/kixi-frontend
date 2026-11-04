@@ -80,7 +80,7 @@ const signupRules: Rules = {
   confirm: (x, all) => (x === String(all.get('password') ?? '') ? undefined : 'As palavras-passe não coincidem.'),
 };
 
-export function EntrarForm() {
+export function EntrarForm({ next }: { next?: string }) {
   const [state, action] = useActionState(entrarAction, undefined);
   const [errors, setErrors] = useState<Errors>({});
 
@@ -97,6 +97,7 @@ export function EntrarForm() {
   return (
     <div className="grid gap-6">
       <form action={action} onSubmit={onSubmit} noValidate>
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <FieldGroup>
           <ServerError state={state} />
           <Field>
@@ -109,6 +110,11 @@ export function EntrarForm() {
             <PasswordInput id="password" name="password" autoComplete="current-password" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-err' : undefined} onBlur={(e) => validateField(e.currentTarget.form, 'password', loginRules, setErrors)} />
             <FieldError id="password-err">{errors.password}</FieldError>
           </Field>
+          <p className="text-right text-sm">
+            <Link href="/recuperar" className="inline-flex min-h-11 items-center px-1 font-medium text-primary underline-offset-4 hover:underline">
+              Esqueci-me da palavra-passe
+            </Link>
+          </p>
           <Submit testId="aluno-entrar-submeter">Entrar</Submit>
         </FieldGroup>
       </form>

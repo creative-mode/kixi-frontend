@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Archive, ArrowDown, ArrowUp, ChevronsUpDown, Edit, Network, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -141,14 +142,14 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                 const { restoreRow } = await import('@/app/actions/crud');
                 const restored = await restoreRow(entityKey, rowId(entity, row));
                 if (restored.ok) { toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`); void load(); }
-                else toast.error(restored.error);
+                else reportActionError(restored.error);
               },
             },
           });
           await load();
           return true;
         }
-        toast.error(res.error);
+        reportActionError(res.error);
         return false;
       },
     });

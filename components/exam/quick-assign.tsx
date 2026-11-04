@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -58,8 +59,8 @@ export function QuickAssign() {
     setStepLoading(true);
     const [c, t] = await Promise.all([classesOfInstitution(Number(v)), institutionLinks(Number(v), 'teachers')]);
     setStepLoading(false);
-    if (c.ok) setClasses(c.data); else toast.error(c.error);
-    if (t.ok) setTeachers(t.data.map((x) => ({ id: x.id, firstName: x.firstName, lastName: x.lastName, assignments: 0 }))); else toast.error(t.error);
+    if (c.ok) setClasses(c.data); else reportActionError(c.error);
+    if (t.ok) setTeachers(t.data.map((x) => ({ id: x.id, firstName: x.firstName, lastName: x.lastName, assignments: 0 }))); else reportActionError(t.error);
   }
 
   async function pickClass(v: string) {
@@ -68,7 +69,7 @@ export function QuickAssign() {
     setStepLoading(true);
     const r = await classSubjects(Number(v));
     setStepLoading(false);
-    if (r.ok) setSubjects(r.data); else toast.error(r.error);
+    if (r.ok) setSubjects(r.data); else reportActionError(r.error);
   }
 
   const subject = subjects.find((s) => String(s.subjectId) === subjectId);
@@ -92,7 +93,7 @@ export function QuickAssign() {
     }
     const res = await assignTeacher({ teacherId: Number(teacherId), classId: Number(classId), subjectId: Number(subjectId), schoolYearId });
     setSaving(false);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) return reportActionError(res.error);
     setDone((n) => n + 1);
     toast.success('Atribuição criada');
     setTeacherId('');
