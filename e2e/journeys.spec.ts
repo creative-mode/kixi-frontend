@@ -101,7 +101,7 @@ type OcrJobStep = {
  * próximo job; cada job devolve o seu ciclo de polls.
  */
 async function mockAsyncOcrJobs(page: Page, steps: OcrJobStep[]) {
-  const jobs = steps.map((step) => ({ id: randomUUID(), step, polls: 0 }));
+  const jobs: { id: string; step: OcrJobStep; polls: number }[] = steps.map((step) => ({ id: randomUUID(), step, polls: 0 }));
   const byId = new Map(jobs.map((job) => [job.id, job] as const));
   let next = 0;
   await page.route('**/manager/api/ocr/extract', async (route) => {
