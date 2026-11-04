@@ -92,6 +92,8 @@ Atrás do gateway define `APP_ORIGIN` com o endereço público.
 Quando `PUBLIC_ORIGINS` estiver definido, `/manager*` deixa de existir nos domínios públicos.
 Define também `NEXT_PUBLIC_MANAGER_URL` com o URL do host isolado do gestor; a landing e o
 aluno usam-no para encaminhar sessões de gestão sem voltar ao caminho público `/manager`.
+Se faltar no build da landing em produção, as sessões de gestor e professor ficam na landing
+(em vez de irem parar a um 404) e o processo deixa um aviso no log com o nome da variável.
 
 **`APP_ORIGIN` é obrigatório em produção.** Sem ele, `resolveOrigin` recusa, e o erro diz o
 nome da variável: uma configuração em falta aparece no deploy, e não como um login que não

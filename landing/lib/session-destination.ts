@@ -44,23 +44,46 @@ export function sessionRoles(token: string | undefined, now: number = Date.now()
   return roles.length > 0 ? roles : null;
 }
 
+let missingManagerUrlWarned = false;
+
+/** Avisa uma única vez por processo: o proxy corre em cada pedido à raiz. */
+function warnMissingManagerUrl() {
+  if (missingManagerUrlWarned) return;
+  missingManagerUrlWarned = true;
+  console.warn(
+    '[landing] NEXT_PUBLIC_MANAGER_URL não está definido: sessões de gestor e professor ficam na landing em vez de seguirem para o gestor.',
+  );
+}
+
 /**
  * O destino de quem tem sessão, ou null para mostrar a landing.
  *
  * Gestor e professor vão para o gestor (é ele que separa o professor para `/professor`);
  * quem é só aluno vai para o início do aluno, que por sua vez manda para o onboarding quem
- * ainda não tem turma. `managerUrl` é o `NEXT_PUBLIC_MANAGER_URL`, quando o gestor vive
- * noutro endereço; vazio quer dizer «na mesma origem».
+ * ainda não tem turma. `managerUrl` é o `NEXT_PUBLIC_MANAGER_URL`, o endereço do host
+ * isolado do gestor.
+ *
+ * Fora de produção, vazio quer dizer «na mesma origem» e vale `/manager`, para o `npm run
+ * dev` funcionar sem configuração. Em produção não se assume nada: o gateway devolve 404 a
+ * `/manager*` no domínio público (#541), e mandar para lá deixava gestores e professores
+ * presos num 404 sem explicação. Sem `managerUrl` a landing aparece, que é o lado seguro, e
+ * fica um aviso no log a dizer qual é a variável em falta.
  */
 export function sessionDestination(
   token: string | undefined,
   managerUrl = '',
   now: number = Date.now(),
+  production = false,
 ): string | null {
   const roles = sessionRoles(token, now);
   if (!roles) return null;
-  // Gestor e professor vão para o gestor (acede diretamente ao host isolado em produção).
-  if (roles.includes('ADMIN') || roles.includes('TEACHER')) return managerUrl.trim() || MANAGER_HOME;
+  if (roles.includes('ADMIN') || roles.includes('TEACHER')) {
+    const configured = managerUrl.trim();
+    if (configured) return configured;
+    if (!production) return MANAGER_HOME;
+    warnMissingManagerUrl();
+    return null;
+  }
   if (roles.length === 1 && roles[0] === 'STUDENT') return STUDENT_HOME;
   return null;
 }

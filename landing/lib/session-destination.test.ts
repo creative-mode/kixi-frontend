@@ -34,6 +34,33 @@ test('o gestor noutro endereço é respeitado', () => {
   );
 });
 
+test('em produção, sem o endereço do gestor, gestor e professor ficam na landing', () => {
+  const avisar = console.warn;
+  const avisos: unknown[][] = [];
+  console.warn = (...args: unknown[]) => {
+    avisos.push(args);
+  };
+  try {
+    assert.equal(sessionDestination(token({ roles: ['ADMIN'], exp: daquiAUmaHora }), '', NOW, true), null);
+    assert.equal(sessionDestination(token({ roles: ['TEACHER'], exp: daquiAUmaHora }), '  ', NOW, true), null);
+  } finally {
+    console.warn = avisar;
+  }
+  assert.equal(avisos.length, 1, 'o aviso sai uma vez, não em cada pedido');
+  assert.match(String(avisos[0][0]), /NEXT_PUBLIC_MANAGER_URL/);
+});
+
+test('em produção, o endereço do gestor configurado continua a ser usado', () => {
+  assert.equal(
+    sessionDestination(token({ roles: ['ADMIN'], exp: daquiAUmaHora }), 'https://gestor.kixi.ao/manager', NOW, true),
+    'https://gestor.kixi.ao/manager',
+  );
+});
+
+test('em produção, o aluno continua a ir para o início do aluno', () => {
+  assert.equal(sessionDestination(token({ roles: ['STUDENT'], exp: daquiAUmaHora }), '', NOW, true), STUDENT_HOME);
+});
+
 test('uma sessão expirada conta como sem sessão', () => {
   assert.equal(sessionDestination(token({ roles: ['STUDENT'], exp: Math.floor(NOW / 1000) - 1 }), '', NOW), null);
 });
