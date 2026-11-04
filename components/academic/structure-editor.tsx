@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, GraduationCap, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -68,13 +69,13 @@ export function StructureEditor({ institutionId, created }: { institutionId: num
     try {
       const r = await run();
       if (!r.ok) {
-        toast.error(r.error ?? 'Não foi possível guardar.');
+        reportActionError(r.error ?? 'Não foi possível guardar.');
         return false;
       }
       toast.success(done, undo ? { duration: 10_000, action: { label: 'Desfazer', onClick: async () => {
         const restored = await undo();
         if (restored.ok) { toast.success('Registo restaurado'); await load(); }
-        else toast.error(restored.error ?? 'Não foi possível restaurar.');
+        else reportActionError(restored.error ?? 'Não foi possível restaurar.');
       } } } : undefined);
       await load();
       return true;

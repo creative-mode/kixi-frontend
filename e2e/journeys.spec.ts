@@ -488,6 +488,41 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
   });
 
+  test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    // Sem endpoint de recuperação, a página dá instruções úteis sem simular um pedido.
+    await page.goto('/aluno/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacta o teu professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+
+    await page.goto('/aluno/prova/2');
+    await expect(page).toHaveURL(/\/aluno\/entrar\?/);
+    // O destino vai no `next`, validado contra URLs externos (lib/safe-next.ts). Os dois formatos são válidos:
+    // relativo à app (`/prova/2`, o que o safe-next produz) ou com o basePath (`/aluno/prova/2`, o que o proxy pode emitir).
+    await expect(page).toHaveURL(/next=(?:%2Fprova%2F2|%2Faluno%2Fprova%2F2)/i);
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/2/);
+  });
+
+  test('gestor: sessão em falta regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    await page.goto('/manager/classes');
+    await expect(page).toHaveURL(/\/manager\/login\?/);
+    await expect(page).toHaveURL(/next=(?:%2Fclasses|%2Fmanager%2Fclasses)/i);
+
+    await page.locator('#usernameOrEmail').fill(ADMIN_USERNAME);
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('gestor-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+
+    await page.goto('/manager/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacte o professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+    // Um só landmark principal: o do AuthLayout (a página não abre outro <main>).
+    await expect(page.locator('main')).toHaveCount(1);
+  });
+
   test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {
     await page.goto('/aluno/entrar');
     const usernameOrEmail = page.getByLabel('Utilizador ou email');

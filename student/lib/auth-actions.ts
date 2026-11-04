@@ -8,6 +8,7 @@ import { problem } from './api';
 import { authFailureMessage, forwardedFor, retryAfterSeconds } from './auth-rules';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
 import { redirectFromAction } from './action-redirect';
+import { appRelativePath, STUDENT_BASE_PATH, studentNext } from './safe-next';
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
 
@@ -105,6 +106,13 @@ export async function entrarAction(_: FormState, form: FormData): Promise<FormSt
   const destination = await startSession(data);
   if (!destination) {
     return { error: 'Resposta de sessão inválida. Tenta novamente.', fields: { usernameOrEmail } };
+  }
+
+  // Só o destino do aluno é que pode ser substituído pelo `next`. Um gestor que entre
+  // aqui continua a ir para o manager, mesmo que o pedido traga um caminho do aluno.
+  if (destination === '/inicio') {
+    const next = studentNext(form.get('next'));
+    if (next) await redirectFromAction(appRelativePath(next, STUDENT_BASE_PATH));
   }
 
   await redirectFromAction(destination);

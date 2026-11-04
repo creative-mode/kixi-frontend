@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, DoorOpen, FileText, Gift, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -139,7 +140,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     // razão pela qual já era adiado antes de a #362 existir.
     const task = window.setTimeout(() => { if (continuar) setDraft(anterior); }, 0);
     myInstitutions().then((res) => {
-      if (!res.ok) toast.error(res.error);
+      if (!res.ok) reportActionError(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
       setReady(true);
     });
@@ -155,7 +156,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   // Uma doação aberta no construtor: os dados dela, para o administrador ver de onde vem a prova.
   useEffect(() => {
     if (donationId === null) return;
-    getDonation(donationId).then((res) => (res.ok ? setDonation(res.data) : toast.error(res.error)));
+    getDonation(donationId).then((res) => (res.ok ? setDonation(res.data) : reportActionError(res.error)));
   }, [donationId]);
   useEffect(() => { fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN'))); }, []);
 
@@ -170,7 +171,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     let alive = true;
     reviewChoices(Number(schoolId), !admin).then((r) => {
       if (!alive) return;
-      if (!r.ok) return void toast.error(r.error);
+      if (!r.ok) return void reportActionError(r.error);
       setChoices(r.data);
       setSubjectIds(Object.fromEntries(r.data.subjects.map((x) => [x.label, x.value])));
       // O OCR só acerta o nome da disciplina se ela estiver entre as da escola.
@@ -228,7 +229,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       ? await publishManualStatement(payload)
       : await createManualStatement({ ...payload, visible: false });
     setSaving(false);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) return reportActionError(res.error);
     const savedExam = { id: Number(res.data.id), title: String(res.data.title ?? payload.title), published: publish && figures.length === 0, snapshot: JSON.stringify(draft) };
     setSaved(savedExam);
     const pending = figures.length > 0 ? { ...savedExam, published: false, figures, publish } : null;
@@ -326,7 +327,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     setReading(true);
     const res = await extractDonation(donationId);
     setReading(false);
-    if (!res.ok) return void toast.error(res.error);
+    if (!res.ok) return void reportActionError(res.error);
     applyImport(res.data, donation?.reference ?? `doação ${donationId}`);
   }
 
