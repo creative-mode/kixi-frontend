@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { classEnrollmentCodes, createEnrollmentCode, revokeEnrollmentCode } from '@/app/actions/crud';
 import type { Row } from '@/lib/crud/entities';
-import { formatLuandaDateTime, fromLuandaDateTimeLocal } from '@/lib/format';
+import { formatLuandaDateTime, fromLuandaDateTimeLocal, toLuandaDateTimeLocal } from '@/lib/format';
 import { Confirm, type ConfirmState } from './confirm';
 
 const dateTime = (v?: string | null) => formatLuandaDateTime(v);
@@ -41,7 +41,8 @@ export function ClassEnrollmentCodes({ classItem }: { classItem: Row }) {
     const uses = Number(maxUses);
     if (!Number.isInteger(uses) || uses < 1) return toast.error('O número de usos tem de ser pelo menos 1.');
     const expiresAtIso = fromLuandaDateTimeLocal(expiresAt);
-    if (expiresAt && (!expiresAtIso || new Date(expiresAtIso) <= new Date())) return toast.error('A data de expiração tem de ser no futuro.');
+    // Hora de parede de Luanda contra hora de parede de Luanda: `new Date()` leria o valor no fuso do browser.
+    if (expiresAt && (!expiresAtIso || expiresAt <= toLuandaDateTimeLocal(new Date()))) return toast.error('A data de expiração tem de ser no futuro.');
     setBusy(true);
     const res = await createEnrollmentCode(classItem.id, uses, expiresAtIso);
     setBusy(false);

@@ -19,3 +19,9 @@ test('datas e horas inválidas não viram datas locais inventadas', () => {
   assert.equal(toLuandaDateTimeLocal('invalid'), '');
   assert.equal(fromLuandaDateTimeLocal('2026-02-30T09:00'), null);
 });
+
+test('a hora de Luanda agora sai como hora de parede, comparável com o datetime-local', () => {
+  assert.equal(toLuandaDateTimeLocal(new Date('2026-11-01T08:59:00Z')), '2026-11-01T09:59');
+  assert.ok('2026-11-01T09:58' <= toLuandaDateTimeLocal(new Date('2026-11-01T08:59:00Z')));
+  assert.ok('2026-11-01T10:00' > toLuandaDateTimeLocal(new Date('2026-11-01T08:59:00Z')));
+});
