@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { averageOf, formatGrade, groupByTerm, isNegative, SEM_NOTA, type MyTermSheet } from './pautas-rules.ts';
+import { averageOf, formatGrade, groupByTerm, isNegative, processNumberOf, SEM_NOTA, type MyTermSheet } from './pautas-rules.ts';
 
 const sheet = (over: Partial<MyTermSheet> & { mt?: number | null }): MyTermSheet => ({
   sheetId: 'PT-1', termNumber: 1, schoolYear: '2025/2026', subjectName: 'Redes', subjectCode: 'RED', className: '12B',
@@ -32,4 +32,10 @@ test('os trimestres agrupam-se: ano mais recente primeiro, depois a ordem do tri
   ]);
   assert.deepEqual(groups.map((g) => g.key), ['2025/2026|1', '2025/2026|2', '2024/2025|3']);
   assert.deepEqual(groups[0].sheets.map((s) => s.sheetId), ['C', 'B']);
+});
+
+test('o número de processo mostra-se uma vez: o primeiro que existir, aparado, ou nenhum (kixi#512)', () => {
+  assert.equal(processNumberOf([{ processNumber: null }, { processNumber: ' P-2026/0042 ' }, { processNumber: 'outro' }]), 'P-2026/0042');
+  assert.equal(processNumberOf([{ processNumber: null }, {}, { processNumber: '  ' }]), null);
+  assert.equal(processNumberOf([]), null);
 });
