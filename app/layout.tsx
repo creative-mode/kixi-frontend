@@ -46,6 +46,7 @@ export const viewport: Viewport = {
 import { ManagerNavbar } from "@/components/manager-navbar"
 import { Providers } from "@/components/providers"
 import { AuthLayout } from "@/components/auth-layout"
+import { SessionAccountProvider } from "@/components/session-account"
 import { getCurrentUser } from "@/lib/auth.server"
 
 export default async function RootLayout({
@@ -55,17 +56,19 @@ export default async function RootLayout({
 }>) {
   const user = await getCurrentUser()
   return (
-    <html lang="pt" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
+    <html lang="pt-AO" data-theme="light" className="scroll-smooth" suppressHydrationWarning>
       <body
         className={`${jakarta.variable} ${mono.variable} font-sans antialiased`}
       >
         <Providers>
-          <ManagerNavbar roles={user?.roles ?? []} />
-          <AuthLayout>
-            {children}
-          </AuthLayout>
-          <Toaster />
-          <StaleVersionGuard />
+          <SessionAccountProvider accountId={user?.accountId ?? null}>
+            <ManagerNavbar roles={user?.roles ?? []} />
+            <AuthLayout>
+              {children}
+            </AuthLayout>
+            <Toaster />
+            <StaleVersionGuard />
+          </SessionAccountProvider>
         </Providers>
       </body>
     </html>

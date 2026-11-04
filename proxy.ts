@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
+import { appRelativePath, MANAGER_BASE_PATH, managerNext } from '@/lib/safe-next';
 import { canAccessManager, coordinatorMayOpen, isCoordinatorOnly, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
 
 /**
@@ -48,13 +49,32 @@ function rolesFromPayload(value: unknown): Role[] {
   return normalizeRoles(value);
 }
 
+/** O caminho público que o utilizador tentou abrir, para voltar a ele depois de entrar. */
+function requestedPath(request: NextRequest): string {
+  return `${request.nextUrl.pathname}${request.nextUrl.search}`;
+}
+
+function nextAfterLogin(request: NextRequest, roles: Role[]): string {
+  const next = managerNext(request.nextUrl.searchParams.get('next'));
+  const relative = next ? appRelativePath(next, MANAGER_BASE_PATH) : '/';
+  if (isCoordinatorOnly(roles) && !coordinatorMayOpen(relative)) return '/planos';
+  if (roles.includes('TEACHER') && !roles.includes('ADMIN') && teacherRoute(relative) !== 'allow') return '/professor';
+  return relative;
+}
+
+function loginQuery(request: NextRequest, reason: string): Record<string, string> {
+  const next = managerNext(requestedPath(request));
+  return { reason, ...(next ? { next } : {}) };
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoginRoute = isRoute(pathname, '/login');
   const isForbiddenRoute = isRoute(pathname, '/403');
+  const isRecoveryRoute = isRoute(pathname, '/recuperar');
 
-  if (isLoginRoute || isForbiddenRoute) {
-    if (isForbiddenRoute) return NextResponse.next();
+  if (isLoginRoute || isForbiddenRoute || isRecoveryRoute) {
+    if (isForbiddenRoute || isRecoveryRoute) return NextResponse.next();
 
     const token = request.cookies.get('auth_token')?.value;
     if (!token) return NextResponse.next();
@@ -65,12 +85,12 @@ export async function proxy(request: NextRequest) {
 
       if (canAccessManager(roles)) {
         if (isCoordinatorOnly(roles)) {
-          return NextResponse.redirect(redirectTo('/planos', request));
+          return NextResponse.redirect(redirectTo(nextAfterLogin(request, roles), request));
         }
         if (roles.includes('TEACHER') && !roles.includes('ADMIN')) {
-          return NextResponse.redirect(redirectTo('/professor', request));
+          return NextResponse.redirect(redirectTo(nextAfterLogin(request, roles), request));
         }
-        return NextResponse.redirect(redirectTo('/', request));
+        return NextResponse.redirect(redirectTo(nextAfterLogin(request, roles), request));
       }
 
       if (isStudentOnly(roles)) {
@@ -86,7 +106,7 @@ export async function proxy(request: NextRequest) {
 
   const token = request.cookies.get('auth_token')?.value;
   if (!token) {
-    return NextResponse.redirect(redirectTo('/login', request, { reason: 'required' }));
+    return NextResponse.redirect(redirectTo('/login', request, loginQuery(request, 'required')));
   }
 
   try {
@@ -99,7 +119,7 @@ export async function proxy(request: NextRequest) {
 
     if (!canAccessManager(roles)) {
       const response = NextResponse.redirect(
-        redirectTo('/login', request, { reason: 'invalid-session' }),
+        redirectTo('/login', request, loginQuery(request, 'invalid-session')),
       );
       response.cookies.delete('auth_token');
       response.cookies.delete('user_info');
@@ -128,7 +148,7 @@ export async function proxy(request: NextRequest) {
     response.headers.set('x-user-roles', JSON.stringify(roles));
     return response;
   } catch {
-    const response = NextResponse.redirect(redirectTo('/login', request, { reason: 'session-expired' }));
+    const response = NextResponse.redirect(redirectTo('/login', request, loginQuery(request, 'session-expired')));
     response.cookies.delete('auth_token');
     response.cookies.delete('user_info');
     return response;

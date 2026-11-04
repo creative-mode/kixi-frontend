@@ -26,10 +26,10 @@ async function alunoLogin(page: Page) {
 
 async function gestorLogin(page: Page) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(ADMIN);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(ADMIN);
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
-  await expect(page).toHaveURL(/manager\/?$/);
+  await expect(page).toHaveURL(/\/manager\/?$/);
 }
 
 /** Violações sérias ou críticas, em texto legível para o relatório. */
@@ -40,11 +40,67 @@ async function graves(page: Page) {
     .map((v) => `${v.id} x${v.nodes.length}: ${v.nodes[0]?.html.slice(0, 120)}`);
 }
 
-const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
-const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
+/** O host público não deve revelar o gestor; a origem local e hosts parecidos
+ *  continuam a chegar ao gestor, sem falsos positivos por sufixo. */
+test.describe('rotas do gestor no gateway (#541)', () => {
+  test('no host público devolve 404 sem redirecionamento', async ({ request }) => {
+    for (const rota of ['/manager', '/manager/login', '/manager/qualquer'] as const) {
+      for (const host of ['kixi.creativemode.ao', 'Kixi.Creativemode.Ao:443']) {
+        const resposta = await request.get(rota, {
+          headers: { Host: host },
+          maxRedirects: 0,
+        });
+        expect(resposta.status(), `${rota} com Host ${host}`).toBe(404);
+        expect(resposta.headers().location, `${rota} não expõe Location`).toBeUndefined();
+      }
+    }
+  });
 
-// Rotas do gestor não são expostas no domínio público: respondem 404 neutro.
-const GESTOR_404 = ['/manager', '/manager/login', '/manager/school-year', '/manager/statements', '/manager/exam-rooms'];
+  test('continua acessível em localhost e não confunde um sufixo parecido com o domínio público', async ({ request }) => {
+    for (const host of ['localhost:3000', 'kixi.creativemode.ao.evil.com']) {
+      const resposta = await request.get('/manager/login', {
+        headers: { Host: host },
+        maxRedirects: 0,
+      });
+      expect(resposta.status(), `o gestor continua encaminhado com Host ${host}`).not.toBe(404);
+    }
+  });
+
+  test('encaminha a sessão de gestor do host público para o host isolado', async ({ request }) => {
+    const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 300, roles: ['ADMIN'] }))
+      .toString('base64url');
+    const resposta = await request.get('/', {
+      headers: {
+        Host: 'kixi.creativemode.ao',
+        Cookie: `auth_token=e30.${payload}.assinatura-e2e`,
+      },
+      maxRedirects: 0,
+    });
+
+    expect(resposta.status()).toBe(307);
+    expect(resposta.headers().location).toBe('https://manager.e2e.invalid/');
+  });
+});
+
+/** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
+ *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
+ *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
+ *  `getByRole` nem a via ("element(s) not found"). */
+async function irAoFim(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+        return page.evaluate(() => window.innerHeight + window.scrollY >= document.body.scrollHeight - 2);
+      },
+      { message: 'chegar ao fim da página', timeout: 15000 },
+    )
+    .toBe(true);
+}
+
+const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
+const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
+const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
 
 for (const vp of VIEWPORTS) {
   test.describe(`acessibilidade, ${vp.nome}`, () => {
@@ -62,31 +118,31 @@ for (const vp of VIEWPORTS) {
 
     test('gestor sem violações sérias', async ({ page }) => {
       await gestorLogin(page);
-      for (const rota of ['/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao']) {
+      for (const rota of GESTOR) {
         await page.goto(rota);
         await page.waitForLoadState('networkidle');
         expect(await graves(page), rota).toEqual([]);
       }
     });
 
-    test('rotas do gestor devolvem 404 no domínio público', async ({ page }) => {
-      for (const rota of GESTOR_404) {
-        // O 404 só se aplica quando o Host é o domínio público (kixi.creativemode.ao).
-        // No CI/local (Host: localhost) o gateway continua a fazer proxy para o manager.
-        const resposta = await page.request.get(rota, { headers: { host: 'kixi.creativemode.ao' } });
-        expect(resposta.status(), `${rota} deve devolver 404 no domínio público`).toBe(404);
-      }
-    });
-
     test('gestor: o erro do login fica no ecrã e é anunciado (#542)', async ({ page }) => {
       await page.goto('/manager/login');
-      await page.getByLabel('Username ou email').fill('nao-existe');
+      await page.getByLabel('Nome de utilizador ou e-mail').fill('nao-existe');
       await page.locator('#password').fill('errada');
       await page.getByTestId('gestor-entrar-submeter').click();
 
-      // Credenciais erradas não redirecionam: fica na página de login
-      await expect(page).toHaveURL(/\/manager\/login/);
-      await expect(page.getByLabel('Username ou email')).toHaveValue('nao-existe');
+      // O Next injecta um `role="alert"` próprio (anunciador de rota): identificar o nosso pela frase.
+      const alerta = page.getByRole('alert').filter({ hasText: 'Utilizador ou palavra-passe' });
+      await expect(alerta).toContainText('Utilizador ou palavra-passe incorretos.');
+
+      // O defeito era o toast sumir aos ~4 s: passado mais tempo do que isso, tem de continuar.
+      await page.waitForTimeout(6000);
+      await expect(alerta).toBeVisible();
+      await expect(page.getByLabel('Nome de utilizador ou e-mail')).toHaveValue('nao-existe');
+
+      // Um só <main>, o do layout: a página não repete o landmark.
+      await expect(page.locator('main')).toHaveCount(1);
+      expect(await graves(page), '/manager/login').toEqual([]);
     });
 
     test('landing sem violações sérias', async ({ page }) => {
@@ -103,8 +159,8 @@ test.describe('ecrãs de erro do aluno', () => {
   test('prova inexistente: em português, com saída e sem tentar de novo', async ({ page }) => {
     await alunoLogin(page);
     await page.goto('/aluno/prova/999999');
-    await expect(page.getByText('Esta prova não existe ou já não está disponível.')).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('link', { name: 'Voltar às provas' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Esta prova não existe ou já não está disponível.')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Voltar às provas' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Tentar de novo' })).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText(/statement not found|not found/i);
   });
@@ -113,7 +169,7 @@ test.describe('ecrãs de erro do aluno', () => {
     await alunoLogin(page);
     await page.goto('/aluno/nao-existe');
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
-    await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible();
   });
 });
 
@@ -127,9 +183,10 @@ test.describe('avisos do aluno', () => {
     try {
       expect((await definir('500')).ok()).toBeTruthy();
       await page.getByRole('tab', { name: 'Escola' }).click();
-      const aviso = page.getByRole('status', { name: 'Não foi possível carregar o ranking' });
-      await expect(aviso).toBeVisible({ timeout: 15000 });
-      await expect(aviso.getByRole('button', { name: 'Tentar de novo' })).toBeVisible({ timeout: 15000 });
+      // O erro anuncia-se como alerta (#529): a falha não é "status" passivo.
+      const aviso = page.getByRole('alert', { name: 'Não foi possível carregar o ranking' });
+      await expect(aviso).toBeVisible();
+      await expect(aviso.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
     } finally {
       await definir('');
     }
@@ -156,15 +213,15 @@ test.describe('ranking acessível (#498)', () => {
     });
 
     await page.getByRole('tab', { name: 'Escola' }).click();
-    await expect(page.getByRole('heading', { name: 'A carregar Escola…' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'A carregar Escola…' })).toBeVisible();
     await expect(painel).toHaveAttribute('aria-busy', 'true');
     await expect(painel.getByRole('table')).toHaveCount(0);
     await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('A carregar o ranking da Escola.');
 
-    await expect(page.getByRole('heading', { name: 'Ranking · Escola' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Ranking · Escola' })).toBeVisible();
     await expect(painel).toHaveAttribute('aria-busy', 'false');
     await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('Ranking da Escola carregado');
-    await expect(painel.getByRole('table')).toBeVisible({ timeout: 15000 });
+    await expect(painel.getByRole('table')).toBeVisible();
     await expect(painel.locator('tbody tr').first().locator('td').nth(2)).toContainText('%');
     await expect(painel.getByText(/A tua média:/)).toContainText('%');
   });
@@ -186,8 +243,8 @@ test.describe('títulos', () => {
     const ctx = await page.context().browser()!.newContext();
     const gestor = await ctx.newPage();
     await gestorLogin(gestor);
-    for (const rota of ['/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao']) {
-      await gestor.goto('http://localhost:3002' + rota);
+    for (const rota of GESTOR) {
+      await gestor.goto(rota);
       await gestor.waitForLoadState('networkidle');
       const titulo = await gestor.title();
       expect(titulos.get(titulo), `${rota} repete o título de ${titulos.get(titulo)}: ${titulo}`).toBeUndefined();
@@ -255,20 +312,20 @@ test.describe('backend a falhar', () => {
     const definir = (mode: string) => page.request.post('/aluno/api/mock-fault', { data: { mode } });
 
     await page.goto('/aluno/tutor?statementId=2');
-    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible();
 
     try {
       expect((await definir('500')).ok()).toBeTruthy();
       await page.goto('/aluno/tutor?statementId=2');
-      await expect(page.getByText('Não foi possível confirmar o estado da prova')).toBeVisible({ timeout: 15000 });
-      await expect(page.getByRole('button', { name: 'Tentar de novo' })).toBeVisible({ timeout: 15000 });
-      await expect(page.getByRole('link', { name: 'Voltar à prova' })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText('Não foi possível confirmar o estado da prova')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Voltar à prova' })).toBeVisible();
     } finally {
       await definir('');
     }
 
     await page.goto('/aluno/tutor?statementId=2');
-    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'O tutor está fechado durante a prova' })).toBeVisible();
   });
 });
 
@@ -280,7 +337,7 @@ test.describe('amigos e ranking de amigos', () => {
     // Sem esperar pela hidratação o clique no separador perde-se na build de produção.
     await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Amigos' }).click();
-    await expect(page.getByRole('region', { name: 'Amigos' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('region', { name: 'Amigos' })).toBeVisible();
     await expect(page.getByText(/chega em breve|não está disponível/i)).toHaveCount(0);
     // A lista chega depois da hidratação: espera pela amiga que já está aceite antes de olhar para os pedidos.
     await expect(page.getByRole('region', { name: 'Amigos' })).toContainText('Sara P.');
@@ -306,7 +363,7 @@ test.describe('ranking global e métrica', () => {
     const participar = page.getByRole('button', { name: 'Quero participar' });
     const retirar = page.getByRole('button', { name: /Deixar de participar/ });
     // Espera pela resposta do servidor: antes dela a página ainda mostra a tabela da aba anterior.
-    await expect(page.getByText(/Comparar-te com alunos de outras escolas|pelo menos 10 alunos/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Comparar-te com alunos de outras escolas|pelo menos 10 alunos/)).toBeVisible();
     if (await participar.isVisible()) {
       // Um clique dado antes de a página reagir perde-se: repete até a explicação aparecer.
       await expect(async () => {
@@ -314,19 +371,19 @@ test.describe('ranking global e métrica', () => {
         await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible({ timeout: 2000 });
       }).toPass({ timeout: 15_000 });
     }
-    await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible({ timeout: 15000 });
-    await expect(retirar).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/pelo menos 10 alunos/)).toBeVisible();
+    await expect(retirar).toBeVisible();
     expect(await graves(page)).toEqual([]);
     await retirar.click();
-    await expect(participar).toBeVisible({ timeout: 15000 });
+    await expect(participar).toBeVisible();
 
     await page.getByRole('tab', { name: 'Turma' }).click();
     await page.getByLabel('Ordenar por').selectOption('xp');
-    await expect(page.locator('th', { hasText: /^XP$/ })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('th', { hasText: /^XP$/ })).toBeVisible();
     await page.getByLabel('Período').selectOption('month');
     // O período entra no pedido: sem erro, com a tabela ou com o estado vazio, mas nunca um aviso.
     await expect(page.getByLabel('Período')).toHaveValue('month');
-    await expect(page.locator('th', { hasText: /^XP$/ }).or(page.getByText('Ainda não há dados'))).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('th', { hasText: /^XP$/ }).or(page.getByText('Ainda não há dados'))).toBeVisible();
     await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
     expect(await graves(page)).toEqual([]);
   });
@@ -340,14 +397,14 @@ test.describe('ranking global e métrica', () => {
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     await page.goto('/aluno/provas');
     const filtros = page.getByRole('button', { name: /^Filtros/ });
-    await expect(filtros).toBeVisible({ timeout: 15000 });
+    await expect(filtros).toBeVisible();
     await expect(page.getByLabel('Tipo de prova')).toBeHidden();
     await filtros.click();
-    await expect(page.getByLabel('Tipo de prova')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByLabel('Tipo de prova')).toBeVisible();
     const opcao = await page.getByLabel('Tipo de prova').locator('option:not([value=""])').first().getAttribute('value');
     await page.getByLabel('Tipo de prova').selectOption(opcao!);
     await expect(page).toHaveURL(/tipo=/);
-    await expect(page.getByRole('button', { name: /^Filtros \(1\)/ })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: /^Filtros \(1\)/ })).toBeVisible();
   });
 });
 
@@ -365,7 +422,7 @@ test.describe('auditoria de UX do aluno', () => {
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     await page.goto('/aluno/perfil');
     await page.getByRole('tab', { name: 'Definições' }).click();
-    await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible();
     const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(transborda, 'scroll horizontal no perfil').toBe(false);
     const botao = await page.getByRole('button', { name: 'Editar perfil' }).boundingBox();
@@ -384,25 +441,25 @@ test.describe('progresso do aluno no telemóvel (#493)', () => {
       await page.goto('/aluno/inicio');
 
       const cartao = page.getByTestId('mobile-progresso');
-      await expect(cartao).toBeVisible({ timeout: 15000 });
-      await expect(cartao.getByRole('heading', { name: 'O teu progresso' })).toBeVisible({ timeout: 15000 });
-      await expect(cartao.getByText('Nível 1')).toBeVisible({ timeout: 15000 });
-      await expect(cartao.getByText('120 XP no total')).toBeVisible({ timeout: 15000 });
-      await expect(cartao.getByText(/1 dia de sequência/)).toBeVisible({ timeout: 15000 });
+      await expect(cartao).toBeVisible();
+      await expect(cartao.getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
+      await expect(cartao.getByText('Nível 1')).toBeVisible();
+      await expect(cartao.getByText('120 XP no total')).toBeVisible();
+      await expect(cartao.getByText(/1 dia de sequência/)).toBeVisible();
       await expect(page.locator('aside[aria-label="Destaques"]')).toBeHidden();
 
       // As secções nascem recolhidas; abrir «Para rever» mostra o tema e o tutor.
       const rever = page.getByTestId('mobile-para-rever');
-      await expect(rever).toBeVisible({ timeout: 15000 });
+      await expect(rever).toBeVisible();
       await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeHidden();
       await rever.locator('summary').click();
-      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeVisible({ timeout: 15000 });
+      await expect(rever.getByRole('link', { name: 'Rever com o tutor' })).toBeVisible();
 
       const proximas = page.getByTestId('mobile-proximas-provas');
-      await expect(proximas).toBeVisible({ timeout: 15000 });
+      await expect(proximas).toBeVisible();
       await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeHidden();
       await proximas.locator('summary').click();
-      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeVisible({ timeout: 15000 });
+      await expect(proximas.getByRole('link', { name: 'Ver todas as provas' })).toBeVisible();
 
       const transborda = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       expect(transborda, 'scroll horizontal no início do telemóvel').toBe(false);
@@ -414,8 +471,8 @@ test.describe('progresso do aluno no telemóvel (#493)', () => {
     await alunoLogin(page);
     await page.goto('/aluno/inicio');
     await expect(page.getByTestId('mobile-progresso')).toBeHidden();
-    await expect(page.locator('aside[aria-label="Destaques"]')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('aside[aria-label="Destaques"]').getByRole('heading', { name: 'O teu progresso' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('aside[aria-label="Destaques"]')).toBeVisible();
+    await expect(page.locator('aside[aria-label="Destaques"]').getByRole('heading', { name: 'O teu progresso' })).toBeVisible();
   });
 });
 
@@ -434,11 +491,11 @@ test.describe('404 da landing (#544)', () => {
     await semEscolha(page);
     await page.goto('/nao-existe-xyz');
     await expect(page).toHaveTitle(/Página não encontrada · Kixi/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Esta página não existe' })).toBeVisible();
     // A marca: o cabeçalho leva de volta ao início ("Kixi, início") e o texto é o meu.
-    await expect(page.getByRole('link', { name: 'Kixi, início' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('link', { name: 'Kixi, início' })).toBeVisible();
     const inicio = page.getByRole('link', { name: 'Ir para o início' });
-    await expect(inicio).toBeVisible({ timeout: 15000 });
+    await expect(inicio).toBeVisible();
     expect(await inicio.getAttribute('href')).toBe('/');
     // O segundo caminho: entrar. O cabeçalho e o corpo têm o seu; o rodapé pode repetir.
     expect(
@@ -462,11 +519,11 @@ test.describe('404 da landing (#544)', () => {
       await semEscolha(page);
       await page.goto('/nao-existe-xyz');
       const bnn = page.locator('section.ck');
-      await expect(bnn).toBeVisible({ timeout: 15000 });
+      await expect(bnn).toBeVisible();
       // O botão principal acaba antes do topo do banner: nada do que interessa
       // fica escondido por baixo dele (a altura do banner é contrato de outra issue).
       const cta = page.getByRole('link', { name: 'Ir para o início' });
-      await expect(cta).toBeVisible({ timeout: 15000 });
+      await expect(cta).toBeVisible();
       const ctaBox = await cta.boundingBox();
       const caixa = await bnn.boundingBox();
       expect((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0), 'o botão acaba antes do banner').toBeLessThanOrEqual(caixa!.y);
@@ -539,7 +596,7 @@ test.describe('contraste do LCD (#520)', () => {
       expect(violations.map((v) => v.id), 'still').toEqual([]);
       // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
       // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
-      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
     });
   });
 });
@@ -566,7 +623,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     await semEscolha(page);
     for (const rota of paginas) {
       await page.goto(rota);
-      await expect(banner(page), `banner em ${rota}`).toBeVisible({ timeout: 15000 });
+      await expect(banner(page), `banner em ${rota}`).toBeVisible();
       const caixa = await banner(page).boundingBox();
       expect(caixa?.height ?? Infinity, rota).toBeLessThanOrEqual(LIMITE);
     }
@@ -579,7 +636,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     for (const rota of ['/', '/aluno/entrar'] as const) {
       await page.goto(rota);
       const bnn = banner(page);
-      await expect(bnn).toBeVisible({ timeout: 15000 });
+      await expect(bnn).toBeVisible();
       const dentro = await bnn.evaluate((el) => {
         const b = el.getBoundingClientRect();
         const p = el.querySelector('p')?.getBoundingClientRect();
@@ -609,7 +666,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     for (const rota of ['/doar', '/aluno/entrar', '/aluno/cadastro'] as const) {
       await page.goto(rota);
       const bnn = banner(page);
-      await expect(bnn).toBeVisible({ timeout: 15000 });
+      await expect(bnn).toBeVisible();
       const botao =
         rota === '/doar'
           ? page.getByRole('button', { name: 'Continuar' })
@@ -632,7 +689,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
   test('os dois botões pesam o mesmo: tamanho, borda e fundo', async ({ page }) => {
     await semEscolha(page);
     await page.goto('/aluno/entrar');
-    await expect(banner(page)).toBeVisible({ timeout: 15000 });
+    await expect(banner(page)).toBeVisible();
     const botaos = banner(page).getByRole('button', { name: /Só necessários|Aceitar/ });
     await expect(botaos).toHaveCount(2);
     const pesos = await botaos.evaluateAll((els) =>
@@ -649,7 +706,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     // No doar ninguém tem autofocus: a hidratação traz o foco para o banner,
     // sem prender quem navega com o Tab.
     await page.goto('/doar');
-    await expect(banner(page)).toBeVisible({ timeout: 15000 });
+    await expect(banner(page)).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => (document.activeElement as HTMLElement)?.role === 'dialog'))
       .toBe(true);
@@ -667,7 +724,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
     await page.goto('/aluno/entrar', { waitUntil: 'commit' });
     await page.locator('#usernameOrEmail').waitFor({ state: 'attached' });
     await page.evaluate(() => document.getElementById('usernameOrEmail')?.focus());
-    await expect(banner(page)).toBeVisible({ timeout: 15000 });
+    await expect(banner(page)).toBeVisible();
     await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(page.getByLabel('Utilizador ou email')).toBeFocused();
@@ -676,7 +733,7 @@ test.describe('banner de cookies no telemóvel (#545)', () => {
   test('escolher uma das opções fecha o banner e devolve o foco ao corpo', async ({ page }) => {
     await semEscolha(page);
     await page.goto('/aluno/entrar');
-    await expect(banner(page)).toBeVisible({ timeout: 15000 });
+    await expect(banner(page)).toBeVisible();
     await banner(page).getByRole('button', { name: 'Só necessários' }).click();
     await expect(banner(page)).toHaveCount(0);
     // Sem autofocus no formulário, o destino honesto é o corpo: foco em lado nenhum visível.
@@ -705,10 +762,10 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     // O nome leva ellipsis e a 195 px pode ter área zero: o que prova o upload é
     // a linha do ficheiro e a contagem, não o nome.
     await expect(page.locator('.dn-files__item')).toHaveCount(1);
-    await expect(page.getByText(/1 folha/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/1 folha/)).toBeVisible();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.getByLabel('Instituição')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByLabel('Instituição')).toBeVisible();
   }
 
   /** Preenche o passo 1 e avança para o envio. */
@@ -718,7 +775,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await page.getByLabel('Disciplina').fill('Matemática');
     await page.getByLabel('Tipo de prova').selectOption('Teste');
     await page.getByRole('button', { name: 'Continuar' }).click();
-    await expect(page.getByLabel(/Tenho direito/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByLabel(/Tenho direito/)).toBeVisible();
   }
 
   /** Controlos do ecrã atual, sem a armadilha anti-robôs (invisível de propósito). */
@@ -738,7 +795,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     for (let i = 0; i < n; i++) {
       const el = els.nth(i);
       await el.scrollIntoViewIfNeeded();
-      await expect(el, `controlo ${i} em ${onde}`).toBeVisible({ timeout: 15000 });
+      await expect(el, `controlo ${i} em ${onde}`).toBeVisible();
     }
     // Só o conteúdo da doação: o banner fixo (contrato da #546) também mexe no
     // scrollWidth do documento, e não é desta issue.
@@ -751,7 +808,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
 
   async function botaoAcimaDoBanner(page: Page, nome: string) {
     const botao = page.getByRole('button', { name: nome, exact: true });
-    await expect(botao, nome).toBeVisible({ timeout: 15000 });
+    await expect(botao, nome).toBeVisible();
     const bnn = page.locator('section.ck');
     await expect(bnn, 'banner presente').toHaveCount(1);
     // A reserva vem da altura medida: esperar por ela, senão mede-se antes do
@@ -780,13 +837,13 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     for (const nome of ['Voltar', 'Continuar']) {
       const botao = page.getByRole('button', { name: nome });
       await botao.scrollIntoViewIfNeeded();
-      await expect(botao, `${nome} em zoom 200%`).toBeVisible({ timeout: 15000 });
+      await expect(botao, `${nome} em zoom 200%`).toBeVisible();
     }
     await irParaEnvio(page);
     await alcancaveis(page, 'passo 2 em zoom 200%');
     const doar = page.getByRole('button', { name: 'Doar', exact: true });
     await doar.scrollIntoViewIfNeeded();
-    await expect(doar, 'Doar em zoom 200%').toBeVisible({ timeout: 15000 });
+    await expect(doar, 'Doar em zoom 200%').toBeVisible();
   });
 
   test('o banner nunca cobre Continuar nem Doar', async ({ page }) => {
@@ -799,6 +856,121 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await botaoAcimaDoBanner(page, 'Doar');
   });
 
+  test('360×640 e janela reduzida mantêm o CTA acima dos cookies', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await semEscolha(page);
+    await page.goto('/doar');
+    await expect(page.locator('section.ck')).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--ck-banner-h')))
+      .not.toBe('');
+    await testInfo.attach('doar-360x640-cookies', { body: await page.screenshot(), contentType: 'image/png' });
+    await botaoAcimaDoBanner(page, 'Continuar');
+
+    // Reduzir o viewport simula o espaço visível que sobra quando o teclado
+    // virtual está aberto num telemóvel.
+    await page.setViewportSize({ width: 360, height: 400 });
+    await expect(page.locator('.dn-stage')).toHaveCSS('height', '400px');
+    await testInfo.attach('doar-360x400-teclado-cookies', { body: await page.screenshot(), contentType: 'image/png' });
+    await botaoAcimaDoBanner(page, 'Continuar');
+  });
+
+  test('a foto grande é comprimida antes do POST e a nova tentativa é manual', async ({ page }) => {
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+    await page.goto('/doar');
+
+    // Gera uma folha vertical de 12,96 MB: textura leve para evitar uma imagem
+    // artificialmente fácil de comprimir, com linhas horizontais de texto.
+    const originalBytes = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1800;
+      canvas.height = 2400;
+      const context = canvas.getContext('2d')!;
+      const image = context.createImageData(canvas.width, canvas.height);
+      let seed = 719;
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          const offset = (y * canvas.width + x) * 4;
+          const isText = y % 72 < 8 && x > 180 && x < 1600 && (x + Math.floor(y / 72) * 19) % 97 < 72;
+          const shade = isText ? 22 : 244 + (seed % 9);
+          image.data[offset] = shade;
+          image.data[offset + 1] = shade;
+          image.data[offset + 2] = shade;
+          image.data[offset + 3] = 255;
+        }
+      }
+      context.putImageData(image, 0, 0);
+      const blob = await new Promise<Blob>((resolve) => canvas.toBlob((value) => resolve(value!), 'image/png'));
+      const file = new File([blob], 'prova-grande.png', { type: 'image/png' });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return file.size;
+    });
+    expect(originalBytes).toBeGreaterThan(2 * 1024 * 1024);
+    await expect(page.locator('.dn-files__item')).toHaveCount(1);
+    await expect(page.locator('.dn-files__size')).not.toHaveText('a reduzir…', { timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Continuar' })).toBeEnabled();
+
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await page.getByLabel('Instituição').fill('Escola E2E');
+    await page.getByLabel('Disciplina').fill('Matemática');
+    await page.getByLabel('Tipo de prova').selectOption('Teste');
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await page.getByLabel(/Tenho direito/).check();
+
+    let attempts = 0;
+    const observed: { sentFile: { name: string; bytes: number; width: number; height: number } | null } = { sentFile: null };
+    await page.route('**/api/doar', async (route) => {
+      attempts++;
+      if (attempts === 1) {
+        await route.abort('failed');
+        return;
+      }
+      const request = route.request();
+      const boundary = /boundary=([^;]+)/.exec(request.headers()['content-type'] ?? '')?.[1];
+      const body = request.postDataBuffer();
+      if (!boundary || !body) throw new Error('O POST não contém multipart/form-data.');
+      const fileHeader = Buffer.from('Content-Disposition: form-data; name="files"; filename="');
+      const headerAt = body.indexOf(fileHeader);
+      const dataAt = body.indexOf(Buffer.from('\r\n\r\n'), headerAt) + 4;
+      const dataEnd = body.indexOf(Buffer.from(`\r\n--${boundary}`), dataAt);
+      const bytes = body.subarray(dataAt, dataEnd);
+      let width = 0;
+      let height = 0;
+      for (let i = 2; i + 9 < bytes.length;) {
+        if (bytes[i] !== 0xff) { i++; continue; }
+        const marker = bytes[i + 1];
+        const length = bytes.readUInt16BE(i + 2);
+        if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+          height = bytes.readUInt16BE(i + 5);
+          width = bytes.readUInt16BE(i + 7);
+          break;
+        }
+        i += length + 2;
+      }
+      const filename = /filename="([^"]+)"/.exec(body.subarray(headerAt, dataAt).toString())?.[1] ?? '';
+      observed.sentFile = { name: filename, bytes: bytes.length, width, height };
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ reference: 'KD-AB12-CD34' }) });
+    });
+
+    await page.getByRole('button', { name: 'Doar', exact: true }).click();
+    await expect(page.getByText(/Sem ligação/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(attempts, 'não repete o POST automaticamente').toBe(1);
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(page.getByText('KD-AB12-CD34')).toBeVisible();
+    expect(attempts, 'reenvia apenas após ação explícita').toBe(2);
+    expect(observed.sentFile?.name).toBe('prova-grande.jpg');
+    expect(observed.sentFile?.bytes).toBeLessThanOrEqual(2 * 1024 * 1024);
+    expect(Math.max(observed.sentFile?.width ?? Infinity, observed.sentFile?.height ?? Infinity)).toBeLessThanOrEqual(1600);
+    expect(Math.min(observed.sentFile?.width ?? 0, observed.sentFile?.height ?? 0)).toBeGreaterThanOrEqual(900);
+  });
+
   test('o texto de privacidade é visível no mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await semEscolha(page);
@@ -806,15 +978,30 @@ test.describe('doação sem ecrã cortado (#515)', () => {
     await irParaEnvio(page);
     // Era `display: none` abaixo de 899 px: doar sem se identificar é uma
     // promessa que o telemóvel também tem de ler.
-    await expect(page.getByText('Podes doar sem dizer quem és')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Podes doar sem dizer quem és')).toBeVisible();
+  });
+
+  test('a política abre noutra janela e anuncia isso', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/doar');
+    await irParaEnvio(page);
+    const policy = page.getByRole('link', { name: /Política de Privacidade.*abre noutra janela/ });
+    await expect(policy).toHaveAttribute('target', '_blank');
+    await expect(policy).toHaveAttribute('rel', 'noopener');
+    const popupReady = page.waitForEvent('popup');
+    await policy.click();
+    const popup = await popupReady;
+    await expect(popup).toHaveURL(/\/privacidade$/);
+    await expect(page).toHaveURL(/\/doar$/);
+    await expect(page.locator('.dn-files__item')).toHaveCount(1);
   });
 
   test('320×568: o primeiro ecrã é utilizável', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await semEscolha(page);
     await page.goto('/doar');
-    await expect(page.getByRole('heading', { name: /Cada prova antiga/ })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Toca para escolher fotos ou PDF')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: /Cada prova antiga/ })).toBeVisible();
+    await expect(page.getByText('Toca para escolher fotos ou PDF')).toBeVisible();
     await botaoAcimaDoBanner(page, 'Continuar');
     const transborda = await page.evaluate(() => {
       const main = document.querySelector('.dn-main');
@@ -846,10 +1033,20 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     });
     expect(noTopo, 'CTA invisível não recebe foco').toBe(false);
     // No fim da história a cena acende e o botão entra no Tab.
-    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    // O layout pode crescer depois de chegar ao fim (tipografia, imagens): sem
+    // evento de scroll novo a cena não acende, por isso desce-se a cada ronda.
+    await irAoFim(page);
     const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
-    await expect(cenaOutro, 'a cena do fim acende').toHaveAttribute('aria-hidden', 'false', { timeout: 15000 });
-    await expect(outro).toBeVisible({ timeout: 10000 });
+    await expect
+      .poll(
+        async () => {
+          await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+          return cenaOutro.getAttribute('aria-hidden');
+        },
+        { message: 'a cena do fim acende', timeout: 20000 },
+      )
+      .toBe('false');
+    await expect(outro).toBeVisible({ timeout: 15000 });
     const noFim = await outro.evaluate((el) => {
       (el as HTMLElement).focus();
       return document.activeElement === el;
@@ -899,7 +1096,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
       const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
       const ecra = await page.evaluate(() => window.innerHeight);
       expect(altura, 'sem os 1800 ecrãs').toBeLessThan(8 * ecra);
-      await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible({ timeout: 15000 });
+      await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible();
       // O colapso de 1800 ecrãs para lista pontuava muito acima de 1; a troca
       // de webfont (`font-display: swap`, decisão de produto) mexe ~0.1 e não
       // é o salto que este teste vigia.
@@ -917,6 +1114,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     });
   });
 });
+
 /** O CTA de registo da landing (#512): antes o 1.º ecrã só tinha "Entrar" e o
  *  "Começar a estudar" morava ~18 ecrãs abaixo, com a barra de scroll escondida. */
 test.describe('CTA de registo da landing (#512)', () => {
@@ -932,7 +1130,9 @@ test.describe('CTA de registo da landing (#512)', () => {
   async function apanharCta(page: Page) {
     const eventos: unknown[][] = [];
     await page.route('**/__cta-teste', async (route) => {
-      eventos.push(route.request().postDataJSON() as unknown[]);
+      // Com consentimento também passam page_view e o `set` do contexto: contam só os cliques nos CTA.
+      const args = route.request().postDataJSON() as unknown[];
+      if (args[0] === 'event' && args[1] === 'cta_clique') eventos.push(args);
       await route.fulfill({ status: 200, body: 'ok' });
     });
     await page.addInitScript(() => {
@@ -947,7 +1147,6 @@ test.describe('CTA de registo da landing (#512)', () => {
     await page.setViewportSize({ width: 360, height: 640 });
     await semEscolha(page);
     await page.goto('/');
-    await page.evaluate(() => document.fonts.check('16px "Plus Jakarta Sans"'));
     const cabecalho = page.locator('header.site-header');
     const criar = cabecalho.getByRole('link', { name: 'Criar conta' });
     await expect(criar).toBeInViewport();
@@ -962,11 +1161,11 @@ test.describe('CTA de registo da landing (#512)', () => {
     const cabecalho = page.locator('header.site-header');
     await expect(cabecalho.getByRole('link', { name: 'Criar conta' })).toBeInViewport();
     const solucao = cabecalho.getByRole('link', { name: 'Solução' });
-    await expect(solucao).toBeVisible({ timeout: 15000 });
+    await expect(solucao).toBeVisible();
     await expect(solucao).toHaveAttribute('href', '#solucao');
-    await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(FRASE)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('link', { name: 'Saltar a apresentação' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+    await expect(page.getByText(FRASE)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Saltar a apresentação' })).toBeVisible();
   });
 
   test('saltar a apresentação a rato', async ({ page }) => {
@@ -1011,39 +1210,55 @@ test.describe('CTA de registo da landing (#512)', () => {
     test('herói com valor e salto, sem animação', async ({ page }) => {
       await semEscolha(page);
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible({ timeout: 15000 });
-      await expect(page.getByText(FRASE)).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+      await expect(page.getByText(FRASE)).toBeVisible();
       await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
       await expect(page).toHaveURL(/#modulos/);
     });
   });
 
   test('o clique regista a origem: header, outro e faq', async ({ page }) => {
-    await semEscolha(page);
+    // Só se mede com consentimento (#517): sem escolha, `track` devolve `denied`.
+    await page.addInitScript(() => localStorage.setItem('kixi-consent', 'all'));
     const eventos = await apanharCta(page);
     await page.goto('/');
 
     await page.locator('header.site-header').getByRole('link', { name: 'Criar conta' }).click();
     await expect.poll(() => eventos.length, 'clique no header').toBe(1);
-    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header' }]);
+    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
-    // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
-    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+    // A hidratação pode chegar depois do `goBack`: sem o `#solucao` no DOM, o
+    // scroll de baixo perdia-se (ainda sem ouvintes) e o CTA do fim nunca nascia.
+    // Em runner carregado a hidratação demora: os 15 s são os dos testes irmãos.
+    await expect(page.locator('#solucao')).toBeAttached({ timeout: 15000 });
+    // O outro só fica clicável no fim da apresentação de 1800 ecrãs, e o layout
+    // pode crescer depois de lá chegar: desce-se a cada ronda até o CTA entrar
+    // na árvore de acessibilidade.
+    await irAoFim(page);
     const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
-    await expect(outro).toBeVisible({ timeout: 10000 });
+    await expect
+      .poll(
+        async () => {
+          await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+          return outro.isVisible();
+        },
+        { message: 'o CTA do fim fica visível', timeout: 20000 },
+      )
+      .toBe(true);
     await outro.click();
     await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
-    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro' }]);
+    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
     const faq = page.locator('#perguntas').getByRole('link', { name: 'Começar a estudar' });
     await faq.scrollIntoViewIfNeeded();
     await faq.click();
     await expect.poll(() => eventos.length, 'clique no faq').toBe(3);
-    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq' }]);
+    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
   });
 });
+
 /** Apresentação sem derreter o telemóvel (#514): o scroll alimentava um `setState`
  *  por frame e a demo do herói nunca parava. */
 test.describe('apresentação sem derreter (#514)', () => {
@@ -1063,7 +1278,7 @@ test.describe('apresentação sem derreter (#514)', () => {
     // (17 ticks a 70 ms) têm de ser pixel a pixel iguais.
     await page.waitForTimeout(6000);
     const lcd = page.locator('.gb__lcd');
-    await expect(lcd).toBeVisible({ timeout: 15000 });
+    await expect(lcd).toBeVisible();
     const a = await lcd.screenshot();
     await page.waitForTimeout(1200);
     const b = await lcd.screenshot();
@@ -1153,5 +1368,347 @@ test.describe('cache da landing (#522)', () => {
     const r = await request.get('/', { headers: { Accept: 'text/html' } });
     expect(r.ok()).toBeTruthy();
     expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+  });
+});
+
+/** Moderação com diálogo e nota a sério (#525): antes o painel nascia depois de
+ *  toda a lista, fora do ecrã e sem foco, a nota "pedida" era opcional e o alvo
+ *  não tinha ligação. Agora é diálogo modal com foco na nota, nota obrigatória
+ *  para ocultar/suspender e alvo com saída. Nada aqui decide de verdade: abrir,
+ *  validar e fechar não mutam nada, por isso os testes não se estragam entre si. */
+test.describe('moderação com diálogo, nota e auditoria (#525)', () => {
+  test('clicar numa decisão abre diálogo modal com foco na nota', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await expect(page.getByLabel('Nota da decisão')).toBeFocused();
+    expect(await graves(page), 'diálogo da decisão').toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+  });
+
+  test('ocultar não confirma sem nota de pelo menos 10 caracteres', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const confirmar = page.getByRole('button', { name: /^Confirmar/ });
+    await expect(confirmar).toBeDisabled();
+    await expect(page.getByText(/pelo menos 10 caracteres/)).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('curta');
+    await expect(confirmar).toBeDisabled();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    await expect(confirmar).toBeEnabled();
+    await page.keyboard.press('Escape');
+  });
+
+  test('Esc fecha e devolve o foco ao botão que abriu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    const botao = page.getByRole('button', { name: /^Ocultar/ }).first();
+    await botao.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(botao).toBeFocused();
+  });
+
+  test('o cartão do alvo liga por id (escola ou conta)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    // Escola: estrutura direta por id.
+    const escola = page.getByRole('link', { name: 'Ver escola' }).first();
+    await expect(escola).toHaveAttribute('href', /\/institutions\/\d+\/structure$/);
+    // Pessoa: registo da conta por id — o nome da denúncia vive no registo da
+    // pessoa, e na lista só há o username (homónimos incluídos), por isso o
+    // `?q=nome` não chegava lá.
+    const conta = page.getByRole('link', { name: 'Ver conta' }).first();
+    await expect(conta).toHaveAttribute('href', /\/accounts\/\d+\/edit$/);
+    await conta.click();
+    await expect(page).toHaveURL(/\/accounts\/\d+\/edit$/);
+    await expect(page.getByLabel(/Utilizador/)).toBeVisible();
+  });
+
+  test('a auditoria é alcançável em 1 clique, no topo e no menu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await expect(page.getByRole('link', { name: 'Auditoria', exact: true })).toBeVisible();
+    await page.getByRole('main').getByRole('link', { name: 'Ver auditoria' }).click();
+    await expect(page).toHaveURL(/\/moderacao\/auditoria$/);
+    await expect(page.getByRole('heading', { name: 'Auditoria' })).toBeVisible();
+  });
+
+  test('decisão falhada mostra o erro dentro do diálogo', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    // Só os POST (a decisão) falham; o GET da navegação passa.
+    await page.route('**/manager/moderacao', (rota) =>
+      rota.request().method() === 'POST' ? rota.abort() : rota.continue(),
+    );
+    await dialogo.getByRole('button', { name: /^Confirmar/ }).click();
+    // O erro aparece dentro do diálogo e ele continua aberto — antes ficava
+    // escondido atrás do overlay, com a página em `aria-hidden`.
+    await expect(dialogo.getByRole('alert')).toContainText(/failed to fetch|contactar o servidor/i);
+    await expect(dialogo).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+});
+
+/** Erros que pareciam "estado vazio" (#529): a falha do servidor pintava "Nenhum
+ *  ano letivo", lista vazia ou esqueleto infinito, sem "Tentar de novo". Agora a
+ *  falha mostra erro com retry; vazio é só quando a leitura correu bem. */
+test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
+  // Só os POST — que é por onde vão as server actions — falham; o GET da
+  // navegação passa, para a página abrir e a falha ser da leitura, não da rota.
+  async function avariarPOST(page: Page, padrao: string) {
+    await page.route(padrao, (rota) =>
+      rota.request().method() === 'POST' ? rota.abort() : rota.continue(),
+    );
+  }
+
+  /** N respostas POST com sucesso ao padrão: prova que a leitura terminou mesmo,
+   *  não só que o erro se apagou ao clicar (o `load` limpa o erro antes de a
+   *  resposta chegar). Conta pedidos distintos (pelo objeto do pedido), por isso
+   *  a mesma instância serve para totais sucessivos; o ouvinte vive até ao fim
+   *  do teste. */
+  function esperarPosts(page: Page, padrao: string) {
+    const concluidos = new Set<object>();
+    let acorda: (() => void) | null = null;
+    page.on('response', (resposta) => {
+      const pedido = resposta.request();
+      if (pedido.method() === 'POST' && pedido.url().includes(padrao) && resposta.ok()) {
+        concluidos.add(pedido);
+        acorda?.();
+      }
+    });
+    return {
+      async total(n: number, limite = 30000) {
+        const inicio = Date.now();
+        while (concluidos.size < n) {
+          if (Date.now() - inicio > limite) {
+            throw new Error(`só ${concluidos.size} de ${n} respostas POST com sucesso em ${padrao}`);
+          }
+          await new Promise<void>((resolve) => {
+            acorda = resolve;
+            setTimeout(resolve, 200);
+          });
+        }
+      },
+    };
+  }
+
+  test('gestor: ano letivo falhado mostra erro com retry, não "criar primeiro"', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/school-year');
+    await page.goto('/manager/school-year');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    // O defeito era este CTA: a falha pintava "lista vazia" com "criar primeiro".
+    await expect(page.getByRole('link', { name: 'Criar primeiro ano letivo' })).toHaveCount(0);
+    expect(await graves(page), 'school-year em erro').toEqual([]);
+    // Com a rede de volta, o retry traz a lista (ou o vazio verdadeiro, sem erro):
+    // espera-se a resposta, não só o sumiço do botão, e valida-se o recuperado.
+    const conta = esperarPosts(page, '/manager/school-year');
+    await page.unroute('**/manager/school-year');
+    await tentar.click();
+    await conta.total(1);
+    await expect(
+      page
+        .getByText('Nenhum ano letivo registado ainda.')
+        .or(page.locator('tbody a[href*="/school-year/"]'))
+        .first(),
+      'lista ou vazio legítimo',
+    ).toBeVisible();
+    // Segunda falha a seguir ao retry: o erro volta, para não testar só o caminho feliz.
+    await avariarPOST(page, '**/manager/school-year');
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
+    const conta2 = esperarPosts(page, '/manager/school-year');
+    await page.unroute('**/manager/school-year');
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+    await conta2.total(1);
+    await expect(
+      page
+        .getByText('Nenhum ano letivo registado ainda.')
+        .or(page.locator('tbody a[href*="/school-year/"]'))
+        .first(),
+      'lista ou vazio legítimo após a segunda falha',
+    ).toBeVisible();
+  });
+
+  test('gestor: counts falhados mostram erro e retry, não esqueleto infinito', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager');
+    await page.goto('/manager');
+    const cadastros = page.locator('section[aria-label="Cadastros"]');
+    await expect(cadastros.getByRole('alert')).toBeVisible();
+    const tentar = cadastros.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    expect(await graves(page), 'dashboard em erro').toEqual([]);
+    const conta = esperarPosts(page, '/manager');
+    await page.unroute('**/manager');
+    await tentar.click();
+    await conta.total(1);
+    await expect(cadastros.getByRole('alert')).toHaveCount(0);
+    // Recuperado a sério: os tiles voltam, não só o erro que se apaga.
+    await expect(cadastros.locator('a').first(), 'tiles dos cadastros').toBeVisible();
+  });
+
+  test('professor: listas e scope falhados mostram erro com retry', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/professor');
+    await page.goto('/manager/professor');
+    const tabelas = page.getByRole('table');
+    await expect(tabelas.nth(0).getByRole('alert')).toContainText('Não foi possível carregar as simulações');
+    await expect(tabelas.nth(1).getByRole('alert')).toContainText('Não foi possível carregar os enunciados por rever');
+    // O scope falha pela mesma rede: sem o `catch` no hook, este painel nunca
+    // aparecia e as listas ficavam no esqueleto para sempre.
+    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
+    await expect(scope).toBeVisible();
+    expect(await graves(page), 'professor em erro').toEqual([]);
+    await page.unroute('**/manager/professor');
+    // O retry do scope volta a pedir (a falha de rede não fica em cache)...
+    const contaScope = esperarPosts(page, '/manager/professor');
+    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await contaScope.total(1);
+    await expect(scope).toHaveCount(0);
+    // ...e o das listas também (duas leituras, uma por tabela).
+    const contaListas = esperarPosts(page, '/manager/professor');
+    await tabelas.nth(0).getByRole('button', { name: 'Tentar novamente' }).click();
+    await contaListas.total(2);
+    await expect(tabelas.nth(0).getByRole('alert')).toHaveCount(0);
+    await expect(tabelas.nth(1).getByRole('alert')).toHaveCount(0);
+    // Recuperado a sério: cada tabela pinta linhas ou o vazio legítimo.
+    await expect(tabelas.nth(0).locator('tbody tr').first(), 'tabela de simulações').toBeVisible();
+    await expect(tabelas.nth(1).locator('tbody tr').first(), 'tabela por rever').toBeVisible();
+  });
+
+  test('gestor: enunciados falhados (lista e scope) mostram erro com retry', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/statements');
+    await page.goto('/manager/statements');
+    // A falha da lista tem prioridade no painel e esconde a do scope: só há um
+    // retry de cada vez. Primeiro sai o da lista (com resposta à espera)...
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar.first()).toBeVisible();
+    expect(await graves(page), 'enunciados em erro').toEqual([]);
+    const contaLista = esperarPosts(page, '/manager/statements');
+    await page.unroute('**/manager/statements');
+    await tentar.first().click();
+    await contaLista.total(1);
+    // ...depois aparece o do scope, que também sai com retry (e resposta).
+    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
+    await expect(scope).toBeVisible();
+    const contaScope = esperarPosts(page, '/manager/statements');
+    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await contaScope.total(1);
+    await expect(tentar).toHaveCount(0);
+  });
+
+  test('gestor: lista genérica falhada (simulações) mostra erro com retry', async ({ page }) => {
+    await gestorLogin(page);
+    await avariarPOST(page, '**/manager/simulations');
+    await page.goto('/manager/simulations');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar.first()).toBeVisible();
+    const conta = esperarPosts(page, '/manager/simulations');
+    await page.unroute('**/manager/simulations');
+    // Primeiro a lista; o scope falhado aparece a seguir e sai com retry.
+    await tentar.first().click();
+    await conta.total(1);
+    const scope = page.getByRole('alert').filter({ hasText: 'Não foi possível determinar as suas turmas' });
+    await expect(scope).toBeVisible();
+    await scope.getByRole('button', { name: 'Tentar novamente' }).click();
+    await conta.total(2);
+    await expect(tentar).toHaveCount(0);
+    await expect(page.locator('tbody tr').first(), 'tabela recomposta').toBeVisible();
+  });
+
+  test('gestor: sala inexistente mostra erro com retry (sem fingir vazio)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/exam-rooms/999999');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    expect(await graves(page), 'sala em erro').toEqual([]);
+    // O id continua a não existir: o retry volta a tentar e o erro mantém-se,
+    // que é o honesto — nunca um ecrã vazio.
+    await tentar.click();
+    await expect(tentar).toBeVisible();
+  });
+
+  test('gestor: enunciado inexistente mostra erro com retry (sem fingir vazio)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/statements/999999');
+    const tentar = page.getByRole('button', { name: 'Tentar novamente' });
+    await expect(tentar).toBeVisible();
+    expect(await graves(page), 'enunciado em erro').toEqual([]);
+    await tentar.click();
+    await expect(tentar).toBeVisible();
+  });
+
+  test('landing: /nao-existe devolve 404 em PT, com marca e saída', async ({ page }) => {
+    const resposta = await page.goto('/nao-existe');
+    expect(resposta?.status(), 'estado do /nao-existe').toBe(404);
+    await expect(page.getByRole('heading', { name: 'Esta página não existe' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ir para o início' })).toBeVisible();
+    // "Entrar" existe no cabeçalho, no corpo e no rodapé: o que conta é o do corpo.
+    await expect(page.locator('#conteudo').getByRole('link', { name: 'Entrar' })).toBeVisible();
+    expect(await graves(page), 'landing 404').toEqual([]);
+  });
+
+  test('aluno: 404 autenticado é vazio sem live region, com saída', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/rota-que-nao-existe');
+    await expect(page.getByText('Esta página não existe')).toBeVisible();
+    // Vazio não é acontecimento: o texto não vive dentro de status nem de alert.
+    await expect(page.locator('[role="status"], [role="alert"]', { hasText: 'Esta página não existe' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible();
+    expect(await graves(page), 'aluno 404').toEqual([]);
+  });
+});
+
+/** Listagens CRUD com estado no endereço (#526): antes a pesquisa casava com
+ *  JSON de campos invisíveis, tudo se renderizava e editar voltava sem a vista.
+ *  Agora `?q=&sort=&dir=&page=` guarda a vista; só o visível casa e só a página
+ *  se renderiza. */
+test.describe('listagens com pesquisa, ordenação e paginação (#526)', () => {
+  test('recarregar mantém pesquisa, ordenação e página', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/simulations?q=sem-igual-xy9&sort=Aluno&dir=desc&page=3');
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('sem-igual-xy9');
+    await expect(page.locator('th').first()).toHaveAttribute('aria-sort', 'descending');
+    expect(page.url(), 'página no endereço').toContain('page=3');
+    await expect(page.getByText('Nada corresponde à pesquisa.')).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('sem-igual-xy9');
+    await expect(page.locator('th').first()).toHaveAttribute('aria-sort', 'descending');
+    expect(page.url(), 'página após recarregar').toContain('page=3');
+  });
+
+  test('voltar do criar restaura a pesquisa', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/subjects/new?q=volta-aqui');
+    // O voltar é o 2.º nível do breadcrumb, com o nome da lista.
+    const voltar = page
+      .getByRole('navigation', { name: 'Navegação estrutural' })
+      .getByRole('link', { name: 'Disciplinas' });
+    await expect(voltar).toHaveAttribute('href', /q=volta-aqui/);
+    await voltar.click();
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('volta-aqui');
+    expect(page.url(), 'pesquisa no endereço').toContain('q=volta-aqui');
+  });
+
+  test('só se renderiza a página e só a coluna ordenada anuncia', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/simulations?sort=Nota');
+    await expect(page.locator('th[aria-sort="ascending"]')).toHaveCount(1);
+    expect(await graves(page), 'simulações ordenadas').toEqual([]);
+    // Janela de renderização: nunca mais linhas no DOM que as da página.
+    expect(await page.locator('tbody tr').count(), 'linhas renderizadas').toBeLessThanOrEqual(25);
   });
 });

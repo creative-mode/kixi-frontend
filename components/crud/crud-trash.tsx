@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RotateCcw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -47,7 +48,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
       if (res.ok) {
         toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`);
         void load();
-      } else toast.error(res.error);
+      } else reportActionError(res.error);
     } catch {
       toast.error('Não foi possível restaurar. Tente novamente.');
     } finally {
@@ -91,7 +92,7 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
           load();
           return true;
         }
-        toast.error(res.error);
+        reportActionError(res.error);
         return false;
       },
     });

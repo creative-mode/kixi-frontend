@@ -4,6 +4,7 @@ import ForbiddenScene from '@/components/forbidden/forbidden-scene';
 import { Header } from '@/components/sections/Header';
 import { getForbiddenReason } from '@/lib/forbidden-reasons';
 import '@/components/forbidden/forbidden.css';
+import { ErrorView } from '@/components/analytics/trackers';
 
 export const metadata: Metadata = {
   title: '403 · Acesso não permitido',
@@ -32,11 +33,14 @@ export default async function ForbiddenPage({ searchParams }: PageProps) {
   const config = getForbiddenReason(reason);
 
   return (
-    <ForbiddenScene
-      header={<Header />}
-      hint={config.message}
-      primary={button(config.primary.href, config.primary.label)}
-      secondary={config.secondary ? button(config.secondary.href, config.secondary.label) : undefined}
-    />
+    <>
+      <ErrorView app="landing" kind="forbidden" />
+      <ForbiddenScene
+        header={<Header />}
+        hint={config.message}
+        primary={button(config.primary.href, config.primary.label)}
+        secondary={config.secondary ? button(config.secondary.href, config.secondary.label) : undefined}
+      />
+    </>
   );
 }

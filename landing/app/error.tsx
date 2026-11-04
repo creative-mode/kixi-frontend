@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { Footer } from '@/components/sections/Footer';
 import { Header } from '@/components/sections/Header';
+import { ErrorView } from '@/components/analytics/trackers';
 
 /** Fronteira de erro da landing: a mesma identidade do 404 — cabeçalho,
  *  tipografia e botões — em vez do ecrã em branco. */
@@ -14,6 +15,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
 
   return (
     <div className="wrap nf">
+      <ErrorView app="landing" kind="unexpected" />
       <a href="#conteudo" className="skip">Saltar para o conteúdo</a>
       <Header />
       <main id="conteudo" tabIndex={-1} className="lp-stack">
