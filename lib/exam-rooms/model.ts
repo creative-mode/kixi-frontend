@@ -187,6 +187,13 @@ export function wallMinutes(value: string): number | null {
   return Date.UTC(y, mo - 1, d, h, mi) / 60_000;
 }
 
+/** A stored room draft is resumable only while its opening time is still in the future. */
+export function hasFutureRoomStart(startsAt: string, nowInput: string): boolean {
+  const start = wallMinutes(startsAt);
+  const now = wallMinutes(nowInput);
+  return start !== null && now !== null && start > now;
+}
+
 /** Segundos desde 1970 de uma hora de parede — como `wallMinutes`, com a precisão
  *  que os eventos precisam (dois sinais da mesma saída chegam no mesmo segundo).
  *  `Date.UTC` fixa a hora de parede; não lê o fuso do browser. */

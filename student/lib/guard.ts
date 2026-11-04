@@ -1,10 +1,19 @@
 import 'server-only';
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { canAccessManager, normalizeRoles } from './roles';
 import { verificarSessao, type Session } from './jwt';
 import { COOKIE, managerUrl } from './session';
+import { studentNext } from './safe-next';
+
+/** O endereço do login desta app, com o destino de regresso quando o proxy o deixou escrito. */
+export async function entrarUrl(reason: 'required' | 'session-expired'): Promise<string> {
+  const params = new URLSearchParams({ reason });
+  const next = studentNext((await headers()).get('x-pathname'));
+  if (next) params.set('next', next);
+  return `/entrar?${params.toString()}`;
+}
 
 /** The gate every private screen in this app shares: there must be a live session and
  *  it must be a student's. Administrators and teachers are bounced to the manager,
@@ -17,7 +26,7 @@ export async function requireStudent(): Promise<Session> {
   const session = await verificarSessao(token);
 
   if (!session) {
-    redirect(`/entrar?reason=${token ? 'session-expired' : 'required'}`);
+    redirect(await entrarUrl(token ? 'session-expired' : 'required'));
   }
 
   const roles = normalizeRoles(session.roles);

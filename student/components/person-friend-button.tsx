@@ -35,12 +35,12 @@ export function PersonFriendButton({ accountId, friend }: { accountId: number; f
       {message && <Alert variant="destructive">{message}</Alert>}
       {notice && <Alert variant="success" role="status">{notice}</Alert>}
       {friend?.accepted ? (
-        <Button variant="outline" className={base} aria-label="Amigos. Tocar para remover do Buke" title="Amigos" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))}>
+        <Button variant="outline" className={base} aria-label="Amigos. Tocar para remover" title="Amigos" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))}>
           <Ico name="userCheck" filled size={24} />Amigos
         </Button>
       ) : friend?.incoming ? (
         <div className="flex gap-2">
-          <Button className={base} aria-label="Aceitar pedido de amizade" disabled={pending} onClick={() => run(() => acceptFriendAction(friend.friendshipId), 'Adicionado ao Buke')}>
+          <Button className={base} aria-label="Aceitar pedido de amizade" disabled={pending} onClick={() => run(() => acceptFriendAction(friend.friendshipId), 'Adicionado aos amigos')}>
             <Ico name="check" size={24} />Aceitar
           </Button>
           <Button variant="outline" size="icon" className="size-12" disabled={pending} onClick={() => run(() => removeFriendAction(friend.friendshipId))} aria-label="Recusar pedido" title="Recusar">
@@ -55,14 +55,14 @@ export function PersonFriendButton({ accountId, friend }: { accountId: number; f
         <Button
           key="add"
           className={base}
-          aria-label="Adicionar ao Buke"
+          aria-label="Adicionar aos amigos"
           disabled={pending}
           onClick={() => {
             setSent(true);
             startTransition(async () => {
               const result = await requestFriendAction(accountId);
               setMessage(result.ok ? null : result.message);
-              setNotice(result.ok ? 'Pedido enviado. Aparece no teu Buke quando aceitar.' : null);
+              setNotice(result.ok ? 'Pedido enviado. A pessoa passa a aparecer nos teus amigos quando aceitar.' : null);
               if (!result.ok) setSent(false);
             });
           }}

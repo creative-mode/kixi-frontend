@@ -196,7 +196,7 @@ export default function SchoolYearsManager() {
                           size="sm"
                           className="text-muted-foreground hover:text-destructive hover:bg-danger-soft"
                           disabled={deletingId === year.id}
-                          aria-label={`Mover o ano letivo ${year.startYear}–${year.endYear} para a reciclagem`}
+                          aria-label={`Mover o ano letivo ${year.startYear}–${year.endYear} para a lixeira`}
                           onClick={() => askSoftDelete(year)}
                         >
                           {deletingId === year.id ? (

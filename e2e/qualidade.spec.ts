@@ -26,7 +26,7 @@ async function alunoLogin(page: Page) {
 
 async function gestorLogin(page: Page) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(ADMIN);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(ADMIN);
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
   await expect(page).toHaveURL(/\/manager\/?$/);
@@ -39,10 +39,6 @@ async function graves(page: Page) {
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
     .map((v) => `${v.id} x${v.nodes.length}: ${v.nodes[0]?.html.slice(0, 120)}`);
 }
-
-const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
-const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
-const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
 
 /** O host público não deve revelar o gestor; a origem local e hosts parecidos
  *  continuam a chegar ao gestor, sem falsos positivos por sufixo. */
@@ -102,6 +98,10 @@ async function irAoFim(page: Page) {
     .toBe(true);
 }
 
+const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
+const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
+const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
+
 for (const vp of VIEWPORTS) {
   test.describe(`acessibilidade, ${vp.nome}`, () => {
     test.use({ viewport: vp.size, isMobile: vp.size.width < 500 });
@@ -127,7 +127,7 @@ for (const vp of VIEWPORTS) {
 
     test('gestor: o erro do login fica no ecrã e é anunciado (#542)', async ({ page }) => {
       await page.goto('/manager/login');
-      await page.getByLabel('Username ou email').fill('nao-existe');
+      await page.getByLabel('Nome de utilizador ou e-mail').fill('nao-existe');
       await page.locator('#password').fill('errada');
       await page.getByTestId('gestor-entrar-submeter').click();
 
@@ -138,7 +138,7 @@ for (const vp of VIEWPORTS) {
       // O defeito era o toast sumir aos ~4 s: passado mais tempo do que isso, tem de continuar.
       await page.waitForTimeout(6000);
       await expect(alerta).toBeVisible();
-      await expect(page.getByLabel('Username ou email')).toHaveValue('nao-existe');
+      await expect(page.getByLabel('Nome de utilizador ou e-mail')).toHaveValue('nao-existe');
 
       // Um só <main>, o do layout: a página não repete o landmark.
       await expect(page.locator('main')).toHaveCount(1);
@@ -1033,10 +1033,20 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     });
     expect(noTopo, 'CTA invisível não recebe foco').toBe(false);
     // No fim da história a cena acende e o botão entra no Tab.
+    // O layout pode crescer depois de chegar ao fim (tipografia, imagens): sem
+    // evento de scroll novo a cena não acende, por isso desce-se a cada ronda.
     await irAoFim(page);
     const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
-    await expect(cenaOutro, 'a cena do fim acende').toHaveAttribute('aria-hidden', 'false', { timeout: 15000 });
-    await expect(outro).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+          return cenaOutro.getAttribute('aria-hidden');
+        },
+        { message: 'a cena do fim acende', timeout: 20000 },
+      )
+      .toBe('false');
+    await expect(outro).toBeVisible({ timeout: 15000 });
     const noFim = await outro.evaluate((el) => {
       (el as HTMLElement).focus();
       return document.activeElement === el;
@@ -1120,7 +1130,9 @@ test.describe('CTA de registo da landing (#512)', () => {
   async function apanharCta(page: Page) {
     const eventos: unknown[][] = [];
     await page.route('**/__cta-teste', async (route) => {
-      eventos.push(route.request().postDataJSON() as unknown[]);
+      // Com consentimento também passam page_view e o `set` do contexto: contam só os cliques nos CTA.
+      const args = route.request().postDataJSON() as unknown[];
+      if (args[0] === 'event' && args[1] === 'cta_clique') eventos.push(args);
       await route.fulfill({ status: 200, body: 'ok' });
     });
     await page.addInitScript(() => {
@@ -1206,33 +1218,44 @@ test.describe('CTA de registo da landing (#512)', () => {
   });
 
   test('o clique regista a origem: header, outro e faq', async ({ page }) => {
-    await semEscolha(page);
+    // Só se mede com consentimento (#517): sem escolha, `track` devolve `denied`.
+    await page.addInitScript(() => localStorage.setItem('kixi-consent', 'all'));
     const eventos = await apanharCta(page);
     await page.goto('/');
 
     await page.locator('header.site-header').getByRole('link', { name: 'Criar conta' }).click();
     await expect.poll(() => eventos.length, 'clique no header').toBe(1);
-    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header' }]);
+    expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
     // A hidratação pode chegar depois do `goBack`: sem o `#solucao` no DOM, o
     // scroll de baixo perdia-se (ainda sem ouvintes) e o CTA do fim nunca nascia.
     // Em runner carregado a hidratação demora: os 15 s são os dos testes irmãos.
     await expect(page.locator('#solucao')).toBeAttached({ timeout: 15000 });
-    // O outro só fica clicável no fim da apresentação de 1800 ecrãs.
+    // O outro só fica clicável no fim da apresentação de 1800 ecrãs, e o layout
+    // pode crescer depois de lá chegar: desce-se a cada ronda até o CTA entrar
+    // na árvore de acessibilidade.
     await irAoFim(page);
     const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
-    await expect(outro).toBeVisible({ timeout: 15000 });
+    await expect
+      .poll(
+        async () => {
+          await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
+          return outro.isVisible();
+        },
+        { message: 'o CTA do fim fica visível', timeout: 20000 },
+      )
+      .toBe(true);
     await outro.click();
     await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
-    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro' }]);
+    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
     const faq = page.locator('#perguntas').getByRole('link', { name: 'Começar a estudar' });
     await faq.scrollIntoViewIfNeeded();
     await faq.click();
     await expect.poll(() => eventos.length, 'clique no faq').toBe(3);
-    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq' }]);
+    expect(eventos[2]).toEqual(['event', 'cta_clique', { origem: 'faq', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
   });
 });
 
@@ -1345,6 +1368,94 @@ test.describe('cache da landing (#522)', () => {
     const r = await request.get('/', { headers: { Accept: 'text/html' } });
     expect(r.ok()).toBeTruthy();
     expect(r.headers()['cache-control'] ?? '').toContain('no-store');
+  });
+});
+
+/** Moderação com diálogo e nota a sério (#525): antes o painel nascia depois de
+ *  toda a lista, fora do ecrã e sem foco, a nota "pedida" era opcional e o alvo
+ *  não tinha ligação. Agora é diálogo modal com foco na nota, nota obrigatória
+ *  para ocultar/suspender e alvo com saída. Nada aqui decide de verdade: abrir,
+ *  validar e fechar não mutam nada, por isso os testes não se estragam entre si. */
+test.describe('moderação com diálogo, nota e auditoria (#525)', () => {
+  test('clicar numa decisão abre diálogo modal com foco na nota', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await expect(page.getByLabel('Nota da decisão')).toBeFocused();
+    expect(await graves(page), 'diálogo da decisão').toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+  });
+
+  test('ocultar não confirma sem nota de pelo menos 10 caracteres', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const confirmar = page.getByRole('button', { name: /^Confirmar/ });
+    await expect(confirmar).toBeDisabled();
+    await expect(page.getByText(/pelo menos 10 caracteres/)).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('curta');
+    await expect(confirmar).toBeDisabled();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    await expect(confirmar).toBeEnabled();
+    await page.keyboard.press('Escape');
+  });
+
+  test('Esc fecha e devolve o foco ao botão que abriu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    const botao = page.getByRole('button', { name: /^Ocultar/ }).first();
+    await botao.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(botao).toBeFocused();
+  });
+
+  test('o cartão do alvo liga por id (escola ou conta)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    // Escola: estrutura direta por id.
+    const escola = page.getByRole('link', { name: 'Ver escola' }).first();
+    await expect(escola).toHaveAttribute('href', /\/institutions\/\d+\/structure$/);
+    // Pessoa: registo da conta por id — o nome da denúncia vive no registo da
+    // pessoa, e na lista só há o username (homónimos incluídos), por isso o
+    // `?q=nome` não chegava lá.
+    const conta = page.getByRole('link', { name: 'Ver conta' }).first();
+    await expect(conta).toHaveAttribute('href', /\/accounts\/\d+\/edit$/);
+    await conta.click();
+    await expect(page).toHaveURL(/\/accounts\/\d+\/edit$/);
+    await expect(page.getByLabel(/Utilizador/)).toBeVisible();
+  });
+
+  test('a auditoria é alcançável em 1 clique, no topo e no menu', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await expect(page.getByRole('link', { name: 'Auditoria', exact: true })).toBeVisible();
+    await page.getByRole('main').getByRole('link', { name: 'Ver auditoria' }).click();
+    await expect(page).toHaveURL(/\/moderacao\/auditoria$/);
+    await expect(page.getByRole('heading', { name: 'Auditoria' })).toBeVisible();
+  });
+
+  test('decisão falhada mostra o erro dentro do diálogo', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('button', { name: /^Ocultar/ }).first().click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toBeVisible();
+    await page.getByLabel('Nota da decisão').fill('fotografia com insultos repetidos');
+    // Só os POST (a decisão) falham; o GET da navegação passa.
+    await page.route('**/manager/moderacao', (rota) =>
+      rota.request().method() === 'POST' ? rota.abort() : rota.continue(),
+    );
+    await dialogo.getByRole('button', { name: /^Confirmar/ }).click();
+    // O erro aparece dentro do diálogo e ele continua aberto — antes ficava
+    // escondido atrás do overlay, com a página em `aria-hidden`.
+    await expect(dialogo.getByRole('alert')).toContainText(/failed to fetch|contactar o servidor/i);
+    await expect(dialogo).toBeVisible();
+    await page.keyboard.press('Escape');
   });
 });
 
@@ -1558,5 +1669,46 @@ test.describe('estados de erro, esqueletos e fronteiras (#529)', () => {
     await expect(page.locator('[role="status"], [role="alert"]', { hasText: 'Esta página não existe' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Voltar ao início' })).toBeVisible();
     expect(await graves(page), 'aluno 404').toEqual([]);
+  });
+});
+
+/** Listagens CRUD com estado no endereço (#526): antes a pesquisa casava com
+ *  JSON de campos invisíveis, tudo se renderizava e editar voltava sem a vista.
+ *  Agora `?q=&sort=&dir=&page=` guarda a vista; só o visível casa e só a página
+ *  se renderiza. */
+test.describe('listagens com pesquisa, ordenação e paginação (#526)', () => {
+  test('recarregar mantém pesquisa, ordenação e página', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/simulations?q=sem-igual-xy9&sort=Aluno&dir=desc&page=3');
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('sem-igual-xy9');
+    await expect(page.locator('th').first()).toHaveAttribute('aria-sort', 'descending');
+    expect(page.url(), 'página no endereço').toContain('page=3');
+    await expect(page.getByText('Nada corresponde à pesquisa.')).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('sem-igual-xy9');
+    await expect(page.locator('th').first()).toHaveAttribute('aria-sort', 'descending');
+    expect(page.url(), 'página após recarregar').toContain('page=3');
+  });
+
+  test('voltar do criar restaura a pesquisa', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/subjects/new?q=volta-aqui');
+    // O voltar é o 2.º nível do breadcrumb, com o nome da lista.
+    const voltar = page
+      .getByRole('navigation', { name: 'Navegação estrutural' })
+      .getByRole('link', { name: 'Disciplinas' });
+    await expect(voltar).toHaveAttribute('href', /q=volta-aqui/);
+    await voltar.click();
+    await expect(page.getByLabel('Pesquisar')).toHaveValue('volta-aqui');
+    expect(page.url(), 'pesquisa no endereço').toContain('q=volta-aqui');
+  });
+
+  test('só se renderiza a página e só a coluna ordenada anuncia', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/simulations?sort=Nota');
+    await expect(page.locator('th[aria-sort="ascending"]')).toHaveCount(1);
+    expect(await graves(page), 'simulações ordenadas').toEqual([]);
+    // Janela de renderização: nunca mais linhas no DOM que as da página.
+    expect(await page.locator('tbody tr').count(), 'linhas renderizadas').toBeLessThanOrEqual(25);
   });
 });

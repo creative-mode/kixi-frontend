@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint && eslint -c eslint.student.config.mjs student",
-    "test": "node --test 'lib/**/*.test.ts'",
+    "test": "node --test 'lib/**/*.test.ts' 'scripts/ux-language.test.mjs'",
     "test:e2e": "playwright test"
   },
   "dependencies": {
