@@ -591,3 +591,117 @@ export function toUpdateRequest(questions: DraftQuestion[]): RequestQuestion[] {
     return identified;
   });
 }
+
+/** A statement row as `GET /statements/{id}/full` returns it; only the fields read below. */
+export type ServerRow = Record<string, unknown>;
+
+function byOrderIndex(rows: unknown): ServerRow[] {
+  if (!Array.isArray(rows)) return [];
+  return [...(rows as ServerRow[])].sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
+}
+
+/**
+ * Gives each requested option the id of the server option it became.
+ *
+ * The pairing is by position after sorting the server options by `orderIndex`: the
+ * backend stores the options in the order they were sent, so position N of the request is
+ * the option with the N-th `orderIndex`. Pairing by `optionLabel` instead depended on the
+ * server answering in insertion order and on labels being unique and non-empty — when either
+ * failed, the ids went to the wrong option without any error. The request label then finds
+ * the draft option, because `optionsFor` sends labels exactly as the draft has them.
+ */
+function withServerOptionIds<T extends { label: string; serverId?: number }>(
+  options: T[], requested: readonly RequestOption[], serverOptions: unknown,
+): T[] {
+  const saved = byOrderIndex(serverOptions);
+  const ids = new Map<string, number>();
+  requested.forEach((option, index) => {
+    const id = Number(saved[index]?.id);
+    if (Number.isInteger(id) && id > 0 && !ids.has(option.label)) ids.set(option.label, id);
+  });
+  return options.map((option) => {
+    const id = ids.get(option.label);
+    return id ? { ...option, serverId: id } : option;
+  });
+}
+
+/**
+ * After a create, copies the ids the backend assigned into the draft, so the next save
+ * updates the same questions and options instead of creating a second statement.
+ *
+ * Questions with no text are skipped exactly as `toRequest` skips them, so the indexes of
+ * the draft and of the server stay aligned.
+ */
+export function applyServerIds<T extends { items: DraftQuestion[] }>(draft: T, statement: ServerRow): T {
+  const questions = byOrderIndex(statement.questions);
+  const topLevel = questions.filter((question) => question.parentId == null);
+  const requests = toRequest(draft.items);
+  let questionIndex = 0;
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const request = requests[questionIndex];
+      const savedQuestion = topLevel[questionIndex++];
+      if (!savedQuestion || !request) return item;
+      const id = Number(savedQuestion.id);
+      const identified = { ...item, serverId: id, options: withServerOptionIds(item.options, request.options, savedQuestion.options) };
+      if (kindOf(item) !== 'group') return identified;
+      const savedItems = questions.filter((question) => Number(question.parentId) === id);
+      let itemIndex = 0;
+      return {
+        ...identified,
+        items: (item.items ?? []).map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const requested = request.items?.[itemIndex];
+          const savedItem = savedItems[itemIndex++];
+          if (!savedItem || !requested) return subItem;
+          return { ...subItem, serverId: Number(savedItem.id), options: withServerOptionIds(subItem.options, requested.options, savedItem.options) };
+        }),
+      };
+    }),
+  };
+}
+
+/**
+ * After an in-place update, copies the identities `updateManualStatement` returns into the
+ * draft. The action answers in the order of `toUpdateRequest`, and each option id is at the
+ * position of the requested option, so the request is rebuilt here to map them back.
+ */
+export function applyUpdateIdentities<T extends { items: DraftQuestion[] }>(draft: T, identities: BuilderQuestionIdentity[]): T {
+  const requests = toUpdateRequest(draft.items);
+  const updateOptions = <O extends { label: string; serverId?: number }>(
+    options: O[], requestOptions: RequestOption[], ids: number[],
+  ) => options.map((option) => {
+    const index = requestOptions.findIndex((requested) => requested.label === option.label);
+    const id = index >= 0 ? ids[index] : undefined;
+    return id ? { ...option, serverId: id } : option;
+  });
+  let requestIndex = 0;
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const request = requests[requestIndex];
+      const identity = identities[requestIndex++];
+      if (!request || !identity) return item;
+      const identified = {
+        ...item,
+        serverId: identity.serverId,
+        options: updateOptions(item.options, request.options, identity.options),
+      };
+      if (!item.items || !request.items || !identity.items) return identified;
+      let subIndex = 0;
+      return {
+        ...identified,
+        items: item.items.map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const requested = request.items?.[subIndex];
+          const saved = identity.items?.[subIndex++];
+          if (!requested || !saved) return subItem;
+          return { ...subItem, serverId: saved.serverId, options: updateOptions(subItem.options, requested.options, saved.options) };
+        }),
+      };
+    }),
+  };
+}

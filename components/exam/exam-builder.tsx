@@ -16,10 +16,9 @@ import { extractDonation, getDonation, linkDonationStatement } from '@/app/actio
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
-import type { Row } from '@/lib/crud/entities';
 import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
-import { distributeScore, figuresOf, move, problems, toRequest, toUpdateRequest, totalScore, unscored, type BuilderQuestionIdentity, type RequestItem } from '@/lib/exam/draft';
+import { applyServerIds, applyUpdateIdentities, distributeScore, figuresOf, move, problems, toRequest, toUpdateRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { missingToSave, readinessParts, saveBlocker } from '@/lib/exam/readiness';
 import { cn } from '@/lib/utils';
 import { draftFromExtraction, type ExamExtraction, type ImportedNote } from '@/lib/exam/extraction';
@@ -50,88 +49,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 /** A prova que acabou de ser guardada: serve para dizer onde está e para a poder dar a uma turma. */
 interface SavedExam { id: number; title: string; published: boolean; snapshot: string; savedAt: string }
+/** `savedAt` é um instante do browser; a hora mostra-se no fuso de Luanda. */
+const SAVED_AT = new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Luanda', hour: '2-digit', minute: '2-digit' });
 interface PendingFigurePublication extends SavedExam { figures: ReturnType<typeof figuresOf>; publish: boolean }
-
-function ordered(rows: Row[]): Row[] {
-  return [...rows].sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
-}
-
-function applyServerIds(draft: ExamDraft, statement: Row): ExamDraft {
-  const questions = Array.isArray(statement.questions) ? ordered(statement.questions as Row[]) : [];
-  const topLevel = questions.filter((question) => question.parentId == null);
-  let questionIndex = 0;
-  const optionsWithIds = <T extends { label: string; serverId?: number }>(options: T[], serverOptions: Row[]) =>
-    options.map((option) => {
-      const match = serverOptions.find((candidate) => candidate.optionLabel === option.label);
-      return match?.id != null ? { ...option, serverId: Number(match.id) } : option;
-    });
-  return {
-    ...draft,
-    items: draft.items.map((item) => {
-      if (!item.text.trim()) return item;
-      const savedQuestion = topLevel[questionIndex++];
-      if (!savedQuestion) return item;
-      const id = Number(savedQuestion.id);
-      const savedOptions = Array.isArray(savedQuestion.options) ? savedQuestion.options as Row[] : [];
-      const identified = { ...item, serverId: id, options: optionsWithIds(item.options, savedOptions) };
-      if (item.kind !== 'group') return identified;
-      const savedItems = questions.filter((question) => Number(question.parentId) === id);
-      let itemIndex = 0;
-      return {
-        ...identified,
-        items: (item.items ?? []).map((subItem) => {
-          if (!subItem.text.trim()) return subItem;
-          const savedItem = savedItems[itemIndex++];
-          if (!savedItem) return subItem;
-          const subOptions = Array.isArray(savedItem.options) ? savedItem.options as Row[] : [];
-          return { ...subItem, serverId: Number(savedItem.id), options: optionsWithIds(subItem.options, subOptions) };
-        }),
-      };
-    }),
-  };
-}
-
-function applyUpdateIdentities(draft: ExamDraft, identities: BuilderQuestionIdentity[]): ExamDraft {
-  const requests = toUpdateRequest(draft.items);
-  let requestIndex = 0;
-  const updateOptions = <T extends { label: string; serverId?: number }>(
-    options: T[], requestOptions: RequestItem['options'], ids: number[],
-  ) => options.map((option) => {
-    const index = requestOptions.findIndex((requested) => requested.label === option.label);
-    const id = index >= 0 ? ids[index] : undefined;
-    return id ? { ...option, serverId: id } : option;
-  });
-  return {
-    ...draft,
-    items: draft.items.map((item) => {
-      if (!item.text.trim()) return item;
-      const request = requests[requestIndex];
-      const identity = identities[requestIndex++];
-      if (!request || !identity) return item;
-      const identified = {
-        ...item,
-        serverId: identity.serverId,
-        options: updateOptions(item.options, request.options, identity.options),
-      };
-      if (!item.items || !request.items || !identity.items) return identified;
-      let subIndex = 0;
-      return {
-        ...identified,
-        items: item.items.map((subItem) => {
-          if (!subItem.text.trim()) return subItem;
-          const requested = request.items?.[subIndex];
-          const saved = identity.items?.[subIndex++];
-          if (!requested || !saved) return subItem;
-          return {
-            ...subItem,
-            serverId: saved.serverId,
-            options: updateOptions(subItem.options, requested.options, saved.options),
-          };
-        }),
-      };
-    }),
-  };
-}
 
 /** Anexa apenas os recortes ainda ausentes; a ordem e a legenda identificam cada recorte
  *  porque a prova acabou de ser criada e, portanto, não tem imagens pré-existentes. */
@@ -581,7 +501,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           <Button variant="outline" onClick={() => window.print()} disabled={!ready2print}>
             <Printer aria-hidden /> Imprimir / guardar PDF
           </Button>
-          {saved ? <span className="self-center text-xs text-muted-foreground" role="status">{changedSinceSave ? 'Alterações por guardar' : `Guardado às ${new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Luanda', hour: '2-digit', minute: '2-digit' }).format(new Date(saved.savedAt))}`}</span> : null}
+          {saved ? <span className="self-center text-xs text-muted-foreground" role="status">{changedSinceSave ? 'Alterações por guardar' : `Guardado às ${SAVED_AT.format(new Date(saved.savedAt))}`}</span> : null}
         </div>
       </div>
 
