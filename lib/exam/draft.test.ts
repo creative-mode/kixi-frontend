@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  applyServerIds,
+  applyUpdateIdentities,
   convertItemKind,
   convertKind,
   distributeScore,
@@ -22,13 +24,16 @@ import {
   optionsFor,
   optionsReady,
   problems,
+  questionWriteBody,
   round2,
   toRequest,
+  toUpdateRequest,
   totalScore,
   unscored,
   type DraftItem,
   type DraftOption,
   type DraftQuestion,
+  type RequestQuestion,
 } from './draft.ts';
 
 const open = (text: string, points: number | '' = 2): DraftQuestion => ({ text, points, options: [] });
@@ -479,4 +484,139 @@ test('a prova de OGI completa e pontuada não tem problemas', () => {
   const pronta = distributeScore(ogi(), 20).map((q) => (kindOf(q) === 'group' ? { ...q, items: (q.items ?? []).map((i) => (kindOf(i) === 'true_false' ? { ...i, options: trueFalseOptions('V') } : i)) } : q));
   assert.deepEqual(problems(pronta), []);
   assert.equal(totalScore(pronta), 20);
+});
+
+test('o pedido de atualização conserva os ids da pergunta, alínea e opções', () => {
+  const [question] = toUpdateRequest([{
+    serverId: 41, text: 'Escolha', points: '', kind: 'group', options: [],
+    items: [{
+      serverId: 42, label: 'b', text: 'Qual?', points: 2, kind: 'multiple_choice',
+      options: [
+        { serverId: 43, label: 'A', text: 'Sim', correct: false },
+        { serverId: 44, label: 'B', text: 'Não', correct: true },
+      ],
+    }],
+  }]);
+
+  assert.equal(question.serverId, 41);
+  assert.equal(question.items?.[0].serverId, 42);
+  assert.deepEqual(question.items?.[0].options.map((option) => option.serverId), [43, 44]);
+  assert.deepEqual(question.items?.[0].options.map((option) => option.correct), [false, true]);
+});
+
+const savedChoice = (id: number, orderIndex: number, options: Array<[number, string, number]>) => ({
+  id, orderIndex, parentId: null,
+  options: options.map(([optionId, optionLabel, optionOrder]) => ({ id: optionId, optionLabel, orderIndex: optionOrder })),
+});
+
+test('applyServerIds emparelha as opções pela orderIndex, mesmo que o servidor as devolva noutra ordem', () => {
+  const draft = { items: [choice('Primeira'), open(''), choice('Segunda')] };
+  const statement = {
+    questions: [
+      savedChoice(20, 1, [[202, 'B', 1], [201, 'A', 0]]),
+      savedChoice(10, 0, [[102, 'B', 1], [101, 'A', 0]]),
+    ],
+  };
+  const identified = applyServerIds(draft, statement);
+  assert.equal(identified.items[0].serverId, 10);
+  assert.deepEqual(identified.items[0].options.map((o) => o.serverId), [101, 102]);
+  // A pergunta vazia não foi enviada: não recebe id nem desloca as seguintes.
+  assert.equal(identified.items[1].serverId, undefined);
+  assert.equal(identified.items[2].serverId, 20);
+  assert.deepEqual(identified.items[2].options.map((o) => o.serverId), [201, 202]);
+});
+
+test('applyServerIds não depende do optionLabel que o servidor devolve', () => {
+  const draft = { items: [choice('Primeira')] };
+  // Rótulos trocados na resposta: a posição pela orderIndex continua a mandar.
+  const statement = { questions: [savedChoice(10, 0, [[101, 'B', 0], [102, 'A', 1]])] };
+  const identified = applyServerIds(draft, statement);
+  assert.deepEqual(identified.items[0].options.map((o) => [o.label, o.serverId]), [['A', 101], ['B', 102]]);
+});
+
+test('applyServerIds dá ids às alíneas de um grupo pela ordem do servidor', () => {
+  const group: DraftQuestion = {
+    text: 'Grupo', points: '', options: [], kind: 'group',
+    items: [
+      { text: 'a primeira', points: 1, options: [], kind: 'open' },
+      { text: '', points: 1, options: [], kind: 'open' },
+      { text: 'a segunda', points: 1, options: [opt('A', true), opt('B')], kind: 'multiple_choice' },
+    ],
+  };
+  const statement = {
+    questions: [
+      { id: 31, orderIndex: 2, parentId: 30, options: [{ id: 312, optionLabel: 'B', orderIndex: 1 }, { id: 311, optionLabel: 'A', orderIndex: 0 }] },
+      { id: 30, orderIndex: 0, parentId: null, options: [] },
+      { id: 32, orderIndex: 1, parentId: 30, options: [] },
+    ],
+  };
+  const identified = applyServerIds({ items: [group] }, statement);
+  const items = identified.items[0].items ?? [];
+  assert.equal(identified.items[0].serverId, 30);
+  assert.equal(items[0].serverId, 32);
+  assert.equal(items[1].serverId, undefined);
+  assert.equal(items[2].serverId, 31);
+  assert.deepEqual(items[2].options.map((o) => o.serverId), [311, 312]);
+});
+
+test('applyUpdateIdentities devolve os ids à pergunta e à opção certas', () => {
+  const draft = { items: [open(''), choice('Primeira'), open('Segunda')] };
+  const identified = applyUpdateIdentities(draft, [
+    { serverId: 10, options: [101, 102] },
+    { serverId: 11, options: [] },
+  ]);
+  assert.equal(identified.items[0].serverId, undefined);
+  assert.equal(identified.items[1].serverId, 10);
+  assert.deepEqual(identified.items[1].options.map((o) => [o.label, o.serverId]), [['A', 101], ['B', 102]]);
+  assert.equal(identified.items[2].serverId, 11);
+});
+
+test('applyUpdateIdentities identifica as alíneas novas de um grupo existente', () => {
+  const group: DraftQuestion = {
+    text: 'Grupo', points: '', options: [], kind: 'group', serverId: 30,
+    items: [
+      { text: 'a', points: 1, options: [], kind: 'open', serverId: 32 },
+      { text: 'b nova', points: 1, options: [opt('A', true), opt('B')], kind: 'multiple_choice' },
+    ],
+  };
+  const identified = applyUpdateIdentities({ items: [group] }, [
+    { serverId: 30, options: [], items: [{ serverId: 32, options: [] }, { serverId: 33, options: [331, 332] }] },
+  ]);
+  const items = identified.items[0].items ?? [];
+  assert.equal(items[1].serverId, 33);
+  assert.deepEqual(items[1].options.map((o) => o.serverId), [331, 332]);
+});
+
+test('editar uma alínea já guardada não manda parentId nem label no PUT', () => {
+  const group: DraftQuestion = {
+    text: 'Grupo', points: '', options: [], kind: 'group', serverId: 30,
+    items: [{ text: 'a editada', points: 2, options: [], kind: 'open', serverId: 32 }],
+  };
+  const [request] = toUpdateRequest([group]);
+  const body = questionWriteBody(request.items![0] as RequestQuestion, 30);
+  assert.equal('parentId' in body, false);
+  assert.equal('label' in body, false);
+  assert.equal(body.text, 'a editada');
+  assert.equal(body.maxScore, 2);
+});
+
+test('uma alínea nova num grupo já guardado é criada com o grupo e a letra', () => {
+  const group: DraftQuestion = {
+    text: 'Grupo', points: '', options: [], kind: 'group', serverId: 30,
+    items: [
+      { text: 'a', points: 1, options: [], kind: 'open', serverId: 32 },
+      { text: 'b nova', points: 1, options: [], kind: 'open' },
+    ],
+  };
+  const [request] = toUpdateRequest([group]);
+  const body = questionWriteBody(request.items![1] as RequestQuestion, 30);
+  assert.equal(body.parentId, 30);
+  assert.equal(body.label, 'b');
+});
+
+test('a pergunta de topo nunca leva parentId, e o grupo leva a disposição', () => {
+  const group: DraftQuestion = { text: 'Grupo', points: '', options: [], kind: 'group', serverId: 30, items: [] };
+  const body = questionWriteBody(toUpdateRequest([group])[0], null);
+  assert.equal('parentId' in body, false);
+  assert.equal(body.groupLayout, 'lettered');
 });

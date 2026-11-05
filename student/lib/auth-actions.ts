@@ -8,6 +8,7 @@ import { problem } from './api';
 import { authFailureMessage, forwardedFor, retryAfterSeconds } from './auth-rules';
 import { canAccessManager, normalizeRoles } from '@/lib/roles';
 import { redirectFromAction } from './action-redirect';
+import { appRelativePath, STUDENT_BASE_PATH, studentNext } from './safe-next';
 
 export type FormState = { error?: string; fields?: Record<string, string> } | undefined;
 
@@ -91,6 +92,16 @@ async function post(
   }
 }
 
+/**
+ * O destino do aluno com `?entrou=1`: o layout dispara `login_success` ao ver o marcador e tira-o do endereço
+ * (`FireEventOnce`, #714), como o `?novo=1` do cadastro. A query e o hash do destino ficam como estavam.
+ */
+function withLoginMarker(path: string): string {
+  const url = new URL(path, 'http://kixi.invalid');
+  url.searchParams.set('entrou', '1');
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export async function entrarAction(_: FormState, form: FormData): Promise<FormState> {
   const usernameOrEmail = String(form.get('usernameOrEmail') ?? '').trim();
   const password = String(form.get('password') ?? '');
@@ -105,6 +116,13 @@ export async function entrarAction(_: FormState, form: FormData): Promise<FormSt
   const destination = await startSession(data);
   if (!destination) {
     return { error: 'Resposta de sessão inválida. Tenta novamente.', fields: { usernameOrEmail } };
+  }
+
+  // Só o destino do aluno é que pode ser substituído pelo `next`. Um gestor que entre
+  // aqui continua a ir para o manager, mesmo que o pedido traga um caminho do aluno.
+  if (destination === '/inicio') {
+    const next = studentNext(form.get('next'));
+    await redirectFromAction(withLoginMarker(next ? appRelativePath(next, STUDENT_BASE_PATH) : destination));
   }
 
   await redirectFromAction(destination);

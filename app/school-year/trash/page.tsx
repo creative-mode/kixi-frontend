@@ -11,19 +11,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import { formatLuandaDateTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react';
 import type { SchoolYearResponse } from '@/types/school-year';
 import { TableRowsSkeleton } from '@/components/crud/loading';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 
 export default function SchoolYearTrashPage() {
   const [schoolYears, setSchoolYears] = useState<SchoolYearResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<number | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   useEffect(() => {
     loadTrashed();
@@ -59,25 +60,33 @@ export default function SchoolYearTrashPage() {
     }
   }
 
-  async function handlePurge(year: SchoolYearResponse) {
-    if (!confirm(`Tem certeza que deseja ELIMINAR PERMANENTEMENTE o ano letivo ${year.startYear}–${year.endYear}? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
+  async function handlePurge(year: SchoolYearResponse): Promise<boolean> {
     setActionId(year.id);
     try {
       const result = await purgeSchoolYear(year.id);
       if (result.success) {
         toast.success(`Ano letivo ${year.startYear}–${year.endYear} eliminado permanentemente`);
         await loadTrashed();
+        return true;
       } else {
         toast.error(result.error || 'Erro ao eliminar permanentemente');
+        return false;
       }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Erro ao eliminar permanentemente');
+      return false;
     } finally {
       setActionId(null);
     }
+  }
+
+  function askPurge(year: SchoolYearResponse) {
+    setConfirmState({
+      title: 'Eliminar definitivamente?',
+      description: `O ano letivo ${year.startYear}–${year.endYear} desaparecerá para sempre. Esta ação não pode ser desfeita.`,
+      action: 'Eliminar definitivamente', busyLabel: 'A eliminar definitivamente…', destructive: true,
+      run: () => handlePurge(year),
+    });
   }
 
   return (
@@ -139,7 +148,7 @@ export default function SchoolYearTrashPage() {
                     <TableCell className="text-muted-foreground">{year.endYear}</TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
                       {year.deletedAt
-                        ? format(new Date(year.deletedAt), "dd 'de' MMM yyyy, HH:mm", { locale: pt })
+                        ? formatLuandaDateTime(year.deletedAt)
                         : '—'}
                     </TableCell>
                     <TableCell className="text-right">
@@ -160,7 +169,7 @@ export default function SchoolYearTrashPage() {
                           size="sm"
                           className="text-muted-foreground hover:text-destructive hover:bg-danger-soft"
                           disabled={actionId === year.id}
-                          onClick={() => handlePurge(year)}
+                          onClick={() => askPurge(year)}
                         >
                           <Trash2 size={16} className="mr-1" />
                           Eliminar
@@ -174,6 +183,7 @@ export default function SchoolYearTrashPage() {
           </Table>
         </CardContent>
       </Card>
+      <Confirm state={confirmState} onClose={() => setConfirmState(null)} />
     </div>
   );
 }

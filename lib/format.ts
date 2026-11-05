@@ -3,6 +3,51 @@ const decimal = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1, minim
 
 export const EMPTY = '—';
 
+const LUANDA = 'Africa/Luanda';
+const luandaDateTime = new Intl.DateTimeFormat('pt-PT', {
+  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: LUANDA,
+});
+const wallDateTime = new Intl.DateTimeFormat('pt-PT', {
+  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC',
+});
+const wallPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/;
+
+function wallDate(value: string): Date | null {
+  const match = wallPattern.exec(value);
+  if (!match) return null;
+  const [, year, month, day, hour, minute] = match;
+  const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 16) !== `${year}-${month}-${day}T${hour}:${minute}` ? null : date;
+}
+
+/** API LocalDateTime values already express Luanda wall time; offsets express instants. */
+export function formatLuandaDateTime(value: string | Date | null | undefined): string {
+  if (!value) return EMPTY;
+  if (typeof value === 'string' && wallPattern.test(value)) {
+    const date = wallDate(value);
+    return date ? wallDateTime.format(date) : EMPTY;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? EMPTY : luandaDateTime.format(date);
+}
+
+/** Convert an instant to the wall-clock value expected by datetime-local. */
+export function toLuandaDateTimeLocal(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  if (typeof value === 'string' && wallPattern.test(value)) return wallDate(value) ? value.slice(0, 16) : '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: LUANDA, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+/** Send a backend LocalDateTime without an offset or Z suffix. */
+export function fromLuandaDateTimeLocal(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) && wallDate(value) ? `${value}:00` : null;
+}
+
 export function formatInt(value: number | null | undefined): string {
   return value == null ? EMPTY : int.format(value);
 }

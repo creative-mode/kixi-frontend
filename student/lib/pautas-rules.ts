@@ -10,7 +10,14 @@ export interface MyTermSheet {
   subjectName: string;
   subjectCode: string;
   className: string;
+  /** O número de processo do aluno na escola (kixi#512); ausente ou nulo quando a escola não o tem. */
+  processNumber?: string | null;
   row: { mac: number | null; p1: number | null; p2: number | null; mt: number | null; status: RowStatus };
+}
+
+/** O número de processo do trimestre: o mesmo em todas as pautas da mesma escola, por isso mostra-se uma vez (kixi#512). */
+export function processNumberOf(sheets: readonly Pick<MyTermSheet, 'processNumber'>[]): string | null {
+  return sheets.map((s) => s.processNumber?.trim()).find((n): n is string => !!n) ?? null;
 }
 
 export const NOTA_POSITIVA = 10;

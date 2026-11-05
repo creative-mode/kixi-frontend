@@ -1,7 +1,7 @@
 import { CountUp } from '@/components/count-up';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { Check, Clock, MessageCircle, X } from 'lucide-react';
+import { Award, Check, Clock, MessageCircle, Sparkles, X } from 'lucide-react';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { ClearExamLocal } from '@/components/clear-exam-local';
 import { Column, Page, PageHeader } from '@/components/page';
@@ -12,7 +12,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { getMe } from '@/lib/me';
+import { entrarUrl } from '@/lib/guard';
 import { getResultView } from '@/lib/result';
+import { getCommunityStats } from '@/lib/community';
+import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
+import { getBadges, getStats } from '@/lib/stats';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
 import { listInvitations } from '@/lib/exam-room';
 import { comCorrecao, eSimulacaoLivre } from '@/lib/schoolops/correcao-rules';
@@ -116,7 +120,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   if (!Number.isInteger(id) || id <= 0) redirect('/provas');
 
   const view = await getResultView(id);
-  if (view.kind === 'unauthorized') redirect('/entrar?reason=session-expired');
+  if (view.kind === 'unauthorized') redirect(await entrarUrl('session-expired'));
   if (view.kind === 'missing') notFound();
   if (view.kind === 'in-progress') redirect(view.statementId ? `/prova/${view.statementId}` : '/provas');
   if (view.kind === 'error') {
@@ -144,7 +148,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <FireEventOnce param="submetida" event="exam_submitted" />
             <ClearExamLocal simulationId={id} />
             <Column className="gap-5">
-              <PageHeader kicker="Resultado" title={view.title} />
+              <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
                 {correcao.kind === 'a-corrigir' && <CorrecaoEmCurso />}
                 {correcao.kind === 'incompleta' && (
@@ -178,6 +182,23 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const pending = result.pendingReviewCount ?? 0;
   const hasMistakes = questions.some((q) => ['wrong', 'blank'].includes(verdict(q)));
 
+  // A leitura da nota (#492) só usa números do servidor: a média da turma vem da
+  // comunidade da prova, e o XP, a sequência e as medalhas vêm de /me. Cada bloco
+  // que falha fica omisso em vez de derrubar o resultado.
+  const [stats, badges, community] = await Promise.all([
+    getStats(),
+    getBadges(),
+    statementId != null ? getCommunityStats(statementId) : Promise.resolve(null),
+  ]);
+  const reading = gradeReading({
+    score: result.finalScore,
+    totalMax,
+    meanScore: community?.ok ? community.data.meanScore : null,
+    sampleSize: community?.ok ? community.data.sampleSize : null,
+    delta: comparison?.delta ?? null,
+  });
+  const medalhasNovas = badgesUnlockedIn(badges, view.startedAt, view.finishedAt);
+
   // A prova entregue na folha, corrigida. O cabeçalho e as figuras são extras: se algum falhar, a folha leva o
   // molde em branco e a revisão questão a questão, mais abaixo, continua a ser a fonte de tudo.
   const statement = statementId != null ? await getStatementFull(statementId, { cached: true }) : null;
@@ -190,7 +211,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
       <FireEventOnce param="submetida" event="exam_submitted" />
       <ClearExamLocal simulationId={id} />
       <Column className="gap-5">
-        <PageHeader kicker="Resultado" title={view.title} />
+        <PageHeader kicker="Resultado" title={view.title} back="/provas" />
 
         <div className="flex flex-wrap items-end gap-x-3.5 gap-y-2">
           <span className="text-[52px] leading-[.95] font-bold tracking-tighter tabular-nums md:text-[64px]">{score ? <CountUp value={score} /> : '—'}</span>
@@ -208,6 +229,65 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             {pending === 1 ? '1 resposta aberta ainda está' : `${pending} respostas abertas ainda estão`} a ser corrigida{pending === 1 ? '' : 's'}: a nota pode mudar quando terminar.
             Não precisas de esperar aqui, esta página atualiza-se quando voltares.
           </p>
+        )}
+
+        {reading && (
+          <p
+            data-testid="resultado-leitura"
+            role="status"
+            className={
+              'flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm leading-relaxed ' +
+              (reading.tone === 'low' ? 'border-warning/40 bg-warning-soft' : 'border-success/30 bg-success-soft')
+            }
+          >
+            <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{reading.text}</span>
+          </p>
+        )}
+
+        {/* As acções principais ficam logo a seguir à leitura da nota (#492): quem
+            quer estudar os erros não tem de atravessar a folha inteira. */}
+        <div className="flex flex-wrap items-start gap-2.5">
+          {statementId != null && hasMistakes && (
+            <Button asChild>
+              {/* `de=resultado&simulacao=` diz ao tutor que «Voltar» tem de regressar
+                  a este resultado, e não ao detalhe da prova (#491). */}
+              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}&de=resultado&simulacao=${result.simulationId}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
+            </Button>
+          )}
+          {statementId != null && <RefazerSimulacao statementId={statementId} />}
+          <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
+        </div>
+
+        {(stats != null || medalhasNovas.length > 0) && (
+          <Card className="gap-3 px-4 py-4" aria-label="O que ganhaste">
+            <h2 className="text-[17px] font-bold tracking-tight">O que ganhaste</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {stats != null && (
+                <div className="rounded-lg bg-secondary/60 px-3.5 py-3">
+                  <b className="block text-[22px] leading-none tracking-tight tabular-nums">{stats.xp} XP</b>
+                  <span className="text-[13px] text-muted-foreground">no total · nível {stats.level}</span>
+                </div>
+              )}
+              {stats != null && (
+                <div className="rounded-lg bg-secondary/60 px-3.5 py-3">
+                  <b className="block text-[22px] leading-none tracking-tight tabular-nums">
+                    {stats.streak} {stats.streak === 1 ? 'dia' : 'dias'}
+                  </b>
+                  <span className="text-[13px] text-muted-foreground">de sequência</span>
+                </div>
+              )}
+              {medalhasNovas.map((badge) => (
+                <div key={badge.code} className="flex items-start gap-3 rounded-lg border border-success/30 bg-success-soft px-3.5 py-3 sm:col-span-2">
+                  <Award className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
+                  <div className="leading-snug">
+                    <b className="block text-sm">Medalha nova: {badge.name}</b>
+                    <span className="text-[13px] text-muted-foreground">{badge.description}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -260,8 +340,16 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             classId={classId}
             simulationId={result.simulationId}
             card={{
+              simulationId: result.simulationId,
+              statementId,
               schoolName: me?.school?.name ?? null,
               statementTitle: view.title,
+              paperKind: paperMeta.kind,
+              grade: paperMeta.grade,
+              subject: paperMeta.subject,
+              durationMinutes: paperMeta.durationMinutes,
+              schoolYear: paperMeta.schoolYear,
+              variant: paperMeta.variant,
               finalScore: result.finalScore,
               maxScore: totalMax,
               correctAnswers: result.correctAnswers ?? null,
@@ -271,15 +359,6 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           />
         )}
 
-        <div className="flex flex-wrap items-start gap-2.5">
-          {statementId != null && <RefazerSimulacao statementId={statementId} />}
-          {statementId != null && hasMistakes && (
-            <Button asChild>
-              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
-            </Button>
-          )}
-          <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
-        </div>
       </Column>
     </Page>
   );

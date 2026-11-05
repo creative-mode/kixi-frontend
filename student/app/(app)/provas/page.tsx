@@ -80,18 +80,17 @@ function Abas({ aba, salas, enunciados, convites }: { aba: Aba; salas: string; e
     <Link
       key={id}
       href={href}
-      role="tab"
-      aria-selected={aba === id}
-      className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${aba === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+      aria-current={aba === id ? 'page' : undefined}
+      className={`-mb-px flex min-h-11 items-center border-b-2 px-4 text-sm font-semibold transition-colors ${aba === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
     >
       {label}
     </Link>
   );
   return (
-    <div role="tablist" aria-label="Provas" className="flex gap-1 border-b">
+    <nav aria-label="Provas" className="flex gap-1 border-b">
       {item('enunciados', enunciados, 'Enunciados')}
       {item('salas', salas, convites > 0 ? `Salas de prova (${convites})` : 'Salas de prova')}
-    </div>
+    </nav>
   );
 }
 

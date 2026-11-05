@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,8 @@ import { ItemEditor, LEAF_LABELS, LeafBody } from './item-editor';
 import { hasMathContent } from '@/student/lib/shared/math-content';
 import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
 import { FormulaInput } from './formula-input';
+import { useState } from 'react';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 
 const KIND_LABELS: Record<QuestionKind, string> = { ...LEAF_LABELS, group: 'Com alíneas' };
 
@@ -32,6 +34,7 @@ export function QuestionEditor({
   onChange,
   onRemove,
   onMove,
+  onOpenOriginal,
 }: {
   item: ExamItem;
   index: number;
@@ -39,20 +42,27 @@ export function QuestionEditor({
   onChange: (patch: Partial<ExamItem>) => void;
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
+  /** Leva a vista à página do original donde a questão saiu. Presente quando há original. */
+  onOpenOriginal?: (pageIndex: number) => void;
 }) {
   const n = index + 1;
   const kind = kindOf(item);
   const items = item.items ?? [];
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const setItems = (next: typeof items) => onChange({ items: next });
 
   function changeKind(next: QuestionKind) {
     // Largar as alíneas apaga o que o professor escreveu nelas: pergunta-se antes.
-    if (kind === 'group' && items.some((i) => i.text.trim()) && !window.confirm('Passar para outro tipo apaga as alíneas desta questão. Continuar?')) return;
+    if (kind === 'group' && items.some((i) => i.text.trim())) {
+      setConfirm({ title: 'Apagar alíneas?', description: 'Passar para outro tipo apaga as alíneas desta questão.', action: 'Continuar', destructive: true, run: () => { onChange(convertKind(item, next)); } });
+      return;
+    }
     onChange(convertKind(item, next));
   }
 
   return (
-    <fieldset className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border p-3">
+    <fieldset id={`questao-${n}`} tabIndex={-1} className="grid min-w-0 scroll-mt-20 grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border p-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
       <legend className="sr-only">Questão {n}</legend>
       <div className="flex min-w-0 flex-wrap items-start gap-2 sm:flex-nowrap">
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-[12px] font-bold text-accent-foreground">{n}</span>
@@ -116,12 +126,19 @@ export function QuestionEditor({
           </>
         )}
         {mathNeedsReview(item.formulas, item.blocks) && !item.reviewed ? <Badge variant="warning">fórmula a rever</Badge> : null}
+        {item.sourcePageIndex != null && onOpenOriginal && (
+          <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => onOpenOriginal(item.sourcePageIndex!)}>
+            <BookOpen size={14} aria-hidden />Página {item.sourcePageIndex + 1} do original
+          </Button>
+        )}
       </div>
 
       {kind === 'group' ? (
         <div className="grid gap-2 pl-8">
+          {/* «Ir para a questão» chega ao fieldset pelo id `questao-n`; cada alínea
+              tem `data-leaf`, para «Ir para a questão 3a» apanhar a alínea certa. */}
           {items.map((it, j) => (
-            <div key={j} className={it.label?.includes('.') ? 'ml-5' : undefined}>
+            <div key={j} data-leaf={`${n}${sourceItemLabel(it, j)}`} className={it.label?.includes('.') ? 'ml-5' : undefined}>
               <ItemEditor
                 item={it}
                 label={sourceItemLabel(it, j)}

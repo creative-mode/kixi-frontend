@@ -87,6 +87,14 @@ math-virtual-keyboard {
   --font-mono: var(--ff-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
+/* Largura que a barra lateral do gestor reserva ao conteúdo (components/manager-navbar.tsx). Só vale a partir de `lg`. */
+:root {
+  --nav-width: 16rem;
+}
+:root[data-nav='collapsed'] {
+  --nav-width: 4rem;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -315,4 +323,25 @@ html.lenis body {
 }
 .stagger-children.in-view > *:nth-child(6) {
   transition-delay: 0.5s;
+}
+
+/* Barra de rolagem discreta no menu do gestor: fina, sem fundo, só aparece ao passar o rato */
+.nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.nav-scroll:hover,
+.nav-scroll:focus-within {
+  scrollbar-color: var(--border) transparent;
+}
+.nav-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.nav-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+.nav-scroll:hover::-webkit-scrollbar-thumb,
+.nav-scroll:focus-within::-webkit-scrollbar-thumb {
+  background: var(--border);
 }

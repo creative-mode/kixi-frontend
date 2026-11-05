@@ -4,7 +4,7 @@
  */
 
 type Roles = readonly string[];
-export type MockSheetRow = { accountId: number; number: number; name: string; mac: number | null; p1: number | null; p2: number | null; mt: number | null; status: 'POSITIVA' | 'NEGATIVA' | 'INCOMPLETA'; adjusted: boolean };
+export type MockSheetRow = { accountId: number; number: number; name: string; processNumber?: string | null; mac: number | null; p1: number | null; p2: number | null; mt: number | null; status: 'POSITIVA' | 'NEGATIVA' | 'INCOMPLETA'; adjusted: boolean };
 export type MockSheet = {
   sheetId: string; status: 'REGISTADA' | 'FECHADA' | 'ANULADA'; termNumber: number; schoolYear: string; classId: number; className: string; grade: number;
   course: string; subjectId: number; subjectName: string; subjectCode: string; updatedAt: string; rows: MockSheetRow[];
@@ -24,6 +24,8 @@ const PEERS: { accountId: number; name: string; scores: Record<number, [number, 
   { accountId: 9002, name: 'Bruno Neto', scores: { 1: [10, 5, 6], 2: [10, 12, 11], 3: [11, 12, 12] } },
   { accountId: 9003, name: 'Carlos Pedro', scores: { 1: [9, 15, 15], 2: [11, 14, 13], 3: [12, 13, 14] } },
 ];
+/** kixi#512: a Ana e o Carlos têm número de processo na escola; os restantes não (a pauta sai sem ele, sem erro). */
+const PROCESS_NUMBERS: Record<number, string> = { 9001: 'P-2026/0042', 9003: 'P-2026/0107' };
 const ABSENT = { accountId: 9004, name: 'Diana Lopes' };
 const STUDENT_SCORES: Record<number, [number, number, number]> = { 1: [14, 13, 15], 2: [13, 15, 14], 3: [16, 15, 17] };
 
@@ -38,7 +40,7 @@ function rowsFor(w: MockWorld, term: number, withStudent: boolean, shift: number
   const present = people.map((p, i) => {
     const [mac, p1, p2] = p.scores[term].map((n) => Math.max(0, Math.min(20, n + shift)));
     const mt = round((mac + p1 + p2) / 3);
-    const row: MockSheetRow = { accountId: p.accountId, number: i + 1, name: p.name, mac, p1, p2, mt, status: mt >= 10 ? 'POSITIVA' : 'NEGATIVA', adjusted: false };
+    const row: MockSheetRow = { accountId: p.accountId, number: i + 1, name: p.name, processNumber: PROCESS_NUMBERS[p.accountId] ?? null, mac, p1, p2, mt, status: mt >= 10 ? 'POSITIVA' : 'NEGATIVA', adjusted: false };
     return row;
   });
   // A Diana faltou: fica incompleta, sem nenhuma nota (nunca zero).

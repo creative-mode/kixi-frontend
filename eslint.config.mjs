@@ -30,6 +30,8 @@ const eslintConfig = defineConfig([
     "dist/**",
     "src/generated/**",
     "prisma/migrations/**",
+    // Ficheiro vendorizado (bundle minificado de pdfjs-dist), não editar:
+    "public/pdf.worker.min.mjs",
   ]),
 ]);
 

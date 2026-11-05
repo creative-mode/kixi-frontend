@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getProfile } from '@/lib/me';
-import { requireStudent } from '@/lib/guard';
+import { entrarUrl, requireStudent } from '@/lib/guard';
 import { MeProvider } from '@/lib/me-context';
 import { Shell } from '@/components/Shell';
 import { RightRail } from '@/components/right-rail';
@@ -8,13 +8,14 @@ import { RightRailSkeleton } from '@/components/right-rail-skeleton';
 import { loadSocial } from '@/lib/social';
 import type { Me } from '@/lib/types';
 import { Suspense } from 'react';
+import { appOrigin } from '@/lib/origin';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireStudent();
 
   const profile = await getProfile();
   if (profile.kind === 'unauthorized') {
-    redirect('/entrar?reason=session-expired');
+    redirect(await entrarUrl('session-expired'));
   }
 
   // Feed, ranking and proofs are scoped to the student's class, so an account with no
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <MeProvider me={profile.me}>
       <Shell
+        landingOrigin={appOrigin()}
         rail={profile.kind === 'ok'
           ? <Suspense fallback={<RightRailSkeleton />}><Rail me={profile.me} /></Suspense>
           : undefined}

@@ -16,8 +16,8 @@ import type { Visibility } from '@/lib/profiles';
 import { ProfileEditor } from '@/components/profile-editor';
 import { EmptyState } from '@/components/states';
 import Link from 'next/link';
-import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { RefreshError } from '@/components/refresh-error';
 import { Badge as Pill } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -39,6 +39,7 @@ function Fact({ icon, children }: { icon: Parameters<typeof Ico>[0]['name']; chi
 
 /** O centro do perfil: cabeçalho, últimas simulações, sequência de estudo e separadores. */
 export function PerfilView({
+  landingOrigin,
   me,
   stats,
   badges,
@@ -52,6 +53,7 @@ export function PerfilView({
   visibility = 'school',
   experience = [],
 }: {
+  landingOrigin: string | null;
   experience?: ExperienceEntry[];
   me: Me;
   visibility?: Visibility;
@@ -108,6 +110,19 @@ export function PerfilView({
             ))}
           </ul>
         )}
+        {/* As Pautas saíram da barra inferior do telemóvel para a barra voltar a alinhar
+            (#704); esta é a porta para elas em mobile e desktop. */}
+        <Link
+          href="/pautas"
+          className="mt-4 flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Ico name="award" size={22} /></span>
+          <span className="min-w-0 flex-1 leading-snug">
+            <b className="block text-[15px]">As minhas pautas</b>
+            <span className="text-[13px] text-muted-foreground">As tuas notas de cada trimestre, depois de a escola fechar a pauta.</span>
+          </span>
+          <Ico name="chevron" size={20} className="shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
       </ProfileHero>
 
       <Tabs defaultValue={initialTab}>
@@ -116,7 +131,7 @@ export function PerfilView({
         <TabsContent value="Publicações" className="flex flex-col">
           {classId && <PostComposer classId={classId} />}
           {feedError ? (
-            <div className="p-4"><Alert variant="destructive">{feedError}</Alert></div>
+            <div className="p-4"><RefreshError title="Não foi possível carregar as publicações" message={feedError} /></div>
           ) : !classId ? (
             <EmptyState title="Matricula-te para publicares" message="As publicações da tua turma aparecem aqui depois da matrícula." />
           ) : posts.length === 0 ? (
@@ -190,6 +205,10 @@ export function PerfilView({
                 <Pill variant={me.accessibility_extra_time ? 'success' : 'secondary'}>{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</Pill>
               </div>
               <VisibilityPicker initial={visibility} />
+              <div className="grid gap-2 border-t py-3.5 text-[15px]">
+                <a href={`${landingOrigin ?? ''}/privacidade`} className="font-medium text-primary underline-offset-4 hover:underline">Privacidade</a>
+                <a href={`${landingOrigin ?? ''}/cookies`} className="font-medium text-primary underline-offset-4 hover:underline">Cookies</a>
+              </div>
               <form action={sairAction} className="pt-3.5 last:pb-0">
                 <Button type="submit" variant="outline" className="w-full text-destructive sm:w-auto"><Ico name="logout" size={20} />Terminar sessão</Button>
               </form>

@@ -6,6 +6,7 @@ import {
   applyEvent,
   buildMessagePayload,
   buildSessionPayload,
+  composerAction,
   describeHttpFailure,
   formatWait,
   modeNeedsQuestion,
@@ -14,6 +15,7 @@ import {
   parseSse,
   parseWrongAnswers,
   studyPrompt,
+  tutorBackLink,
   wrongAnswersParam,
   type ChatMessage,
 } from './tutor-rules.ts';
@@ -156,6 +158,43 @@ test('sem contexto, a sessão leva só prova e modo', () => {
 test('a mensagem leva só o conteúdo', () => {
   assert.deepEqual(buildMessagePayload('  o que é TCP?  '), {
     content: 'o que é TCP?',
+  });
+});
+
+test('no telemóvel o Enter muda de linha; no computador envia', () => {
+  const enter = { key: 'Enter' };
+  assert.equal(composerAction(enter, false), 'newline');
+  assert.equal(composerAction(enter, true), 'send');
+  assert.equal(composerAction({ ...enter, shiftKey: true }, false), 'newline');
+  assert.equal(composerAction({ ...enter, shiftKey: true }, true), 'newline');
+  assert.equal(composerAction({ ...enter, ctrlKey: true }, true), 'send');
+  assert.equal(composerAction({ ...enter, metaKey: true }, false), 'send');
+  assert.equal(composerAction({ key: 'a' }, true), 'none');
+  assert.equal(composerAction({ key: 'a' }, false), 'none');
+});
+
+test('«Voltar» regressa ao resultado de onde o aluno veio, ou ao detalhe da prova', () => {
+  assert.deepEqual(tutorBackLink({ de: 'resultado', simulacao: '12' }, 7), {
+    href: '/resultado?prova=12',
+    label: 'Voltar ao resultado',
+  });
+  assert.deepEqual(tutorBackLink({ de: ['resultado'], simulacao: ['12'] }, 7), {
+    href: '/resultado?prova=12',
+    label: 'Voltar ao resultado',
+  });
+  assert.deepEqual(tutorBackLink({}, 7), { href: '/prova/7/detalhe', label: 'Voltar à prova' });
+  // Um `de` que o tutor não conhece, ou um id que não existe, não vira destino.
+  assert.deepEqual(tutorBackLink({ de: 'outro', simulacao: '12' }, 7), {
+    href: '/prova/7/detalhe',
+    label: 'Voltar à prova',
+  });
+  assert.deepEqual(tutorBackLink({ de: 'resultado', simulacao: '0' }, 7), {
+    href: '/prova/7/detalhe',
+    label: 'Voltar à prova',
+  });
+  assert.deepEqual(tutorBackLink({ de: 'resultado' }, 7), {
+    href: '/prova/7/detalhe',
+    label: 'Voltar à prova',
   });
 });
 

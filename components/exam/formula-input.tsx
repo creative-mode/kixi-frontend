@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { hasMathContent } from '@/student/lib/shared/math-content';
+import { hasMathContent, splitMathText, type MathSegment } from '@/student/lib/shared/math-content';
 import { MathText } from '@/student/lib/shared/math-text';
 import { FormulaBuilderModal } from './formula-builder-modal';
 
@@ -42,6 +42,7 @@ export function FormulaInput({
   const [builderOpen, setBuilderOpen] = useState(false);
   const [sourceMode, setSourceMode] = useState(false);
   const showRenderedMath = hasMathContent(value) && !sourceMode;
+  const segments = useMemo(() => splitMathText(value), [value]);
 
   function enterSourceMode() {
     setSourceMode(true);
@@ -63,6 +64,14 @@ export function FormulaInput({
     setBuilderOpen(true);
   }
 
+  /** Com a fórmula desenhada não há textarea de onde ler a seleção: a posição vem da própria fórmula. */
+  function editFormula(segment: MathSegment) {
+    if (!segment.formula) return;
+    selection.current = { start: segment.start, end: segment.end };
+    setBuilderInitial(segment.formula);
+    setBuilderOpen(true);
+  }
+
   function insert(latex: string, display: boolean) {
     const { start, end } = selection.current;
     const token = display ? `$$\n${latex}\n$$` : `$${latex}$`;
@@ -75,8 +84,27 @@ export function FormulaInput({
   return (
     <div className="min-w-0 flex-1 space-y-1.5">
       {showRenderedMath ? (
-        <div role="textbox" aria-label={label} aria-readonly="true" className={`min-h-14 w-full whitespace-pre-wrap break-words rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs ${className ?? ''}`}>
-          <MathText text={value} className="whitespace-pre-wrap break-words" />
+        <div
+          role="group"
+          aria-label={label}
+          className={`min-h-14 w-full whitespace-pre-wrap break-words rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs ${className ?? ''}`}
+        >
+          {segments.map((segment, index) => {
+            if (!segment.formula) return <span key={index}>{segment.text}</span>;
+            const number = segments.slice(0, index).filter((s) => s.formula).length + 1;
+            return (
+              <button
+                key={index}
+                type="button"
+                aria-label={`Editar fórmula ${number}`}
+                title="Editar fórmula"
+                onClick={() => editFormula(segment)}
+                className={`min-h-8 max-w-full cursor-pointer rounded-sm align-middle outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 ${segment.formula.display ? 'block w-full text-left' : 'inline-flex items-center px-0.5'}`}
+              >
+                <MathText text={segment.text} className="whitespace-pre-wrap break-words" />
+              </button>
+            );
+          })}
         </div>
       ) : (
         <Textarea
@@ -101,7 +129,7 @@ export function FormulaInput({
             {showRenderedMath ? 'Ajustar enunciado' : 'Ver fórmula renderizada'}
           </Button>
         )}
-        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={openBuilder}>
+        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" aria-label={`Inserir fórmula: ${label}`} onClick={openBuilder}>
           Inserir fórmula
         </Button>
         <span className="ml-auto text-xs text-muted-foreground">Construa visualmente; confira no enunciado</span>
