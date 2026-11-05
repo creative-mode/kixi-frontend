@@ -8,7 +8,7 @@ import { getProfile } from '@/lib/me';
 import { getSchoolTeachers, searchSchools, type SchoolCard, type TeacherCard } from '@/lib/profiles';
 import { MIN_QUERY, isSearchable, matchesName, normalizeQuery, uniqueBy } from '@/lib/search-rules';
 
-export const metadata = { title: 'Pesquisar · Kixi' };
+export const metadata = { title: 'Explorar · Kixi' };
 
 /** Quantas escolas se consultam à procura de professores com aquele nome. */
 const SCHOOLS_FOR_TEACHERS = 5;
@@ -43,7 +43,7 @@ function Row({ href, name, sub, photo, verified }: { href: string; name: string;
  * professores procuram-se pelo nome nas escolas encontradas e na tua. Os alunos são os colegas
  * que o servidor deixa pesquisar (nomes abreviados), porque não há pesquisa pública de alunos.
  */
-export default async function PesquisaPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function ExplorarPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const q = normalizeQuery((await searchParams).q);
   const ready = isSearchable(q);
 
@@ -75,7 +75,7 @@ export default async function PesquisaPage({ searchParams }: { searchParams: Pro
 
   return (
     <Page>
-      <PageHeader title="Pesquisar" description="Encontra escolas, professores e alunos." />
+      <PageHeader title="Explorar" description="Encontra escolas, professores e alunos." />
       <form role="search" action="" className="flex gap-2">
         <label htmlFor="q" className="sr-only">Nome de uma escola, de um professor ou de um aluno</label>
         <input id="q" name="q" type="search" defaultValue={q} minLength={MIN_QUERY} placeholder="Ex.: ITEL, Ana ou Prof. Costa" className="h-11 min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 md:text-sm" />

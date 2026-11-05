@@ -15,7 +15,7 @@ export default async function EscolaPage({ params }: { params: Promise<{ id: str
   const school = await getSchool(id);
   if (!school.ok) {
     if (school.status === 404) notFound();
-    return <RefreshError title="Não foi possível carregar a escola" message={school.message} status={school.status} back={{ href: "/pesquisa", label: "Pesquisar escolas" }} />;
+    return <RefreshError title="Não foi possível carregar a escola" message={school.message} status={school.status} back={{ href: "/explorar", label: "Explorar escolas" }} />;
   }
   const [teachers, statements] = await Promise.all([getSchoolTeachers(id), getSchoolStatements(id)]);
   const s = school.data;

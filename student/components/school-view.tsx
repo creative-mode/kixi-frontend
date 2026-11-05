@@ -20,7 +20,7 @@ import type { SchoolProfile, TeacherCard } from '@/lib/profiles';
 export function SchoolView({ school, teachers, statements }: { school: SchoolProfile; teachers: TeacherCard[]; statements: CatalogItem[] }) {
   return (
     <Page className="gap-0 p-0 pb-24 md:pb-10">
-      <PageHeader title={school.name} kicker={school.code} back="/pesquisa" className="m-0" />
+      <PageHeader title={school.name} kicker={school.code} back="/explorar" className="m-0" />
       <ProfileHero name={school.name} photoName={school.shortName ?? school.name} photo={school.logo} verified={school.verified} verifiedLabel="Escola verificada">
         <p className="mt-1 text-[15px] text-muted-foreground">{school.verified ? 'Escola verificada pela Kixi.' : 'Escola ainda não verificada.'}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">

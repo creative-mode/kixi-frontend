@@ -11,18 +11,19 @@ import { useMe } from '@/lib/me-context';
 import { cn } from '@/lib/utils';
 import { mobileNavItems, type ShellNavItem } from '@/lib/shell-nav';
 
-/** O perfil não tem entrada aqui: abre-se pelo avatar (menu da conta), que também termina a sessão.
- *  A pesquisa é `desktopOnly` porque o telemóvel já a tem no cabeçalho; na barra inferior
- *  duplicaria o mesmo destino. As Pautas são `mobileHidden` (#704): a barra inferior tem
- *  4 colunas e 5 itens partiam o último para uma segunda linha; no telemóvel chega-se
- *  às pautas pelo perfil. */
+/** A navegação do protótipo "Kixi Aluno, nova experiência": 4 destinos no telemóvel
+ *  (Início, Provas, Explorar, Turma) e um 5.º só no computador (Notificações, que no
+ *  telemóvel ainda não tem entrada própria). O Tutor deixou de ser um destino fixo —
+ *  chega-se lá a partir do treino e do resultado, nunca pela barra. O Ranking, as
+ *  Pautas e a Pesquisa também saíram daqui: as Pautas continuam acessíveis pelo
+ *  perfil (#704); o Ranking entra na aba "Médias" da Turma; a Pesquisa dá lugar ao
+ *  Explorar, que cobre o mesmo destino e mais. */
 const ITEMS: (ShellNavItem & { label: string; ariaLabel?: string; icon: IcoName })[] = [
   { href: '/inicio', label: 'Início', icon: 'home', also: [] },
   { href: '/provas', label: 'Provas', icon: 'file', also: ['/prova', '/resultado', '/sala'] },
-  { href: '/ranking', label: 'Ranking', icon: 'trophy', also: [] },
-  { href: '/pautas', label: 'Pautas', icon: 'award', also: [], mobileHidden: true },
-  { href: '/tutor', label: 'Tutor', icon: 'chat', also: [] },
-  { href: '/pesquisa', label: 'Pesquisar', ariaLabel: 'Pesquisar escolas, professores e alunos', icon: 'search', also: [], desktopOnly: true },
+  { href: '/explorar', label: 'Explorar', icon: 'search', also: [] },
+  { href: '/turma', label: 'Turma', icon: 'users', also: [] },
+  { href: '/notificacoes', label: 'Notificações', icon: 'bell', also: [], desktopOnly: true },
 ];
 
 /** Páginas onde a coluna da direita atrapalha: conversa com o tutor, que precisa de largura. */
@@ -80,7 +81,7 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur md:hidden">
           <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil'} placement="top" landingOrigin={landingOrigin} />
           <Link href="/inicio" aria-label="Kixi, início" className="grid min-h-11 place-items-center px-2"><Logo size={22} wordmark /></Link>
-          <Link href="/pesquisa" data-press aria-label="Pesquisar escolas, professores e alunos" title="Pesquisar" className="grid size-12 place-items-center rounded-full hover:bg-secondary"><Ico name="search" size={26} /></Link>
+          <Link href="/explorar" data-press aria-label="Explorar enunciados, escolas e pessoas" title="Explorar" className="grid size-12 place-items-center rounded-full hover:bg-secondary"><Ico name="search" size={26} /></Link>
         </header>
 
         <div className="flex min-w-0 flex-1">
