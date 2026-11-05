@@ -159,6 +159,14 @@ export async function profilesRoutes({ method, pathname, search, filter, body, t
 
   if (pathname === '/subjects' && method === 'GET') return json(db.subjects);
 
+  // GET /institutions/{id}: o `loadPaperMeta` da folha lê o nome da escola daqui.
+  const institution = pathname.match(/^\/institutions\/(\d+)$/);
+  if (institution && method === 'GET') {
+    const row = db.institutions.find((i) => i.id === Number(institution[1]));
+    if (!row) return problem(404, 'Institution not found');
+    return json(row);
+  }
+
   // Catalog, the StatementCatalogController shape: flat rows, paged. Filters mirror
   // the backend's @RequestParam names, including the 0-based page. Paging itself
   // lives in ./catalog-page so node --test can cover it (this file imports

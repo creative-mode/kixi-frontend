@@ -82,7 +82,7 @@ async function comments(mode) {
 }
 
 const rows = [];
-for (const [name, path, sel] of [['Início', '/inicio', 'article button[aria-expanded]'], ['Perfil', '/perfil', '[role="tab"]'], ['Provas', '/provas', '[role="tab"]']]) {
+for (const [name, path, sel] of [['Início', '/inicio', 'article button[aria-expanded]'], ['Perfil', '/perfil', '[role="tab"]'], ['Provas', '/provas', 'nav[aria-label="Provas"] a[aria-current="page"]']]) {
   const r = await visit(path, sel);
   rows.push(`| ${name} | ${r['1.ª visita'].tContent} | ${r['1.ª visita'].tImages} | ${r['1.ª visita'].kb} | ${r['1.ª visita'].imgKb} (${r['1.ª visita'].img}) | ${r['1.ª visita'].req} | ${r['2.ª visita'].tContent} | ${r['2.ª visita'].tImages} | ${r['2.ª visita'].kb} |`);
 }

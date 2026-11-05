@@ -85,6 +85,41 @@ function renderDelimitedText(text: string, formulas: readonly MathFormula[]): st
   return html + escapeHtml(value.slice(cursor));
 }
 
+export interface MathSegment {
+  /** Texto cru deste pedaço, delimitadores incluídos. */
+  text: string;
+  start: number;
+  end: number;
+  /** Presente só nas fórmulas: o LaTeX sem delimitadores e se é destacada. */
+  formula: { latex: string; display: boolean } | null;
+}
+
+/**
+ * Reparte o texto em pedaços de texto e de fórmula, lendo os delimitadores como o desenho:
+ * quem edita sabe assim a que intervalo do texto pertence cada fórmula desenhada.
+ */
+export function splitMathText(value: string): MathSegment[] {
+  const segments: MathSegment[] = [];
+  let cursor = 0;
+  for (let i = 0; i < value.length;) {
+    const token = tokenAt(value, i);
+    if (!token) { i += 1; continue; }
+    if (token.start > cursor) {
+      segments.push({ text: value.slice(cursor, token.start), start: cursor, end: token.start, formula: null });
+    }
+    segments.push({
+      text: value.slice(token.start, token.end),
+      start: token.start,
+      end: token.end,
+      formula: { latex: token.body.trim(), display: token.display },
+    });
+    cursor = token.end;
+    i = token.end;
+  }
+  if (cursor < value.length) segments.push({ text: value.slice(cursor), start: cursor, end: value.length, formula: null });
+  return segments;
+}
+
 export function renderMathHtml(text: string, formulas: readonly MathFormula[] = [], blocks?: readonly MathContentBlock[]): string {
   if (blocks?.length) {
     return blocks.map((block) => block.type === 'text'

@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { verificarSessao } from '@/lib/jwt';
 import { managerUrl as configuredManagerUrl, resolveOrigin } from '@/lib/origin';
+import { studentNext } from '@/lib/safe-next';
 
-/** Public: the two entrance screens. Everything else needs a live session. */
-const PUBLIC = ['/entrar', '/cadastro'];
+/** Public: the entrance screens and the password-recovery instructions. Everything else needs a live session. */
+const PUBLIC = ['/entrar', '/cadastro', '/recuperar'];
 /** O manager vive no mesmo endereço, em /manager (fora do basePath deste app). */
 /** Atrás do gateway/Docker o origin visto pelo Next é o interno: usa o endereço público
  *  (configuração primeiro, cabeçalhos do gateway como recurso).
@@ -56,6 +57,21 @@ function go(req: NextRequest, destino: string) {
   return NextResponse.redirect(url);
 }
 
+/** Deixa seguir, mas deixa também o caminho público à vista de `guard.ts` (Server Components). */
+function pass(req: NextRequest) {
+  const headers = new Headers(req.headers);
+  headers.set('x-pathname', `${req.nextUrl.pathname}${req.nextUrl.search}`);
+  return NextResponse.next({ request: { headers } });
+}
+
+/** Login com o destino original, para o aluno voltar à página que tentou abrir. */
+function goLogin(req: NextRequest, reason: 'required' | 'session-expired') {
+  const next = studentNext(`${req.nextUrl.pathname}${req.nextUrl.search}`);
+  const query = new URLSearchParams({ reason });
+  if (next) query.set('next', next);
+  return go(req, `/entrar?${query.toString()}`);
+}
+
 async function roles(token?: string): Promise<string[] | null> {
   // A assinatura é verificada aqui: o cookie é de quem o escreve, e é este proxy que decide quem tem sessão.
   return (await verificarSessao(token))?.roles ?? null;
@@ -66,20 +82,20 @@ export async function proxy(req: NextRequest) {
   const r = await roles(req.cookies.get('auth_token')?.value);
   // A página 403 é uma tela estática do manual: segura de mostrar a qualquer
   // visitante (paridade com o manager, que também deixa abrir /403 sem sessão).
-  if (pathname === '/403' || pathname.startsWith('/403/')) return NextResponse.next();
+  if (pathname === '/403' || pathname.startsWith('/403/')) return pass(req);
   // O callback do SchoolOps vem de uma máquina, sem sessão: quem o autentica é a assinatura do evento, na própria rota.
-  if (pathname === '/api/schoolops/eventos') return NextResponse.next();
+  if (pathname === '/api/schoolops/eventos') return pass(req);
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   if (isPublic) {
     // Quem tem sessão de gestor (o cookie é partilhado no mesmo endereço) continua a ver o formulário:
     // redirecioná-lo para o gestor impedia de entrar como aluno. Entrar substitui a sessão.
     if (r && !r.includes('ADMIN') && !r.includes('TEACHER')) return go(req, '/inicio');
-    return NextResponse.next();
+    return pass(req);
   }
-  if (!r) return go(req, '/entrar');
+  if (!r) return goLogin(req, 'required');
   if (r.includes('ADMIN')) return gotoManager(req);
-  return NextResponse.next();
+  return pass(req);
 }
 
 export const config = { matcher: ['/((?!_next|favicon.ico|.*\\..*).*)'] };

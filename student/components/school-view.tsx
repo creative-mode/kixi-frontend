@@ -71,7 +71,9 @@ export function SchoolView({ school, teachers, statements }: { school: SchoolPro
             <EmptyState title="Ainda não há enunciados" message="Os enunciados publicados por esta escola aparecem aqui." />
           ) : (
             statements.map((e) => (
-              <Link key={e.id} prefetch={false} href={`/prova/${e.id}`} className="flex min-h-14 items-center justify-between gap-3 border-b px-4 py-2.5 transition-colors hover:bg-secondary/40">
+              // O enunciado abre o detalhe, como no catálogo (#494): `/prova/{id}` é a
+              // sala de prova, e saltar o detalhe perde escolha de modo, histórico e «Voltar».
+              <Link key={e.id} prefetch={false} href={`/prova/${e.id}/detalhe`} className="flex min-h-14 items-center justify-between gap-3 border-b px-4 py-2.5 transition-colors hover:bg-secondary/40">
                 <span className="truncate font-bold">{e.title}</span>
                 <span className="shrink-0 text-[13px] text-muted-foreground">{e.subject}</span>
               </Link>

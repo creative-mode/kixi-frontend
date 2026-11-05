@@ -24,6 +24,23 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
     const mine = t ? db['teaching-assignments'].filter((a) => a.teacherId === t.id) : [];
     return json(200, mine.filter((a) => !a.deletedAt));
   }
+  // kixi#512: o número de processo do aluno na escola. ADMIN-only (o gate do mock já recusa os outros); cria a ligação se faltar.
+  if ((m = path.match(/^\/api\/v1\/institutions\/(\d+)\/students\/(\d+)\/process-number$/)) && method === 'PUT') {
+    const inst = activeInst(m[1]);
+    if (!inst) return problem(404, 'Institution not found');
+    const user = db.users.find((x) => x.id === Number(m[2]) && !x.deletedAt);
+    if (!user) return problem(404, 'Student not found');
+    const raw = String(readBody()?.processNumber ?? '').trim();
+    if (raw.length > 30) return problem(400, 'O número de processo tem no máximo 30 caracteres.');
+    if (raw && !/^[\p{L}\p{N}][\p{L}\p{N} ./_-]*$/u.test(raw)) return problem(400, 'O número de processo só pode ter letras, algarismos, espaço e . / _ -');
+    if (raw && db.institutionStudents.some((l) => l.institutionId === inst.id && l.userId !== user.id && l.processNumber === raw)) {
+      return problem(409, `O número de processo ${raw} já pertence a outro aluno desta escola.`);
+    }
+    let link = db.institutionStudents.find((l) => l.institutionId === inst.id && l.userId === user.id);
+    if (!link) { link = { institutionId: inst.id, userId: user.id }; db.institutionStudents.push(link); }
+    link.processNumber = raw || null;
+    return json(200, { userId: user.id, accountId: user.accountId, firstName: user.firstName, lastName: user.lastName, processNumber: link.processNumber });
+  }
   if ((m = path.match(/^\/api\/v1\/institutions\/(\d+)\/(subjects|teachers|students)(?:\/(\d+))?$/))) {
     const inst = activeInst(m[1]);
     if (!inst) return problem(404, 'Institution not found');
@@ -34,7 +51,7 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
     if (method === 'GET' && !m[3]) {
       if (kind === 'subjects') return json(200, links().map((l) => db.subjects.find((x) => x.id === l.subjectId)).filter((x) => x && !x.deletedAt).map((x) => ({ id: x.id, code: x.code, name: x.name, short_name: x.short_name })));
       if (kind === 'teachers') return json(200, links().map((l) => db.teachers.find((x) => x.id === l.teacherId)).filter((x) => x && !x.deletedAt).map((x) => ({ id: x.id, firstName: x.firstName, lastName: x.lastName, email: x.email, hasAccess: !!x.accountId })));
-      return json(200, links().map((l) => db.users.find((x) => x.id === l.userId)).filter((x) => x && !x.deletedAt).map((x) => ({ userId: x.id, accountId: x.accountId, firstName: x.firstName, lastName: x.lastName })));
+      return json(200, links().map((l) => ({ l, u: db.users.find((x) => x.id === l.userId) })).filter(({ u }) => u && !u.deletedAt).map(({ l, u }) => ({ userId: u.id, accountId: u.accountId, firstName: u.firstName, lastName: u.lastName, processNumber: l.processNumber ?? null })));
     }
     const target = Number(m[3]);
     const source = { subjects: 'subjects', teachers: 'teachers', students: 'users' }[kind];

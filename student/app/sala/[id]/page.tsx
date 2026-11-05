@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
-import { requireStudent } from '@/lib/guard';
+import { entrarUrl, requireStudent } from '@/lib/guard';
 import { getMe } from '@/lib/me';
 import { getControlledRoom } from '@/lib/exam-room';
 import { formatWhen } from '@/lib/exam-room-rules';
 import { SalaProva } from '@/components/sala-prova';
 import { RefreshError } from '@/components/refresh-error';
 import { Button } from '@/components/ui/button';
+import { RoomRefreshPoller } from '@/components/room-refresh-poller';
 
 export const metadata = { title: 'Sala de prova · Kixi' };
 
@@ -28,7 +29,7 @@ export default async function SalaControladaPage({ params }: { params: Params })
   if (!Number.isInteger(roomId) || roomId <= 0) redirect('/provas');
 
   const room = await getControlledRoom(roomId);
-  if (room.kind === 'unauthorized') redirect('/entrar?reason=session-expired');
+  if (room.kind === 'unauthorized') redirect(await entrarUrl('session-expired'));
   if (room.kind === 'submitted') redirect(`/resultado?prova=${room.simulationId}`);
   if (room.kind === 'open') {
     const me = await getMe();
@@ -48,7 +49,7 @@ export default async function SalaControladaPage({ params }: { params: Params })
         : room.message;
 
   return (
-    <div className="mx-auto grid min-h-dvh max-w-[760px] place-items-center p-6">
+    <div className="mx-auto grid above-banner-min-h max-w-[760px] place-items-center p-6">
       {room.kind === 'error' ? (
         <RefreshError
           title="Não conseguimos abrir a sala"
@@ -58,6 +59,7 @@ export default async function SalaControladaPage({ params }: { params: Params })
         />
       ) : (
         <div className="grid gap-4 text-center">
+          {room.kind === 'waiting' && (room.phase === 'scheduled' || room.phase === 'lobby') && <RoomRefreshPoller enabled />}
           <p className="text-lg font-semibold">{message.trim()}</p>
           <Button asChild variant="outline" className="justify-self-center"><Link href="/provas?aba=salas">Voltar às salas</Link></Button>
         </div>

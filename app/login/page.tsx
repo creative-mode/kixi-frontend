@@ -2,20 +2,24 @@
 
 import { Suspense, useState, useSyncExternalStore } from 'react';
 import { loginAction } from '@/app/actions/auth';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { AccessHelp } from '@/components/access-help';
+import { useSlowAfter } from '@/lib/use-slow-after';
 import { KixiLogo } from '@/components/kixi-logo';
 import { Eye, EyeOff, CircleAlert } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
+import { appRelativePath, MANAGER_BASE_PATH, managerNext } from '@/lib/safe-next';
 
 function noticeFor(reason: string | null) {
-  if (reason === 'session-expired') return 'A tua sessão expirou. Entra novamente para continuar.';
+  if (reason === 'session-expired') return 'A sua sessão expirou. Inicie sessão novamente para continuar.';
   if (reason === 'logged-out') return 'Sessão terminada com segurança.';
-  if (reason === 'invalid-session') return 'Esta sessão não dá acesso ao Kixi Manager. Entra com outra conta.';
-  if (reason === 'required') return 'Precisas de iniciar sessão para continuar.';
+  if (reason === 'invalid-session') return 'Esta sessão não dá acesso ao Kixi Manager. Entre com outra conta.';
+  if (reason === 'required') return 'Precisa de iniciar sessão para continuar.';
   return null;
 }
 
@@ -28,13 +32,21 @@ function useHydrated() {
 function LoginContent() {
   const hydrated = useHydrated();
   const [isLoading, setIsLoading] = useState(false);
+  // #543: passados 4 s sem resposta, diz que está a demorar, em vez de deixar «A entrar...» sem explicação.
+  const slow = useSlowAfter(isLoading);
   const [show, setShow] = useState(false);
+  // O erro fica no ecrã até à próxima tentativa (kixi-frontend#542): um toast de 4 s
+  // desaparecia antes de quem escreve devagar ou lê com leitor de ecrã o ter lido.
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const notice = noticeFor(useSearchParams().get('reason'));
+  const searchParams = useSearchParams();
+  const notice = noticeFor(searchParams.get('reason'));
+  const next = managerNext(searchParams.get('next'));
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     const formData = new FormData(e.currentTarget);
 
@@ -42,32 +54,28 @@ function LoginContent() {
       const result = await loginAction(formData);
 
       if (result.success) {
-        toast.success('Login realizado com sucesso!', {
+        toast.success('Sessão iniciada com sucesso!', {
           description: 'A redirecionar para o painel...',
           duration: 3000,
         });
 
         await new Promise((resolve) => setTimeout(resolve, 400));
 
-        router.push('/');
+        router.push(next ? appRelativePath(next, MANAGER_BASE_PATH) : '/');
         router.refresh();
       } else {
-        toast.error(result.error || 'Credenciais inválidas', {
-          description: 'Verifique o username/email e a senha.',
-        });
+        setError(result.error || 'Credenciais inválidas. Verifique o utilizador e a palavra-passe.');
       }
-    } catch (error) {
-      console.error('Erro no login:', error);
-      toast.error('Erro de conexão', {
-        description: 'Não foi possível conectar ao servidor. Tente novamente.',
-      });
+    } catch (err) {
+      console.error('Erro no login:', err);
+      setError('Não foi possível ligar ao servidor. Verifique a ligação e tente novamente.');
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
       <div className="flex items-center gap-3">
         <KixiLogo size={28} wordmark />
         <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">Manager</span>
@@ -83,13 +91,19 @@ function LoginContent() {
             <span>{notice}</span>
           </div>
         ) : null}
+        {error ? (
+          <div role="alert" className="flex items-start gap-2 rounded-md border border-destructive/40 bg-danger-soft p-3 text-sm text-foreground">
+            <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+            <span>{error}</span>
+          </div>
+        ) : null}
         {/* Antes de o JavaScript hidratar, o envio nativo de um formulário sem `method` é um GET: a palavra-passe
             iria no endereço (histórico, logs de proxies). `method="post"` tira-a do URL e o botão fica desativado
             até a página estar pronta (com o botão por defeito desativado, o Enter também não submete). */}
         <form method="post" onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
-            <Label htmlFor="usernameOrEmail">Username ou email</Label>
-            <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username email" autoFocus />
+            <Label htmlFor="usernameOrEmail">Nome de utilizador ou e-mail</Label>
+            <Input id="usernameOrEmail" name="usernameOrEmail" type="text" placeholder="admin@kixi.ao" required disabled={isLoading} autoComplete="username" autoFocus />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Palavra-passe</Label>
@@ -100,13 +114,21 @@ function LoginContent() {
               </button>
             </div>
           </div>
-<Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated} data-testid="gestor-entrar-submeter">
+          <p className="text-right text-sm">
+            <Link href="/recuperar" className="inline-flex min-h-11 items-center px-1 font-medium text-primary underline-offset-4 hover:underline">
+              Esqueci-me da palavra-passe
+            </Link>
+          </p>
+          <p role="status" aria-live="polite" className={slow ? 'text-sm text-muted-foreground' : 'sr-only'} data-testid="aviso-lento">
+            {slow ? 'Está a demorar mais do que o normal. Aguarde mais um pouco: o pedido continua e não é preciso carregar outra vez.' : null}
+          </p>
+          <Button type="submit" size="lg" className="w-full" disabled={isLoading || !hydrated} data-testid="gestor-entrar-submeter">
             {isLoading ? (<><Spinner className="size-4" />A entrar...</>) : 'Entrar'}
           </Button>
         </form>
       </div>
-      <p className="text-center text-xs text-muted-foreground">Problemas no acesso? Contacte o suporte técnico.</p>
-    </main>
+      <AccessHelp />
+    </div>
   );
 }
 

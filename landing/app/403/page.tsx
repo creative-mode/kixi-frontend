@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import ForbiddenScene from '@/components/forbidden/forbidden-scene';
 import { Header } from '@/components/sections/Header';
-import { getForbiddenCopy } from '@/lib/forbidden/messages';
+import { getForbiddenReason } from '@/lib/forbidden-reasons';
 import '@/components/forbidden/forbidden.css';
+import { ErrorView } from '@/components/analytics/trackers';
 
 export const metadata: Metadata = {
   title: '403 · Acesso não permitido',
@@ -28,12 +29,18 @@ function button(href: string, label: string) {
 
 export default async function ForbiddenPage({ searchParams }: PageProps) {
   const raw = (await searchParams).reason;
-  const copy = getForbiddenCopy(raw);
-
-  const primary = button(copy.primary.href, copy.primary.label);
-  const secondary = button(copy.secondary.href, copy.secondary.label);
+  const reason = Array.isArray(raw) ? raw[0] : raw;
+  const config = getForbiddenReason(reason);
 
   return (
-    <ForbiddenScene header={<Header />} hint={copy.hint} primary={primary} secondary={secondary} />
+    <>
+      <ErrorView app="landing" kind="forbidden" />
+      <ForbiddenScene
+        header={<Header />}
+        hint={config.message}
+        primary={button(config.primary.href, config.primary.label)}
+        secondary={config.secondary ? button(config.secondary.href, config.secondary.label) : undefined}
+      />
+    </>
   );
 }

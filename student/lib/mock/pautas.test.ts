@@ -21,3 +21,8 @@ test('cada linha é só a do aluno e a MT é a média das três componentes', ()
 test('dois alunos não vêem as mesmas notas', () => {
   assert.notDeepEqual(ownTermSheets(input(3)).map((s) => s.row), ownTermSheets(input(4)).map((s) => s.row));
 });
+
+test('o número de processo vai em todas as pautas do aluno quando existe, e sem ele segue nulo (kixi#512)', () => {
+  assert.ok(ownTermSheets({ ...input(3), processNumber: 'P-2025/0003' }).every((s) => s.processNumber === 'P-2025/0003'));
+  assert.ok(ownTermSheets(input(3)).every((s) => s.processNumber === null));
+});

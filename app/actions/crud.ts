@@ -1,5 +1,6 @@
 'use server';
 
+import { dashboardCountsFrom } from '@/lib/crud/dashboard-counts';
 import { revalidatePath } from 'next/cache';
 import { getAuthHeaders, getCurrentUser } from '@/lib/auth.server';
 import { API_HOST } from '@/lib/constants';
@@ -8,12 +9,13 @@ import { apiFetch } from '@/lib/mock/fetch';
 import { buildScope, closedScope, openScope, type TeachingScope } from '@/lib/crud/teacher-scope';
 import { friendlyMessage } from '@/lib/crud/messages';
 import { mergeCurricula } from '@/lib/exam/curriculum';
+import { questionWriteBody, type BuilderQuestionIdentity, type RequestQuestion } from '@/lib/exam/draft';
 
 /** Result of every action: never throws across the server boundary, so the UI can show the message. */
-export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
+export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string; code?: 'SESSION_EXPIRED' };
 
 const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
-const fail = (error: string): Result<never> => ({ ok: false, error });
+const fail = (error: string, code?: 'SESSION_EXPIRED'): Result<never> => ({ ok: false, error, ...(code ? { code } : {}) });
 
 async function message(res: Response): Promise<string> {
   return friendlyMessage(res.status, await res.text().catch(() => ''));
@@ -49,7 +51,7 @@ export async function listRows(key: string, trash = false): Promise<Result<Row[]
   return guard(async () => {
     const e = entity(key);
     const res = await call(`${e.api}${trash ? '/trash' : ''}`);
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     return ok((await res.json()) as Row[]);
   });
 }
@@ -57,7 +59,7 @@ export async function listRows(key: string, trash = false): Promise<Result<Row[]
 export async function getRow(key: string, id: string | number): Promise<Result<Row>> {  return guard(async () => {
     const e = entity(key);
     const res = await call(`${e.api}/${safeId(id)}`);
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     return ok((await res.json()) as Row);
   });
 }
@@ -96,7 +98,7 @@ export async function createRow(key: string, values: Row): Promise<Result<Row>> 
     const e = entity(key);
     if (!e.canCreate) return fail('Esta entidade não pode ser criada aqui.');
     const res = await call(e.api, { method: 'POST', body: JSON.stringify(body(key, values)) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });
@@ -107,7 +109,7 @@ export async function updateRow(key: string, id: string | number, values: Row): 
     const e = entity(key);
     if (!e.canEdit) return fail('Esta entidade não pode ser editada.');
     const res = await call(`${e.api}/${safeId(id)}`, { method: 'PUT', body: JSON.stringify(body(key, values)) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath(`/${e.path}`);
     return ok((await res.json()) as Row);
   });
@@ -420,23 +422,177 @@ export async function reorderStatementQuestions(id: number, questionIds: number[
   });
 }
 
+/** Update a builder-created statement in place, reconciling its stable question/option identities. */
+export async function updateManualStatement(
+  id: number,
+  statement: StatementInput,
+  desired: RequestQuestion[],
+  hideBeforeUpdate: boolean,
+): Promise<Result<{ failed: string[]; identities: BuilderQuestionIdentity[] }>> {
+  return guard(async () => {
+    const sid = safeId(id);
+    const request = (path: string, method: string, body?: unknown) => call(`/api/v1${path}`, {
+      method,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (hideBeforeUpdate) {
+      const hidden = await request(`/statements/${sid}/visibility?visible=false`, 'PATCH');
+      if (!hidden.ok) return fail(await message(hidden));
+    }
+    const header = await request(`/statements/${sid}`, 'PUT', statement);
+    if (!header.ok) return fail(await message(header));
+
+    const full = await request(`/statements/${sid}/full`, 'GET');
+    if (!full.ok) return ok({ failed: [`Não foi possível ler as questões existentes: ${await message(full)}`], identities: [] });
+    const existingQuestions = ((await full.json()) as Row).questions as Row[] ?? [];
+    const byId = new Map(existingQuestions.map((question) => [Number(question.id), question]));
+    const desiredIds = new Set<number>();
+    const orderedIds: number[] = [];
+    const identities: BuilderQuestionIdentity[] = [];
+    const failures: string[] = [];
+
+    const syncQuestion = async (question: RequestQuestion, parentId: number | null): Promise<BuilderQuestionIdentity | null> => {
+      const current = question.serverId ? byId.get(question.serverId) : undefined;
+      if (question.serverId != null && !current) {
+        failures.push(`A questão ${question.serverId} já não existe nesta prova. Atualize a página antes de guardar novamente.`);
+        return null;
+      }
+      const body = questionWriteBody(question, parentId);
+      const changed = !current || current.text !== body.text
+        || current.questionType !== body.questionType
+        || current.maxScore !== body.maxScore
+        || (current.modelAnswer ?? null) !== body.modelAnswer
+        || (question.reviewed !== undefined && current.ocrReviewed !== question.reviewed)
+        || (question.type === 'group' && current.groupLayout !== (question.groupLayout ?? 'lettered'));
+      const saved = changed
+        ? await request(current
+          ? `/statements/${sid}/questions/${safeId(question.serverId!)}`
+          : `/statements/${sid}/questions`, current ? 'PUT' : 'POST', body)
+        : null;
+      if (saved && !saved.ok) { failures.push(await message(saved)); return null; }
+      const savedQuestion = saved ? (await saved.json()) as Row : current!;
+      const questionId = Number(savedQuestion.id ?? current?.id);
+      if (!Number.isInteger(questionId) || questionId <= 0) { failures.push('O servidor não devolveu o id da questão.'); return null; }
+      desiredIds.add(questionId);
+      orderedIds.push(questionId);
+      const identity: BuilderQuestionIdentity = { serverId: questionId, options: [] };
+
+      const oldOptions = Array.isArray(current?.options) ? current.options as Row[] : [];
+      const oldOptionsById = new Map(oldOptions.map((option) => [Number(option.id), option]));
+      const optionIds = identity.options;
+      for (const option of question.options) {
+        const old = option.serverId ? oldOptionsById.get(option.serverId) : oldOptions.find((candidate) => candidate.optionLabel === option.label);
+        if (option.serverId != null && !old) {
+          failures.push(`A opção ${option.label} já não existe nesta questão. Atualize a página antes de guardar novamente.`);
+          return identity;
+        }
+        const optionBody = { optionLabel: option.label, optionText: option.text, isCorrect: option.correct };
+        const optionChanged = !old || old.optionLabel !== option.label
+          || old.optionText !== option.text || old.isCorrect !== option.correct;
+        const optionResponse = optionChanged
+          ? await request(old
+            ? `/statements/${sid}/questions/${questionId}/options/${safeId(Number(old.id))}`
+            : `/statements/${sid}/questions/${questionId}/options`, old ? 'PUT' : 'POST', optionBody)
+          : null;
+        if (optionResponse && !optionResponse.ok) { failures.push(await message(optionResponse)); return identity; }
+        const savedOption = optionResponse ? (await optionResponse.json()) as Row : old!;
+        const optionId = Number(savedOption.id ?? old?.id);
+        if (!Number.isInteger(optionId) || optionId <= 0) { failures.push('O servidor não devolveu o id da opção.'); return identity; }
+        optionIds.push(optionId);
+      }
+      const retainedOptionIds = new Set(optionIds);
+      for (const old of oldOptions) {
+        if (retainedOptionIds.has(Number(old.id))) continue;
+        const removed = await request(`/statements/${sid}/questions/${questionId}/options/${safeId(Number(old.id))}`, 'DELETE');
+        if (!removed.ok) { failures.push(await message(removed)); return identity; }
+      }
+      const previousOptionIds = [...oldOptions]
+        .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+        .map((option) => Number(option.id));
+      if (optionIds.length && (optionIds.length !== previousOptionIds.length
+        || optionIds.some((optionId, index) => optionId !== previousOptionIds[index]))) {
+        const reordered = await request(`/statements/${sid}/questions/${questionId}/options/reorder`, 'PUT', { optionIds });
+        if (!reordered.ok) { failures.push(await message(reordered)); return identity; }
+      }
+
+      if (question.items) {
+        identity.items = [];
+        for (const item of question.items) {
+          const child = await syncQuestion(item as RequestQuestion, questionId);
+          if (!child) return identity;
+          identity.items.push(child);
+          if (failures.length) return identity;
+        }
+      }
+      return identity;
+    };
+
+    for (const question of desired) {
+      const identity = await syncQuestion(question, null);
+      if (!identity) break;
+      identities.push(identity);
+      if (failures.length) break;
+    }
+
+    if (failures.length === 0) {
+      const deletedGroups = new Set<number>();
+      for (const old of existingQuestions) {
+        const oldId = Number(old.id);
+        if (desiredIds.has(oldId)) continue;
+        if (old.parentId != null && deletedGroups.has(Number(old.parentId))) continue;
+        const removed = await request(`/statements/${sid}/questions/${safeId(oldId)}`, 'DELETE');
+        if (!removed.ok) { failures.push(await message(removed)); break; }
+        if (old.parentId == null && old.questionType === 'group') deletedGroups.add(oldId);
+      }
+    }
+    if (failures.length === 0) {
+      const previousIds = [...existingQuestions]
+        .sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0))
+        .map((question) => Number(question.id));
+      if (orderedIds.length === previousIds.length
+        && orderedIds.every((questionId, index) => questionId === previousIds[index])) {
+        revalidatePath('/statements');
+        return ok({ failed: failures, identities });
+      }
+      const reordered = await request(`/statements/${sid}/questions/reorder`, 'PUT', { questionIds: orderedIds });
+      if (!reordered.ok) failures.push(await message(reordered));
+    }
+    revalidatePath('/statements');
+    return ok({ failed: failures, identities });
+  });
+}
+
 // ── dashboard ───────────────────────────────────────────────────────────────
+/**
+ * As contagens do painel num só pedido (`GET /analytics/counts`, creative-mode/kixi#416), em vez de descarregar as
+ * 17 listas para ler o `length`. Um backend que ainda não tenha o endpoint responde 404: aí conta-se como antes, pelas
+ * listas, para o painel não depender da ordem em que front e backend chegam a cada ambiente.
+ */
 export async function dashboardCounts(): Promise<Result<Record<string, number>>> {
   return guard(async () => {
-    const keys = Object.keys(ENTITIES) as EntityKey[];
-    const entries = await Promise.all(
-      keys.map(async (k) => {
-        const res = await call(ENTITIES[k].api).catch(() => null);
-        if (!res?.ok) return [k, -1] as const;
-        const rows = (await res.json()) as Row[];
-        return [k, rows.length] as const;
-      }),
-    );
-    const counts: Record<string, number> = Object.fromEntries(entries);
-    const review = await call('/api/v1/statements/review').catch(() => null);
-    counts.review = review?.ok ? ((await review.json()) as Row[]).length : -1;
-    return ok(counts);
+    const keys = [...(Object.keys(ENTITIES) as EntityKey[]), 'review'];
+    const res = await call('/api/v1/analytics/counts').catch(() => null);
+    if (res?.ok) return ok(dashboardCountsFrom(await res.json(), keys));
+    if (res?.status === 404) return ok(await countByLists());
+    return ok(dashboardCountsFrom({}, keys));
   });
+}
+
+/** O caminho antigo: uma lista inteira por entidade, só para contar. Fica para um backend sem `/analytics/counts`. */
+async function countByLists(): Promise<Record<string, number>> {
+  const keys = Object.keys(ENTITIES) as EntityKey[];
+  const entries = await Promise.all(
+    keys.map(async (k) => {
+      const res = await call(ENTITIES[k].api).catch(() => null);
+      if (!res?.ok) return [k, -1] as const;
+      const rows = (await res.json()) as Row[];
+      return [k, rows.length] as const;
+    }),
+  );
+  const counts: Record<string, number> = Object.fromEntries(entries);
+  const review = await call('/api/v1/statements/review').catch(() => null);
+  counts.review = review?.ok ? ((await review.json()) as Row[]).length : -1;
+  return counts;
 }
 
 // ── institutions: affiliations, teacher access, manual statements ───────────
@@ -454,6 +610,20 @@ export async function setInstitutionLink(institutionId: number, kind: LinkKind, 
     const res = await call(`/api/v1/institutions/${safeId(institutionId)}/${kind}/${safeId(targetId)}`, { method: linked ? 'POST' : 'DELETE' });
     if (!res.ok) return fail(await message(res));
     return ok(undefined);
+  });
+}
+/**
+ * O número de processo do aluno nesta escola (kixi#512): só o administrador o escreve; vazio apaga-o. O backend cria a
+ * ligação aluno–escola se ainda não existir e recusa um número já usado por outro aluno da escola (409).
+ */
+export async function setStudentProcessNumber(institutionId: number, userId: number, processNumber: string | null): Promise<Result<Row>> {
+  return guard(async () => {
+    const res = await call(`/api/v1/institutions/${safeId(institutionId)}/students/${safeId(userId)}/process-number`, {
+      method: 'PUT',
+      body: JSON.stringify({ processNumber }),
+    });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as Row);
   });
 }
 /** Schools the current account may build statements for (admin: all; teacher: affiliated ones). */

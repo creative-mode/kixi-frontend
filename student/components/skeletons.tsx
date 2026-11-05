@@ -1,6 +1,7 @@
 import { Column, Page } from '@/components/page';
 import { Card } from '@/components/ui/card';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
+import { MobileInicioSkeleton } from '@/components/mobile-inicio';
 
 /** Cabeçalho de página (título + descrição). */
 export function HeaderSkeleton({ kicker }: { kicker?: boolean }) {
@@ -45,6 +46,7 @@ export function InicioSkeleton() {
     <Page className="gap-0 p-0">
       <StatusLabel />
       <div className="border-b px-4 py-3"><Skeleton className="h-6 w-24" /></div>
+      <MobileInicioSkeleton />
       <div className="flex gap-3 border-b px-4 py-3"><Skeleton className="size-11 shrink-0 rounded-full" /><Skeleton className="h-11 flex-1" /></div>
       <PostSkeleton /><PostSkeleton /><PostSkeleton />
     </Page>
@@ -131,7 +133,7 @@ export function ResultadoSkeleton() {
 
 export function ProvaSkeleton() {
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex above-banner-min-h flex-col">
       <span className="sr-only" role="status">A carregar a prova…</span>
       <header className="flex items-center gap-3 border-b bg-card px-4 py-2.5 md:px-5">
         <Skeleton className="size-9" />
@@ -154,7 +156,7 @@ export function ProvaSkeleton() {
 /** Formulário de entrada/cadastro: mesma coluna centrada do AuthShell. */
 export function AuthSkeleton({ fields = 2 }: { fields?: number }) {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6 py-10">
+    <main className="flex above-banner-min-h flex-col items-center justify-center gap-8 px-6 py-10">
       <span className="sr-only" role="status">A carregar…</span>
       <Skeleton className="h-7 w-28" />
       <div className="grid w-full max-w-[400px] gap-6 px-box p-6 sm:p-8">

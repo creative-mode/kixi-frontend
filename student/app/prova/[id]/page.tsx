@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
-import { requireStudent } from '@/lib/guard';
+import { entrarUrl, requireStudent } from '@/lib/guard';
 import { getMe } from '@/lib/me';
 import { getRoom } from '@/lib/exam';
 import { Comecar } from '@/components/comecar-prova';
@@ -24,11 +24,11 @@ export default async function ProvaPage({ params }: { params: Params }) {
 
   const room = await getRoom(id);
 
-  if (room.kind === 'unauthorized') redirect('/entrar?reason=session-expired');
+  if (room.kind === 'unauthorized') redirect(await entrarUrl('session-expired'));
 
   if (room.kind === 'error') {
     return (
-      <div className="mx-auto grid min-h-dvh max-w-[760px] place-items-center p-6">
+      <div className="mx-auto grid above-banner-min-h max-w-[760px] place-items-center p-6">
         <RefreshError
           title="Não conseguimos abrir esta prova"
           message={room.status === 404 ? 'Esta prova não existe ou já não está disponível.' : room.message}

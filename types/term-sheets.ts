@@ -35,6 +35,8 @@ export interface TermSheetRow {
   accountId: number;
   number: number;
   name: string;
+  /** O número de processo do aluno na escola (kixi#512); ausente ou nulo quando a escola não o tem. */
+  processNumber?: string | null;
   mac: number | null;
   p1: number | null;
   p2: number | null;

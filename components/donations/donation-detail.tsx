@@ -12,8 +12,9 @@ import { BASE_PATH } from '@/lib/constants';
 import { getDonation, reviewDonation } from '@/app/actions/donations';
 import { canOpenInBuilder, canReview, fileSize, isImage, type DonationDetail } from '@/lib/donations/model';
 import { DonationStatusBadge } from './donations-list';
+import { formatLuandaDateTime } from '@/lib/format';
 
-const when = (iso: string | null) => (iso ? iso.slice(0, 16).replace('T', ' ') : '—');
+const when = (iso: string | null) => formatLuandaDateTime(iso);
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -116,7 +117,7 @@ export function DonationDetailView({ id }: { id: number }) {
             <CardContent>
               <dl className="grid gap-4 sm:grid-cols-2">
                 <Fact label="Classe ou turma">{donation.classGrade}</Fact>
-                <Fact label="Ano lectivo">{donation.schoolYear}</Fact>
+                <Fact label="Ano letivo">{donation.schoolYear}</Fact>
                 <Fact label="Doador">{donation.donorName}</Fact>
                 <Fact label="E-mail">{donation.donorEmail}</Fact>
                 <Fact label="Recebida">{when(donation.createdAt)}</Fact>

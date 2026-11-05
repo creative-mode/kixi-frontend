@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Archive, Check, DoorOpen, Eye, EyeOff, FileSearch, ScanText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,42 +12,51 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { approveStatement, deleteRow, listStatements, setStatementVisible } from '@/app/actions/crud';
 import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { statementInScope, useTeacherScope } from '@/hooks/use-teacher-scope';
+import { useQueryChoice } from '@/hooks/use-query-state';
+import { LoadError } from './load-state';
+import { matchesStatementFilter, STATEMENT_FILTERS, STATEMENT_FILTER_KEYS, statementCounts } from '@/lib/crud/review-queue';
 import { Confirm, type ConfirmState } from './confirm';
+import { FilterTabs, filterPanelProps } from './filter-tabs';
 import { PageHead } from './page-head';
 import { TableRowsSkeleton } from './loading';
 
 const entity = ENTITIES.statements;
-const FILTERS = [
-  { key: 'all', label: 'Todos' },
-  { key: 'review', label: 'Para rever' },
-  { key: 'ocr', label: 'Vindos do OCR' },
-] as const;
 
 export function StatementsManager() {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
+  // O filtro vive no endereço (`?filtro=`): sobrevive ao recarregamento e pode ir numa ligação.
+  const [filter, setFilter] = useQueryChoice('filtro', STATEMENT_FILTER_KEYS, 'todos');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   // O professor vê os enunciados que pode escrever (o ADMIN vê todos). Sem
   // scope resolvido fica null, e a tabela continua no esqueleto.
-  const scope = useTeacherScope();
-  const shown = useMemo(
+  const { scope, retry: retryScope } = useTeacherScope();
+  const scoped = useMemo(
     () => (rows && scope ? rows.filter((r) => statementInScope(scope, r)) : null),
     [rows, scope],
   );
+  // Carrega-se a lista inteira uma vez: as contagens e os filtros saem dela, sem um pedido por separador.
+  const counts = useMemo(() => (scoped ? statementCounts(scoped) : null), [scoped]);
+  const shown = useMemo(() => (scoped ? scoped.filter((r) => matchesStatementFilter(r, filter)) : null), [scoped, filter]);
   // A lixeira é gestão (o proxy não a abre ao professor), por isso só o ADMIN vê o link.
   const admin = scope ? !scope.restricted : false;
 
+  // Não se esvazia a lista ao recarregar: as contagens dos separadores não podem desaparecer a cada ação.
   const load = useCallback(async () => {
     setError(null);
-    setRows(null);
-    const res = await listStatements(filter);
-    if (res.ok) setRows(res.data);
-    else {
+    try {
+      const res = await listStatements('all');
+      if (res.ok) setRows(res.data);
+      else {
+        setRows([]);
+        setError(res.error);
+      }
+    } catch (e: unknown) {
+      // A rede lança no cliente, fora do `guard` do servidor.
       setRows([]);
-      setError(res.error);
+      setError(e instanceof Error && e.message ? e.message : 'Não foi possível contactar o servidor.');
     }
-  }, [filter]);
+  }, []);
   useEffect(() => {
     const task = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(task);
@@ -57,7 +67,7 @@ export function StatementsManager() {
     if (res.ok) {
       toast.success(done);
       load();
-    } else toast.error(res.error ?? 'Erro');
+    } else reportActionError(res.error ?? 'Erro');
   }
 
   return (
@@ -77,14 +87,14 @@ export function StatementsManager() {
           </div>
         }
       />
-      <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Filtro">
-        {FILTERS.map((f) => (
-          <Button key={f.key} role="tab" aria-selected={filter === f.key} size="sm" variant={filter === f.key ? 'default' : 'outline'} onClick={() => setFilter(f.key)}>
-            {f.label}
-          </Button>
-        ))}
-      </div>
-      <Card>
+      <FilterTabs
+        group="enunciados"
+        label="Filtro"
+        value={filter}
+        onChange={setFilter}
+        tabs={STATEMENT_FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts ? counts[f.key] : null }))}
+      />
+      <Card {...filterPanelProps('enunciados', filter)}>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -98,9 +108,9 @@ export function StatementsManager() {
             </TableHeader>
             <TableBody>
               {error ? (
-                <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">{error}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-12 text-center"><LoadError message={error} onRetry={() => void load()} /></TableCell></TableRow>
               ) : scope?.error ? (
-                <TableRow><TableCell colSpan={6} className="py-12 text-center text-sm text-destructive">Não foi possível determinar as suas turmas, por isso a lista fica vazia: {scope.error}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-12 text-center"><LoadError message={`Não foi possível determinar as suas turmas, por isso a lista fica vazia: ${scope.error}`} onRetry={retryScope} /></TableCell></TableRow>
               ) : shown === null ? (
                 <TableRowsSkeleton cols={6} />
               ) : shown.length === 0 ? (

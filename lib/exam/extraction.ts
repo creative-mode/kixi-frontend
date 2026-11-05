@@ -83,12 +83,22 @@ export interface ExtractionContext {
   subjects: string[];
 }
 
+/** Uma nota para o professor: o que foi lido, o que ficou por decidir. `question`
+ *  é o número da questão (ordem de importação) quando o aviso é sobre uma só —
+ *  o cartão pinta "Ir para a questão N". `anchor` aponta para um cartão fora das
+ *  questões (o rodapé original). */
+export interface ImportedNote {
+  text: string;
+  question?: number;
+  anchor?: 'rodape';
+}
+
 export interface ImportedDraft {
   /** O que muda no cabeçalho do rascunho. Só leva o que a extração trouxe. */
   patch: Partial<ExamDraft>;
   items: DraftQuestion[];
-  /** Frases para o professor: o que foi lido, o que ficou por decidir. */
-  notes: string[];
+  /** Notas para o professor: o que foi lido, o que ficou por decidir. */
+  notes: ImportedNote[];
   /** Quantas folhas (questões ou alíneas) ficaram marcadas para rever. */
   reviewCount: number;
   /** Source-page footer crop for review only; it is not part of the printable exam. */
@@ -182,26 +192,36 @@ function itemFrom(sub: ExtractionSubitem, fallback: LeafKind, parentReview: bool
   };
 }
 
+/** O que a leitura sabe sobre a proveniência de uma questão no original. */
+export interface ExtractionOrigin {
+  /** Índice 0-based da página original a que tudo o que a extração devolveu pertence («repetir uma página»). */
+  sourcePageIndex?: number | null;
+}
+
 function questionFrom(q: ExtractionQuestion, warningReview = false, globalReview = false): { question: DraftQuestion; review: number } {
   const type = (q.type ?? '').toLowerCase();
   const math = mathContentFields({ ...q, rawText: q.rawText ?? q.text ?? '' });
   const review = globalReview || warningReview || (typeof q.confidence === 'number' && q.confidence < REVIEW_BELOW) || mathNeedsReview(math.formulas, math.blocks);
   const subs = (q.subitems_content ?? []).filter((s) => clean(s.text));
   const text = cleanQuestionText(q.text);
+  // O número impresso sobrevive à revisão: «Repetir esta página» volta a identificar
+  // as questões mantenendo o que a prova trazia («7», «7a»), mesmo que o construtor
+  // as ordene por outra.
+  const sourceNumber = (q.number ?? '').trim() || undefined;
 
   if (subs.length > 0 && (type === 'verdadeiro_falso' || type === 'composta' || type === 'dissertativa' || type === '')) {
     const fallback: LeafKind = type === 'verdadeiro_falso' ? 'true_false' : 'open';
     const items = subs.map((s) => itemFrom(s, fallback, review));
-    return { question: { text, points: '', options: [], kind: 'group', items, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...math, ...(review ? { review: true } : {}) }, review: items.filter((item) => item.review).length };
+    return { question: { text, points: '', options: [], kind: 'group', items, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: items.filter((item) => item.review).length };
   }
   if (type === 'verdadeiro_falso') {
-    return { question: { text: clean(q.text) || text, points: points(q.cotacao), options: trueFalseOptions(), kind: 'true_false', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+    return { question: { text: clean(q.text) || text, points: points(q.cotacao), options: trueFalseOptions(), kind: 'true_false', ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: review ? 1 : 0 };
   }
   const options = type === 'multipla_escolha' ? optionsFrom(q.options) : [];
   if (options.length > 0) {
-    return { question: { text, points: points(q.cotacao), options, kind: 'multiple_choice', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+    return { question: { text, points: points(q.cotacao), options, kind: 'multiple_choice', ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: review ? 1 : 0 };
   }
-  return { question: { text, points: points(q.cotacao), options: [], kind: 'open', ...math, ...(review ? { review: true } : {}) }, review: review ? 1 : 0 };
+  return { question: { text, points: points(q.cotacao), options: [], kind: 'open', ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: review ? 1 : 0 };
 }
 
 const FIGURE_NAMES: Record<string, string> = { figure: 'Figura', table: 'Tabela', formula: 'Fórmula' };
@@ -236,9 +256,10 @@ function gradeLabel(grade: string | null | undefined): string | null {
  * O rascunho a partir da extração. Não toca em nada que a extração não trouxe, e devolve as notas
  * que o ecrã mostra por cima do editor.
  */
-export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionContext): ImportedDraft {
+export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionContext, origin: ExtractionOrigin = {}): ImportedDraft {
   const patch: Partial<ExamDraft> = {};
-  const notes: string[] = [];
+  const notes: ImportedNote[] = [];
+  const nota = (text: string, extra?: Omit<ImportedNote, 'text'>) => notes.push({ text, ...extra });
 
   const title = (extraction.title ?? '').trim();
   if (title) patch.title = title;
@@ -259,8 +280,8 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   else if (name) {
     // A disciplina que o rascunho tinha não é a desta prova: deixa-se por escolher em vez de a manter calada.
     patch.subject = '';
-    notes.push(`A disciplina «${name}» não existe nesta escola. Escolha-a na lista ou peça a um administrador que a associe à escola.`);
-  } else notes.push('A prova não indica a disciplina. Escolha-a na lista.');
+    notes.push({ text: `A disciplina «${name}» não existe nesta escola. Escolha-a na lista ou peça a um administrador que a associe à escola.` });
+  } else notes.push({ text: 'A prova não indica a disciplina. Escolha-a na lista.' });
 
   const kept = (extraction.questions ?? []).filter((q) => (q.text ?? '').trim() || (q.subitems_content ?? []).length > 0);
   const warnings = extraction.warnings ?? [];
@@ -282,44 +303,69 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
     });
   };
   const built = kept.map((question) => questionFrom(question, hasQuestionReviewWarning(question.number), globalReview));
+  // «Repetir esta página»: tudo o que esta leitura parcial devolveu veio de uma página
+  // do original, por isso o índice dela acompanha as questões — é o que identifica as
+  // questões desta página quando a leitura voltar a ser repetida.
   const items = built.map((b, i) => {
+    const question: DraftQuestion = typeof origin.sourcePageIndex === 'number' && origin.sourcePageIndex >= 0
+      ? { ...b.question, sourcePageIndex: origin.sourcePageIndex }
+      : b.question;
     const images = imagesOf(kept[i].number, extraction.images_to_upload);
-    return images.length > 0 ? { ...b.question, images } : b.question;
+    return images.length > 0 ? { ...question, images } : question;
   });
   const footerImage = (extraction.images_to_upload ?? []).find(
     (image) => image.region === 'rodape' && typeof image.data_url === 'string' && image.data_url.startsWith('data:image/'),
   );
   const footerContent = (extraction.unmapped_content ?? []).filter((item) => item.zone === 'rodape' && item.text?.trim());
   if (footerContent.length > 0) {
-    notes.push(`Rodapé separado das questões (página ${(footerContent[0].pageIndex ?? 0) + 1}): ${footerContent.map((item) => item.text!.trim()).join(' · ')}`);
+    notes.push({
+      text: `Rodapé separado das questões (página ${(footerContent[0].pageIndex ?? 0) + 1}): ${footerContent.map((item) => item.text!.trim()).join(' · ')}`,
+      anchor: 'rodape',
+    });
   }
   const figureCount = items.reduce((n, q) => n + (q.images?.length ?? 0), 0);
   const reviewCount = built.reduce((n, b) => n + b.review, 0);
+  // Números das questões (ordem de importação, a mesma do editor) para os
+  // avisos apontarem: "Ir para a questão N".
+  const isTF = (q: (typeof items)[number]) => q.kind === 'true_false' || (q.items ?? []).some((i) => i.kind === 'true_false');
+  const primeiraQuestao = (pred: (q: (typeof items)[number], i: number) => boolean): number | undefined => {
+    const i = items.findIndex(pred);
+    return i === -1 ? undefined : i + 1;
+  };
+  const primeiraRever = primeiraQuestao((_, i) => built[i].review > 0);
+  const primeiraTF = primeiraQuestao(isTF);
+  const primeiraFigura = primeiraQuestao((q) => (q.images?.length ?? 0) > 0);
+  const numeroQuestao = (field: string | null | undefined): number | undefined => {
+    const match = (field ?? '').match(/^question_([^_]+)(?:_|$)/i);
+    if (!match) return undefined;
+    const i = kept.findIndex((q) => (q.number ?? '').trim() === match[1]);
+    return i === -1 ? undefined : i + 1;
+  };
 
-  if (items.length === 0) notes.push('Não foi possível ler questões nesta imagem. Tente uma foto mais nítida e de frente, ou escreva as questões à mão.');
+  if (items.length === 0) nota('Não foi possível ler questões nesta imagem. Tente uma foto mais nítida e de frente, ou escreva as questões à mão.');
   const codes = new Set(warnings.map((w) => (w.code ?? '').toUpperCase()));
   const allUnscored = items.length > 0 && items.every((q) => (q.kind === 'group' ? (q.items ?? []).every((i) => i.points === '') : q.points === ''));
   if (codes.has('NO_COTACAO') || allUnscored) {
-    notes.push('A prova não traz cotação. Use «Distribuir 20 valores» ou preencha a cotação de cada questão.');
+    nota('A prova não traz cotação. Use «Distribuir 20 valores» ou preencha a cotação de cada questão.');
   }
   for (const w of warnings) {
     if ((w.code ?? '').toUpperCase() !== 'LOW_CONFIDENCE' || !w.field) continue;
     if (w.field === 'subjectName' || w.field === 'subject') continue; // já tratada acima
-    notes.push(`O motor ficou inseguro com ${FIELD_NAMES[w.field] ?? `«${w.field}»`}. Confirme-o.`);
+    nota(`O motor ficou inseguro com ${FIELD_NAMES[w.field] ?? `«${w.field}»`}. Confirme-o.`, { question: numeroQuestao(w.field) });
   }
   if (codes.has('IMAGE_QUALITY')) {
     // #263: o próprio pré-processamento já apontou a razão (desfocada, escura, queimada); a
     // mensagem do motor é mais específica do que o genérico "não li questões" acima, por isso
     // substitui-o em vez de se somar a ele.
     const quality = (extraction.warnings ?? []).find((w) => (w.code ?? '').toUpperCase() === 'IMAGE_QUALITY');
-    const genericIndex = notes.indexOf('Não foi possível ler questões nesta imagem. Tente uma foto mais nítida e de frente, ou escreva as questões à mão.');
+    const genericIndex = notes.findIndex((n) => n.text === 'Não foi possível ler questões nesta imagem. Tente uma foto mais nítida e de frente, ou escreva as questões à mão.');
     if (genericIndex !== -1) notes.splice(genericIndex, 1);
-    notes.unshift(quality?.message ?? 'A imagem pode estar ilegível. Tente fotografar de novo com mais luz e sem tremer.');
+    notes.unshift({ text: quality?.message ?? 'A imagem pode estar ilegível. Tente fotografar de novo com mais luz e sem tremer.' });
   }
-  if (figureCount > 0) notes.push(`${figureCount} figura(s), tabela(s) ou fórmula(s) ficaram ligadas às questões. Confirme se cada uma está na questão certa; pode retirá-la.`);
-  if (reviewCount > 0) notes.push(`${reviewCount} questão(ões) ficaram marcadas «rever»: o texto pode ter erros de leitura.`);
-  if (items.some((q) => q.kind === 'true_false' || (q.items ?? []).some((i) => i.kind === 'true_false'))) {
-    notes.push('Marque Verdadeiro ou Falso em cada afirmação: o OCR não adivinha o gabarito.');
+  if (figureCount > 0) nota(`${figureCount} figura(s), tabela(s) ou fórmula(s) ficaram ligadas às questões. Confirme se cada uma está na questão certa; pode retirá-la.`, { question: primeiraFigura });
+  if (reviewCount > 0) nota(`${reviewCount} questão(ões) ficaram marcadas «rever»: o texto pode ter erros de leitura.`, { question: primeiraRever });
+  if (items.some(isTF)) {
+    nota('Marque Verdadeiro ou Falso em cada afirmação: o OCR não adivinha o gabarito.', { question: primeiraTF });
   }
   return {
     patch,

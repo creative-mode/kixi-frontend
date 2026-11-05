@@ -6,25 +6,48 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
 const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME ?? 'admin@kixi.ao';
 const TEACHER_USERNAME = process.env.E2E_TEACHER_USERNAME ?? 'professor@kixi.ao';
 
-function samplePdf(): Buffer {
-  const stream = 'BT /F1 18 Tf 20 90 Td (OCR test) Tj ET';
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-  ];
+/** BMP de 1 px branco, construído por código: evita um base64 literal no teste. */
+function pixelBmp(): Buffer {
+  const bmp = Buffer.alloc(58);
+  bmp.write('BM', 0);
+  bmp.writeUInt32LE(58, 2);
+  bmp.writeUInt32LE(54, 10);
+  bmp.writeUInt32LE(40, 14);
+  bmp.writeInt32LE(1, 18);
+  bmp.writeInt32LE(1, 22);
+  bmp.writeUInt16LE(1, 26);
+  bmp.writeUInt16LE(24, 28);
+  bmp.fill(255, 54, 57);
+  return bmp;
+}
+
+function samplePdf(pages = 1): Buffer {
+  // PDF mínimo com `pages` páginas: cada uma com um texto «OCR test page n» — o
+  // numeração não se usa para decidir o conteúdo, só o Count e a geometria.
+  const pageNumbers = Array.from({ length: pages }, (_, i) => 3 + 3 * i);
+  const objects = new Map<number, string>();
+  objects.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  objects.set(2, `<< /Type /Pages /Kids [${pageNumbers.map((n) => `${n} 0 R`).join(' ')}] /Count ${pages} >>`);
+  for (let i = 0; i < pages; i += 1) {
+    const pageNumber = 3 + 3 * i;
+    const contentsNumber = pageNumber + 1;
+    const fontNumber = pageNumber + 2;
+    const contentStream = `BT /F1 18 Tf 20 90 Td (OCR test page ${i + 1}) Tj ET`;
+    objects.set(pageNumber, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents ${contentsNumber} 0 R /Resources << /Font << /F1 ${fontNumber} 0 R >> >> >>`);
+    objects.set(contentsNumber, `<< /Length ${Buffer.byteLength(contentStream)} >>\nstream\n${contentStream}\nendstream`);
+    objects.set(fontNumber, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
+  }
+  const maxObject = Math.max(...objects.keys());
   let pdf = '%PDF-1.4\n';
   const offsets = [0];
-  for (const [index, object] of objects.entries()) {
+  for (let n = 1; n <= maxObject; n += 1) {
     offsets.push(Buffer.byteLength(pdf));
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    pdf += `${n} 0 obj\n${objects.get(n)}\nendobj\n`;
   }
   const xrefOffset = Buffer.byteLength(pdf);
-  pdf += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+  pdf += `xref\n0 ${maxObject + 1}\n0000000000 65535 f \n`;
   pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
-  pdf += `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  pdf += `trailer\n<< /Size ${maxObject + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   return Buffer.from(pdf);
 }
 
@@ -65,12 +88,71 @@ async function mockAsyncOcrJob(page: Page, extraction: Record<string, unknown>) 
   });
 }
 
+type OcrJobStep = {
+  /** Extração devolvida quando o trabalho chega ao fim. */
+  extraction: Record<string, unknown>;
+  /** Estado do primeiro poll; os seguintes devolvem o resultado da leitura. */
+  first: { status: string; pageCount: number; completedPages: number; currentPage: number; eventType: string; result: Record<string, unknown> | null };
+  /** Se existir, o poll que traz o resultado espera por esta promessa: o teste tem
+   *  tempo de afirmar o estado «a ler» sem depender do intervalo entre polls. */
+  gate?: Promise<void>;
+};
+
+/**
+ * Trabalhos OCR em sequência: a leitura inicial de um PDF (PROCESSING → SUCCEEDED) e,
+ * depois, a repetição de uma página (um só poll, que já chega ao fim). Cada POST cria o
+ * próximo job. Um POST a mais do que os passos previstos é um erro (500), e não um
+ * reaproveitamento do último resultado: era assim que uma releitura da prova inteira
+ * passaria despercebida. `posts` guarda o corpo de cada POST para o teste o inspecionar.
+ */
+async function mockAsyncOcrJobs(page: Page, steps: OcrJobStep[]) {
+  const jobs = steps.map((step) => ({ id: randomUUID(), step, polls: 0 }));
+  const byId = new Map<string, (typeof jobs)[number]>(jobs.map((job) => [job.id, job] as const));
+  const posts: string[] = [];
+  await page.route('**/manager/api/ocr/extract', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    const job = jobs[posts.length];
+    posts.push(route.request().postDataBuffer()?.toString('latin1') ?? '');
+    if (!job) {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'POST OCR inesperado no teste' }) });
+      return;
+    }
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify({ jobId: job.id, requestId: randomUUID(), statusUrl: `/manager/api/ocr/jobs/${job.id}` }),
+    });
+  });
+  await page.route('**/manager/api/ocr/jobs/**', async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    if (route.request().method() !== 'GET') return route.fallback();
+    const job = byId.get(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+    if (!job) return route.fallback();
+    job.polls += 1;
+    const { first, extraction, gate } = job.step;
+    if (job.polls === 1) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ jobId: job.id, ...first, error: null }) });
+      return;
+    }
+    await gate;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ jobId: job.id, status: 'SUCCEEDED', pageCount: first.pageCount, completedPages: first.pageCount, currentPage: first.pageCount, eventType: 'result', result: extraction, error: null }),
+    });
+  });
+  return { posts };
+}
+
 // Admin e professor não aterram no mesmo sítio: o admin vai ao dashboard, o professor
 // vai ao seu âmbito. E o "Dashboard" não se pode procurar por texto — o Next injecta um
 //#__next-route-announcer__ que repete o título, e o Playwright recusa o locator ambíguo.
 async function managerLogin(page: Page, username: string, landing: RegExp, heading: string) {
   await page.goto('/manager/login');
-  await page.getByLabel('Username ou email').fill(username);
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(username);
   // O campo da palavra-passe nao tem label associado, so `id`: e por isso que
   // vai por `#` e nao por `getByLabel`. Os outros quatro campos usam label.
   await page.locator('#password').fill(PASSWORD);
@@ -127,10 +209,10 @@ test.beforeEach(async ({ page }) => {
   erros.length = 0;
   page.on('pageerror', (erro) => erros.push(erro));
   // O banner de cookies do aluno (kixi-frontend#219) fica fixo ao fundo do ecrã até
-  // haver escolha, e nalguns ecrãs mais curtos cobria ações reais (ex.: "Estudar os
-  // erros com o tutor" no resultado). Pré-semear a escolha é o que um visitante que já
-  // respondeu antes tem — não há banner nenhum para testar aqui, só as jornadas por
-  // baixo dele.
+  // haver escolha. Desde o #506 ele reserva espaço e sobe a barra inferior, por isso já
+  // não cobre ações; o teste próprio do banner está abaixo. Pré-semear a escolha continua
+  // a ser o que um visitante que já respondeu antes tem — aqui só interessam as jornadas
+  // por baixo dele, sem mais um clique em cada uma.
   await page.addInitScript(() => localStorage.setItem('kixi-consent', 'necessary'));
 });
 
@@ -139,6 +221,71 @@ test.afterEach(() => {
 });
 
 test.describe('jornadas críticas do Kixi', () => {
+  test('o banner de cookies não tapa a barra inferior e devolve o foco ao fechar (#506)', async ({ page }) => {
+    // Sem escolha semeada: é a primeira visita, e é o banner que aparece.
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/entrar');
+
+    const banner = page.getByRole('dialog', { name: 'Cookies' });
+    await expect(banner).toBeVisible();
+    // Recebe o foco ao aparecer, senão um leitor de ecrã lê a página e esquece o pedido.
+    await expect(banner).toBeFocused();
+
+    // Recusar e aceitar pesam o mesmo: mesmo fundo, contorno, peso de letra e tamanho.
+    const aparencia = (botao: Locator) =>
+      botao.evaluate((el) => {
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return [s.backgroundColor, s.borderTopColor, s.fontWeight, Math.round(r.width), Math.round(r.height)].join('|');
+      });
+    expect(await aparencia(banner.getByRole('button', { name: 'Só necessários' }))).toBe(
+      await aparencia(banner.getByRole('button', { name: 'Aceitar' })),
+    );
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const caixa = async (alvo: Locator) => {
+      const b = await alvo.boundingBox();
+      expect(b).not.toBeNull();
+      return b!;
+    };
+    // A barra inferior assenta por cima do banner, nunca tapada por ele.
+    const barra = page.locator('nav[aria-label="Principal"]:visible');
+    const [caixaBarra, caixaBanner] = [await caixa(barra), await caixa(banner)];
+    expect(Math.round(caixaBarra.y + caixaBarra.height)).toBeLessThanOrEqual(Math.round(caixaBanner.y));
+
+    // E o fim do conteúdo reserva a mesma altura: ao fundo, nenhuma ação fica por baixo.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    expect(
+      await page.evaluate(() => {
+        const topo = document.querySelector('[role="dialog"]')!.getBoundingClientRect().top;
+        return [...document.querySelectorAll('#conteudo a, #conteudo button, #conteudo input')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.height > 0 && r.top < innerHeight && r.bottom > topo;
+        }).length;
+      }),
+    ).toBe(0);
+
+    // Reabrir (o rodapé faz o mesmo) e fechar devolve o foco a quem o tinha, e a barra ao fundo.
+    await banner.getByRole('button', { name: 'Aceitar' }).click();
+    await expect(banner).toHaveCount(0);
+    const campo = page.locator('#conteudo a[href]').first();
+    await campo.focus();
+    await page.evaluate(() => {
+      localStorage.removeItem('kixi-consent');
+      window.dispatchEvent(new Event('kixi-consent-change'));
+    });
+    await expect(banner).toBeFocused();
+    await banner.getByRole('button', { name: 'Só necessários' }).click();
+    await expect(banner).toHaveCount(0);
+    await expect(campo).toBeFocused();
+    await expect(barra).toHaveCSS('bottom', '0px');
+  });
+
   test('o feed mostra o nome verdadeiro de quem publicou e a etiqueta de colega de turma', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -200,6 +347,57 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   });
 
+  test('imagens do feed: aviso ao publicar sem descrição e espaço reservado antes de a imagem chegar (#524)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const id = randomUUID().slice(0, 6);
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
+    await page.goto('/aluno/publicar');
+    await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
+    await page.getByLabel('Título 1', { exact: true }).fill(`Esquema ${id}`);
+    await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
+    await page.getByLabel('Lista 3: linha 1').fill('Endereço da rede');
+    await page.getByRole('button', { name: 'Imagem', exact: true }).click();
+    await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
+    await expect(page.getByText('Imagem pronta')).toBeVisible();
+
+    // Sem descrição não publica logo: avisa, nomeia a imagem e deixa escolher.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    const aviso = page.getByRole('alert').filter({ hasText: 'sem descrição' });
+    await expect(aviso).toContainText('Há 1 imagem sem descrição (Imagem 5)');
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    // Carregar outra vez em «Publicar» não contorna o aviso: só «Publicar mesmo assim» publica sem descrição.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await expect(aviso).toBeVisible();
+    await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await aviso.getByRole('button', { name: 'Escrever a descrição' }).click();
+    await expect(page.getByLabel('Imagem 5: descrição da imagem')).toBeFocused();
+    await expect(aviso).toHaveCount(0);
+    // «Publicar mesmo assim» respeita a escolha: a imagem fica sem descrição, mas o aluno foi avisado.
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await aviso.getByRole('button', { name: 'Publicar mesmo assim' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // No feed a imagem vem numa caixa com proporção fixa: o espaço existe antes de ela chegar, e não muda quando chega.
+    let soltar: () => void = () => {};
+    const retida = new Promise<void>((resolve) => { soltar = resolve; });
+    await page.route('**/uploads/**', async (route) => { await retida; await route.continue(); });
+    await page.reload();
+    const figura = page.getByRole('article').filter({ hasText: `Esquema ${id}` }).first().locator('figure img');
+    await figura.scrollIntoViewIfNeeded();
+    const caixa = figura.locator('..');
+    await expect(caixa).toHaveCSS('aspect-ratio', '4 / 3');
+    const antes = await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    expect(antes).toBeGreaterThan(100);
+    soltar();
+    await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+    expect(await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height))).toBe(antes);
+  });
+
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto('/aluno/entrar');
@@ -246,7 +444,13 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText(/\d+\s*professor/)).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Professores' })).toBeVisible();
     await page.getByRole('tab', { name: 'Enunciados' }).click();
-    await expect(page.getByRole('tabpanel').getByRole('link').first()).toBeVisible();
+    // #494: o enunciado da escola abre o detalhe, como no catálogo, e não a sala.
+    await page.getByRole('tabpanel').getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+\/detalhe/);
+    await expect(page.getByRole('heading', { name: 'Como é esta prova' })).toBeVisible();
+    // E o «Voltar» do detalhe leva às provas, de onde se abre o catálogo.
+    await page.getByRole('link', { name: 'Voltar às provas' }).click();
+    await expect(page).toHaveURL(/\/aluno\/provas/);
   });
 
   test('smoke: autenticação abre as áreas protegidas de aluno e gestor', async ({ browser, page }) => {
@@ -266,6 +470,149 @@ test.describe('jornadas críticas do Kixi', () => {
     await managerContext.close();
   });
 
+  test('cadastro: informa encarregado de educação e abre política de privacidade', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/cadastro');
+
+    await expect(page.getByText(/menos de 18 anos.*encarregado de educação/i)).toBeVisible();
+    const privacyLink = page.getByRole('link', { name: 'Política de Privacidade' });
+    await expect(privacyLink).toHaveAttribute('href', /\/privacidade$/);
+    await expect(privacyLink).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await privacyLink.click();
+    await expect(page).toHaveURL(/\/privacidade$/);
+    await expect(page.getByRole('heading', { name: 'Privacidade' })).toBeVisible();
+  });
+
+  test('aluno: menu da conta, tutor, comentários e navegação de provas são acessíveis (#500)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.getByRole('button', { name: /Conta de/ }).click();
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toHaveAttribute('href', /\/privacidade$/);
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
+
+    await page.goto('/aluno/perfil');
+    await page.getByRole('tab', { name: 'Definições' }).click();
+    await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Privacidade' })).toHaveAttribute('href', /\/privacidade$/);
+    await expect(page.getByRole('tabpanel').getByRole('link', { name: 'Cookies' })).toHaveAttribute('href', /\/cookies$/);
+
+    const trigger = page.locator('button[aria-haspopup="menu"]:visible').first();
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    const perfil = page.getByRole('menuitem', { name: 'O meu perfil' });
+    const terminar = page.getByRole('menuitem', { name: 'Terminar sessão' });
+    await expect(perfil).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(terminar).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(perfil).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+
+    await page.goto('/aluno/provas');
+    const nav = page.getByRole('navigation', { name: 'Provas' });
+    await expect(nav.getByRole('link', { name: 'Enunciados' })).toHaveAttribute('aria-current', 'page');
+    await expect(nav.getByRole('tab')).toHaveCount(0);
+    await nav.getByRole('link', { name: /Salas de prova/ }).click();
+    await expect(nav.getByRole('link', { name: /Salas de prova/ })).toHaveAttribute('aria-current', 'page');
+
+    // Sem prova, o tutor oferece as provas do próprio aluno (#491): é uma lista de
+    // onde se sai a estudar, não um cartão a mandar para o catálogo.
+    await page.goto('/aluno/tutor');
+    await expect(page.getByRole('link', { name: /Redes de Computadores/ })).toHaveAttribute('href', /statementId=1/);
+    // A prova a decorrer não entra: o tutor está fechado enquanto ela corre.
+    await expect(page.getByRole('link', { name: /Sistemas Operativos/ })).toHaveCount(0);
+
+    await page.goto('/aluno/tutor?statementId=1');
+    const conversa = page.getByRole('log');
+    await expect(conversa).toHaveAttribute('aria-live', 'off');
+    const respostaAnunciada = page.locator('[role="status"][aria-live="polite"][aria-atomic="true"]');
+    const pergunta = page.getByLabel('Mensagem para o tutor');
+    await pergunta.fill('Como resolvo a primeira questão?');
+    // No telemóvel o Enter muda de linha: quem envia é o botão.
+    await pergunta.press('Enter');
+    await expect(pergunta).toHaveValue('Como resolvo a primeira questão?\n');
+    await page.getByRole('button', { name: 'Enviar' }).click();
+    await expect(respostaAnunciada).toContainText('Resposta do tutor:', { timeout: 15_000 });
+
+    await page.goto('/aluno/inicio');
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+    await expect(page.getByLabel('Escrever um comentário')).toHaveCSS('height', '44px');
+    await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
+  });
+
+  test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    // Sem endpoint de recuperação, a página dá instruções úteis sem simular um pedido.
+    await page.goto('/aluno/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacta o teu professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+
+    await page.goto('/aluno/prova/2');
+    await expect(page).toHaveURL(/\/aluno\/entrar\?/);
+    // O destino vai no `next`, validado contra URLs externos (lib/safe-next.ts). Os dois formatos são válidos:
+    // relativo à app (`/prova/2`, o que o safe-next produz) ou com o basePath (`/aluno/prova/2`, o que o proxy pode emitir).
+    await expect(page).toHaveURL(/next=(?:%2Fprova%2F2|%2Faluno%2Fprova%2F2)/i);
+
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/2/);
+  });
+
+  test('gestor: sessão em falta regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
+    await page.goto('/manager/classes');
+    await expect(page).toHaveURL(/\/manager\/login\?/);
+    await expect(page).toHaveURL(/next=(?:%2Fclasses|%2Fmanager%2Fclasses)/i);
+
+    await page.locator('#usernameOrEmail').fill(ADMIN_USERNAME);
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('gestor-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+
+    await page.goto('/manager/recuperar');
+    await expect(page.getByRole('note')).toContainText('Contacte o professor ou a secretaria da escola');
+    await expect(page.locator('form')).toHaveCount(0);
+    // Um só landmark principal: o do AuthLayout (a página não abre outro <main>).
+    await expect(page.locator('main')).toHaveCount(1);
+  });
+
+  test('autenticação: erros recebem foco e email e palavra-passe validam ao sair do campo', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    const usernameOrEmail = page.getByLabel('Utilizador ou email');
+    await expect(usernameOrEmail).not.toBeFocused();
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(usernameOrEmail).toBeFocused();
+    await expect(usernameOrEmail).toHaveAttribute('aria-invalid', 'true');
+    await expect(usernameOrEmail).toHaveAttribute('aria-describedby', 'usernameOrEmail-err');
+    await expect(page.locator('#usernameOrEmail-err')).toContainText('Indica o teu utilizador ou email.');
+
+    await page.goto('/aluno/cadastro');
+    const email = page.getByLabel('Email');
+    await expect(email).toHaveAttribute('inputmode', 'email');
+    await email.fill('email-invalido');
+    await email.blur();
+    await expect(page.locator('#email-err')).toContainText('Este email não parece válido.');
+
+    const password = page.locator('#password');
+    await password.fill('curta');
+    await password.blur();
+    await expect(page.locator('#password-err')).toContainText('Usa pelo menos 8 caracteres.');
+  });
+
   test('aluno: registo, onboarding, prova, resultado e tutor', async ({ page }) => {
     const id = randomUUID().replaceAll('-', '').slice(0, 12);
     await page.goto('/aluno/cadastro');
@@ -277,11 +624,16 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.locator('#confirm').fill(PASSWORD);
     await page.getByTestId('aluno-cadastro-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/onboarding/);
+    const code = page.getByLabel('Código de matrícula');
+    await expect(page.getByRole('button', { name: 'Terminar sessão' })).toBeVisible();
+    await page.getByRole('button', { name: 'Entrar na turma' }).click();
+    await expect(page.locator('#codigo-err')).toContainText('Indica o código de matrícula que a tua escola te deu.');
+    await expect(code).toBeFocused();
 
     // Desde kixi#255 a auto-matrícula é só o código: a turma e o ano letivo vêm dele,
     // por isso o onboarding deixou de pedir escola/curso/turma. TESTE1234 é o código
     // da turma 12B que o mock semeia.
-    await page.getByLabel('Código de matrícula').fill('TESTE1234');
+    await code.fill('TESTE1234');
     await page.getByRole('button', { name: 'Entrar na turma' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
     // Conta nova: o início abre sem o bloco «Começa por aqui» (saiu do início).
@@ -332,14 +684,59 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByRole('alertdialog')).toContainText('Marcadas (1) para rever.');
     await page.getByRole('alertdialog').getByRole('button', { name: 'Entregar', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
+    // #492: a leitura da nota e as recompensas do servidor vêm logo a seguir à nota.
+    await expect(page.getByTestId('resultado-leitura')).toBeVisible();
+    await expect(page.getByLabel('O que ganhaste')).toContainText(/XP/);
+    await expect(page.getByLabel('O que ganhaste')).toContainText('sequência');
     // Entregar fecha a tentativa: as marcas locais dessa simulação desaparecem.
     await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kixi:marcadas:')).length)).toBe(0);
     // O `CardTitle` da revisão é um `div`, não um heading, por isso não aparece em
     // `getByRole('heading')`. O alvo estável é o `aria-label` que o card já traz.
     await expect(page.getByLabel('Revisão questão a questão')).toBeVisible();
     await page.getByRole('link', { name: 'Estudar os erros com o tutor' }).click();
-    await expect(page).toHaveURL(/\/aluno\/tutor\?statementId=/);
+    await expect(page).toHaveURL(/\/aluno\/tutor\?statementId=.*de=resultado/);
     await expect(page.getByRole('heading', { name: 'Tutor' })).toBeVisible();
+    // «Voltar» regressa ao resultado de onde o aluno veio (#491), não ao detalhe.
+    await page.getByRole('link', { name: 'Voltar ao resultado' }).click();
+    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=/);
+  });
+
+  test('aluno: uma denúncia falhada conserva o motivo e pode ser repetida (#499)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const falha = (mode: string) => page.evaluate(async (value) => {
+      const response = await fetch('api/mock-fault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: value }),
+      });
+      if (!response.ok) throw new Error(`Não foi possível configurar a falha: ${response.status}`);
+    }, mode);
+    const post = page.getByRole('article').filter({ hasText: 'subnetting' }).first();
+    await falha('500');
+    await post.getByRole('button', { name: 'Denunciar publicação' }).click();
+
+    const spam = post.getByRole('radio', { name: 'Spam ou publicidade' });
+    const ofensivo = post.getByRole('radio', { name: 'Conteúdo ofensivo' });
+    const outro = post.getByRole('radio', { name: 'Outro motivo' });
+    await spam.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(ofensivo).toBeChecked();
+    await page.keyboard.press('ArrowDown');
+    await expect(outro).toBeChecked();
+    await page.keyboard.press('ArrowUp');
+    await expect(ofensivo).toBeChecked();
+    await post.getByRole('button', { name: 'Denunciar', exact: true }).click();
+
+    await expect(post.getByRole('alert')).toContainText('O servidor teve um problema. Tenta de novo daqui a pouco.');
+    await expect(ofensivo).toBeChecked();
+    await falha('');
+    await post.getByRole('button', { name: 'Tentar de novo' }).click();
+    await expect(post.getByText('Denúncia enviada. A equipa da escola vai rever.')).toBeVisible();
   });
 
   test('aluno: a resposta que não chegou ao servidor sobrevive a recarregar e é recuperada (#587)', async ({ page }) => {
@@ -608,6 +1005,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const originalViewport = page.viewportSize() ?? { width: 1280, height: 900 };
     for (const width of [375, 390, 430, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
+      // Abaixo de `lg` a folha só se vê na vista «Pré-visualizar» (#537).
+      if (width < 1024) await page.getByRole('group', { name: 'Vista do construtor' }).getByRole('button', { name: 'Pré-visualizar' }).click();
       const geometry = await brace.evaluate((element) => {
         const braceRect = element.getBoundingClientRect();
         const list = element.parentElement?.querySelector('ol');
@@ -653,8 +1052,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     await page.emulateMedia({ media: 'screen' });
 
-    const renderedQuestion = page.getByLabel('Enunciado comum da questão 1');
-    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    // Por CSS: com o modal aberto o fundo sai da árvore de acessibilidade e o getByRole deixa de o ver.
+    const renderedQuestion = page.locator('[role="group"][aria-label="Enunciado comum da questão 1"]');
+    // Desenhado, o enunciado deixa de ser um «textbox» morto: cada fórmula é um botão (#531).
+    await expect(renderedQuestion).toHaveAttribute('role', 'group');
+    await expect(renderedQuestion.getByRole('button', { name: /^Editar fórmula/ })).toHaveCount(1);
     await expect(renderedQuestion.locator('.katex')).toBeVisible();
     const formulaToggle = page.getByRole('button', { name: 'Inserir fórmula' }).first();
     await formulaToggle.click();
@@ -663,7 +1065,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const systemButton = formulaDialog.getByRole('button', { name: 'Inserir modelo Sistema' });
     await expect(vectorButton.locator('.katex')).toBeVisible();
     await expect(systemButton.locator('.katex')).toBeVisible();
-    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion).toHaveAttribute('role', 'group');
 
     const formulaEvidencePath = resolve(process.cwd(), 'docs/visual-evidence/ocr-physics/formula-picker-rendered-symbols.png');
     await page.locator('body').screenshot({ path: formulaEvidencePath });
@@ -674,7 +1076,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await vectorButton.click();
     await expect.poll(async () => formulaDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\vec{v}');
     await formulaDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
-    await expect(renderedQuestion).toHaveAttribute('aria-readonly', 'true');
+    await expect(renderedQuestion).toHaveAttribute('role', 'group');
     await expect(renderedQuestion.locator('.katex')).toHaveCount(2);
 
     await page.getByRole('button', { name: 'Inserir fórmula' }).first().click();
@@ -683,6 +1085,243 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect.poll(async () => systemDialog.locator('math-field').evaluate((element) => (element as HTMLElement & { value: string }).value)).toContain('\\begin{cases}');
     await systemDialog.getByRole('button', { name: 'Inserir fórmula' }).first().click();
     await expect(renderedQuestion.locator('.katex')).toHaveCount(3);
+  });
+
+  test('OCR: miniaturas, ordem por teclado e leitura de uma só página (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles([
+      { name: 'foto1.bmp', mimeType: 'image/bmp', buffer: png },
+      { name: 'foto2.bmp', mimeType: 'image/bmp', buffer: png },
+    ]);
+    const lista = page.getByRole('list', { name: 'Ficheiros a importar, por ordem de leitura' });
+    await expect(lista.locator('li')).toHaveCount(2);
+    // Miniatura por ficheiro, e a ordem muda por teclado (subir/descer).
+    expect(await lista.locator('img').count()).toBe(2);
+    await expect(lista.getByRole('button', { name: 'Subir foto1.bmp' })).toBeDisabled();
+    await expect(lista.getByRole('button', { name: 'Descer foto1.bmp' })).toBeEnabled();
+    await lista.getByRole('button', { name: 'Subir foto2.bmp' }).click();
+    await expect(lista.locator('li').first()).toContainText('1. foto2.bmp');
+    await expect(lista.getByRole('button', { name: 'Subir foto2.bmp' })).toBeDisabled();
+    // Repetir só uma página, sem reler tudo.
+    await expect(lista.getByRole('button', { name: 'Ler só foto1.bmp' })).toBeVisible();
+  });
+
+  test('OCR: progresso com barra, notas que levam à questão e originais lado a lado (#528)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const jobId = randomUUID();
+    const extraction = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        {
+          number: '1', type: 'dissertativa', confidence: 0.9, cotacao: 10,
+          text: 'Define velocidade média.',
+          formulas: [{ raw: 'v', latex: 'v', confidence: 0.5, layoutConfidence: 0.5, kind: 'formula' }],
+        },
+        { number: '2', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Explica a inércia.' },
+      ],
+      warnings: [
+        { code: 'LOW_CONFIDENCE_FORMULA', field: 'question_1_formula_1', confidence: 0.5 },
+        { code: 'LOW_CONFIDENCE', field: 'question_2_text', confidence: 0.4 },
+      ],
+      unmapped_content: [{ zone: 'rodape', text: 'Contacto: 923 000 000' }],
+      images_to_upload: [{ region: 'rodape', data_url: 'data:image/bmp;base64,' + pixelBmp().toString('base64') }],
+    };
+    // O trabalho demora de propósito: a barra de progresso tem de se ver.
+    await page.route('**/manager/api/ocr/extract', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, requestId: randomUUID(), statusUrl: `/manager/api/ocr/jobs/${jobId}` }),
+      });
+    });
+    let polls = 0;
+    await page.route(`**/manager/api/ocr/jobs/${jobId}`, async (route) => {
+      if (route.request().method() === 'DELETE') {
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      if (route.request().method() !== 'GET') return route.fallback();
+      polls += 1;
+      if (polls === 1) {
+        // Primeiro estado: já há páginas contadas, mas a leitura continua — é
+        // nesta janela que a barra fica visível.
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ jobId, status: 'PROCESSING', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'progress', result: null, error: null }),
+        });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId, status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: extraction, error: null }),
+      });
+    });
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    const png = pixelBmp();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'foto1.png', mimeType: 'image/png', buffer: png,
+    });
+    await page.getByRole('button', { name: 'Ler só foto1.png' }).click();
+    const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
+    await expect(barra).toBeVisible();
+    await expect(barra).toHaveAttribute('aria-valuemax', '1');
+    await expect(barra).toHaveAttribute('aria-valuemin', '0');
+    // Cada aviso aponta para a sua questão; o clique leva lá o foco.
+    await page.getByRole('button', { name: 'Ir para a questão 2' }).click();
+    await expect(page.locator('#questao-2')).toBeFocused();
+    // O rodapé tem âncora própria e as páginas originais ficam ao lado.
+    await expect(page.getByRole('link', { name: 'Ver rodapé original' })).toBeVisible();
+    await expect(page.getByTestId('ocr-originais')).toBeVisible();
+    await page.getByRole('button', { name: 'Ver foto1.png em tamanho real' }).click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toContainText('foto1.png');
+    await expect(dialogo.locator('img')).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+
+  test('OCR: PDF de duas páginas lê as duas, mostra a miniatura e pode repetir a página 2 (#718)', async ({ page }) => {
+    // O pdfjs-dist 6 usa `Map.prototype.getOrInsertComputed`, que o Chromium do CI ainda não tinha e que há navegadores de
+    // professores sem ela: sem o build `legacy` a miniatura falhava em silêncio. Remove-se a API em qualquer versão do
+    // navegador, para o teste continuar a exercer esse caminho quando o do CI for atualizado.
+    await page.addInitScript(() => {
+      for (const tipo of [Map, WeakMap] as const) {
+        delete (tipo.prototype as unknown as Record<string, unknown>).getOrInsert;
+        delete (tipo.prototype as unknown as Record<string, unknown>).getOrInsertComputed;
+      }
+    });
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    const leituraDuasPaginas = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        { number: '1', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Define velocidade média.' },
+        { number: '2', type: 'dissertativa', confidence: 0.9, cotacao: 10, text: 'Explica a inércia.' },
+      ],
+      warnings: [],
+      unmapped_content: [],
+    };
+    const repeticaoPagina2 = {
+      status: 'success',
+      exam_type: 'Prova',
+      duration_minutes: 90,
+      subject_name: 'Física',
+      questions: [
+        { number: '2', type: 'dissertativa', confidence: 0.95, cotacao: 10, text: 'Explica a inércia com a correção pedida.' },
+      ],
+      warnings: [],
+    };
+    let libertarLeitura: () => void = () => undefined;
+    const leituraLibertada = new Promise<void>((resolve) => { libertarLeitura = resolve; });
+    const { posts } = await mockAsyncOcrJobs(page, [
+      { extraction: leituraDuasPaginas, gate: leituraLibertada, first: { status: 'PROCESSING', pageCount: 2, completedPages: 1, currentPage: 1, eventType: 'progress', result: null } },
+      { extraction: repeticaoPagina2, first: { status: 'SUCCEEDED', pageCount: 1, completedPages: 1, currentPage: 1, eventType: 'result', result: repeticaoPagina2 } },
+    ]);
+
+    await page.goto('/manager/exam-builder?importar=1');
+    await expect(page.getByText('Importar de imagem ou PDF')).toBeVisible();
+    await page.getByLabel('Escolher ficheiros da prova').setInputFiles({
+      name: 'prova-dois-paginas.pdf',
+      mimeType: 'application/pdf',
+      buffer: samplePdf(2),
+    });
+
+    // A contagem «2 páginas» aparece na linha do ficheiro, antes de ler.
+    await expect(page.getByText(/PDF\s*·\s*2\s*páginas/i)).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('gestor-statements-import-submeter').click();
+
+    const barra = page.getByRole('progressbar', { name: 'Progresso da leitura das páginas' });
+    await expect(barra).toBeVisible();
+    await expect(barra).toHaveAttribute('aria-valuemax', '2');
+    await expect(page.getByText(/A ler página 1 de 2/)).toBeVisible();
+    libertarLeitura();
+    await expect(page.getByText(/Prova lida/)).toBeVisible();
+
+    const originais = page.getByTestId('ocr-originais');
+    await expect(originais).toBeVisible();
+    await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 1 de prova-dois-paginas.pdf' })).toBeVisible();
+    await expect(originais.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' })).toBeVisible();
+    // A miniatura da página 1 sai do canvas como data URL — não o ícone de reserva.
+    await expect(originais.getByRole('button', { name: 'Ver prova-dois-paginas.pdf em tamanho real' }).locator('img'))
+      .toHaveAttribute('src', /^data:image\/jpeg;base64,/);
+
+    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia.');
+
+    expect(posts).toHaveLength(1);
+    expect(posts[0].match(/name="files"/g)).toHaveLength(1);
+    expect(posts[0]).toMatch(/Content-Type: application\/pdf/i);
+
+    await page.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' }).click();
+    await expect(page.getByText('Página 2 relida: 1 questão(ões) no lugar de 1.')).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia com a correção pedida.');
+
+    // Só a página 2 foi relida: um segundo POST, com uma única imagem — não a prova toda.
+    expect(posts).toHaveLength(2);
+    expect(posts[1].match(/name="files"/g)).toHaveLength(1);
+    expect(posts[1]).toMatch(/Content-Type: image\//i);
+  });
+
+  test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder');
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Sendo $x^{2}$ e $y$, calcule.');
+    await page.getByRole('button', { name: 'Ver fórmula renderizada' }).first().click();
+
+    // Cada fórmula é alcançável por Tab e tem um nome próprio.
+    const group = page.getByRole('group', { name: 'Questão 1' });
+    const second = group.getByRole('button', { name: 'Editar fórmula 2' });
+    await expect(group.getByRole('button', { name: /^Editar fórmula/ })).toHaveCount(2);
+    await group.getByRole('button', { name: 'Editar fórmula 1' }).focus();
+    await page.keyboard.press('Tab');
+    await expect(second).toBeFocused();
+
+    // Enter abre o editor com o LaTeX dessa fórmula, e não vazio.
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: 'Editar fórmula' });
+    const mathfield = dialog.locator('math-field');
+    const latex = () => mathfield.evaluate((element) => (element as HTMLElement & { value: string }).value);
+    await expect.poll(latex).toBe('y');
+
+    // Sem alterar nada, Esc fecha logo.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+
+    // Com a fórmula alterada, Esc pede confirmação e não perde o trabalho.
+    await second.click();
+    await expect.poll(latex).toBe('y');
+    await mathfield.evaluate((element) => {
+      const field = element as HTMLElement & { setValue: (value: string) => void };
+      field.setValue('z^{3}');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.keyboard.press('Escape');
+    await expect(dialog.getByRole('alert')).toContainText('Descartar a fórmula');
+    await expect(dialog.getByRole('button', { name: 'Continuar a editar' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Continuar a editar' }).click();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await expect.poll(latex).toBe('z^{3}');
+
+    // Substituir troca só essa fórmula, no mesmo sítio do texto.
+    await dialog.getByRole('button', { name: 'Substituir fórmula' }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
+    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Sendo $x^{2}$ e $z^{3}$, calcule.');
   });
 
   test('construtor: falha do MathLive mantém edição de fórmula em LaTeX', async ({ page }, testInfo) => {
@@ -724,6 +1363,65 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(reopenedDialog).toHaveCount(0);
   });
 
+  test('gestor: protege a saída com alterações e navega logo quando o formulário está limpo (#508)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/classes/new');
+    const code = page.getByLabel('Código');
+    await code.fill('RASCUNHO');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    const warning = page.getByRole('alertdialog', { name: 'Descartar alterações?' });
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await page.getByRole('button', { name: 'Sair do sistema' }).first().click();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes\/new/);
+
+    await page.goBack();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(code).toHaveValue('RASCUNHO');
+
+    await code.fill('');
+    for (const value of ['OUTRO', 'MAIS UM']) {
+      await code.fill(value);
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(true);
+      await code.fill('');
+      await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+    }
+    // Um único Voltar deve sair depois de vários ciclos sujo → limpo.
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/manager\/classes\/new/);
+    await expect(warning).toHaveCount(0);
+
+    await page.goto('/manager/classes/new');
+    await page.getByRole('navigation', { name: 'Navegação estrutural' }).getByRole('link', { name: 'Turmas' }).click();
+    await expect(page).toHaveURL(/\/manager\/classes$/);
+    await expect(warning).toHaveCount(0);
+  });
+
+  test('painel: cada cartão diz o mesmo número que a lista, com as contagens num só pedido (#389)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    const cadastros = page.getByRole('region', { name: 'Cadastros' });
+    const contagem = async (nome: string) => {
+      const texto = await cadastros.getByRole('link', { name: new RegExp(`^${nome}`) }).innerText();
+      return Number(texto.match(/(\d+)\s+ativos/)![1]);
+    };
+    await expect(cadastros.getByRole('link', { name: /^Disciplinas/ })).toContainText('ativos');
+    const esperado = { Disciplinas: await contagem('Disciplinas'), Cursos: await contagem('Cursos'), Turmas: await contagem('Turmas') };
+    expect(esperado.Disciplinas, 'o simulado tem disciplinas').toBeGreaterThan(0);
+
+    // O número do cartão é o tamanho da lista que ele abre.
+    for (const [nome, caminho] of [['Disciplinas', 'subjects'], ['Cursos', 'courses'], ['Turmas', 'classes']] as const) {
+      await page.goto(`/manager/${caminho}`);
+      const linhas = page.locator('tbody tr');
+      if (esperado[nome] === 0) await expect(linhas.first()).toContainText(/Ainda não há|Nenhum/);
+      else await expect(linhas).toHaveCount(esperado[nome]);
+    }
+  });
+
   test('admin: gera, lista e revoga um código de matrícula', async ({ page }) => {
     await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
     await page.goto('/manager/classes');
@@ -745,8 +1443,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const code = (await item.locator('button').first().textContent())?.trim() ?? '';
     expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
 
-    page.on('dialog', (confirm) => confirm.accept());
     await item.getByRole('button', { name: 'Revogar' }).click();
+    await page.getByRole('alertdialog', { name: 'Revogar código?' }).getByRole('button', { name: 'Revogar' }).click();
     await expect(item.getByText('Revogado')).toBeVisible();
     await expect(item.getByRole('button', { name: 'Revogar' })).toHaveCount(0);
   });
@@ -774,6 +1472,181 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/manager');
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
+  });
+
+  test('sala: o encerrar diz quantos ainda respondem e a tabela filtra por estado (#536)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-rooms/1');
+    const filtros = page.getByRole('group', { name: 'Filtrar alunos' });
+    await expect(filtros).toBeVisible();
+
+    // Cada filtro traz a sua contagem, e a tabela mostra tantas linhas quantas essa contagem diz.
+    const total = Number((await filtros.getByRole('button', { name: /^Todos \(/ }).innerText()).match(/\((\d+)\)/)![1]);
+    expect(total).toBeGreaterThan(0);
+    const porEntrar = filtros.getByRole('button', { name: /^Ainda não entraram \(/ });
+    const esperado = Number((await porEntrar.innerText()).match(/\((\d+)\)/)![1]);
+    await porEntrar.click();
+    await expect(porEntrar).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('table').first().locator('tbody tr')).toHaveCount(esperado);
+    await filtros.getByRole('button', { name: /^Todos \(/ }).click();
+    await expect(page.locator('table').first().locator('tbody tr')).toHaveCount(total);
+
+    // O diálogo de encerrar diz quantos ainda estão a responder, em vez de um aviso genérico.
+    const respondem = Number((await filtros.getByRole('button', { name: /^A responder \(/ }).innerText()).match(/\((\d+)\)/)![1]);
+    await page.getByRole('button', { name: 'Encerrar', exact: true }).click();
+    const dialogo = page.getByRole('alertdialog');
+    if (respondem > 0) {
+      await expect(dialogo).toContainText(`${respondem} ainda a responder`);
+      await expect(dialogo).toContainText(respondem === 1 ? '1 aluno ainda está a responder' : `${respondem} alunos ainda estão a responder`);
+    } else {
+      await expect(dialogo).toContainText('Ninguém está a responder neste momento');
+    }
+    await dialogo.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(dialogo).toHaveCount(0);
+  });
+
+  test('gestor: o formulário valida ao sair do campo e permite guardar e criar outro (#533)', async ({ page }) => {
+    const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/subjects/new');
+    const code = page.locator('#code');
+    const name = page.locator('#name');
+
+    // Ao sair de um campo obrigatório vazio o erro aparece ligado a ele.
+    await code.focus();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#code-erro')).toHaveText('Campo obrigatório');
+    await expect(code).toHaveAttribute('aria-invalid', 'true');
+    await expect(code).toHaveAccessibleDescription('Campo obrigatório');
+    await expect(page.locator('#name-erro')).toHaveCount(0);
+
+    // Um envio inválido resume o que falta e põe o foco no primeiro campo com erro.
+    // O clique tem de chegar ao botão mesmo com o foco num campo vazio.
+    await name.focus();
+    await page.getByRole('button', { name: /^Criar/ }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveText('Há 2 campos por corrigir: Código, Nome.');
+    await expect(code).toBeFocused();
+
+    // Guardar e criar outro: cria, limpa o formulário e deixa o foco no primeiro campo.
+    await code.fill(`S${id}`);
+    await name.fill(`Disciplina ${id}`);
+    await page.getByRole('button', { name: 'Guardar e criar outro' }).click();
+    await expect(page.getByText(/criada/).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/manager\/subjects\/new$/);
+    await expect(code).toHaveValue('');
+    await expect(name).toHaveValue('');
+    await expect(code).toBeFocused();
+    await expect(page.getByRole('alert').filter({ hasText: 'por corrigir' })).toHaveCount(0);
+    await expect(page.locator('[id$="-erro"]')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Boolean(window.history.state?.__unsavedGuard))).toBe(false);
+
+    // O envio normal também remove a sentinela antes de navegar para a lista.
+    await code.fill(`T${id}`);
+    await name.fill(`Outra disciplina ${id}`);
+    await page.getByRole('button', { name: /^Criar/ }).click();
+    await expect(page).toHaveURL(/\/manager\/subjects$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/manager\/subjects\/new$/);
+    await expect(page.getByRole('alertdialog', { name: 'Descartar alterações?' })).toHaveCount(0);
+
+    // A disciplina criada está na lista.
+    await page.goto('/manager/subjects');
+    await expect(page.getByText(`S${id}`)).toBeVisible();
+
+    // Na edição não há «criar outro», e a escola nova (que tem o seu assistente) também não o oferece.
+    await page.getByRole('link', { name: /Editar/ }).first().click();
+    await expect(page.getByRole('button', { name: 'Guardar alterações' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Guardar e criar outro' })).toHaveCount(0);
+    await page.goto('/manager/institutions/new');
+    await expect(page.getByRole('button', { name: 'Criar instituição' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Guardar e criar outro' })).toHaveCount(0);
+  });
+
+  test('construtor: o motivo dos botões desativados é texto e há Editar/Pré-visualizar no tablet (#537)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-builder');
+    const guardar = page.getByRole('button', { name: 'Guardar', exact: true });
+    const resumo = page.locator('#construtor-pendencias');
+
+    // O motivo é texto visível e fica ligado ao botão, em vez de viver só num `title`.
+    await expect(resumo).toContainText('Para guardar faltam:');
+    await expect(guardar).toBeDisabled();
+    await expect(guardar).toHaveAccessibleDescription(/Para guardar faltam/);
+    await expect(guardar).not.toHaveAttribute('title', /.+/);
+
+    // Em ecrã largo a folha está ao lado e o alternador não existe.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.getByRole('group', { name: 'Vista do construtor' })).toBeHidden();
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+
+    // Abaixo de `lg` mostra-se uma vista de cada vez, e a impressão continua a ter a folha.
+    await page.setViewportSize({ width: 768, height: 1024 });
+    const vista = page.getByRole('group', { name: 'Vista do construtor' });
+    await expect(vista).toBeVisible();
+    await expect(page.getByLabel('Título')).toBeVisible();
+    await expect(page.locator('#exam-sheet')).toBeHidden();
+    await vista.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(vista.getByRole('button', { name: 'Pré-visualizar' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+    await expect(page.getByLabel('Título')).toBeHidden();
+    await vista.getByRole('button', { name: 'Editar' }).click();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#exam-sheet')).toBeVisible();
+    await page.emulateMedia({ media: 'screen' });
+
+    // Com a prova pronta o resumo desaparece e o botão deixa de ter descrição.
+    await escolherOpcao(page.getByLabel('Disciplina'));
+    await escolherOpcao(page.getByLabel(/^Turma/));
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    await expect(resumo).toHaveCount(0);
+    await expect(guardar).toBeEnabled();
+  });
+
+  test('construtor: o aviso de prova guardada vê-se na vista Pré-visualizar e cada botão lê só o seu motivo (#537)', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto('/manager/exam-builder');
+    const guardar = page.getByRole('button', { name: 'Guardar', exact: true });
+    const publicar = page.getByRole('button', { name: 'Publicar', exact: true });
+    await escolherOpcao(page.getByLabel('Disciplina'));
+    await escolherOpcao(page.getByLabel(/^Turma/));
+    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+
+    // Falta a cotação: dá para guardar, e «Guardar» não lê o problema que só trava «Publicar».
+    await expect(guardar).toBeEnabled();
+    await expect(guardar).toHaveAccessibleDescription('');
+    await expect(publicar).toBeDisabled();
+    await expect(publicar).toHaveAccessibleDescription(/Para publicar, corrija 1 ponto/);
+
+    // Guarda-se na vista Pré-visualizar: o aviso tem de se ver e ouvir mesmo com o painel Editar escondido.
+    const vista = page.getByRole('group', { name: 'Vista do construtor' });
+    await vista.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(page.getByLabel('Título')).toBeHidden();
+    await guardar.click();
+    await expect(page.getByRole('status').filter({ hasText: 'Prova guardada' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: /Guardado às/ })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId)).toBeGreaterThan(0);
+
+    // Já guardada, sem alterações: os botões dizem porque estão desativados.
+    await expect(guardar).toBeDisabled();
+    await expect(page.locator('#construtor-estado')).toContainText('já está guardada');
+    await expect(guardar).toHaveAccessibleDescription(/já está guardada/);
+
+    // Duas edições seguidas têm de atualizar o mesmo enunciado, sem criar outro.
+    const statementId = await page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId as number);
+    await vista.getByRole('button', { name: 'Editar' }).click();
+    const question = page.getByRole('textbox', { name: 'Questão 1' });
+    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    for (const text of ['Quanto é 3 + 3?', 'Quanto é 4 + 4?']) {
+      await question.fill(text);
+      await expect(page.getByRole('status').filter({ hasText: 'Alterações por guardar' })).toBeVisible();
+      await guardar.click();
+      await expect(guardar).toBeDisabled();
+      await expect(page.getByRole('status').filter({ hasText: /Guardado às/ })).toBeVisible();
+      await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId)).toBe(statementId);
+      await expect(page.getByRole('link', { name: 'Ver o enunciado' })).toHaveAttribute('href', `/manager/statements/${statementId}`);
+    }
   });
 
   test('perfil: cada separador mostra o seu conteudo uma unica vez', async ({ page }) => {
@@ -810,6 +1683,127 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByRole('tabpanel').getByText('Domínio por prova')).toHaveCount(1);
   });
  
+  test('admin: a estrutura da escola não envia duas vezes o mesmo formulário (#532)', async ({ page }) => {
+    const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    const curso = `C${id.slice(0, 5)}`;
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/institutions/new');
+    await page.getByLabel('Código').fill(`E2E${id}`);
+    await page.getByLabel('Nome').fill(`Escola E2E ${id}`);
+    await page.getByLabel('Sigla').fill(`E${id}`);
+    await page.getByRole('button', { name: 'Criar instituição' }).click();
+    await expect(page).toHaveURL(/\/manager\/institutions\/\d+\/structure\?nova=1/);
+
+    const form = page.getByRole('form', { name: 'Novo curso' });
+    const code = form.getByLabel('Código do curso');
+    await code.fill(curso);
+    await form.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
+
+    // Atrasa a gravação para que o segundo Enter chegue com o primeiro pedido ainda a correr.
+    const delayCreate = async (route: import('@playwright/test').Route) => {
+      if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 600));
+      await route.continue();
+    };
+    await page.route(/\/institutions\/\d+\/structure/, delayCreate);
+    const name = form.getByLabel('Nome do curso');
+    await name.press('Enter');
+    await name.press('Enter');
+    await name.press('Enter');
+
+    await expect(form).toHaveAttribute('aria-busy', 'true');
+    await expect(form.getByRole('button')).toHaveText('A criar…');
+    await expect(form.getByRole('button')).toBeDisabled();
+
+    // Um só curso, um só aviso, e o formulário volta a ficar livre com o foco no primeiro campo.
+    await expect(form).toHaveAttribute('aria-busy', 'false');
+    await expect(page.getByTestId(`course-C${id.slice(0, 5)}`)).toHaveCount(1);
+    await expect(page.getByText('Curso criado')).toHaveCount(1);
+    await expect(code).toBeFocused();
+    await expect(code).toHaveValue('');
+
+    // A confirmação fica aberta enquanto a remoção corre e o toast permite desfazê-la.
+    await page.unroute(/\/institutions\/\d+\/structure/, delayCreate);
+    let releaseDelete!: () => void;
+    const deleteReleased = new Promise<void>((resolve) => { releaseDelete = resolve; });
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST' && route.request().headers()['next-action']) await deleteReleased;
+      await route.continue();
+    });
+    await page.getByRole('button', { name: `Mover curso ${curso} para a lixeira` }).click();
+    const confirm = page.getByRole('alertdialog', { name: 'Mover este curso para a lixeira?' });
+    await confirm.getByRole('button', { name: 'Mover para a lixeira' }).click();
+    try {
+      await expect(confirm).toBeVisible();
+      await expect(confirm.getByRole('button', { name: /A processar/ })).toBeDisabled();
+    } finally {
+      releaseDelete();
+    }
+    await expect(page.getByTestId(`course-${curso}`)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Desfazer' }).click();
+    await expect(page.getByTestId(`course-${curso}`)).toHaveCount(1);
+  });
+
+  test('admin: atribuir e afiliar só ocupam o seu formulário e travam as ações destrutivas (#532)', async ({ page }) => {
+    const id = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    const curso = `C${id.slice(0, 5)}`;
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/institutions/new');
+    await page.getByLabel('Código').fill(`E2E${id}`);
+    await page.getByLabel('Nome').fill(`Escola E2E ${id}`);
+    await page.getByLabel('Sigla').fill(`E${id}`);
+    await page.getByRole('button', { name: 'Criar instituição' }).click();
+    await expect(page).toHaveURL(/\/manager\/institutions\/\d+\/structure\?nova=1/);
+
+    // Monta o mínimo: um curso com uma disciplina, uma turma e um professor afiliado.
+    const novoCurso = page.getByRole('form', { name: 'Novo curso' });
+    await novoCurso.getByLabel('Código do curso').fill(curso);
+    await novoCurso.getByLabel('Nome do curso').fill(`Curso E2E ${id}`);
+    await novoCurso.getByRole('button').click();
+    const cartao = page.getByTestId(`course-${curso}`);
+    await expect(cartao).toBeVisible();
+    const currículo = cartao.getByRole('form', { name: /Adicionar disciplina/ });
+    await currículo.getByLabel('Disciplina').selectOption({ index: 1 });
+    await currículo.getByRole('button', { name: 'Adicionar' }).click();
+    await expect(page.getByText('Disciplina adicionada ao currículo')).toBeVisible();
+    const novaTurma = cartao.getByRole('form', { name: /Nova turma/ });
+    await novaTurma.getByLabel('Código da turma').fill('9Z');
+    await novaTurma.getByLabel('Classe da turma').fill('9');
+    const ano = novaTurma.getByLabel('Ano letivo');
+    if (!(await ano.inputValue())) await ano.selectOption({ index: 1 });
+    await novaTurma.getByRole('button').click();
+    await expect(page.getByTestId('class-9Z')).toBeVisible();
+
+    // Afiliar: o foco fica no seletor, pronto para o professor seguinte.
+    const afiliar = page.getByRole('form', { name: 'Afiliar professor' });
+    await afiliar.getByLabel('Professor a afiliar').selectOption({ index: 1 });
+    await afiliar.getByRole('button', { name: 'Afiliar' }).click();
+    await expect(page.getByText('Professor afiliado')).toBeVisible();
+    await expect(afiliar.getByLabel('Professor a afiliar')).toBeFocused();
+
+    // Atribuir, com a gravação atrasada: só este formulário diz «A atribuir…»; as ações destrutivas ficam
+    // desativadas em vez de aceitar um clique que a gravação em curso deixaria cair em silêncio.
+    await page.getByTestId('class-9Z').locator('summary').click();
+    const atribuir = page.getByTestId('class-9Z').getByRole('form', { name: /Atribuir professor/ }).first();
+    await atribuir.locator('select').selectOption({ index: 1 });
+    await page.route(/\/institutions\/\d+\/structure/, async (route) => {
+      if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 700));
+      await route.continue();
+    });
+    await atribuir.getByRole('button').click();
+    await expect(atribuir).toHaveAttribute('aria-busy', 'true');
+    await expect(atribuir.getByRole('button')).toHaveText('A atribuir…');
+    await expect(novoCurso).toHaveAttribute('aria-busy', 'false');
+    await expect(novoCurso.getByRole('button')).toHaveText('Novo curso');
+    await expect(afiliar).toHaveAttribute('aria-busy', 'false');
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Mover turma 9Z para a lixeira' })).toBeDisabled();
+
+    await expect(page.getByText('Professor atribuído')).toBeVisible();
+    await expect(atribuir).toHaveAttribute('aria-busy', 'false');
+    await expect(cartao.getByRole('button', { name: `Mover curso ${curso} para a lixeira` })).toBeEnabled();
+    await expect(page.getByTestId('class-9Z').locator('select').first()).toBeFocused();
+  });
+
   test('moderação: um perfil ocultado devolve 404 a terceiros (#323)', async ({ page }) => {
     // Critério de aceitação da #323. A conta 7 está semeada como ocultada no mock:
     // os dois mocks são processos separados, portanto uma decisão tomada no Manager
@@ -880,6 +1874,182 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByLabel('Escrever um comentário').locator('xpath=ancestor::form[1]').locator(foto)).toBeVisible();
   });
 
+  test('enunciados: cada filtro diz quantos tem, vive no endereço e sobrevive ao recarregamento (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/statements');
+    const tabs = page.getByRole('tab');
+    await expect(tabs).toHaveCount(3);
+    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
+    const [todos, rever, ocr] = [await contagem(/^Todos \(/), await contagem(/^Para rever \(/), await contagem(/^Vindos do OCR \(/)];
+    await expect(page.locator('tbody tr')).toHaveCount(todos);
+
+    // Cada separador mostra tantas linhas quantas a sua contagem diz, e o endereço guarda o filtro.
+    await page.getByRole('tab', { name: /^Para rever \(/ }).click();
+    await expect(page).toHaveURL(/\/manager\/statements\?filtro=rever$/);
+    await expect(page.locator('tbody tr')).toHaveCount(rever);
+    await page.getByRole('tab', { name: /^Vindos do OCR \(/ }).click();
+    await expect(page).toHaveURL(/\?filtro=ocr$/);
+    await expect(page.locator('tbody tr')).toHaveCount(ocr);
+
+    // O filtro sobrevive ao recarregamento; o valor inventado volta ao padrão; o padrão não se escreve no endereço.
+    await page.reload();
+    await expect(page.getByRole('tab', { name: /^Vindos do OCR \(/ })).toHaveAttribute('aria-selected', 'true');
+    await page.goto('/manager/statements?filtro=inventado');
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('aria-selected', 'true');
+
+    // Teclado: só o separador ativo entra no Tab; as setas e o Home andam pelos outros e ativam-nos.
+    await page.getByRole('tab', { name: /^Todos \(/ }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: /^Para rever \(/ })).toBeFocused();
+    await expect(page).toHaveURL(/\?filtro=rever$/);
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('tabindex', '-1');
+    await page.keyboard.press('Home');
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toBeFocused();
+    await expect(page).toHaveURL(/\/manager\/statements$/);
+    await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', /separador-todos$/);
+  });
+
+  test('enunciados: aprovar e ir para o seguinte abre o próximo por rever, e os atalhos não mexem nos campos (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/statements?filtro=rever');
+    const antes = Number((await page.getByRole('tab', { name: /^Para rever \(/ }).innerText()).match(/\((\d+)\)/)![1]);
+    // Aprova exatamente dois e deixa sempre sobras: o teste não depende de a fila ter o tamanho de uma execução limpa,
+    // por isso uma repetição (retry do CI) a seguir a uma tentativa que já aprovou alguns continua a servir.
+    expect(antes, 'a fila precisa de pelo menos três enunciados por rever').toBeGreaterThanOrEqual(3);
+    const primeiro = await page.locator('tbody tr').first().getByRole('link', { name: 'Ver questões' }).getAttribute('href');
+    await page.goto(`${primeiro}?rever=1`);
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+
+    // Escrever «j», «k» e «a» num campo é escrever: nenhum atalho dispara.
+    const titulo = page.getByLabel('Título').first();
+    const original = await titulo.inputValue();
+    await titulo.focus();
+    await page.keyboard.type('jka');
+    await expect(titulo).toHaveValue(`${original}jka`);
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`${primeiro}\\?rever=1$`));
+    await titulo.fill(original);
+
+    // Fora de um campo, J anda pela fila e K volta; A abre a confirmação, não aprova sozinho.
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('j');
+    await expect(page.getByText(`Fila de revisão: 2 de ${antes}`)).toBeVisible();
+    await page.keyboard.press('k');
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+    await page.keyboard.press('a');
+    const dialogo = page.getByRole('alertdialog');
+    await expect(dialogo).toContainText('Aprovar e passar ao seguinte?');
+    await page.keyboard.press('j');
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+
+    // O interruptor desliga os atalhos (WCAG 2.1.4): com eles desligados J e A não fazem nada, e a escolha fica guardada.
+    const interruptor = page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' });
+    await expect(interruptor).toBeChecked();
+    await interruptor.uncheck();
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await page.keyboard.press('j');
+    await expect(dialogo).toHaveCount(0);
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes}`)).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' })).not.toBeChecked();
+    await page.getByRole('checkbox', { name: 'Atalhos de teclado ligados' }).check();
+
+    // Aprovar e ir para o seguinte: abre o próximo já em revisão, com a fila uma mais curta.
+    await expect(page.getByRole('button', { name: 'Aprovar e ir para o seguinte' })).toBeVisible();
+    await page.getByRole('button', { name: 'Aprovar e ir para o seguinte' }).click();
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes - 1}`)).toBeVisible();
+    await expect(page).not.toHaveURL(new RegExp(`${primeiro}\\?rever=1$`));
+    await expect(page.getByRole('heading', { name: 'Rever enunciado' })).toBeVisible();
+
+    // O atalho A faz o mesmo, depois de confirmar; como ainda sobram enunciados, continua a ser «e passar ao seguinte».
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await expect(dialogo).toContainText('Aprovar e passar ao seguinte?');
+    await dialogo.getByRole('button', { name: 'Aprovar e seguinte' }).click();
+    await expect(page.getByText(`Fila de revisão: 1 de ${antes - 2}`)).toBeVisible();
+  });
+
+  test('verificação: os filtros têm contagens, vivem no endereço, paginam e os atalhos respeitam os campos (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/verification');
+    await expect(page.getByRole('tab')).toHaveCount(5);
+    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
+    const porRever = await contagem(/^Por rever \(/);
+    const todos = await contagem(/^Todos \(/);
+
+    // Abre nos pedidos por rever (o que há para fazer) e o endereço limpo é o desse filtro.
+    await expect(page.getByRole('tab', { name: /^Por rever \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-fila-item]')).toHaveCount(Math.min(porRever, 10));
+    await expect(page).toHaveURL(/\/manager\/verification$/);
+
+    // «Todos» pagina: a contagem manda, a página vai para o endereço e sobrevive ao recarregamento.
+    await page.getByRole('tab', { name: /^Todos \(/ }).click();
+    await expect(page).toHaveURL(/\?filtro=todos$/);
+    expect(todos, 'precisa de mais de uma página para testar a paginação').toBeGreaterThan(10);
+    await expect(page.locator('[data-fila-item]')).toHaveCount(10);
+    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`1 a 10 de ${todos} pedidos`);
+    await page.getByRole('button', { name: 'Seguinte' }).click();
+    await expect(page).toHaveURL(/\?filtro=todos&pagina=2$/);
+    await expect(page.locator('[data-fila-item]')).toHaveCount(todos - 10);
+    await page.reload();
+    await expect(page.getByRole('tab', { name: /^Todos \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`11 a ${todos} de ${todos} pedidos`);
+
+    // Atalhos: J anda pelos pedidos, R abre a recusa no focado e leva o foco ao campo do motivo, onde as teclas são texto.
+    await page.goto('/manager/verification');
+    await expect(page.locator('[data-fila-item]').first()).toBeVisible();
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('a');
+    await expect(page.getByRole('button', { name: 'Confirmar aprovação' })).toHaveCount(0);
+    await page.keyboard.press('j');
+    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
+    await page.keyboard.press('r');
+    const motivo = page.getByLabel(/Motivo da recusa/);
+    await expect(motivo).toBeFocused();
+    await page.keyboard.type('jkar');
+    await expect(motivo).toHaveValue('jkar');
+    await expect(page.getByLabel(/Motivo da recusa/)).toHaveCount(1);
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+  });
+
+  test('moderação: separadores com contagem, decididas por páginas e J/K entre denúncias (#535)', async ({ page }) => {
+    await managerLogin(page, ADMIN_USERNAME, ADMIN_LANDING.landing, ADMIN_LANDING.heading);
+    await page.goto('/manager/moderacao');
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    const contagem = async (nome: RegExp) => Number((await page.getByRole('tab', { name: nome }).innerText()).match(/\((\d+)\)/)![1]);
+    const porDecidir = await contagem(/^Por decidir \(/);
+    const decididas = await contagem(/^Decididas \(/);
+    await expect(page.getByRole('tab', { name: /^Por decidir \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-fila-item]')).toHaveCount(porDecidir);
+
+    // J e K andam pelas denúncias por decidir, e as decisões continuam a ser dos botões.
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.keyboard.press('j');
+    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
+    await page.keyboard.press('j');
+    await expect(page.locator('[data-fila-item]').nth(1)).toBeFocused();
+    await page.keyboard.press('k');
+    await expect(page.locator('[data-fila-item]').first()).toBeFocused();
+
+    // As decididas vêm por páginas, no endereço, e sobrevivem ao recarregamento.
+    expect(decididas, 'precisa de mais de uma página para testar a paginação').toBeGreaterThan(10);
+    await page.getByRole('tab', { name: /^Decididas \(/ }).click();
+    await expect(page).toHaveURL(/\?filtro=decididas$/);
+    const linhas = page.locator('section[aria-label="Denúncias decididas"] > div.rounded-lg');
+    await expect(linhas).toHaveCount(10);
+    await expect(page.getByRole('navigation', { name: 'Paginação' })).toContainText(`1 a 10 de ${decididas} denúncias`);
+    await page.getByRole('button', { name: 'Seguinte' }).click();
+    await expect(page).toHaveURL(/\?filtro=decididas&pagina=2$/);
+    await expect(linhas).toHaveCount(decididas - 10);
+    await page.reload();
+    await expect(page.getByRole('tab', { name: /^Decididas \(/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(linhas).toHaveCount(decididas - 10);
+    await expect(page.getByRole('button', { name: /^Ignorar/ })).toHaveCount(0);
+  });
+
   test('construtor: abre limpo e so retoma o rascunho anterior depois de avisar (#362)', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
 
@@ -897,25 +2067,134 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       localStorage.setItem('kixi-exam-draft', JSON.stringify(d));
     }, rascunho);
 
-    let avisos = 0;
-    let aceitar = false;
-    page.on('dialog', async (d) => {
-      avisos += 1;
-      if (aceitar) await d.accept();
-      else await d.dismiss();
-    });
-
     // Recusar (começar do zero): o formulário abre limpo e a chave desaparece.
     await page.goto('/manager/exam-builder');
+    const aviso = page.getByRole('alertdialog', { name: 'Continuar o rascunho?' });
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toContainText('descarta definitivamente este rascunho local');
+    await page.keyboard.press('Escape');
+    await expect(aviso).toBeVisible();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('kixi-exam-draft'))).not.toBeNull();
+    await aviso.getByRole('button', { name: 'Começar do zero' }).click();
     await expect(page.getByRole('heading', { name: 'Montar prova' })).toBeVisible();
-    await expect.poll(() => avisos, { message: 'esperava o aviso do rascunho anterior' }).toBe(1);
     await expect(page.getByLabel('Título')).toHaveValue('');
     await expect.poll(() => page.evaluate(() => localStorage.getItem('kixi-exam-draft'))).toBeNull();
 
     // Aceitar: o rascunho anterior volta.
-    aceitar = true;
     await page.goto('/manager/exam-builder');
+    await expect(aviso).toBeVisible();
+    await aviso.getByRole('button', { name: 'Continuar rascunho' }).click();
     await expect(page.getByLabel('Título')).toHaveValue('Prova de OGI da semana passada');
-    await expect.poll(() => avisos).toBe(2);
   });
  });
+
+/** O cartão de prova no feed (#602): cabeçalho da folha em miniatura e nota em
+ *  carimbo, com link para a prova corrigida — sem fetch extra por cartão. */
+test.describe('cartão de prova no feed (#602)', () => {
+  test('publicar o resultado mostra o cabeçalho e o carimbo no início', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // A simulação 1 do mock está terminada (16,4 em 20): publica-se do resultado.
+    await page.goto('/aluno/resultado?prova=1');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await expect(previa.getByText('Ministério da Educação')).toBeVisible();
+    await expect(previa.getByText(/12ª Classe/)).toBeVisible();
+    // Na pré-visualização não há link para a corrigida: já se está nela.
+    await expect(previa.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    // O estado do mock persiste entre testes e runs locais: se já foi publicado
+    // (409), vale o mesmo para o que se quer provar.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // No feed, o cartão traz o mesmo cabeçalho, o carimbo e o link para a corrigida.
+    await page.goto('/aluno/inicio');
+    const cartao = page.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    await expect(cartao).toBeVisible();
+    await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
+    await expect(cartao.getByText(/Ano letivo/)).toBeVisible();
+    await expect(cartao.getByText('Positiva')).toBeVisible();
+    await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
+  });
+
+  test('um colega vê o cartão sem o link para a corrigida', async ({ browser, page }) => {
+    // Primeiro o dono publica (a simulação 1 do mock é do 12345 e está terminada).
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/resultado?prova=1');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    // O estado do mock persiste entre testes do mesmo run: se o teste anterior já
+    // publicou, o servidor responde 409 e vale o mesmo para o que se quer provar.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // O Nuno é da mesma turma e vê o cartão no feed, mas sem link: o
+    // `/resultado?prova={id}` lê a simulação de quem está a ver, não a do dono.
+    // Contexto à parte para não contaminar a sessão do dono com a do colega.
+    const colegaContext = await browser.newContext();
+    const colega = await colegaContext.newPage();
+    await colega.goto('/aluno/entrar');
+    await colega.getByLabel('Utilizador ou email').fill('nuno.dias');
+    await colega.locator('#password').fill(PASSWORD);
+    await colega.getByTestId('aluno-entrar-submeter').click();
+    await expect(colega).toHaveURL(/\/aluno\/inicio/);
+    const cartao = colega.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    await expect(cartao).toBeVisible();
+    await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
+    await expect(cartao.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
+    await colegaContext.close();
+  });
+});
+
+/** A barra inferior do telemóvel tem 4 colunas (#704). Com 5 itens o último caía
+ *  para uma segunda linha; as Pautas passaram a viver no perfil. */
+test.describe('navegação do telemóvel (#704)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('a barra tem 4 itens numa só linha e as pautas abrem pelo perfil', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const barra = page.getByTestId('nav-mobile');
+    const itens = barra.getByRole('link');
+    await expect(itens).toHaveCount(4);
+    for (const nome of ['Início', 'Provas', 'Ranking', 'Tutor']) {
+      await expect(barra.getByRole('link', { name: nome })).toBeVisible();
+    }
+    await expect(barra.getByRole('link', { name: 'Pautas' })).toHaveCount(0);
+
+    // Uma linha: com o Tutor numa segunda linha a barra teria ~120 px, não ~64.
+    const caixa = await barra.boundingBox();
+    expect(caixa?.height ?? 0).toBeGreaterThanOrEqual(56);
+    expect(caixa?.height ?? 0).toBeLessThan(80);
+
+    // As pautas continuam alcançáveis: pelo perfil, que é como se chega no telemóvel.
+    await page.goto('/aluno/perfil');
+    await page.getByRole('link', { name: /As minhas pautas/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/pautas/);
+    await expect(page.getByRole('heading', { name: 'As minhas pautas' })).toBeVisible();
+  });
+
+  test('no desktop a barra lateral mantém as Pautas', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await expect(page.locator('header nav[aria-label="Principal"]').getByRole('link', { name: 'Pautas' })).toBeVisible();
+    await expect(page.getByTestId('nav-mobile')).toBeHidden();
+  });
+});

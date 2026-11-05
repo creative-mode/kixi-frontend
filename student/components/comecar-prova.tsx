@@ -14,7 +14,7 @@ export function Comecar({ statementId }: { statementId: number }) {
   const [state, action, pending] = useActionState(iniciarAction, undefined);
 
   return (
-    <div className="mx-auto grid min-h-dvh max-w-[760px] place-items-center p-6">
+    <div className="mx-auto grid above-banner-min-h max-w-[760px] place-items-center p-6">
       <Card className="w-full max-w-md gap-4 p-6">
         <CardContent className="grid gap-4">
           <div className="grid gap-1.5">

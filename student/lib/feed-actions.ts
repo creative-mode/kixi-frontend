@@ -6,10 +6,32 @@ import { BACKEND } from './session';
 import { authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
 import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
-import { createBuiltPost, createPost, createSimulationPost, addComment, reportPost, setReaction, type PostComment, type PostType } from './feed';
-import { canPublish, canPublishReflection } from './feed-rules';
+import { createBuiltPost, createPost, createSimulationPost, addComment, getFeed, loadAuthors, reportPost, setReaction, type FeedPost, type PostComment, type PostType } from './feed';
+import { canPublish, canPublishReflection, type FeedAuthor } from './feed-rules';
+import { FEED_PAGE_SIZE } from './feed-pagination';
 
 export type FeedActionState = { error?: string } | undefined;
+
+/** Lê a página seguinte do feed para o «Ver mais» do início. O servidor confirma a turma
+ *  da sessão (um `classId` de outra turma dá 403), por isso o cliente pode pedir a página
+ *  sem ser ele a decidir o que vê. Não faz `revalidatePath`: é uma leitura, e a página
+ *  anterior fica no ecrã enquanto esta chega. */
+export async function loadFeedPageAction(
+  classId: number,
+  page: number,
+  myAccountId: number | null,
+): Promise<
+  | { ok: true; posts: FeedPost[]; authors: Record<number, FeedAuthor> }
+  | { ok: false; message: string }
+> {
+  if (!Number.isInteger(classId) || !Number.isInteger(page) || page < 2) {
+    return { ok: false, message: 'Não foi possível carregar mais publicações.' };
+  }
+  const result = await getFeed(classId, page, FEED_PAGE_SIZE);
+  if (!result.ok) return { ok: false, message: result.message };
+  const authors = await loadAuthors(result.data, myAccountId);
+  return { ok: true, posts: result.data, authors };
+}
 
 /** Publica uma dúvida ou tema na turma do aluno. Chamado directamente do formulário
  *  do compositor (components/inicio/*), sem useActionState: o próprio componente
@@ -89,10 +111,18 @@ export async function getCommentsAction(
   return readConversation(postId, page, limit);
 }
 
-export async function reportPostAction(postId: number, reason: string): Promise<{ ok: boolean }> {
-  if (!reason.trim()) return { ok: false };
+export async function reportPostAction(postId: number, reason: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!reason.trim()) return { ok: false, message: 'Escolhe um motivo para a denúncia.' };
   const result = await reportPost(postId, reason.trim());
-  return { ok: result.ok };
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.status === 429
+        ? 'Estás a enviar denúncias depressa demais. Espera um minuto e tenta de novo.'
+        : result.message,
+    };
+  }
+  return { ok: true };
 }
 
 /** Publica uma publicação construída. As regras repetem-se aqui para o servidor não depender do cliente. */

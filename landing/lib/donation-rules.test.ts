@@ -20,7 +20,7 @@ test('o consentimento, a instituição, a disciplina e o tipo são obrigatórios
   assert.deepEqual(Object.keys(errors).sort(), ['consent', 'examType', 'institutionName', 'subjectName']);
 });
 
-test('marcação, e-mail e ano lectivo mal formados são recusados', () => {
+test('marcação, e-mail e ano letivo mal formados são recusados', () => {
   const errors = validateFields(fields({ institutionName: '<b>x</b>', donorEmail: 'ana@', schoolYear: 'ontem', notes: 'a<b' }));
   assert.deepEqual(Object.keys(errors).sort(), ['donorEmail', 'institutionName', 'notes', 'schoolYear']);
   assert.deepEqual(validateFields(fields({ schoolYear: '2024/2025' })), {});

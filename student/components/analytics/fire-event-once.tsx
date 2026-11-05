@@ -1,8 +1,8 @@
 'use client';
 
 import { Suspense, useEffect } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { track } from '@/lib/analytics';
+import { useSearchParams } from 'next/navigation';
+import { track, type AnalyticsEvent, type AnalyticsParams } from '@/lib/analytics';
 
 /**
  * Dispara um evento mínimo (kixi-frontend#219) quando a página chega com um parâmetro
@@ -11,10 +11,10 @@ import { track } from '@/lib/analytics';
  * nenhum outro sinal fiável de "isto acabou de acontecer agora", porque a navegação
  * vem de um `redirect()` de server action que não devolve um resultado ao cliente.
  *
- * O parâmetro é de uso único: dispara-se o evento e limpa-se a URL com `replace` (sem
- * nova entrada no histórico), para um refresh à mão não o repetir.
+ * O parâmetro é de uso único: dispara-se o evento e limpa-se a URL com `history.replaceState`
+ * (sem nova entrada no histórico nem novo pedido ao servidor), para um refresh à mão não o repetir.
  */
-export function FireEventOnce(props: { param: string; event: string }) {
+export function FireEventOnce(props: { param: string; event: AnalyticsEvent; params?: AnalyticsParams }) {
   // `useSearchParams` opta a página fora da pré-renderização estática sem isto (o
   // Next exige um limite de Suspense); embrulhar aqui poupa cada ponto de chamada
   // de lembrar-se disso.
@@ -25,19 +25,21 @@ export function FireEventOnce(props: { param: string; event: string }) {
   );
 }
 
-function FireEventOnceInner({ param, event }: { param: string; event: string }) {
+function FireEventOnceInner({ param, event, params }: { param: string; event: AnalyticsEvent; params?: AnalyticsParams }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
   const present = searchParams.has(param);
 
   useEffect(() => {
     if (!present) return;
-    track(event);
-    const rest = new URLSearchParams(searchParams);
+    track(event, params);
+    // Do endereço atual e não do `searchParams` do render: dois marcadores na mesma página não se repõem.
+    const rest = new URLSearchParams(window.location.search);
     rest.delete(param);
     const query = rest.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    // `history.replaceState` e não `router.replace`: o Next sincroniza o router com ele sem voltar a pedir a
+    // página ao servidor. O `router.replace` refazia o pedido logo a seguir a chegar (um segundo render do
+    // `/inicio` em cada login) e desmontava o que a pessoa estava a começar a usar.
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
     // Só ao chegar com o parâmetro: não ao `pathname`/`searchParams` mudarem por o
     // próprio `replace` os limpar, ou isto disparava-se outra vez em loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -22,6 +22,7 @@ import {
   translateError,
   savedAnswerFor,
   timer,
+  urgencyOf,
   type ExamQuestion,
   type SavedAnswer,
 } from './exam-rules.ts';
@@ -325,4 +326,16 @@ test('o relógio nunca fica negativo e sem prazo continua sem prazo', () => {
   assert.equal(displayRemainingMs(4_000), 0);
   assert.equal(displayRemainingMs(-500), 0);
   assert.equal(displayRemainingMs(null), null);
+});
+
+test('a urgência parte do que o aluno vê: âmbar aos 5 min, vermelho ao minuto', () => {
+  // A auditoria de UX (M11) pede mudança de estilo aos 5 e aos 1 minutos. Os
+  // limiares leem-se sobre `displayRemainingMs` — o número no ecrã, sem estarem já
+  // 10 s adiantados relativamente a ele por causa da tolerância do servidor.
+  assert.equal(urgencyOf(null), 'calmo'); // sem limite, ou relógio por arrancar
+  assert.equal(urgencyOf(300_001), 'calmo');
+  assert.equal(urgencyOf(300_000), 'alerta');
+  assert.equal(urgencyOf(60_001), 'alerta');
+  assert.equal(urgencyOf(60_000), 'critico');
+  assert.equal(urgencyOf(0), 'critico'); // 0:00 visível enquanto a tolerância corre
 });

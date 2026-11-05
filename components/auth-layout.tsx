@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 
-const PUBLIC_PAGES = ['/login', '/403']
+const PUBLIC_PAGES = ['/login', '/403', '/recuperar']
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -27,9 +27,13 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         href="#conteudo"
         className="sr-only left-4 top-4 z-[60] rounded-md bg-card px-4 py-3 text-sm font-semibold shadow-md focus:not-sr-only focus:absolute"
       >
-        Saltar para o conteudo
+        Saltar para o conteúdo
       </a>
-      <main id="conteudo" tabIndex={-1} className="pt-16 min-h-screen bg-background text-foreground outline-none">
+      <main
+        id="conteudo"
+        tabIndex={-1}
+        className="pt-16 min-h-screen bg-background text-foreground outline-none lg:pl-(--nav-width)"
+      >
         {children}
       </main>
     </>

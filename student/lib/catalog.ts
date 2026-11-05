@@ -76,7 +76,7 @@ type CatalogNames = {
   schools: Named[];
 };
 
-/** Disciplinas, anos lectivos e escolas quase nunca mudam e eram pedidos em cada navegação (3 a 6 chamadas por página).
+/** Disciplinas, anos letivos e escolas quase nunca mudam e eram pedidos em cada navegação (3 a 6 chamadas por página).
  *  Guardam-se 5 minutos por utilizador, e só quando as três leituras correram bem. */
 const namesCache = new TtlCache<CatalogNames>(5 * 60_000, 500);
 

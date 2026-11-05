@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
-import { Cartridge, LAYERS } from './Cartridge';
+
+import { Cartridge } from './Cartridge';
+import { Cta } from './CtaLink';
 import { GameDemo } from './GameDemo';
 import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
@@ -18,16 +20,6 @@ const SCENES = [
 
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smooth = (t: number) => t * t * (3 - 2 * t);
-
-function Cta({ href, children, secondary }: { href: string; children: React.ReactNode; secondary?: boolean }) {
-  return (
-    <span className="kx-btn-wrap kx-scope">
-      <a href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ' kx-btn--a'}`} style={{ textDecoration: 'none' }}>
-        <span className="kx-btn__label">{children}</span>
-      </a>
-    </span>
-  );
-}
 
 function Bridge() {
   return (
@@ -51,7 +43,7 @@ function Outro() {
       <h2 className="pres__title pres__title--pixel">Do ITEL a toda a Angola e a África.</h2>
       <p className="pres__sub">Feito por alunos, para alunos.</p>
       <div className="actions">
-        <Cta href={SIGNUP_URL}>Começar a estudar</Cta>
+        <Cta href={SIGNUP_URL} origem="outro">Começar a estudar</Cta>
       </div>
     </>
   );
@@ -67,24 +59,64 @@ function Scene({ i }: { i: number }) {
   );
 }
 
+/** Frase de valor do herói (#512): quem chega percebe o que é o Kixi sem descer. */
+const HERO_SUB = 'Estuda o que vai mesmo sair: simulações, tutor de IA e a rede de estudo entre escolas.';
+
+/** Saltar a apresentação (#512): uma âncora chega a rato, teclado e toque. Vive no
+ *  fluxo do herói — em cima, longe do banner de cookies fixo — e some com ele.
+ *  O clique leva o foco para o título de destino, para quem vai pelo teclado
+ *  sentir a chegada (#608 re-revisão: a âncora sozinha não movia o foco). */
+function SkipShow() {
+  const saltar = () => {
+    const alvo = document.querySelector<HTMLElement>('#modulos h2');
+    if (!alvo) return;
+    if (!alvo.hasAttribute('tabindex')) alvo.setAttribute('tabindex', '-1');
+    window.setTimeout(() => alvo.focus({ preventScroll: true }), 50);
+  };
+  return (
+    <a href="#modulos" className="pres__skip" onClick={saltar}>
+      <span>Saltar a apresentação</span>
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+        <polyline points="4,7 10,13 16,7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </a>
+  );
+}
+
 export function Presentation() {
   const ref = useRef<HTMLElement>(null);
   const [p, setP] = useState(0);
-  const [still, setStill] = useState(false);
+  // Movimento reduzido (#513): só decide atributos de acessibilidade (o que o
+  // leitor de ecrã ouve, o que o teclado alcança). O desenho — compacto ou
+  // 1800 ecrãs — é decidido pelo CSS com `@media (prefers-reduced-motion)`,
+  // que já vale na primeira tinta; por JS chegava tarde e a página saltava.
+  const [reduced, setReduced] = useState(false);
+  // Espelho para o `onScroll` (efeito de montagem, sem `reduced` nas deps): em
+  // modo reduzido o progresso não muda nada no desenho, por isso nem se mede.
+  const reducedRef = useRef(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const upd = () => setStill(mq.matches);
+    const upd = () => {
+      reducedRef.current = mq.matches;
+      setReduced(mq.matches);
+    };
     upd();
     mq.addEventListener('change', upd);
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
+        if (reducedRef.current) return;
         const el = ref.current;
         if (!el) return;
         const r = el.getBoundingClientRect();
-        setP(clamp(-r.top / (r.height - window.innerHeight)));
+        // Quantizado a sério, 1/200 do percurso (#514): scrolls lentos e médios
+        // ficam vários frames na mesma casa e não re-renderizam; só flings mexem
+        // a cada frame — e aí é o movimento que o pede. O `memo` não poupava nada:
+        // quando a casa muda, os números que o cartucho recebe mudam mesmo.
+        const next = Math.round(clamp(-r.top / (r.height - window.innerHeight)) * 200) / 200;
+        setP((prev) => (prev === next ? prev : next));
       });
     };
     onScroll();
@@ -98,45 +130,10 @@ export function Presentation() {
     };
   }, []);
 
-  // ↑ / ↓ (and PageUp/PageDown, Space) walk the story in steps you can feel; the browser's own 40px arrow step is invisible on a page this long
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
-      const el = ref.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      if (r.top > 1 || r.bottom < window.innerHeight * 0.5) return; // only while the presentation is on screen
-      const h = window.innerHeight;
-      const step = e.key === 'ArrowDown' ? h * 0.5 : e.key === 'ArrowUp' ? -h * 0.5 : 0;
-      if (!step) return;
-      e.preventDefault();
-      window.scrollBy({ top: step });
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
-  if (still) {
-    return (
-      <section className="pres pres--still" id="solucao" aria-labelledby="hero-title">
-        <div className="wrap">
-          <h1 id="hero-title" className="sr-only">E se estudar fosse... divertido?</h1>
-          <div className="still-plate"><Cartridge explode={1} callouts className="pres__svg" /></div>
-          <ol className="pres__list">
-            {SCENES.map((s, i) => (
-              <li key={s.head}>
-                <strong>{LAYERS[i].label}</strong>
-                <span>{s.head} {s.line}</span>
-              </li>
-            ))}
-          </ol>
-          <Outro />
-        </div>
-      </section>
-    );
-  }
+  // As setas andam com o browser (#513): o passo nativo é o que o teclado, o
+  // leitor de ecrã e o próprio utilizador esperam. O passo de meio ecrã por
+  // `preventDefault` sequestrava as setas enquanto a apresentação estava visível.
 
   // Timeline: prologue (logo → ship → book shatters) → cartridge: open → camera in → five layers → reunite → outro
   const P0 = 0.35; // the last stretch of the prologue (q 0.84 → 0.92) holds the closing words
@@ -160,26 +157,41 @@ export function Presentation() {
     outro: clamp((p2 - 0.85) / 0.05),
     scene: (j: number) => clamp((sc - j - 0.12) / 0.12) * clamp((j + 1 - sc) / 0.1),
   };
-  const layerText = (v: number) => ({ opacity: v, transform: `translateY(${(1 - v) * 18}px)`, pointerEvents: (v > 0.6 ? 'auto' : 'none') as 'auto' | 'none' });
+  // Cena apagada, cena intocável (#513): `aria-hidden` sem `inert` deixava o CTA
+  // do fim focável no escuro — o Tab andava por botões invisíveis (WCAG 4.1.2).
+  // O mesmo limiar (0.6) decide as três coisas; com movimento reduzido está
+  // tudo aceso, porque o CSS mostra tudo empilhado.
+  const sceneAttrs = (v: number) => {
+    const on = reduced || v > 0.6;
+    return {
+      style: {
+        opacity: reduced ? 1 : v,
+        transform: reduced ? 'none' : `translateY(${(1 - v) * 18}px)`,
+        pointerEvents: (on ? 'auto' : 'none') as 'auto' | 'none',
+      },
+      'aria-hidden': !on,
+      inert: !on,
+    };
+  };
 
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
-        <div className="pres__hero" style={{ opacity: hero, transform: `translateY(${(1 - hero) * -24}px)`, visibility: hero > 0.01 ? 'visible' : 'hidden' }}>
+        <div className="pres__hero" style={{ opacity: reduced ? 1 : hero, transform: reduced ? 'none' : `translateY(${(1 - hero) * -24}px)`, visibility: reduced || hero > 0.01 ? 'visible' : 'hidden' }}>
           <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
+          <p className="pres__hero-sub">{HERO_SUB}</p>
+          {/* Fora do herói não há salto focável: apagado não entra no Tab. */}
+          {hero > 0.5 && <SkipShow />}
         </div>
         <div className="pres__text">
-                    <div className="pres__scene" style={layerText(vis.bridge)} aria-hidden={vis.bridge < 0.5}><Bridge /></div>
-          <div className="pres__scene" style={layerText(vis.inside)} aria-hidden={vis.inside < 0.5}><Inside /></div>
-          {SCENES.map((s, i) => {
-            const v = vis.scene(i);
-            return (
-              <div key={s.head} className="pres__scene" style={layerText(v)} aria-hidden={v < 0.5}>
-                <Scene i={i} />
-              </div>
-            );
-          })}
-          <div className="pres__scene" style={layerText(vis.outro)} aria-hidden={vis.outro < 0.5}><Outro /></div>
+          <div className="pres__scene" {...sceneAttrs(vis.bridge)}><Bridge /></div>
+          <div className="pres__scene" {...sceneAttrs(vis.inside)}><Inside /></div>
+          {SCENES.map((s, i) => (
+            <div key={s.head} className="pres__scene" {...sceneAttrs(vis.scene(i))}>
+              <Scene i={i} />
+            </div>
+          ))}
+          <div className="pres__scene" {...sceneAttrs(vis.outro)}><Outro /></div>
         </div>
         <div className="pres__art">
           {eject < 1 ? (
@@ -190,6 +202,11 @@ export function Presentation() {
           <div className="pres__block" style={{ opacity: reveal }} aria-hidden="true" />
           <div className="pres__cart pres__art--cart" style={{ opacity: reveal, transform: `scale(${0.7 + 0.3 * reveal})` }}>
             <Cartridge explode={open} focus={f} zoom={zoom} acts={acts} yaws={yaws} callouts className="pres__svg" />
+          </div>
+          {/* Com movimento reduzido o palco animado esconde-se e este cartucho
+              parado aparece: a mesma peça, sem viajar (#513). */}
+          <div className="pres__cart pres__cart--flat" aria-hidden="true">
+            <Cartridge explode={1} callouts className="pres__svg" />
           </div>
         </div>
       </div>

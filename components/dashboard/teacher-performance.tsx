@@ -179,7 +179,7 @@ export function TeacherPerformance() {
                 isEmpty={(points) => points.every((p) => p.finished === 0)}
                 empty="Ainda não há simulações concluídas nestas semanas."
               >
-                {(points) => <ActivityChart points={points} />}
+                {(points) => <ActivityChart points={points} unit="semana" />}
               </SectionState>
             </CardContent>
           </Card>

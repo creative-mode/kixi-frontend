@@ -1,7 +1,7 @@
 import { TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { formatGrade, groupByTerm, isNegative, SEM_NOTA, STATUS_LABEL, termLabel, type MyTermSheet, type RowStatus } from '@/lib/pautas-rules';
+import { formatGrade, groupByTerm, isNegative, processNumberOf, SEM_NOTA, STATUS_LABEL, termLabel, type MyTermSheet, type RowStatus } from '@/lib/pautas-rules';
 
 const VARIANT: Record<RowStatus, 'success' | 'destructive' | 'secondary'> = { POSITIVA: 'success', NEGATIVA: 'destructive', INCOMPLETA: 'secondary' };
 
@@ -16,8 +16,15 @@ function Grade({ value, strong = false }: { value: number | null; strong?: boole
  */
 export function PautasView({ sheets }: { sheets: MyTermSheet[] }) {
   const groups = groupByTerm(sheets);
+  // kixi#512: o número é do aluno na escola, igual em todas as pautas; sem número a linha não aparece, sem erro.
+  const processNumber = processNumberOf(sheets);
   return (
     <div className="grid gap-4 py-4">
+      {processNumber ? (
+        <p className="text-sm text-muted-foreground" data-testid="pautas-processo">
+          Nº de processo <strong className="tabular-nums text-foreground">{processNumber}</strong>
+        </p>
+      ) : null}
       {groups.map((g) => (
         <Card key={g.key} className="gap-0 overflow-hidden p-0">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-3">

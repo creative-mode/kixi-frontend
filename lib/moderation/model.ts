@@ -44,9 +44,27 @@ export const DECISION_LABEL: Record<Decision, string> = {
 
 export const DECISION_NOTE: Record<Decision, string> = {
   IGNORED: 'A denúncia não se confirma. Nada muda no perfil.',
-  HIDDEN: 'O perfil deixa de ser visível para terceiros e passa a devolver 404.',
+  HIDDEN: 'O perfil deixa de aparecer a terceiros — quem o procurar não o encontra.',
   SUSPENDED: 'Como ocultar, e a conta deixa de conseguir entrar.',
 };
+
+/** Ocultar e suspender apagam alguém da vista de todos: sem nota escrita, daqui
+ *  a meses ninguém sabe porquê. Ignorar não muda nada, por isso a nota é opcional. */
+export const NOTA_MINIMA = 10;
+
+export function decisionExigeNota(decision: Decision): boolean {
+  return decision === 'HIDDEN' || decision === 'SUSPENDED';
+}
+
+/** A nota da decisão: obrigatória e com mínimo para ocultar/suspender,
+ *  e sempre com o máximo de 500. */
+export function notaDecisaoError(decision: Decision, note: string): string | null {
+  const limpa = note.trim();
+  if (decisionExigeNota(decision) && limpa.length < NOTA_MINIMA) {
+    return `Para ${decision === 'HIDDEN' ? 'ocultar' : 'suspender'} escreva uma nota com pelo menos ${NOTA_MINIMA} caracteres: é ela que explica a decisão daqui a meses.`;
+  }
+  return noteError(note);
+}
 
 export type ReportStatus = 'OPEN' | 'IGNORED' | 'HIDDEN' | 'SUSPENDED';
 

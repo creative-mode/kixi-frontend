@@ -15,10 +15,17 @@ import { mathNeedsReview, serializeMathText, type MathContentFields, type MathFo
 
 /** One option of a multiple-choice question. `label` is the identity the backend gives it. */
 export interface DraftOption {
+  /** Backend identity, retained only after the manual statement is created. */
+  serverId?: number;
   label: string;
   text: string;
   correct: boolean;
 }
+
+/** O que o OCR leu e o painel «Original» abrange: uma fotografia ou um PDF. */
+export type SourceKind = 'image' | 'pdf';
+
+export const REVIEWABLE_TIP = 'rever';
 
 /** The kinds of question the builder writes. `group` is a question with sub-items (alíneas):
  *  it carries the common statement and no answer of its own, the answers live in its items. */
@@ -28,6 +35,7 @@ export type GroupLayout = 'lettered' | 'brace';
 
 /** An alínea: a question of its own inside a `group`. The label (a, b, c…) is generated. */
 export interface DraftItem extends MathContentFields {
+  serverId?: number;
   /** Source label when OCR imports a paper whose alíneas do not start at a. */
   label?: string;
   text: string;
@@ -53,6 +61,7 @@ export interface DraftImage {
 }
 
 export interface DraftQuestion extends MathContentFields {
+  serverId?: number;
   text: string;
   /** `''` means "not scored yet". It is not the same as zero, and the difference matters below. */
   points: number | '';
@@ -69,6 +78,10 @@ export interface DraftQuestion extends MathContentFields {
   modelAnswer?: string;
   /** Figures of the question, in page order. */
   images?: DraftImage[];
+  /** Página (0-based) do upload original de que o OCR a leu; só vive no navegador. */
+  sourcePageIndex?: number;
+  /** Número impresso da questão no papel, para a repetição de uma página acertar na troca. */
+  sourceNumber?: string;
 }
 
 type ReviewableContent = Pick<DraftQuestion, 'text' | 'formulas' | 'blocks' | 'reviewed'>;
@@ -325,6 +338,98 @@ export function groupScore(q: DraftQuestion): number {
 }
 
 /**
+ * O mesmo problema com para quem vai: cada linha aponta às questões e alíneas que a
+ * explicam, para o construtor dizer «Ir para a questão 3a» em vez de só ler a frase.
+ *
+ * `problems()` continua a existir para a contagem e para quem só quer as frases.
+ */
+export interface ProblemTarget {
+  /** Número 1-based da questão de topo. */
+  question: number;
+  /** Rótulo da alínea, quando o problema é de uma (ex.: `a`). */
+  label?: string;
+}
+
+export interface ProblemDetail {
+  message: string;
+  targets: ProblemTarget[];
+}
+
+const leafTargets = (leaves: Leaf[]): ProblemTarget[] => leaves.map((l) => ({
+  // `leavesOf` já dá o `question` 1-based e o rótulo completo (`3a`, `5`): uma folha
+  // de topo tem rótulo numérico e não traz alínea, uma alínea traz só a letra.
+  question: l.question,
+  ...(!/^[0-9]+$/.test(l.label) ? { label: l.label.slice(String(l.question).length) } : {}),
+}));
+
+export function problemDetails(questions: DraftQuestion[]): ProblemDetail[] {
+  const out: ProblemDetail[] = [];
+  const filled = questions.filter((q) => q.text.trim());
+  const leaves = leavesOf(questions);
+  const labels = (list: Leaf[]) => list.map((l) => l.label).join(', ');
+
+  const withoutKey = leaves.filter((l) => l.kind === 'multiple_choice' && l.options.length > 0 && !l.options.some((o) => o.correct));
+  if (withoutKey.length > 0) {
+    out.push({ message: `Falta marcar a resposta correcta na questão ${labels(withoutKey)}.`, targets: leafTargets(withoutKey) });
+  }
+  const withoutTruth = leaves.filter((l) => l.kind === 'true_false' && trueFalseAnswer(l.options) === null);
+  if (withoutTruth.length > 0) {
+    out.push({ message: `Falta marcar Verdadeiro ou Falso na questão ${labels(withoutTruth)}.`, targets: leafTargets(withoutTruth) });
+  }
+  const optionsEmpty = leaves.filter((l) => l.options.length > 0 && l.options.some((o) => o.text.trim().length === 0));
+  if (optionsEmpty.length > 0) {
+    out.push({ message: 'Há opções por escrever. Cada opção precisa de texto.', targets: leafTargets(optionsEmpty) });
+  }
+  // O rótulo em falta é o outro invariante, e `optionsFor` já não o inventa: se
+  // chegasse vazio, ia sair vazio e o `UNIQUE (question_id, option_label)` rebentava
+  // a meio do POST. Dizer aqui é mais barato do que apanhar essa excepção depois.
+  const unlabelled = leaves.filter((l) => l.options.some((o) => !o.label));
+  if (unlabelled.length > 0) {
+    out.push({ message: `Há opções sem rótulo na questão ${labels(unlabelled)}. Apaga-as e escreve-as de novo.`, targets: leafTargets(unlabelled) });
+  }
+  const emptyGroups = filled.filter((q) => kindOf(q) === 'group' && (q.items ?? []).length === 0);
+  if (emptyGroups.length > 0) {
+    out.push({
+      message: `A questão ${emptyGroups.map((q) => filled.indexOf(q) + 1).join(', ')} tem alíneas mas nenhuma escrita.`,
+      targets: emptyGroups.map((q) => ({ question: filled.indexOf(q) + 1 })),
+    });
+  }
+  const emptyItems = leaves.filter((l) => l.question && !l.text.trim() && /[a-z]$/.test(l.label));
+  if (emptyItems.length > 0) {
+    out.push({ message: `Há alíneas por escrever: ${labels(emptyItems)}.`, targets: leafTargets(emptyItems) });
+  }
+  const pendingReview: string[] = [];
+  const pendingTargets: ProblemTarget[] = [];
+  filled.forEach((question, index) => {
+    if ((question.review || mathNeedsReview(question.formulas, question.blocks)) && !question.reviewed) {
+      pendingReview.push(String(index + 1));
+      pendingTargets.push({ question: index + 1 });
+    }
+    (question.items ?? []).forEach((item, itemIndex) => {
+      if ((item.review || mathNeedsReview(item.formulas, item.blocks)) && !item.reviewed) {
+        const label = sourceItemLabel(item, itemIndex);
+        pendingReview.push(`${index + 1}${label}`);
+        pendingTargets.push({ question: index + 1, label });
+      }
+    });
+  });
+  if (pendingReview.length > 0) {
+    out.push({
+      message: `Reveja a confiança OCR antes de publicar: ${pendingReview.join(', ')}.`,
+      targets: pendingTargets,
+    });
+  }
+  const unscored = leaves.filter((l) => l.text.trim() && l.points === '');
+  if (unscored.length > 0) {
+    out.push({
+      message: `${unscored.length} questão(ões) sem cotação, e uma questão sem cotação não conta para o total.`,
+      targets: leafTargets(unscored),
+    });
+  }
+  return out;
+}
+
+/**
  * Whether a statement like this can be approved.
  *
  * Both failures come from `StatementService`: `answerKeyComplete` refuses a question that
@@ -335,53 +440,12 @@ export function groupScore(q: DraftQuestion): number {
  * True/false is a question with two options, so the first rule covers it with its own words.
  */
 export function problems(questions: DraftQuestion[]): string[] {
-  const out: string[] = [];
-  const filled = questions.filter((q) => q.text.trim());
-  const leaves = leavesOf(questions);
-  const labels = (list: Leaf[]) => list.map((l) => l.label).join(', ');
+  return problemDetails(questions).map((p) => p.message);
+}
 
-  const withoutKey = leaves.filter((l) => l.kind === 'multiple_choice' && l.options.length > 0 && !l.options.some((o) => o.correct));
-  if (withoutKey.length > 0) {
-    out.push(`Falta marcar a resposta correcta na questão ${labels(withoutKey)}.`);
-  }
-  const withoutTruth = leaves.filter((l) => l.kind === 'true_false' && trueFalseAnswer(l.options) === null);
-  if (withoutTruth.length > 0) {
-    out.push(`Falta marcar Verdadeiro ou Falso na questão ${labels(withoutTruth)}.`);
-  }
-  if (leaves.some((l) => l.options.length > 0 && l.options.some((o) => o.text.trim().length === 0))) {
-    out.push('Há opções por escrever. Cada opção precisa de texto.');
-  }
-  // O rótulo em falta é o outro invariante, e `optionsFor` já não o inventa: se
-  // chegasse vazio, ia sair vazio e o `UNIQUE (question_id, option_label)` rebentava
-  // a meio do POST. Dizer aqui é mais barato do que apanhar essa excepção depois.
-  const unlabelled = leaves.filter((l) => l.options.some((o) => !o.label));
-  if (unlabelled.length > 0) {
-    out.push(`Há opções sem rótulo na questão ${labels(unlabelled)}. Apaga-as e escreve-as de novo.`);
-  }
-  const emptyGroups = filled.filter((q) => kindOf(q) === 'group' && (q.items ?? []).length === 0);
-  if (emptyGroups.length > 0) {
-    out.push(`A questão ${emptyGroups.map((q) => filled.indexOf(q) + 1).join(', ')} tem alíneas mas nenhuma escrita.`);
-  }
-  const emptyItems = leaves.filter((l) => l.question && !l.text.trim() && /[a-z]$/.test(l.label));
-  if (emptyItems.length > 0) {
-    out.push(`Há alíneas por escrever: ${labels(emptyItems)}.`);
-  }
-  const pendingReview = filled.flatMap((question, index) => {
-    const pending: string[] = [];
-    if ((question.review || mathNeedsReview(question.formulas, question.blocks)) && !question.reviewed) pending.push(String(index + 1));
-    (question.items ?? []).forEach((item, itemIndex) => {
-      if ((item.review || mathNeedsReview(item.formulas, item.blocks)) && !item.reviewed) pending.push(`${index + 1}${sourceItemLabel(item, itemIndex)}`);
-    });
-    return pending;
-  });
-  if (pendingReview.length > 0) {
-    out.push(`Reveja a confiança OCR antes de publicar: ${pendingReview.join(', ')}.`);
-  }
-  const missing = unscored(questions);
-  if (missing > 0) {
-    out.push(`${missing} questão(ões) sem cotação, e uma questão sem cotação não conta para o total.`);
-  }
-  return out;
+/** A mensagem original de «sem cotação», reutilizada nos testes: a frase cargo o número de folhas. */
+export function unscoredCount(questions: DraftQuestion[]): number {
+  return leavesOf(questions).filter((l) => l.text.trim() && l.points === '').length;
 }
 
 /**
@@ -450,13 +514,18 @@ export function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export interface RequestOption { label: string; text: string; correct: boolean }
+export interface RequestOption { label: string; text: string; correct: boolean; serverId?: number }
 export interface RequestItem {
+  serverId?: number;
+  modelAnswer?: string | null;
   label: string; text: string; type: LeafKind; maxScore: number | null; options: RequestOption[];
   /** Matches ManualStatementRequest.Item; blocks are encoded in text and formulas. */
   rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
 }
 export interface RequestQuestion {
+  serverId?: number;
+  label?: string;
+  modelAnswer?: string | null;
   text: string;
   type: QuestionKind;
   /** `null` for a group: its score is the sum of its items. */
@@ -468,6 +537,12 @@ export interface RequestQuestion {
   groupLayout?: GroupLayout;
   /** Matches ManualStatementRequest.Question; `needsReview` is derived by the backend. */
   rawText?: string; confidence?: number | null; reviewed?: boolean; formulas?: MathFormula[];
+}
+
+export interface BuilderQuestionIdentity {
+  serverId: number;
+  options: number[];
+  items?: BuilderQuestionIdentity[];
 }
 
 function formulaEvidence(formulas?: MathFormula[], blocks?: MathContentBlock[]): MathFormula[] | undefined {
@@ -543,4 +618,183 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
         ...ocrEvidence(q),
       };
     });
+}
+
+/** Adds stable backend identities to the manual-create shape for an in-place update. */
+export function toUpdateRequest(questions: DraftQuestion[]): RequestQuestion[] {
+  const desired = toRequest(questions);
+  const sources = questions.filter((question) => question.text.trim());
+  const identifyOptions = (requested: RequestOption[], source: DraftOption[]) => requested.map((option) => {
+    const prior = source.find((candidate) => candidate.label === option.label);
+    return { ...option, ...(prior?.serverId ? { serverId: prior.serverId } : {}) };
+  });
+  return desired.map((question, index) => {
+    const source = sources[index];
+    const identified: RequestQuestion = {
+      ...question,
+      ...(source.serverId ? { serverId: source.serverId } : {}),
+      modelAnswer: source.modelAnswer?.trim() || null,
+      options: identifyOptions(question.options, source.options),
+    };
+    if (question.items && source.items) {
+      const sourceItems = source.items.filter((item) => item.text.trim());
+      identified.items = question.items.map((item, itemIndex) => {
+        const sourceItem = sourceItems[itemIndex];
+        return {
+          ...item,
+          ...(sourceItem.serverId ? { serverId: sourceItem.serverId } : {}),
+          modelAnswer: sourceItem.modelAnswer?.trim() || null,
+          options: identifyOptions(item.options, sourceItem.options),
+        };
+      });
+    }
+    return identified;
+  });
+}
+
+/** A statement row as `GET /statements/{id}/full` returns it; only the fields read below. */
+export type ServerRow = Record<string, unknown>;
+
+function byOrderIndex(rows: unknown): ServerRow[] {
+  if (!Array.isArray(rows)) return [];
+  return [...(rows as ServerRow[])].sort((a, b) => Number(a.orderIndex ?? 0) - Number(b.orderIndex ?? 0));
+}
+
+/**
+ * Gives each requested option the id of the server option it became.
+ *
+ * The pairing is by position after sorting the server options by `orderIndex`: the
+ * backend stores the options in the order they were sent, so position N of the request is
+ * the option with the N-th `orderIndex`. Pairing by `optionLabel` instead depended on the
+ * server answering in insertion order and on labels being unique and non-empty — when either
+ * failed, the ids went to the wrong option without any error. The request label then finds
+ * the draft option, because `optionsFor` sends labels exactly as the draft has them.
+ */
+function withServerOptionIds<T extends { label: string; serverId?: number }>(
+  options: T[], requested: readonly RequestOption[], serverOptions: unknown,
+): T[] {
+  const saved = byOrderIndex(serverOptions);
+  const ids = new Map<string, number>();
+  requested.forEach((option, index) => {
+    const id = Number(saved[index]?.id);
+    if (Number.isInteger(id) && id > 0 && !ids.has(option.label)) ids.set(option.label, id);
+  });
+  return options.map((option) => {
+    const id = ids.get(option.label);
+    return id ? { ...option, serverId: id } : option;
+  });
+}
+
+/**
+ * After a create, copies the ids the backend assigned into the draft, so the next save
+ * updates the same questions and options instead of creating a second statement.
+ *
+ * Questions with no text are skipped exactly as `toRequest` skips them, so the indexes of
+ * the draft and of the server stay aligned.
+ */
+export function applyServerIds<T extends { items: DraftQuestion[] }>(draft: T, statement: ServerRow): T {
+  const questions = byOrderIndex(statement.questions);
+  const topLevel = questions.filter((question) => question.parentId == null);
+  const requests = toRequest(draft.items);
+  let questionIndex = 0;
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const request = requests[questionIndex];
+      const savedQuestion = topLevel[questionIndex++];
+      if (!savedQuestion || !request) return item;
+      const id = Number(savedQuestion.id);
+      const identified = { ...item, serverId: id, options: withServerOptionIds(item.options, request.options, savedQuestion.options) };
+      if (kindOf(item) !== 'group') return identified;
+      const savedItems = questions.filter((question) => Number(question.parentId) === id);
+      let itemIndex = 0;
+      return {
+        ...identified,
+        items: (item.items ?? []).map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const requested = request.items?.[itemIndex];
+          const savedItem = savedItems[itemIndex++];
+          if (!savedItem || !requested) return subItem;
+          return { ...subItem, serverId: Number(savedItem.id), options: withServerOptionIds(subItem.options, requested.options, savedItem.options) };
+        }),
+      };
+    }),
+  };
+}
+
+/**
+ * After an in-place update, copies the identities `updateManualStatement` returns into the
+ * draft. The action answers in the order of `toUpdateRequest`, and each option id is at the
+ * position of the requested option, so the request is rebuilt here to map them back.
+ */
+export function applyUpdateIdentities<T extends { items: DraftQuestion[] }>(draft: T, identities: BuilderQuestionIdentity[]): T {
+  const requests = toUpdateRequest(draft.items);
+  const updateOptions = <O extends { label: string; serverId?: number }>(
+    options: O[], requestOptions: RequestOption[], ids: number[],
+  ) => options.map((option) => {
+    const index = requestOptions.findIndex((requested) => requested.label === option.label);
+    const id = index >= 0 ? ids[index] : undefined;
+    return id ? { ...option, serverId: id } : option;
+  });
+  let requestIndex = 0;
+  return {
+    ...draft,
+    items: draft.items.map((item) => {
+      if (!item.text.trim()) return item;
+      const request = requests[requestIndex];
+      const identity = identities[requestIndex++];
+      if (!request || !identity) return item;
+      const identified = {
+        ...item,
+        serverId: identity.serverId,
+        options: updateOptions(item.options, request.options, identity.options),
+      };
+      if (!item.items || !request.items || !identity.items) return identified;
+      let subIndex = 0;
+      return {
+        ...identified,
+        items: item.items.map((subItem) => {
+          if (!subItem.text.trim()) return subItem;
+          const requested = request.items?.[subIndex];
+          const saved = identity.items?.[subIndex++];
+          if (!requested || !saved) return subItem;
+          return { ...subItem, serverId: saved.serverId, options: updateOptions(subItem.options, requested.options, saved.options) };
+        }),
+      };
+    }),
+  };
+}
+
+/** The body of `POST`/`PUT /statements/{id}/questions[/{qid}]` for one question of the builder. */
+export interface QuestionWriteBody {
+  text: string;
+  questionType: QuestionKind;
+  maxScore: number | null;
+  modelAnswer: string | null;
+  ocrReviewed: boolean;
+  parentId?: number;
+  label?: string;
+  groupLayout?: GroupLayout;
+}
+
+/**
+ * What the in-place update sends for one question or alínea.
+ *
+ * `parentId` and `label` go only when the alínea is created (`serverId` absent). The group
+ * of an alínea is fixed on creation: `QuestionService.update` answers 400 («A question's
+ * group is set on creation and cannot be moved») to any non-null `parentId`, even the same
+ * group. Sending it on a `PUT` made every re-save of an edited alínea fail.
+ */
+export function questionWriteBody(question: RequestQuestion, parentId: number | null): QuestionWriteBody {
+  const creatingChild = question.serverId == null && parentId != null;
+  return {
+    text: question.text,
+    questionType: question.type,
+    maxScore: question.maxScore,
+    modelAnswer: question.modelAnswer ?? null,
+    ocrReviewed: question.reviewed ?? false,
+    ...(creatingChild ? { parentId, label: question.label } : {}),
+    ...(question.type === 'group' ? { groupLayout: question.groupLayout ?? 'lettered' } : {}),
+  };
 }

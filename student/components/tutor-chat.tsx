@@ -22,6 +22,7 @@ import {
   applyEvent,
   buildMessagePayload,
   buildSessionPayload,
+  composerAction,
   describeHttpFailure,
   modeNeedsQuestion,
   parseRetryAfter,
@@ -88,14 +89,20 @@ class HttpFailure extends Error {
 export function TutorChat({
   statementId,
   paperTitle,
+  back,
   initialDraft = '',
   initialMode = 'CONCEPT',
   initialQuestionNumber = null,
   questions = [],
   wrongAnswers = new Map(),
 }: {
-  statementId?: number;
+  /** A prova da conversa. Obrigatória: o backend não abre sessão sem ela, por isso
+   *  quem chega ao tutor sem prova vê o `TutorPicker`, não este componente. */
+  statementId: number;
   paperTitle?: string | null;
+  /** Para onde «Voltar» leva, já decidido no servidor: o resultado de onde o aluno
+   *  veio, ou o detalhe da prova. */
+  back: { href: string; label: string };
   /** Written into the box but never sent: "estudar os erros" opens with the question
    *  ready, and sending it is the second click. */
   initialDraft?: string;
@@ -114,6 +121,7 @@ export function TutorChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState(initialDraft);
   const [busy, setBusy] = useState(false);
+  const [answerAnnouncement, setAnswerAnnouncement] = useState('');
   const [mode, setMode] = useState<ChatMode>(initialMode);
   const [questionId, setQuestionId] = useState<number | null>(
     initialQuestionNumber == null
@@ -129,7 +137,6 @@ export function TutorChat({
   const lastSent = useRef('');
 
   useEffect(() => {
-    if (statementId == null) return;
     const saved = load(statementId);
     sessionId.current = saved.sessionId;
     sessionContext.current = null;
@@ -138,7 +145,7 @@ export function TutorChat({
   }, [statementId]);
 
   useEffect(() => {
-    if (statementId != null && !busy) save(statementId, { sessionId: sessionId.current, messages });
+    if (!busy) save(statementId, { sessionId: sessionId.current, messages });
   }, [messages, busy, statementId]);
 
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [messages]);
@@ -170,7 +177,7 @@ export function TutorChat({
     { repeat = false, asMode, asQuestionId }: { repeat?: boolean; asMode?: ChatMode; asQuestionId?: number | null } = {},
   ) => {
     const text = content.trim();
-    if (!text || busy || statementId == null) return;
+    if (!text || busy) return;
     // `asMode`/`asQuestionId` carry what the caller wants, not what the state still
     // says: setState is asynchronous, so a button that switched the mode and asked in
     // the same click would otherwise send the previous turn's context.
@@ -183,6 +190,7 @@ export function TutorChat({
     }
     lastSent.current = text;
     setNotice(null);
+    setAnswerAnnouncement('');
     setBusy(true);
 
     const controller = new AbortController();
@@ -235,17 +243,24 @@ export function TutorChat({
       const reader = body.getReader();
       const decoder = new TextDecoder();
       let pending = '';
+      let answerText = '';
+      let streamFailed = false;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         pending += decoder.decode(value, { stream: true });
         const parsed = parseSse(pending);
         pending = parsed.rest;
-        for (const event of parsed.events) setMessages((prev) => applyEvent(prev, event));
+        for (const event of parsed.events) {
+          if (event.type === 'delta') answerText += event.content;
+          if (event.type === 'error') streamFailed = true;
+          setMessages((prev) => applyEvent(prev, event));
+        }
       }
       // The stream ended without a `final`: close the answer rather than leave it
       // blinking forever.
       setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
+      if (!streamFailed && answerText) setAnswerAnnouncement(`Resposta do tutor: ${answerText}`);
     } catch (error) {
       if (controller.signal.aborted) {
         setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
@@ -273,23 +288,6 @@ export function TutorChat({
     void ask(lastSent.current, { repeat: true });
   }
 
-  if (statementId == null) {
-    return (
-      <Page>
-        <Column className="gap-5">
-          <PageHeader title="Tutor" description="O tutor ajuda-te a estudar uma prova de cada vez." />
-          <Card className="gap-3 p-6">
-            <p className="font-semibold">Escolhe uma prova para estudar</p>
-            <p className="text-sm text-muted-foreground">
-              O tutor só responde sobre o enunciado da prova que abrires. Escolhe uma na lista e usa «Estudo assistido».
-            </p>
-            <Button asChild className="self-start"><Link href="/provas">Ver as provas</Link></Button>
-          </Card>
-        </Column>
-      </Page>
-    );
-  }
-
   const limit = draft.length > MAX_MESSAGE;
   const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
   const needsQuestion = modeNeedsQuestion(mode);
@@ -309,15 +307,14 @@ export function TutorChat({
           title="Tutor"
           description={paperTitle ? `Sobre ${paperTitle}.` : 'Pergunta o que quiseres sobre esta prova.'}
         />
-        {paperTitle && (
-          <div className="-mt-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/prova/${statementId}/detalhe`}><FileText aria-hidden />Voltar à prova</Link>
-            </Button>
-          </div>
-        )}
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{answerAnnouncement}</p>
+        <div className="-mt-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={back.href}><FileText aria-hidden />{back.label}</Link>
+          </Button>
+        </div>
         <Card className="min-h-[calc(100dvh-230px)] gap-0 py-0" aria-label="Conversa com o tutor">
-          <div className="flex flex-1 flex-col gap-4 p-4 md:p-5" role="log" aria-live="polite" aria-busy={busy}>
+          <div className="flex flex-1 flex-col gap-4 p-4 md:p-5" role="log" aria-live="off" aria-busy={busy}>
             {messages.length === 0 && (
               <p className="m-auto max-w-[44ch] text-center text-sm text-muted-foreground">
                 Pergunta sobre uma questão ou um conceito desta prova. O tutor explica o raciocínio, mas não dá a resposta feita.
@@ -345,7 +342,7 @@ export function TutorChat({
                         variant="outline"
                         size="sm"
                         className="text-xs"
-                        disabled={busy || statementId == null}
+                        disabled={busy}
                         onClick={() => {
                           // The mode and the question travel in the call, not in the state:
                           // this is the same click that asks, and setState lands after it.
@@ -385,7 +382,9 @@ export function TutorChat({
             <div ref={end} />
           </div>
 
-          <div className="grid gap-2.5 border-t p-3.5 md:px-5">
+          {/* Coluna flex e não `grid`: uma grelha de uma coluna dimensiona a pista
+              pelo conteúdo e alargava a caixa do compositor para além do ecrã. */}
+          <div className="flex flex-col gap-2.5 border-t p-3.5 md:px-5">
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Modo do tutor">
               {([
                 ['CONCEPT', 'Conceito'],
@@ -450,7 +449,10 @@ export function TutorChat({
             {messages.length === 0 && (
               <div className="flex flex-wrap gap-2">
                 {SUGGESTIONS.map((suggestion) => (
-                  <Button key={suggestion} type="button" variant="outline" size="sm" className="rounded-full text-muted-foreground" onClick={() => void ask(suggestion)} disabled={busy}>
+                  /* `whitespace-normal` e `h-auto`: as sugestões são frases e num
+                     telemóvel não cabem numa linha; sem isto a última saía do ecrã
+                     e a página ganhava deslocamento horizontal. */
+                  <Button key={suggestion} type="button" variant="outline" size="sm" className="h-auto min-h-11 max-w-full rounded-full text-left whitespace-normal text-muted-foreground" onClick={() => void ask(suggestion)} disabled={busy}>
                     {suggestion}
                   </Button>
                 ))}
@@ -463,16 +465,28 @@ export function TutorChat({
                 </Button>
               </div>
             )}
+            {/* Grelha e não `flex`: a coluna `minmax(0, 1fr)` deixa o campo encolher,
+                enquanto um `textarea` a 100% numa linha flex guardava a largura mínima
+                e empurrava o «Enviar» para fora do ecrã. */}
             <form
-              className="flex items-end gap-2.5"
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2.5"
               onSubmit={(e) => { e.preventDefault(); void ask(draft); }}
             >
               <Textarea
+                // `min-w-0`: sem ele a caixa guarda a largura intrínseca do
+                // `textarea` e empurra o «Enviar» para fora do ecrã no telemóvel.
+                className="min-w-0"
                 value={draft}
                 rows={draft.length > 120 ? 4 : 2}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ask(draft); }
+                  // Telemóvel: Enter muda de linha, e quem envia é o botão. Antes, o
+                  // return do teclado mandava a pergunta a meio.
+                  const desktop = window.matchMedia('(min-width: 768px)').matches;
+                  if (composerAction(e, desktop) === 'send') {
+                    e.preventDefault();
+                    void ask(draft);
+                  }
                 }}
                 placeholder="Escreve a tua dúvida"
                 aria-label="Mensagem para o tutor"
@@ -486,6 +500,7 @@ export function TutorChat({
                 </Button>
               )}
             </form>
+            <p className="text-xs text-muted-foreground md:hidden">Enter muda de linha. Usa «Enviar» para mandar a pergunta.</p>
             {limit && <p role="alert" className="text-[13px] text-destructive">A mensagem passa os {MAX_MESSAGE} caracteres.</p>}
             {busy && <p className="sr-only" role="status"><Loader2 aria-hidden />O tutor está a responder</p>}
           </div>

@@ -1,26 +1,38 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, DoorOpen, FileText, Gift, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
-import { approveStatement, createManualStatement, getStatementFull, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, type ReviewChoices } from '@/app/actions/crud';
+import { approveStatement, createManualStatement, getStatementForReview, getStatementFull, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, updateManualStatement, type ReviewChoices, type StatementInput } from '@/app/actions/crud';
 import { extractDonation, getDonation, linkDonationStatement } from '@/app/actions/donations';
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
 import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
-import { distributeScore, figuresOf, move, problems, toRequest, totalScore, unscored } from '@/lib/exam/draft';
-import { draftFromExtraction, type ExamExtraction } from '@/lib/exam/extraction';
+import { applyServerIds, applyUpdateIdentities, distributeScore, figuresOf, move, problemDetails, toRequest, toUpdateRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { renderPdfPageToImage, pdfPageCount } from '@/lib/exam/pdf';
+import { mergePageRetry } from '@/lib/exam/retry';
+import { flattenSourcePages, pageAtSources } from '@/lib/exam/sources';
+import { streamExamOcr } from '@/lib/exam/ocr-stream';
+import { missingToSave, readinessParts, saveBlocker } from '@/lib/exam/readiness';
+import { cn } from '@/lib/utils';
+import { draftFromExtraction, type ExamExtraction, type ImportedNote } from '@/lib/exam/extraction';
+import type { OriginalPage } from './exam-importer';
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
 import { QuestionEditor } from './question-editor';
+import { SourceThumb } from './source-thumb';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
+import { useUnsavedChanges } from '@/components/crud/use-unsaved-changes';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   // O `<label>` envolve o controlo em vez de ser irmao: um label que envolve o
@@ -41,7 +53,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /** A prova que acabou de ser guardada: serve para dizer onde está e para a poder dar a uma turma. */
-interface SavedExam { id: number; title: string; published: boolean; snapshot: string }
+interface SavedExam { id: number; title: string; published: boolean; snapshot: string; savedAt: string }
+/** `savedAt` é um instante do browser; a hora mostra-se no fuso de Luanda. */
+const SAVED_AT = new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Luanda', hour: '2-digit', minute: '2-digit' });
 interface PendingFigurePublication extends SavedExam { figures: ReturnType<typeof figuresOf>; publish: boolean }
 
 /** Anexa apenas os recortes ainda ausentes; a ordem e a legenda identificam cada recorte
@@ -85,6 +99,8 @@ async function attachMissingFigures(statementId: number, figures: ReturnType<typ
 }
 
 export function ExamBuilder({ openImport = false, donationId = null }: { openImport?: boolean; donationId?: number | null }) {
+  /** Abaixo de `lg` a folha vem depois de sete cartões: o alternador mostra uma coisa de cada vez. */
+  const [view, setView] = useState<'editar' | 'previsualizar'>('editar');
   const [schools, setSchools] = useState<School[]>([]);
   const [subjectIds, setSubjectIds] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<ExamDraft>(EMPTY_DRAFT);
@@ -94,12 +110,62 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [choices, setChoices] = useState<ReviewChoices | null>(null);
   const [classId, setClassId] = useState('');
   const [importOpen, setImportOpen] = useState(openImport);
-  const [notes, setNotes] = useState<string[]>([]);
+  const [notes, setNotes] = useState<ImportedNote[]>([]);
   const [footerPreview, setFooterPreview] = useState<{ dataUrl: string; pageIndex: number | null; text: string[] } | null>(null);
+  /** As páginas originais lidas pelo OCR, lado a lado com o rascunho. A posse
+   *  dos URLs é daqui: revogam-se ao trocar, ao limpar e ao sair. */
+  const [originais, setOriginais] = useState<OriginalPage[] | null>(null);
+  const originaisRef = useRef<OriginalPage[] | null>(null);
+  const [originalAberto, setOriginalAberto] = useState<OriginalPage | null>(null);
+  /** Nº de páginas de cada PDF dos originais (chave = object URL); imagens contam 1. */
+  const [pdfs, setPdfs] = useState(new Map<string, number>());
+  /** Os PDF reconstituídos dos URLs, para reler uma página sem novo upload do ficheiro. */
+  const pdfFiles = useRef(new Map<string, File>());
+  /** A página a reler, enquanto corre (chave `${url}#${page}`): uma de cada vez. */
+  const [relendo, setRelendo] = useState<string | null>(null);
+
+  function trocarOriginais(next: OriginalPage[] | null) {
+    for (const o of originaisRef.current ?? []) URL.revokeObjectURL(o.url);
+    originaisRef.current = next;
+    pdfFiles.current.clear();
+    setPdfs(new Map());
+    setOriginais(next);
+  }
+
+  useEffect(() => () => {
+    for (const o of originaisRef.current ?? []) URL.revokeObjectURL(o.url);
+    originaisRef.current = null;
+    pdfFiles.current.clear();
+  }, []);
+
+  // Conta as páginas de cada PDF dos originais uma vez: sem isto, «Repetir a
+  // leitura» não sabe que páginas existem. Imagens não precisam — contam 1.
+  useEffect(() => {
+    let alive = true;
+    for (const o of originais ?? []) {
+      if (o.kind !== 'pdf' || pdfs.has(o.url)) continue;
+      void (async () => {
+        try {
+          const blob = await (await fetch(o.url)).blob();
+          const f = new File([blob], o.name, { type: 'application/pdf' });
+          pdfFiles.current.set(o.url, f);
+          const n = await pdfPageCount(f);
+          if (alive && n != null) setPdfs((cur) => (cur.get(o.url) === n ? cur : new Map(cur).set(o.url, n)));
+        } catch {
+          // Sem PDF legível fica sem painel de páginas; o cartão continua a abrir no dialog.
+        }
+      })();
+    }
+    return () => { alive = false; };
+  }, [originais, pdfs]);
   const [saved, setSaved] = useState<SavedExam | null>(null);
   const [pendingPublication, setPendingPublication] = useState<PendingFigurePublication | null>(null);
   const [donation, setDonation] = useState<DonationDetail | null>(null);
   const [reading, setReading] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const draftDecisionPending = useRef(false);
+  const builderDirty = ready && draftHasContent(draft) && (saved === null || saved.snapshot !== JSON.stringify(draft));
+  const { dialog: unsavedDialog } = useUnsavedChanges(builderDirty, 'O rascunho local volta na próxima visita, mas as alterações ainda não foram publicadas.');
 
   // As escolas vêm do backend: só aquelas a que o professor está afiliado (o administrador vê todas).
   useEffect(() => {
@@ -108,29 +174,50 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     // formulário preenchido com a prova anterior, de outra escola ou de há semanas,
     // sem o ter pedido. Se houver trabalho por guardar, pergunta-se — e só nesse caso.
     const anterior = loadDraft();
-    const continuar = draftHasContent(anterior) && window.confirm('Tem um rascunho por guardar da última vez. Continuar esse rascunho? (Cancelar começa uma prova nova.)');
-    if (!continuar) clearDraft();
-    // `setDraft` vai dentro do timeout para não disparar em cima do efeito — a mesma
-    // razão pela qual já era adiado antes de a #362 existir.
-    const task = window.setTimeout(() => { if (continuar) setDraft(anterior); }, 0);
+    const continueDraft = () => {
+      setDraft(anterior);
+      if (anterior.savedStatementId) {
+        setSaved({
+          id: anterior.savedStatementId,
+          title: anterior.title.trim() || 'Prova guardada',
+          published: anterior.savedPublished === true,
+          snapshot: JSON.stringify(anterior),
+          savedAt: anterior.savedAt ?? new Date().toISOString(),
+        });
+      }
+    };
+    const hasDraft = draftHasContent(anterior);
+    let task: number | undefined;
+    if (hasDraft) {
+      draftDecisionPending.current = true;
+      task = window.setTimeout(() => setConfirm({
+          title: 'Continuar o rascunho?',
+          description: 'Há um rascunho guardado localmente. Pode retomá-lo ou começar do zero. Começar do zero descarta definitivamente este rascunho local; a prova já guardada continua disponível.',
+          action: 'Continuar rascunho',
+          cancelLabel: 'Começar do zero',
+          requireChoice: true,
+          onCancel: () => { clearDraft(); draftDecisionPending.current = false; },
+          run: () => { continueDraft(); draftDecisionPending.current = false; },
+        }), 0);
+    } else clearDraft();
     myInstitutions().then((res) => {
-      if (!res.ok) toast.error(res.error);
+      if (!res.ok) reportActionError(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
       setReady(true);
     });
-    return () => window.clearTimeout(task);
+    return () => { if (task !== undefined) window.clearTimeout(task); };
   }, []);
   // Um rascunho vazio não se guarda: assim «começar do zero» deixa a chave mesmo
   // limpa, em vez de a reescrever vazia no instante a seguir ao aviso.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || draftDecisionPending.current) return;
     if (draftHasContent(draft)) saveDraft(draft);
     else clearDraft();
-  }, [draft, ready]);
+  }, [confirm, draft, ready]);
   // Uma doação aberta no construtor: os dados dela, para o administrador ver de onde vem a prova.
   useEffect(() => {
     if (donationId === null) return;
-    getDonation(donationId).then((res) => (res.ok ? setDonation(res.data) : toast.error(res.error)));
+    getDonation(donationId).then((res) => (res.ok ? setDonation(res.data) : reportActionError(res.error)));
   }, [donationId]);
   useEffect(() => { fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN'))); }, []);
 
@@ -145,7 +232,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     let alive = true;
     reviewChoices(Number(schoolId), !admin).then((r) => {
       if (!alive) return;
-      if (!r.ok) return void toast.error(r.error);
+      if (!r.ok) return void reportActionError(r.error);
       setChoices(r.data);
       setSubjectIds(Object.fromEntries(r.data.subjects.map((x) => [x.label, x.value])));
       // O OCR só acerta o nome da disciplina se ela estiver entre as da escola.
@@ -197,14 +284,93 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       questions: toRequest(draft.items),
     };
     const figures = figuresOf(draft.items);
+    if (saved) {
+      const chosen = chosenClassId ? classOptions.find((option) => String(option.value) === chosenClassId) : undefined;
+      const statement: StatementInput = {
+        institutionId: Number(school.id),
+        subjectId: subjectIds[subject],
+        title: payload.title,
+        examType: draft.kind,
+        durationMinutes: draft.duration === '' ? null : Number(draft.duration),
+        variant: draft.variant.trim() || null,
+        instructions: draft.rules.filter(Boolean).join('\n') || null,
+        totalMaxScore: totalScore(draft.items),
+        schoolYearId: chosen?.schoolYearId ?? null,
+        termId: null,
+        classId: chosenClassId ? Number(chosenClassId) : null,
+        courseId: chosen?.courseId ?? null,
+      };
+      const updated = await updateManualStatement(saved.id, statement, toUpdateRequest(draft.items), saved.published);
+      setSaving(false);
+      if (!updated.ok) return toast.error(updated.error);
+      const identifiedDraft = applyUpdateIdentities(draft, updated.data.identities);
+      setDraft(identifiedDraft);
+      if (updated.data.failed.length > 0) {
+        toast.error(`A prova ficou parcialmente guardada. ${updated.data.failed[0]} As alterações continuam no rascunho; tente guardar novamente.`);
+        return;
+      }
+
+      const savedAt = new Date().toISOString();
+      const shouldPublish = publish || saved.published;
+      const savedDraft = {
+        ...identifiedDraft,
+        savedStatementId: saved.id,
+        savedAt,
+        savedPublished: false,
+      };
+      const updatedExam: SavedExam = {
+        ...saved,
+        title: statement.title,
+        published: false,
+        snapshot: JSON.stringify(savedDraft),
+        savedAt,
+      };
+      setDraft(savedDraft);
+      setSaved(updatedExam);
+      if (figures.length > 0) {
+        const pending = { ...updatedExam, figures, publish: shouldPublish };
+        setPendingPublication(pending);
+        await resumeFigurePublication(pending);
+        return;
+      }
+      if (shouldPublish) {
+        const approved = await approveStatement(saved.id);
+        if (!approved.ok) return toast.error(`Prova guardada, mas não publicada: ${approved.error}`);
+        const visible = await setStatementVisible(saved.id, true);
+        if (!visible.ok) return toast.error(`Prova aprovada, mas continua oculta: ${visible.error}`);
+      }
+      const completedDraft = { ...savedDraft, savedPublished: shouldPublish };
+      setDraft(completedDraft);
+      setSaved({ ...updatedExam, published: shouldPublish, snapshot: JSON.stringify(completedDraft) });
+      toast.success(shouldPublish ? 'Prova atualizada e publicada.' : 'Prova guardada. Fica oculta até a publicar.');
+      return;
+    }
+
     // Com imagens OCR, primeiro cria-se sempre um registo oculto. O caminho de publicação
     // só é autorizado depois de confirmar todos os recortes no servidor.
     const res = publish && figures.length === 0
       ? await publishManualStatement(payload)
       : await createManualStatement({ ...payload, visible: false });
     setSaving(false);
-    if (!res.ok) return toast.error(res.error);
-    const savedExam = { id: Number(res.data.id), title: String(res.data.title ?? payload.title), published: publish && figures.length === 0, snapshot: JSON.stringify(draft) };
+    if (!res.ok) return reportActionError(res.error);
+    const id = Number(res.data.id);
+    const savedAt = new Date().toISOString();
+    const full = await getStatementForReview(id);
+    const savedDraft = {
+      ...(full.ok ? applyServerIds(draft, full.data) : draft),
+      savedStatementId: id,
+      savedAt,
+      savedPublished: publish && figures.length === 0,
+    };
+    if (!full.ok) toast.error(`A prova foi guardada, mas não foi possível carregar os ids para futuras alterações: ${full.error}`);
+    setDraft(savedDraft);
+    const savedExam: SavedExam = {
+      id,
+      title: String(res.data.title ?? payload.title),
+      published: publish && figures.length === 0,
+      snapshot: JSON.stringify(savedDraft),
+      savedAt,
+    };
     setSaved(savedExam);
     const pending = figures.length > 0 ? { ...savedExam, published: false, figures, publish } : null;
     if (pending) setPendingPublication(pending);
@@ -261,24 +427,107 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
    * O que o OCR leu vira rascunho. Não se guarda nada: o professor corrige aqui e só depois grava.
    * Substituir um rascunho com conteúdo pede confirmação, porque o OCR trocava tudo de uma vez.
    */
-  function applyImport(extraction: ExamExtraction, names: string): boolean {
+  function commitImport(extraction: ExamExtraction, names: string, originals?: OriginalPage[]): boolean {
     const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] });
     if (imported.items.length === 0) {
       setNotes(imported.notes);
       setFooterPreview(imported.footerPreview ?? null);
+      trocarOriginais(originals ?? null);
       toast.error('Não foi possível ler questões nesta imagem.');
       return false;
     }
-    // A mesma noção de «conteúdo» do aviso de arranque: o OCR substitui o cabeçalho
-    // inteiro, por isso mexer só na escola/disciplina/duração também se avisa.
-    if (draftHasContent(draft) && !window.confirm('Importar substitui as questões e o cabeçalho que já escreveu. Continuar?')) return false;
     setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
     setNotes(imported.notes);
     setFooterPreview(imported.footerPreview ?? null);
+    trocarOriginais(originals ?? null);
     setSaved(null);
     setImportOpen(false);
     toast.success(`Prova lida (${names}): ${imported.items.length} questões. Reveja o que o OCR percebeu.`);
     return true;
+  }
+
+  function applyImport(extraction: ExamExtraction, names: string, originals?: OriginalPage[]): boolean {
+    // O OCR substitui o cabeçalho inteiro, por isso também se confirma quando só
+    // escola, disciplina ou duração foram preenchidas.
+    if (draftHasContent(draft)) {
+      setConfirm({
+        title: 'Substituir o rascunho?',
+        description: 'Importar substitui as questões e o cabeçalho que já escreveu.',
+        action: 'Importar e substituir',
+        destructive: true,
+        run: () => { commitImport(extraction, names, originals); },
+      });
+      return false;
+    }
+    return commitImport(extraction, names, originals);
+  }
+
+  /** Leva à questão indicada (as notas dizem «Ir para a questão N», as pendências
+   *  «Rever a questão N»): faz scroll e entrega o foco, para rato, teclado e leitor
+   *  de ecrã. Com `label` (uma alínea, ex.: `a`), o foco vai ao controlo da alínea,
+   *  não ao fieldset inteiro. */
+  function irParaQuestao(n: number, label?: string) {
+    const alvo = document.getElementById(`questao-${n}`);
+    if (!alvo) {
+      toast.error(`A questão ${n} já não está nesta posição. Procure-a pelo número no editor.`);
+      return;
+    }
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => {
+      const leaf = label ? alvo.querySelector<HTMLElement>(`[data-leaf="${n}${label}"]`) : null;
+      const controlo = leaf?.querySelector<HTMLElement>('textarea, input, select, button, [role="textbox"]');
+      if (controlo) { controlo.focus({ preventScroll: true }); return; }
+      (alvo as HTMLElement).focus({ preventScroll: true });
+    }, 350);
+  }
+
+  /** «Repetir a leitura» de uma página de PDF do original: renderiza a página, lê-a
+   *  de novo e troca, no rascunho, as questões que vieram dela. O resto do rascunho
+   *  fica como estava — é a correção local, sem ler a prova outra vez. */
+  async function repetirLeitura(o: OriginalPage, page: number, pageIndex: number) {
+    if (relendo) return;
+    setRelendo(`${o.url}#${page}`);
+    try {
+      const f = pdfFiles.current.get(o.url) ?? null;
+      if (!f) { toast.error(`Não foi possível abrir «${o.name}» para reler a página ${page}.`); return; }
+      const image = await renderPdfPageToImage(f, page);
+      if (!image) { toast.error(`Não foi possível renderizar a página ${page} de «${o.name}».`); return; }
+      const form = new FormData();
+      form.append('files', image, image.name);
+      const extraction = await streamExamOcr(form, { onUploadProgress: () => undefined, onEvent: () => undefined });
+      const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] }, { sourcePageIndex: pageIndex });
+      if (imported.items.length === 0) {
+        toast.error(`A página ${page} de «${o.name}» não rendeu questões. Nada mudou.`);
+        return;
+      }
+      const merged = mergePageRetry(draft.items, imported.items, pageIndex);
+      if (merged.ambiguous) {
+        const message = `As questões da página ${page} não puderam ser localizadas no rascunho. Acrescentar as ${imported.items.length} que o OCR leu ao fim da prova?`;
+        if (!window.confirm(message)) return;
+        setDraft((d) => ({ ...d, items: [...d.items, ...imported.items] }));
+      } else {
+        setDraft((d) => ({ ...d, items: merged.items }));
+      }
+      // As notas desta leitura entram sem repetir o que o rascunho já mostrava.
+      setNotes((cur) => [...cur, ...imported.notes.filter((n) => !cur.some((c) => c.text === n.text))]);
+      setSaved(null);
+      toast.success(`Página ${page} relida: ${merged.ambiguous ? imported.items.length : merged.added} questão(ões) no lugar de ${merged.replaced}.`);
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'A releitura da página falhou.');
+    } finally {
+      setRelendo(null);
+    }
+  }
+
+  /** Abre o original de onde uma questão saiu (a página ao índice global da leitura). */
+  function abrirOriginal(pageIndex: number) {
+    const list = originais ?? [];
+    const alvo = pageAtSources((i) => (list[i]?.kind === 'image' ? 1 : pdfs.get(list[i].url) ?? 1), list.length, pageIndex);
+    if (!alvo) {
+      toast.error('A página deste original já não está entre as páginas lidas.');
+      return;
+    }
+    setOriginalAberto(list[alvo.sourceIndex]);
   }
 
   /** O OCR sobre os ficheiros da doação: o mesmo caminho do importador, sem ficheiros novos. */
@@ -287,7 +536,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     setReading(true);
     const res = await extractDonation(donationId);
     setReading(false);
-    if (!res.ok) return void toast.error(res.error);
+    if (!res.ok) return void reportActionError(res.error);
     applyImport(res.data, donation?.reference ?? `doação ${donationId}`);
   }
 
@@ -296,64 +545,120 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   /** Reordena no rascunho; a ordem vai no pedido de criação, que é quem a guarda. */
   const moveItem = (i: number, direction: -1 | 1) => set('items', move(draft.items, i, direction));
   const total = totalScore(draft.items);
-  const problemas = problems(draft.items);
+  /** Problemas com destino: cada linha tem as questões/alíneas que a explicam. */
+  const detalhes = problemDetails(draft.items);
+  const problemas = detalhes.map((d) => d.message);
+  /** Páginas por original, na ordem global da leitura (índice 0-based): imagens
+   *  contam 1; um PDF conta o que já foi apurado (até lá, 1). */
+  const contagens = originais?.map((o) => (o.kind === 'image' ? 1 : pdfs.get(o.url) ?? 1)) ?? [];
+  const paginasOriginais = flattenSourcePages(originais ?? [], contagens);
   const ready2print = !!school && !!subject && draft.items.some((i) => i.text.trim());
   const canSave = ready2print && classChosen;
-  /** Depois de guardar, gravar outra vez sem mexer em nada criava um duplicado: só volta a ser possível ao editar. */
-  const unchangedSinceSave = saved !== null && saved.snapshot === JSON.stringify(draft);
+  /** O motivo dos botões desativados, em texto: um `title` não chega a quem usa toque ou teclado. */
+  const parts = readinessParts(
+    missingToSave({ hasSchool: !!school, hasSubject: !!subject, hasClass: classChosen, hasQuestion: draft.items.some((i) => i.text.trim()) }),
+    problemas.length,
+  );
+  const changedSinceSave = saved !== null && saved.snapshot !== JSON.stringify(draft);
+  const unchangedSinceSave = saved !== null && !changedSinceSave;
   const toSave = canSave && !saving && !unchangedSinceSave && pendingPublication === null;
+  /** Quando não é por falta de dados: a gravar, já guardada ou a publicação por retomar. */
+  const blocker = saveBlocker({ saving, unchangedSinceSave, pendingPublication: pendingPublication !== null });
+  const hasSummary = parts.toSave !== null || parts.toPublish !== null;
+  // Cada botão aponta só para o que o explica: «Guardar» ativo não deve ler os problemas que só travam «Publicar».
+  const describeSave = [parts.toSave && 'construtor-faltas', blocker && 'construtor-estado'].filter(Boolean).join(' ') || undefined;
+  const describePublish = [parts.toSave && 'construtor-faltas', parts.toPublish && 'construtor-problemas', blocker && 'construtor-estado'].filter(Boolean).join(' ') || undefined;
+
+  /** Troca a vista e volta ao alternador: sem isto a página ficava a meio da vista anterior. */
+  function showView(next: 'editar' | 'previsualizar') {
+    if (next === view) return;
+    setView(next);
+    requestAnimationFrame(() => document.getElementById('construtor-vista')?.scrollIntoView({ block: 'start' }));
+  }
 
   return (
     <div className="mx-auto max-w-7xl p-6 md:p-8 lg:p-10">
-      <style>{`@media print{body *{visibility:hidden}#exam-sheet,#exam-sheet *{visibility:visible}#exam-sheet{position:absolute;left:0;top:0;width:100%;box-shadow:none}@page{size:A4;margin:10mm}}`}</style>
+      <style>{`@media print{body *{visibility:hidden}#exam-sheet,#exam-sheet *{visibility:visible}#exam-sheet{position:absolute;left:0;top:0;width:100%;box-shadow:none}.exam-preview{display:block!important}@page{size:A4;margin:10mm}}`}</style>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl leading-tight tracking-tight">Montar prova</h1>
           <p className="mt-1 text-muted-foreground">A prova segue o modelo oficial. Só o logótipo, o nome da escola e a disciplina mudam.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setImportOpen((v) => !v)} aria-expanded={importOpen} disabled={pendingPublication !== null}>
+          <Button variant="outline" onClick={() => { setImportOpen((v) => !v); setView('editar'); }} aria-expanded={importOpen} disabled={pendingPublication !== null}>
             <ScanText aria-hidden /> Importar de imagem
           </Button>
-          <Button variant="outline" onClick={() => save(false)} disabled={!toSave} title={canSave ? undefined : 'Escolha a disciplina e a turma e escreva pelo menos uma questão'}>
+          <Button variant="outline" onClick={() => save(false)} disabled={!toSave} aria-describedby={describeSave}>
             <Save aria-hidden /> Guardar
           </Button>
-          <Button onClick={() => save(true)} disabled={!toSave || problemas.length > 0} title={problemas.length > 0 ? 'A prova ainda não pode ser publicada' : canSave ? undefined : 'Escolha a disciplina e a turma e escreva pelo menos uma questão'}>
+          <Button onClick={() => save(true)} disabled={!toSave || problemas.length > 0} aria-describedby={describePublish}>
             {saving ? <Spinner className="size-4" /> : <Check aria-hidden />}
             Publicar
           </Button>
           <Button variant="outline" onClick={() => window.print()} disabled={!ready2print}>
             <Printer aria-hidden /> Imprimir / guardar PDF
           </Button>
+          {saved ? <span className="self-center text-xs text-muted-foreground" role="status">{changedSinceSave ? 'Alterações por guardar' : `Guardado às ${SAVED_AT.format(new Date(saved.savedAt))}`}</span> : null}
         </div>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 print:hidden">
-          {saved && (
-            <Card className="border-primary/40 bg-accent/40" role="status" aria-live="polite">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Check className="size-4 text-primary" aria-hidden />{saved.published ? 'Prova publicada' : 'Prova guardada'}</CardTitle>
-                <CardDescription>
-                  «{saved.title}» {pendingPublication ? 'continua oculta enquanto os recortes OCR não forem anexados e confirmados.' : saved.published ? 'já está disponível para os alunos simularem sozinhos.' : 'ficou oculta: publique-a para a poder dar a uma turma.'} A prova é dada a partir de um enunciado, numa sala: os alunos entram na sala e fazem a simulação.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {pendingPublication ? <Button onClick={() => resumeFigurePublication(pendingPublication)} disabled={saving}>{saving ? <Spinner className="size-4" /> : <Check aria-hidden />}{saving ? 'A retomar…' : 'Retomar anexação e publicação'}</Button> : null}
-                {saved.published ? (
-                  <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
-                ) : null}
-                {!pendingPublication ? <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button> : null}
-                <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => { if (window.confirm('Começar uma prova nova? O rascunho atual é limpo (a prova guardada não se perde).')) { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
-                  // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
-                  // voltar a ser guardado — um aviso a mais no arranque seguinte.
-                  setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); setSaved(null); } }}>
-                  <Plus aria-hidden />Nova prova
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+      {hasSummary && (
+        <div id="construtor-pendencias" className="mb-6 grid gap-0.5 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning print:hidden">
+          {parts.toSave && <p id="construtor-faltas">{parts.toSave}</p>}
+          {parts.toPublish && <p id="construtor-problemas">{parts.toPublish}</p>}
+        </div>
+      )}
+      {blocker && <p id="construtor-estado" className="mb-6 text-sm text-muted-foreground print:hidden">{blocker}</p>}
 
+      {saved && (
+        <Card className="mb-6 border-primary/40 bg-accent/40 print:hidden" role="status" aria-live="polite">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Check className="size-4 text-primary" aria-hidden />{saved.published ? 'Prova publicada' : 'Prova guardada'}</CardTitle>
+            <CardDescription>
+              «{saved.title}» {pendingPublication ? 'continua oculta enquanto os recortes OCR não forem anexados e confirmados.' : saved.published ? 'já está disponível para os alunos simularem sozinhos.' : 'ficou oculta: publique-a para a poder dar a uma turma.'} A prova é dada a partir de um enunciado, numa sala: os alunos entram na sala e fazem a simulação.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {pendingPublication ? <Button onClick={() => resumeFigurePublication(pendingPublication)} disabled={saving}>{saving ? <Spinner className="size-4" /> : <Check aria-hidden />}{saving ? 'A retomar…' : 'Retomar anexação e publicação'}</Button> : null}
+            {saved.published ? (
+              <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
+            ) : null}
+            {!pendingPublication ? <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button> : null}
+            <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => setConfirm({
+              title: 'Começar uma prova nova?',
+              description: 'O rascunho atual será limpo. A prova já guardada continua disponível.',
+              action: 'Começar nova prova',
+              destructive: true,
+              run: () => { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
+              // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
+              // voltar a ser guardado — um aviso a mais no arranque seguinte.
+              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); trocarOriginais(null); setSaved(null);
+            }} )}>
+              <Plus aria-hidden />Nova prova
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <div id="construtor-vista" role="group" aria-label="Vista do construtor" className="mb-4 grid scroll-mt-20 grid-cols-2 gap-1 rounded-lg border bg-muted p-1 lg:hidden print:hidden">
+        {([['editar', 'Editar'], ['previsualizar', 'Pré-visualizar']] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={view === value}
+            onClick={() => showView(value)}
+            className={cn(
+              'min-h-11 rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+              view === value ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4 print:hidden', view !== 'editar' && 'max-lg:hidden')}>
           {donationId !== null && (
             <Card className="print:hidden" role="region" aria-label="Doação de origem">
               <CardHeader>
@@ -376,6 +681,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           )}
 
           {importOpen && <ExamImporter onExtracted={applyImport} onClose={() => setImportOpen(false)} />}
+          <Confirm state={confirm} onClose={() => setConfirm(null)} />
 
           {notes.length > 0 && (
             <Card className="border-warning/40">
@@ -389,13 +695,98 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                 </div>
               </CardHeader>
               <CardContent>
-                <ul className="grid list-disc gap-1.5 pl-5 text-sm">{notes.map((n) => <li key={n}>{n}</li>)}</ul>
+                <ul className="grid gap-2.5 text-sm">
+                  {notes.map((n, i) => (
+                    <li key={`${i}-${n.text.slice(0, 24)}`} className="grid gap-1">
+                      <span>{n.text}</span>
+                      {typeof n.question === 'number' ? (
+                        <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => irParaQuestao(n.question!)}>
+                          Ir para a questão {n.question}
+                        </Button>
+                      ) : n.anchor === 'rodape' ? (
+                        <Button type="button" variant="outline" size="sm" className="justify-self-start" asChild>
+                          <a href="#ocr-rodape">Ver rodapé original</a>
+                        </Button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           )}
 
+          {originais && originais.length > 0 && (
+            <Card className="print:hidden" data-testid="ocr-originais">
+              <CardHeader>
+                <CardTitle>Páginas originais</CardTitle>
+                <CardDescription>As páginas lidas, na ordem da leitura. Toque para ver em tamanho real.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-wrap gap-4">
+                  {originais.map((o, oi) => (
+                    <li key={o.url} className="grid gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setOriginalAberto(o)}
+                        aria-label={`Ver ${o.name} em tamanho real`}
+                        className="grid w-24 gap-1 rounded-lg border bg-card p-1.5 text-left transition-colors hover:border-primary"
+                      >
+                        {o.kind === 'image' ? (
+                          <img src={o.url} alt="" aria-hidden className="h-20 w-full rounded object-cover" />
+                        ) : (
+                          /* Página 1 renderizada: o File veio do URL no efeito de contagem. */
+                          pdfFiles.current.has(o.url)
+                            ? <SourceThumb file={pdfFiles.current.get(o.url)!} kind="pdf" className="h-20 w-full rounded object-cover" />
+                            : <span className="grid h-20 w-full place-items-center rounded bg-accent text-primary"><FileText size={20} aria-hidden /></span>
+                        )}
+                        <span className="truncate text-[11px] text-muted-foreground">{o.name}</span>
+                      </button>
+                      {/* Páginas de um PDF: cada uma pode ser relida sozinha — o rascunho
+                          troca só as questões que vieram dela (`mergePageRetry`). */}
+                      {o.kind === 'pdf' && pdfFiles.current.has(o.url) && (pdfs.get(o.url) ?? 0) > 1 && (
+                        <div className="flex flex-wrap gap-1">
+                          {paginasOriginais.filter((p) => p.sourceIndex === oi).map((p) => (
+                            <button
+                              key={p.pageIndex}
+                              type="button"
+                              className="grid w-12 gap-0.5 rounded-md border bg-card p-0.5 text-center transition-colors hover:border-primary disabled:opacity-60"
+                              disabled={relendo !== null}
+                              aria-label={`Repetir a leitura da página ${p.page} de ${o.name}`}
+                              onClick={() => void repetirLeitura(o, p.page, p.pageIndex)}
+                            >
+                              <SourceThumb file={pdfFiles.current.get(o.url)!} kind="pdf" page={p.page} className="h-10 w-full rounded object-cover" />
+                              <span className="grid h-3.5 place-items-center text-[10px] tabular-nums text-muted-foreground">
+                                {relendo === `${o.url}#${p.page}` ? <Spinner className="size-3" /> : p.page}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          <Dialog open={originalAberto !== null} onOpenChange={(aberto) => { if (!aberto) setOriginalAberto(null); }}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>{originalAberto?.name}</DialogTitle>
+              </DialogHeader>
+              {originalAberto?.kind === 'image' ? (
+                <img src={originalAberto.url} alt={`Página original ${originalAberto.name}`} className="max-h-[70dvh] w-full rounded-lg border object-contain" />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Pré-visualização de PDF em tamanho real não cabe aqui.{' '}
+                  <a href={originalAberto?.url} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">Abrir {originalAberto?.name} num separador</a>.
+                </p>
+              )}
+            </DialogContent>
+          </Dialog>
+
           {footerPreview && (
-            <Card data-testid="ocr-footer-preview">
+            <Card data-testid="ocr-footer-preview" id="ocr-rodape" className="scroll-mt-20">
               <CardHeader>
                 <CardTitle>Rodapé original — fora das questões</CardTitle>
                 <CardDescription>
@@ -481,6 +872,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                   onChange={(patch) => setItem(i, patch)}
                   onRemove={() => set('items', draft.items.filter((_, j) => j !== i))}
                   onMove={(direction) => moveItem(i, direction)}
+                  onOpenOriginal={originais ? abrirOriginal : undefined}
                 />
               ))}
               <Button variant="outline" size="sm" className="justify-self-start" onClick={() => set('items', [...draft.items, { text: '', points: '', options: [] }])}><Plus aria-hidden /> Questão</Button>
@@ -499,8 +891,28 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
                 )}
               </div>
               {problemas.length > 0 && (
-                <ul role="status" className="grid gap-1 rounded-lg bg-warning-soft px-3 py-2 text-[13px] text-warning">
-                  {problemas.map((p) => <li key={p}>{p}</li>)}
+                <ul role="status" className="grid gap-2 rounded-lg bg-warning-soft px-3 py-2 text-[13px] text-warning">
+                  {detalhes.map((p) => (
+                    <li key={p.message} className="grid gap-1.5">
+                      <span>{p.message}</span>
+                      {p.targets.length > 0 && (
+                        <span className="flex flex-wrap gap-1">
+                          {p.targets.map((t) => (
+                            <Button
+                              key={`${t.question}-${t.label ?? ''}`}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              data-testid={`ir-para-questao-${t.question}${t.label ?? ''}`}
+                              onClick={() => irParaQuestao(t.question, t.label)}
+                            >
+                              Rever a questão {t.question}{t.label ?? ''}
+                            </Button>
+                          ))}
+                        </span>
+                      )}
+                    </li>
+                  ))}
                 </ul>
               )}
             </CardContent>
@@ -526,10 +938,11 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           </Card>
         </div>
 
-        <div className="min-w-0 overflow-x-auto lg:sticky lg:top-24">
+        <div className={cn('exam-preview min-w-0 overflow-x-auto lg:sticky lg:top-24', view !== 'previsualizar' && 'max-lg:hidden')}>
           <ExamSheet school={school} draft={draft} />
         </div>
       </div>
+      {unsavedDialog}
     </div>
   );
 }
