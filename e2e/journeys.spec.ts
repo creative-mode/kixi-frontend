@@ -1192,6 +1192,15 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
   });
 
   test('OCR: PDF de duas páginas lê as duas, mostra a miniatura e pode repetir a página 2 (#718)', async ({ page }) => {
+    // O pdfjs-dist 6 usa `Map.prototype.getOrInsertComputed`, que o Chromium do CI ainda não tinha e que há navegadores de
+    // professores sem ela: sem o build `legacy` a miniatura falhava em silêncio. Remove-se a API em qualquer versão do
+    // navegador, para o teste continuar a exercer esse caminho quando o do CI for atualizado.
+    await page.addInitScript(() => {
+      for (const tipo of [Map, WeakMap] as const) {
+        delete (tipo.prototype as unknown as Record<string, unknown>).getOrInsert;
+        delete (tipo.prototype as unknown as Record<string, unknown>).getOrInsertComputed;
+      }
+    });
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     const leituraDuasPaginas = {
       status: 'success',
