@@ -2,7 +2,7 @@
  * PDF no navegador, para as miniaturas e a repetição de uma página.
  *
  * Carregado só quando há um PDF na lista (import dinâmico): o `pdfjs-dist` não
- * entra no bundle inicial. O worker vem de `public/pdf.worker.min.mjs` — o CSP
+ * entra no bundle inicial. O worker vem de `public/pdf.worker.min.mjs` (build `legacy`) — o CSP
  * já aceita `worker-src 'self' blob:` — e o caminho leva o `basePath` porque o
  * Next não o prefixa em `workerSrc`.
  */
@@ -14,11 +14,16 @@ export interface PdfDocument {
   destroy(): Promise<void>;
 }
 
-let pdfjsPromise: Promise<{ getDocument: typeof import('pdfjs-dist').getDocument } | null> | null = null;
+type Pdfjs = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
+
+let pdfjsPromise: Promise<Pdfjs | null> | null = null;
 
 const loadPdfjs = async () => {
   if (!pdfjsPromise) {
-    pdfjsPromise = import('pdfjs-dist').then((pdfjs) => {
+    // O build `legacy`, não o normal: o normal usa `Map.prototype.getOrInsertComputed`, que navegadores um pouco mais
+    // antigos não têm, e sem ela a miniatura e o «Repetir a leitura da página n» falhavam em silêncio. O `legacy` traz o
+    // polyfill. O worker em `public/` tem de ser o do mesmo build (ver a nota em `public/`).
+    pdfjsPromise = import('pdfjs-dist/legacy/build/pdf.mjs').then((pdfjs) => {
       pdfjs.GlobalWorkerOptions.workerSrc = `${BASE_PATH}/pdf.worker.min.mjs`;
       return pdfjs;
     }).catch(() => null); // Sem worker, sem PDF: os tiles voltam ao ícone.
