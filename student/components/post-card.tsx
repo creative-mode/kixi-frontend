@@ -14,8 +14,8 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { sinceLabel } from '@/lib/attempt-history';
 import { VerifiedBadge } from '@/components/verified-badge';
-import { CLASSMATE_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
-import { addCommentAction, getCommentsAction, reportPostAction, setReactionAction } from '@/lib/feed-actions';
+import { CLASSMATE_LABEL, CROSS_SCHOOL_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, doubtStatusOf, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
+import { acceptAnswerAction, addCommentAction, getCommentsAction, reportPostAction, setReactionAction } from '@/lib/feed-actions';
 import type { FeedPost, PostComment } from '@/lib/feed';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';
 import { FeedReaction, type ReactionSnapshot } from '@/lib/feed-reaction';
@@ -30,7 +30,6 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [reactionController] = useState(() => new FeedReaction(post.hasReacted, (target) => setReactionAction(post.id, target)));
   const [reaction, setReaction] = useState<ReactionSnapshot>(reactionController.snapshot);
   const [count, setCount] = useState(post.commentCount);
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
   // A conversa só é lida quando se abre o painel, e as regras dessa leitura - uma vez
@@ -48,9 +47,14 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const [reportError, setReportError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [accepting, startAccepting] = useTransition();
+  const [acceptError, setAcceptError] = useState<string | null>(null);
   const card = useRef<HTMLElement>(null);
+  const replyInput = useRef<HTMLInputElement>(null);
   const isPublishing = post.id < 0;
   const studyTip = post.type === 'topic';
+  /** Quem pergunta pode marcar a resposta certa; só faz sentido numa dúvida (#728). */
+  const canAccept = post.type === 'doubt' && myAccountId != null && post.authorAccountId === myAccountId;
 
   useEffect(() => reactionController.subscribe(setReaction), [reactionController]);
   useEffect(() => reactionController.syncConfirmed(post.hasReacted), [post.hasReacted, reactionController]);
@@ -139,17 +143,28 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
     });
   };
 
-  // Abrir e fechar é uma decisão do clique, não do updater: um efeito dentro de
-  // `setOpen(v => ...)` corre duas vezes em modo estrito e pediria a lista duas vezes.
-  const togglePanel = () => {
-    const next = !open;
-    setOpen(next);
-    if (next) readComments();
+  /** O autor da dúvida marca a resposta certa; as outras linhas perdem a marca sozinhas,
+   *  porque só uma pode ser a aceite (#728). */
+  const acceptAnswer = (commentId: number) => {
+    setAcceptError(null);
+    startAccepting(async () => {
+      const result = await acceptAnswerAction(post.id, commentId);
+      if (!result.ok) {
+        setAcceptError(result.message);
+        return;
+      }
+      const current = conversationRef.current.comments ?? [];
+      apply({ ...conversationRef.current, comments: current.map((c) => ({ ...c, isAccepted: c.id === commentId })) });
+    });
   };
 
-  // A conversa lê-se antes de ser pedida: ao aproximar o dedo ou o rato do botão (a intenção), e, para as primeiras
-  // publicações com comentários, quando entram no ecrã. Abrir o painel depois é instantâneo: a lista já lá está.
+  /** A conversa lê-se antes de ser pedida: ao aproximar o dedo ou o rato do botão "Responder"
+   *  (a intenção), e, para as primeiras publicações com comentários, quando entram no ecrã. */
   const prefetch = () => readComments();
+  const focusReply = () => {
+    readComments();
+    replyInput.current?.focus();
+  };
   useEffect(() => {
     const el = card.current;
     if (!el || post.commentCount === 0 || initialComments || typeof IntersectionObserver === 'undefined') return;
@@ -170,9 +185,11 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const act = 'h-11 min-w-11 gap-1.5 px-3 text-muted-foreground aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
   const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
+  const acceptedComment = conversation.comments?.find((c) => c.isAccepted) ?? null;
+  const doubtStatus = doubtStatusOf(post.type, count, acceptedComment);
 
   return (
-    <article ref={card} className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
+    <article ref={card} className={cn('rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40', doubtStatus?.kind === 'unanswered' && '-mx-px border-l-[3px] border-l-destructive bg-destructive/5 pl-[13px]')}>
       <UserAvatar name={author.name} src={author.photo} size={44} />
       <div className="min-w-0 flex-1">
         <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">
@@ -210,12 +227,20 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             : post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
         </div>
 
+        {doubtStatus?.kind === 'resolved' && (
+          <p className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-primary"><Ico name="check" size={14} />Resolvido · resposta aceite de {doubtStatus.acceptedByName}</p>
+        )}
+        {doubtStatus?.kind === 'unanswered' && (
+          <p className="mt-1 text-[13px] font-semibold text-destructive">Sem resposta ainda — podes ser o primeiro a ajudar</p>
+        )}
+
         <div className="-ml-3 mt-1 flex items-center gap-1 py-0.5">
           <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
             <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={24} className={cn(reaction.reacted && 'pop')} />
           </Button>
-          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
-            <Ico name="chat" filled={open} size={24} /><span className="min-w-3 text-[14px] tabular-nums">{count}</span>
+          <Button variant="ghost" className={act} aria-label={doubtStatus?.kind === 'unanswered' ? 'Responder' : `${count} ${count === 1 ? 'comentário' : 'comentários'}`} title={doubtStatus?.kind === 'unanswered' ? 'Responder' : 'Comentários'} disabled={isPublishing} onClick={focusReply} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
+            <Ico name="chat" size={24} />
+            {doubtStatus?.kind === 'unanswered' ? <span className="text-[14px] font-bold">Responder</span> : <span className="min-w-3 text-[14px] tabular-nums">{count}</span>}
           </Button>
           <Button
             variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
@@ -288,51 +313,58 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </form>
       )}
 
-      {open && (
-        <div className="grid gap-3 border-t py-3">
-          <div className="grid gap-3">
+      {/* As respostas ficam sempre visíveis, indentadas, com a linha de conexão (#728):
+          o painel que se abria e fechava desapareceu, não só o seu gatilho. */}
+      {count > 0 && (
+        <div className="mt-2 flex gap-2.5">
+          <div className="flex w-[34px] shrink-0 justify-center" aria-hidden="true"><span className="w-px flex-1 bg-border" /></div>
+          <div className="min-w-0 flex-1">
             {conversation.error ? (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="mb-3">
                 <span className="flex-1">{conversation.error}</span>
                 <Button type="button" variant="outline" size="sm" onClick={() => readComments(true)}>Tentar de novo</Button>
               </Alert>
             ) : reading && conversation.comments === null ? (
-              <LoadingState label="A carregar os comentários…" lines={3} />
-            ) : conversation.comments === null || conversation.comments.length === 0 ? (
-              <p className="py-2 text-center text-sm text-muted-foreground">Ainda não há comentários nesta publicação.</p>
-            ) : (
-              <ol className="grid gap-3">
+              <LoadingState label="A carregar as respostas…" lines={2} />
+            ) : conversation.comments === null || conversation.comments.length === 0 ? null : (
+              <ol className="grid gap-4 pb-3">
                 {conversation.comments.map((c) => (
                   <li key={c.id} className="flex items-start gap-2.5">
-                    <UserAvatar
-                      name={commentAuthorLabel(c.displayName, c.mine)}
-                      src={c.mine ? myPhoto : c.photo}
-                      size={32}
-                    />
-                    <div className="min-w-0 flex-1 rounded-2xl bg-secondary px-3 py-2">
-                      <div className="flex items-baseline gap-2">
+                    <UserAvatar name={commentAuthorLabel(c.displayName, c.mine)} src={c.mine ? myPhoto : c.photo} size={32} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         {c.mine ? (
-                          <span className="text-sm font-semibold">{commentAuthorLabel(c.displayName, c.mine)}</span>
+                          <span className="text-[13px] font-bold">{commentAuthorLabel(c.displayName, c.mine)}</span>
                         ) : (
-                          <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="text-sm font-semibold hover:underline focus-visible:underline">{commentAuthorLabel(c.displayName, c.mine)}<span className="sr-only">, ver perfil</span></Link>
+                          <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="text-[13px] font-bold hover:underline focus-visible:underline">{commentAuthorLabel(c.displayName, c.mine)}<span className="sr-only">, ver perfil</span></Link>
                         )}
-                        <span className="text-xs text-muted-foreground">{sinceLabel(c.createdAt) ?? ''}</span>
+                        {c.crossSchool && <span className="rounded-full border px-2 py-0.5 text-[11px] font-bold text-muted-foreground">{CROSS_SCHOOL_LABEL}</span>}
+                        <span className="text-[12px] text-muted-foreground">{sinceLabel(c.createdAt) ?? ''}</span>
                       </div>
-                      <p className="text-sm leading-relaxed break-words">{c.content}</p>
+                      <p className="text-[14px] leading-relaxed break-words">{c.content}</p>
+                      {c.isAccepted ? (
+                        <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-primary"><Ico name="check" size={13} />Resposta aceite</p>
+                      ) : canAccept && !acceptedComment ? (
+                        <button type="button" className="w-fit text-[12.5px] font-bold text-muted-foreground hover:text-primary disabled:opacity-50" disabled={accepting} onClick={() => acceptAnswer(c.id)}>
+                          {accepting ? 'A aceitar…' : 'Aceitar como resposta'}
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                 ))}
               </ol>
             )}
+            {acceptError && <Alert variant="destructive" className="mb-3">{acceptError}</Alert>}
           </div>
-          <form className="flex items-center gap-2.5" onSubmit={sendComment}>
-            <UserAvatar name={myName} src={myPhoto} size={32} />
-            <Input className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
-            <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Ico name="send" size={22} /></Button>
-          </form>
-          {commentError && <Alert variant="destructive">{commentError}</Alert>}
         </div>
       )}
+
+      <form className={cn('flex items-center gap-2.5 py-3', count > 0 && 'border-t')} onSubmit={sendComment}>
+        <UserAvatar name={myName} src={myPhoto} size={32} />
+        <Input ref={replyInput} className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve uma resposta" aria-label="Escrever uma resposta" maxLength={500} />
+        <Button type="submit" variant="ghost" size="icon" aria-label="Enviar resposta" disabled={pending}><Ico name="send" size={22} /></Button>
+      </form>
+      {commentError && <Alert variant="destructive" className="mb-3">{commentError}</Alert>}
       </div>
     </article>
   );

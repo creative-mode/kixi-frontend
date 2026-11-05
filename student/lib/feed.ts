@@ -127,6 +127,10 @@ export interface PostComment {
   authorPhoto?: string | null;
   /** A foto para mostrar: `authorPhoto`, ou, num backend antigo, a que o servidor foi buscar ao perfil; null deixa as iniciais. */
   photo?: string | null;
+  /** Esta é a resposta que o autor da dúvida marcou como aceite (kixi#728). Ausente num backend antigo. */
+  isAccepted?: boolean;
+  /** Quem respondeu é de outra escola, não da turma da dúvida (kixi#728). Ausente num backend antigo. */
+  crossSchool?: boolean;
 }
 
 /** A conversa de uma publicação, do mais antigo para o mais novo (GET
@@ -143,6 +147,11 @@ export async function addComment(postId: number, content: string) {
 
 export async function reportPost(postId: number, reason: string) {
   return apiPost<{ id: number }>(`/feed/posts/${postId}/reports`, { reason });
+}
+
+/** Marca uma resposta como a aceite, numa dúvida; só o autor da dúvida pode. */
+export async function acceptComment(postId: number, commentId: number) {
+  return apiPut<PostComment>(`/feed/posts/${postId}/comments/${commentId}/accept`, {});
 }
 
 /**

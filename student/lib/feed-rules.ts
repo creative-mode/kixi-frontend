@@ -41,6 +41,24 @@ export function maskName(full: string): string {
 
 export const CLASSMATE_LABEL = 'Colega de turma';
 
+/** Quem respondeu é de outra escola, não da turma de quem perguntou (#728). */
+export const CROSS_SCHOOL_LABEL = 'Outra escola';
+
+/** A linha de estado de uma dúvida: resolvida (resposta aceite), sem nenhuma resposta
+ *  ainda, ou nenhuma das duas (tem respostas, mas nenhuma marcada como a certa). */
+export type DoubtStatus = { kind: 'resolved'; acceptedByName: string } | { kind: 'unanswered' } | null;
+
+export function doubtStatusOf(
+  postType: string,
+  commentCount: number,
+  acceptedComment: { displayName: string | null; mine: boolean } | null,
+): DoubtStatus {
+  if (postType !== 'doubt') return null;
+  if (acceptedComment) return { kind: 'resolved', acceptedByName: commentAuthorLabel(acceptedComment.displayName, acceptedComment.mine) };
+  if (commentCount === 0) return { kind: 'unanswered' };
+  return null;
+}
+
 /** Junta a publicação, o perfil do autor (se o houver) e a turma de quem está a ver. */
 export function authorView(
   post: { authorAccountId: number; classId: number },

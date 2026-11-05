@@ -6,7 +6,7 @@ import { BACKEND } from './session';
 import { authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
 import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
-import { createBuiltPost, createPost, createSimulationPost, addComment, getFeed, loadAuthors, reportPost, setReaction, type FeedPost, type PostComment, type PostType } from './feed';
+import { acceptComment, createBuiltPost, createPost, createSimulationPost, addComment, getFeed, loadAuthors, reportPost, setReaction, type FeedPost, type PostComment, type PostType } from './feed';
 import { canPublish, canPublishReflection, type FeedAuthor } from './feed-rules';
 import { FEED_PAGE_SIZE } from './feed-pagination';
 
@@ -109,6 +109,14 @@ export async function getCommentsAction(
   limit = 20,
 ): Promise<{ ok: true; comments: PostComment[] } | { ok: false; message: string }> {
   return readConversation(postId, page, limit);
+}
+
+/** O autor da dúvida marca uma resposta como a aceite; não há `revalidatePath` porque
+ *  o cartão já mostra a marca sem ir buscá-la outra vez (#728). */
+export async function acceptAnswerAction(postId: number, commentId: number): Promise<{ ok: true } | { ok: false; message: string }> {
+  const result = await acceptComment(postId, commentId);
+  if (!result.ok) return { ok: false, message: result.message };
+  return { ok: true };
 }
 
 export async function reportPostAction(postId: number, reason: string): Promise<{ ok: true } | { ok: false; message: string }> {

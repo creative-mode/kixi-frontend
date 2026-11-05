@@ -550,9 +550,9 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(respostaAnunciada).toContainText('Resposta do tutor:', { timeout: 15_000 });
 
     await page.goto('/aluno/inicio');
-    await page.getByRole('button', { name: /Comentar/ }).first().click();
-    await expect(page.getByLabel('Escrever um comentário')).toHaveCSS('height', '44px');
-    await expect(page.getByRole('button', { name: 'Enviar comentário' })).toHaveCSS('height', '44px');
+    // O compositor de respostas está sempre visível por publicação, sem painel para abrir (#728).
+    await expect(page.getByLabel('Escrever uma resposta').first()).toHaveCSS('height', '44px');
+    await expect(page.getByRole('button', { name: 'Enviar resposta' }).first()).toHaveCSS('height', '44px');
   });
 
   test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
@@ -1858,8 +1858,6 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/aluno/inicio');
     await expect(page.getByRole('heading', { name: 'Início' })).toBeVisible();
-    // Abrir os comentarios para o compositor aparecer.
-    await page.getByRole('button', { name: /Comentar/ }).first().click();
 
     const foto = '[data-slot="avatar"] img[src*="e2e-345.png"]';
     // Cabecalho (a barra lateral, visivel a partir de md). O href leva o basePath /aluno.
@@ -1870,8 +1868,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.locator('section:visible').filter({ hasText: 'Na tua turma' }).locator(foto).first()).toBeVisible();
     // Autor da publicacao, que e o proprio aluno.
     await expect(page.locator('article').filter({ hasText: 'subnetting' }).locator(foto).first()).toBeVisible();
-    // Compositor de comentarios, na publicacao aberta.
-    await expect(page.getByLabel('Escrever um comentário').locator('xpath=ancestor::form[1]').locator(foto)).toBeVisible();
+    // Compositor de respostas, sempre visível por publicação (#728).
+    await expect(page.getByLabel('Escrever uma resposta').locator('xpath=ancestor::form[1]').locator(foto).first()).toBeVisible();
   });
 
   test('enunciados: cada filtro diz quantos tem, vive no endereço e sobrevive ao recarregamento (#535)', async ({ page }) => {

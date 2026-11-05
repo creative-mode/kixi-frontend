@@ -3,7 +3,15 @@ import { toLocalDateTime } from '../simulation';
 import { conversation } from '../feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../../post-blocks';
 import { MockPost, json, maskedName, meResponse, problem } from '../store';
-import type { MockCtx } from '../store';
+import type { MockCtx, Store } from '../store';
+
+/** A escola de uma conta, pela sua matrícula ativa: é como se sabe, sem pedido extra,
+ *  se quem respondeu a uma dúvida é de outra escola (kixi#728). */
+function institutionOfAccount(db: Store, accountId: number): number | null {
+  const enrollment = db.enrollments.find((e) => e.accountId === accountId && e.status === 'ACTIVE');
+  if (!enrollment) return null;
+  return db.classes.find((c) => c.id === enrollment.classId)?.institutionId ?? null;
+}
 
 /** Rotas do domínio «feed» do mock; devolve `undefined` quando o pedido não é deste domínio. */
 export async function feedRoutes({ method, pathname, search, filter, body, text, accountId, account, staff, db }: MockCtx): Promise<Response | undefined> {
@@ -155,6 +163,7 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
     const myClasses = new Set(
       db.enrollments.filter((e) => e.accountId === account.id && e.status === 'ACTIVE').map((e) => e.classId),
     );
+    const post = db.posts.find((p) => p.id === postId);
     const rows = conversation(
       db.postComments.filter((c) => c.postId === postId),
       db.posts.some((p) => p.id === postId && myClasses.has(p.classId)),
@@ -162,9 +171,25 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
       (id) => maskedName(db, id),
       filter('page') ?? 1,
       filter('limit') ?? 20,
+      post?.acceptedCommentId ?? null,
+      (id) => institutionOfAccount(db, id) !== post?.institutionId,
     );
     if (!Array.isArray(rows)) return problem(rows.status, rows.message);
     return json(rows);
+  }
+
+  // O autor da dúvida marca a resposta aceite; mais ninguém pode (kixi#728).
+  const acceptMatch = pathname.match(/^\/feed\/posts\/(\d+)\/comments\/(\d+)\/accept$/);
+  if (acceptMatch && method === 'PUT') {
+    const postId = Number(acceptMatch[1]);
+    const commentId = Number(acceptMatch[2]);
+    const post = db.posts.find((p) => p.id === postId);
+    if (!post) return problem(404, 'Post not found');
+    if (post.authorAccountId !== account.id) return problem(403, 'Only the question author can accept an answer');
+    const comment = db.postComments.find((c) => c.id === commentId && c.postId === postId);
+    if (!comment) return problem(404, 'Comment not found');
+    post.acceptedCommentId = commentId;
+    return json({ ...comment, mine: comment.authorAccountId === account.id, displayName: maskedName(db, comment.authorAccountId), isAccepted: true });
   }
 
   const reportMatch = pathname.match(/^\/feed\/posts\/(\d+)\/reports$/);

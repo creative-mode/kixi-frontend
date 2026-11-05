@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorOfPerson, authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePassed, scorePercent, simulationHeadline } from './feed-rules.ts';
+import { authorOfPerson, authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, doubtStatusOf, postTypeLabel, scorePassed, scorePercent, simulationHeadline } from './feed-rules.ts';
 
 const ME = { name: 'Ana Silva', photo: '/me.jpg' };
 const AUTHOR = { name: 'Beatriz Costa', photo: '/b.jpg', verified: false };
@@ -122,4 +122,23 @@ test('o cabeçalho do cartão junta classe, tipo, duração e ano letivo (#602)'
   assert.equal(simulationHeadline({ grade: null, paperKind: 'Exame', subject: null, durationMinutes: null, schoolYear: null, variant: 'A' }), 'Exame · Série A');
   // Sem nada do instantâneo não há linha: um backend antigo mostra só título e nota.
   assert.equal(simulationHeadline({}), null);
+});
+
+test('só uma dúvida tem estado de resolução; outros tipos de publicação não têm', () => {
+  assert.equal(doubtStatusOf('topic', 0, null), null);
+  assert.equal(doubtStatusOf('simulation', 0, null), null);
+});
+
+test('uma dúvida sem nenhuma resposta ainda fica "sem resposta"', () => {
+  assert.deepEqual(doubtStatusOf('doubt', 0, null), { kind: 'unanswered' });
+});
+
+test('uma dúvida com respostas mas nenhuma aceite não tem estado especial', () => {
+  assert.equal(doubtStatusOf('doubt', 2, null), null);
+});
+
+test('uma dúvida com resposta aceite fica "resolvida", com o nome de quem respondeu', () => {
+  assert.deepEqual(doubtStatusOf('doubt', 1, { displayName: 'Kiesse M.', mine: false }), { kind: 'resolved', acceptedByName: 'Kiesse M.' });
+  // A própria resposta aceite também pode ser do aluno que vê o ecrã.
+  assert.deepEqual(doubtStatusOf('doubt', 1, { displayName: null, mine: true }), { kind: 'resolved', acceptedByName: 'Tu' });
 });

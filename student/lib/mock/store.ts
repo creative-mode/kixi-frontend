@@ -226,6 +226,8 @@ export type MockPost = {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  /** O comentário que o autor da dúvida marcou como a resposta aceite (kixi#728). */
+  acceptedCommentId?: number | null;
   /** Posts construídos (kixi#347): a lista de blocos; ausente nos simples. */
   blocks?: PostBlock[];
   /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend.

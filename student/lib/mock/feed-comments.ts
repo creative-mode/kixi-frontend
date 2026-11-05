@@ -17,6 +17,8 @@ export type MockPostComment = {
 export type CommentRow = MockPostComment & {
   mine: boolean;
   displayName: string | null;
+  isAccepted?: boolean;
+  crossSchool?: boolean;
 };
 
 export type CommentError = { ok: false; status: number; message: string };
@@ -34,6 +36,8 @@ export function conversation(
   maskedNameOf: (id: number) => string | null,
   page = 1,
   limit = 20,
+  acceptedCommentId: number | null = null,
+  crossSchoolOf: (id: number) => boolean = () => false,
 ): CommentRow[] | CommentError {
   if (page < 1) return { ok: false, status: 400, message: 'page must be at least 1' };
   if (limit < 1 || limit > 100) return { ok: false, status: 400, message: 'limit must be between 1 and 100' };
@@ -48,5 +52,7 @@ export function conversation(
     ...c,
     mine: c.authorAccountId === accountId,
     displayName: maskedNameOf(c.authorAccountId),
+    isAccepted: acceptedCommentId != null && c.id === acceptedCommentId,
+    crossSchool: crossSchoolOf(c.authorAccountId),
   }));
 }

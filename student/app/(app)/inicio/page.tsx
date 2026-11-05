@@ -4,6 +4,8 @@ import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
 import { getFeed, loadAuthors } from '@/lib/feed';
 import { listInvitations } from '@/lib/exam-room';
+import { loadSocial } from '@/lib/social';
+import { buildStudyPlan } from '@/lib/study-plan-rules';
 import { MobileInicio, MobileInicioSkeleton } from '@/components/mobile-inicio';
 import { loadFirstConversations } from '@/lib/comments';
 import { FEED_PAGE_SIZE } from '@/lib/feed-pagination';
@@ -38,14 +40,18 @@ export default async function InicioPage() {
   const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
-  const [feed, invResult] = await Promise.all([
+  const [feed, invResult, social] = await Promise.all([
     classId ? getFeed(classId, 1, FEED_PAGE_SIZE) : Promise.resolve(null),
     // `listInvitations` é `cache` do React: o `loadSocial` do cartão e da coluna
     // da direita reaproveitam esta mesma leitura no pedido.
     listInvitations(),
+    loadSocial(me),
   ]);
   const posts = feed?.ok ? feed.data : [];
   const [authors, conversations] = await Promise.all([loadAuthors(posts, me.accountId), loadFirstConversations(posts)]);
+  // Só há plano com uma sala de prova agendada: sem convite do professor não há para
+  // onde apontar o percurso (kixi#728).
+  const studyPlan = buildStudyPlan(social.invitations.ok ? social.invitations.data : [], social.performance);
 
   return (
     <>
@@ -59,6 +65,7 @@ export default async function InicioPage() {
         authors={authors}
         conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
+        studyPlan={studyPlan}
         mobileHighlights={
           <Suspense fallback={<MobileInicioSkeleton />}>
             <MobileInicio me={me} />

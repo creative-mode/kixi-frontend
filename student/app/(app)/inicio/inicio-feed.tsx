@@ -9,6 +9,7 @@ import { RefreshError } from '@/components/refresh-error';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
 import { SalasDeProva } from '@/components/salas-de-prova';
+import { StudyPlanCard } from '@/components/study-plan-card';
 import { EmptyState } from '@/components/states';
 import Link from 'next/link';
 import { phaseOf } from '@/lib/exam-room-rules';
@@ -19,6 +20,7 @@ import { isLastFeedPage, mergeFeedPages } from '@/lib/feed-pagination';
 import type { Invitation } from '@/lib/exam-room-rules';
 import type { FeedPost, PostComment } from '@/lib/feed';
 import type { FeedAuthor } from '@/lib/feed-rules';
+import type { StudyPlan } from '@/lib/study-plan-rules';
 
 /** O centro do início: as salas de prova, o compositor e o feed da turma. Os dados vêm por props:
  *  este ficheiro é cliente e tudo se lê no servidor, com o cookie da sessão (ver ./page.tsx). */
@@ -31,6 +33,7 @@ export function InicioFeed({
   authors = {},
   conversations = {},
   feedError,
+  studyPlan,
   mobileHighlights,
 }: {
   invitations?: Invitation[];
@@ -42,6 +45,8 @@ export function InicioFeed({
   /** As conversas das primeiras publicações, já lidas no servidor: o painel abre sem ir à rede. */
   conversations?: Record<number, PostComment[]>;
   feedError?: string | null;
+  /** O plano até à próxima sala de prova agendada (#728); `null` sem nenhuma por abrir. */
+  studyPlan?: StudyPlan | null;
   /** O progresso do telemóvel (#493), entregue pelo servidor com o seu próprio `Suspense`. */
   mobileHighlights?: React.ReactNode;
 }) {
@@ -100,6 +105,8 @@ export function InicioFeed({
   return (
     <Page className="gap-0 p-0 pb-24 md:pb-10">
       <PageHeader title="Início" className="m-0" />
+
+      {studyPlan && <div className="px-4 pt-3"><StudyPlanCard plan={studyPlan} /></div>}
 
       {mobileHighlights}
 
