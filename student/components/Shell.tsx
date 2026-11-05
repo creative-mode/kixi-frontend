@@ -29,7 +29,7 @@ const ITEMS: (ShellNavItem & { label: string; ariaLabel?: string; icon: IcoName 
 const NO_RAIL = ['/tutor'];
 
 /**
- * A estrutura de rede social: barra lateral à esquerda (só ícones até `xl`), a coluna central de 600 px
+ * A estrutura de rede social: barra lateral à esquerda (com legendas, no computador), a coluna central
  * e a coluna da direita (`rail`, vinda do servidor). No telemóvel: cabeçalho fino e barra de ícones em baixo.
  */
 export function Shell({ children, rail, landingOrigin }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null }) {
@@ -49,10 +49,10 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
         Saltar para o conteúdo
       </a>
 
-      <header className="sticky top-0 hidden above-banner-h w-[72px] shrink-0 flex-col items-center justify-between border-r py-3 md:flex">
-        <div className="grid justify-items-center gap-1">
-          <Link href="/inicio" aria-label="Kixi, início" className="mb-2 grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary"><Logo size={26} /></Link>
-          <nav aria-label="Principal" className="grid justify-items-center gap-1">
+      <header className="sticky top-0 hidden above-banner-h w-[232px] shrink-0 flex-col justify-between border-r px-3 py-3 md:flex">
+        <div className="grid gap-1">
+          <Link href="/inicio" aria-label="Kixi, início" className="mb-2 flex h-12 items-center gap-3 rounded-full px-3 transition-colors hover:bg-secondary"><Logo size={26} wordmark /></Link>
+          <nav aria-label="Principal" className="grid gap-1">
             {ITEMS.map((it) => (
               <Link
                 key={it.href}
@@ -61,15 +61,15 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
                 href={it.href}
                 aria-current={on(it) ? 'page' : undefined}
                 aria-label={it.ariaLabel ?? it.label}
-                title={it.label}
-                className="grid size-12 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:text-primary"
+                className="flex h-12 items-center gap-3 rounded-full px-3 text-[15px] font-semibold text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:text-primary"
               >
-                <Ico name={it.icon} filled={on(it)} size={28} />
+                <Ico name={it.icon} filled={on(it)} size={26} />
+                <span className="truncate">{it.label}</span>
               </Link>
             ))}
           </nav>
         </div>
-        <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil' || path.startsWith('/perfil/')} placement="side" landingOrigin={landingOrigin} />
+        <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil' || path.startsWith('/perfil/')} placement="side" landingOrigin={landingOrigin} wide />
       </header>
 
       <div className="flex min-w-0 flex-1 flex-col">

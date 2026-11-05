@@ -81,7 +81,7 @@ export function Experience({ entries, teacher, own }: { entries: ExperienceEntry
                     <ul className="grid gap-1.5">
                       {detail.records.map((r) => (
                         <li key={r.id}>
-                          <Link prefetch={false} href={`/resultado?prova=${r.id}`} className="px-box grid grid-cols-[1fr_auto] items-center gap-3 p-3 [--px-face:var(--secondary)] hover:[--px-face:var(--accent)]">
+                          <Link prefetch={false} href={`/resultado?prova=${r.id}`} className="px-box grid grid-cols-[1fr_auto] items-center gap-3 p-3 hover:[--px-face:var(--accent)]">
                             <span className="min-w-0"><b className="block truncate text-sm">{r.title}</b><span className="text-[12px] text-muted-foreground">{[r.subject, sinceLabel(r.finishedAt)].filter(Boolean).join(' · ')}</span></span>
                             <b className="text-lg tabular-nums">{r.score === null ? '–' : formatAverage(r.score)}</b>
                           </Link>

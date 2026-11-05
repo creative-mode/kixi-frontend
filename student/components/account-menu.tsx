@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
  * O menu da conta, no avatar da barra: abre o perfil e termina a sessão. É a única porta para o
  * perfil na barra (não há separador "Perfil" a duplicar), e o sítio onde se espera encontrar «Sair».
  */
-export function AccountMenu({ name, photo, placement, landingOrigin }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top'; landingOrigin: string | null }) {
+export function AccountMenu({ name, photo, placement, landingOrigin, wide = false }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top'; landingOrigin: string | null; /** Barra lateral com legendas: o gatilho ganha o nome ao lado do avatar, como os outros itens do menu. */ wide?: boolean }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -64,9 +64,15 @@ export function AccountMenu({ name, photo, placement, landingOrigin }: { name: s
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={cn('grid size-12 place-items-center rounded-full outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40')}
+        className={cn(
+          'outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40',
+          wide
+            ? 'flex h-12 w-full items-center gap-3 rounded-full px-3 text-left text-[15px] font-semibold text-muted-foreground hover:text-foreground'
+            : 'grid size-12 place-items-center rounded-full',
+        )}
       >
-        <UserAvatar name={name} src={photo} size={36} />
+        <UserAvatar name={name} src={photo} size={wide ? 32 : 36} />
+        {wide && <span className="min-w-0 flex-1 truncate">{name}</span>}
       </button>
       {(
         <div
