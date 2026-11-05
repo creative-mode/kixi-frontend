@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nav</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+
+body{margin:0}
+.nt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:52px;text-decoration:none;color:#7a857d;font-size:11.5px;font-weight:600}
+.nt .on{display:none}
+.nt[aria-current="page"]{color:#1f5a2c;font-weight:700}
+.nt[aria-current="page"] .off{display:none}
+.nt[aria-current="page"] .on{display:block}
+.nt:focus-visible{outline:2px solid #1f5a2c;outline-offset:-2px;border-radius:10px}
+@media (prefers-reduced-motion: no-preference){.nt[aria-current="page"] .on{animation:pop .22s ease-out}}
+@keyframes pop{from{transform:scale(.85)}to{transform:scale(1)}}
+
+</style>
+</head>
+<body>
+<nav aria-label="Principal" style="width: 390px; box-sizing: border-box; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px 8px 20px; background: #ffffff; border-top: 1px solid #e9ece6; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;">
+  <a class="nt" href="../inicio/mobile.html" aria-current="page">
+    <svg class="off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>
+    <svg class="on" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.4 9.7 11.4 2.2a1 1 0 0 1 1.2 0l9 7.5a1 1 0 0 1 .4.8V20a2 2 0 0 1-2 2h-5a1 1 0 0 1-1-1v-5h-4v5a1 1 0 0 1-1 1H4a2 2 0 0 1-2-2v-9.5a1 1 0 0 1 .4-.8z"></path></svg>
+    Início
+  </a>
+  <a class="nt" href="../provas/mobile.html" aria-current="false">
+    <svg class="off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6"></path></svg>
+    <svg class="on" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="currentColor"></path><path d="M14 2v6h6" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+    Provas
+  </a>
+  <a class="nt" href="../pesquisa/mobile.html" aria-current="false">
+    <svg class="off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+    <svg class="on" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="currentColor"></circle><circle cx="11" cy="11" r="4.2" fill="#ffffff"></circle><path d="m20.5 20.5-4-4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg>
+    Explorar
+  </a>
+  <a class="nt" href="../turma/mobile.html" aria-current="false">
+    <svg class="off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20a6.5 6.5 0 0 1 13 0"></path><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"></path></svg>
+    <svg class="on" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="7.5" r="4"></circle><path d="M1.5 20.5a7.5 7.5 0 0 1 15 0 1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z"></path><circle cx="17" cy="8" r="3"></circle><path d="M17.8 13.1a6 6 0 0 1 4.7 7.4 1 1 0 0 1-1 .9h-3.3a9 9 0 0 0-3.2-7.6 6 6 0 0 1 2.8-.7z"></path></svg>
+    Turma
+  </a>
+</nav>
+</body>
+</html>

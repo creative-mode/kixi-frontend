@@ -122,6 +122,7 @@ export function InicioFeed({
         <EmptyState title="Ainda não há nada por aqui" message="Sê o primeiro a partilhar uma dúvida ou um tema com a turma." />
       ) : (
         <>
+          <div className="mx-4 mt-4 overflow-hidden rounded-[20px] border bg-card">
           {shown.map((p) => (
             <PostCard
               key={p.id}
@@ -134,6 +135,7 @@ export function InicioFeed({
               myPhoto={photoUrl(me)}
             />
           ))}
+          </div>
           <div className="px-4 py-6">
             {moreError ? (
               <Alert variant="destructive" className="flex flex-wrap items-center justify-between gap-3">

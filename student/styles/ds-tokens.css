@@ -2,10 +2,10 @@
  * Kixi design system · tokens
  * Fonte única das cores, raios e estados. Nomes iguais aos do shadcn/ui, para os componentes (Radix + Tailwind) seguirem o tema sem ajustes.
  * Não editar as cópias em student/styles e app/: edita este ficheiro e corre `npm run ds:sync`.
- * Tema único: claro.
+ * Tema único: claro. Rebranding «nova experiência» (#729): fundo branco, linhas finas, cantos redondos.
  */
 :root,[data-theme='light']{
-  --background:#f6f8f5;
+  --background:#ffffff;
   --foreground:#121c15;
   --card:#ffffff;
   --card-foreground:#121c15;
@@ -13,18 +13,18 @@
   --popover-foreground:#121c15;
   --primary:#1f5a2c;
   --primary-foreground:#ffffff;
-  --secondary:#edf1ea;
+  --secondary:#f5f6f4;
   --secondary-foreground:#1b2a1f;
-  --muted:#edf1ea;
+  --muted:#f5f6f4;
   --muted-foreground:#617066;
-  --accent:#e3efe0;
+  --accent:#f1f6ee;
   --accent-foreground:#1b4d27;
   --destructive:#c2383e;
   --destructive-foreground:#ffffff;
-  --border:#e1e7de;
+  --border:#e4e7e1;
   --input:#cfd8cb;
   --ring:#2a7a3c;
-  --radius:.625rem;
+  --radius:.75rem;
 
   --success:#1f7a3c;
   --success-soft:#e1f2e5;
@@ -44,9 +44,9 @@
   --sidebar-foreground:#121c15;
   --sidebar-primary:#1f5a2c;
   --sidebar-primary-foreground:#ffffff;
-  --sidebar-accent:#e3efe0;
+  --sidebar-accent:#f1f6ee;
   --sidebar-accent-foreground:#1b4d27;
-  --sidebar-border:#e1e7de;
+  --sidebar-border:#e4e7e1;
   --sidebar-ring:#2a7a3c;
 
   --shadow-xs:0 1px 2px rgba(18,28,21,.05);

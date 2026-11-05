@@ -14,9 +14,9 @@ import type { Me } from '@/lib/types';
 /** Um módulo da coluna da direita: caixa cinza-verde clara, título grande e ligação opcional. */
 function Module({ title, href, linkLabel = 'Ver tudo', children }: { title: string; href?: string; linkLabel?: string; children: React.ReactNode }) {
   return (
-    <section className="px-box shrink-0 py-3 [--px-edge:#d3dccf] [--px-face:var(--secondary)]">
+    <section className="shrink-0 rounded-[20px] border bg-card py-4">
       <div className="flex items-baseline justify-between gap-2 px-4 pb-2">
-        <h2 className="text-xl font-extrabold tracking-tight">{title}</h2>
+        <h2 className="text-[13px] font-bold tracking-[.04em] text-muted-foreground uppercase">{title}</h2>
         {href && <Link href={href} className="text-[14px] font-semibold text-primary hover:underline">{linkLabel}</Link>}
       </div>
       <div className="grid gap-3 px-4">{children}</div>

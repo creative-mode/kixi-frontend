@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
  * O menu da conta, no avatar da barra: abre o perfil e termina a sessão. É a única porta para o
  * perfil na barra (não há separador "Perfil" a duplicar), e o sítio onde se espera encontrar «Sair».
  */
-export function AccountMenu({ name, photo, placement, landingOrigin }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top'; landingOrigin: string | null }) {
+export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top'; landingOrigin: string | null; subtitle?: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -64,9 +64,15 @@ export function AccountMenu({ name, photo, placement, landingOrigin }: { name: s
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={cn('grid size-12 place-items-center rounded-full outline-none hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40')}
+        className={cn('outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40', placement === 'side' ? 'flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-secondary' : 'grid size-12 place-items-center rounded-full hover:bg-secondary')}
       >
-        <UserAvatar name={name} src={photo} size={36} />
+        <UserAvatar name={name} src={photo} size={placement === 'side' ? 38 : 32} />
+        {placement === 'side' && (
+          <span className="flex min-w-0 flex-col">
+            <strong className="truncate text-sm">{name}</strong>
+            {subtitle && <span className="truncate text-[13px] text-muted-foreground">{subtitle}</span>}
+          </span>
+        )}
       </button>
       {(
         <div
@@ -78,7 +84,7 @@ export function AccountMenu({ name, photo, placement, landingOrigin }: { name: s
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
           }}
-          className={cn('rise absolute z-50 w-60 overflow-hidden border bg-background shadow-lg', placement === 'side' ? 'bottom-0 left-full ml-2' : 'left-0 top-full mt-1')}
+          className={cn('rise absolute z-50 w-60 overflow-hidden rounded-2xl border bg-background shadow-lg', placement === 'side' ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-1')}
         >
           <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
             <Ico name="user" size={22} />O meu perfil

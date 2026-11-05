@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tutor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+
+body{margin:0}
+*{scrollbar-width:none}*::-webkit-scrollbar{display:none}
+.rola{overflow-y:auto;overscroll-behavior:contain;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 10px,#000 calc(100% - 28px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 10px,#000 calc(100% - 28px),transparent 100%)}
+.rola-x{overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent)}
+.rola-x > *{scroll-snap-align:start}
+a{color:#1f5a2c}a:hover{color:#2a7a3c}
+button{font:inherit;cursor:pointer}
+.sug{flex-shrink:0;height:40px;padding:0 14px;border-radius:999px;border:1px solid #dde3da;background:#ffffff;color:#23332a;font-weight:600;font-size:14px}
+
+</style>
+</head>
+<body>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; color: #121c15; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; overflow: hidden;">
+
+  <header style="display: flex; align-items: center; gap: 6px; padding: 8px 12px 8px 8px; border-bottom: 1px solid #edf0eb;">
+    <a href="../resultado/mobile.html" aria-label="Voltar à correção" style="width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #121c15;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+    </a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+      <strong style="font-size: 16px;">Tutor</strong>
+      <span style="font-size: 12px; color: #617066;">Sobre a questão 3 do treino de Lei de Ohm</span>
+    </div>
+  </header>
+
+  <main class="rola" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 18px; padding: 18px 16px;">
+
+    <div style="align-self: flex-end; max-width: 82%; padding: 12px 14px; border-radius: 18px 18px 6px 18px; background: #eef0ec; font-size: 15px; line-height: 1.5;">Porque é que a corrente é 0,5 A e não 1 A? Não percebi.</div>
+
+    <div style="display: flex; gap: 10px;">
+      <span aria-hidden="true" style="flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: #eef0ec; display: flex; align-items: center; justify-content: center;">
+        <svg viewBox="0 0 24 20" width="18" height="15" shape-rendering="crispEdges"><path d="M12 0h1v1h-1zM10 1h3v1h-3zM8 2h5v8h-5zM8 9h6v1h-6zM7 10h7v2h-7zM6 12h10v2h-10zM5 14h14v1h-14zM4 15h18v1h-18zM3 16h21v1h-21zM3 17h4v1h-4zM14 17h9v1h-9z" fill="#1f5a2c"></path></svg>
+      </span>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; font-size: 15px; line-height: 1.6;">
+        <p style="margin: 0;">Boa pergunta. O truque está em ver por onde a corrente passa.</p>
+        <p style="margin: 0;">As duas resistências de 12 Ω estão em <strong>paralelo</strong>, por isso a corrente de 1 A divide-se em duas partes iguais:</p>
+        <div style="border-radius: 14px; background: #f6f7f5; border: 1px solid #e6e9e3; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-variant-numeric: tabular-nums;">
+          <span>I em cada ramo = 1 A ÷ 2 = <strong>0,5 A</strong></span>
+          <span>V = R × I = 3 Ω × 0,5 A = <strong>1,5 V</strong></span>
+        </div>
+        <p style="margin: 0;">Usaste 1 A, que é a corrente total antes de se dividir. Daí os 3 V.</p>
+        <a href="../provas/mobile.html" style="align-self: flex-start; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #617066; text-decoration: none; padding: 6px 0;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6"></path></svg>
+          Com base no exame de Física de 2024, questão 3
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <div class="rola-x" style="display: flex; gap: 8px; padding: 0 16px 10px; scroll-padding-left: 16px;">
+    <button type="button" class="sug">Dá-me uma parecida</button>
+    <button type="button" class="sug">Explica com um esquema</button>
+  </div>
+
+  <form style="display: flex; gap: 8px; align-items: center; padding: 10px 12px 14px; border-top: 1px solid #edf0eb;">
+    <label for="pergunta" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Pergunta ao tutor</label>
+    <input id="pergunta" type="text" placeholder="Pergunta outra coisa" style="flex: 1; min-width: 0; height: 48px; border: 1px solid #dde3da; border-radius: 999px; padding: 0 18px; font: inherit; font-size: 15px; color: #121c15; background: #ffffff;">
+    <button type="submit" aria-label="Enviar" style="flex-shrink: 0; width: 48px; height: 48px; border: 0; border-radius: 50%; background: #1f5a2c; color: #ffffff; display: flex; align-items: center; justify-content: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+    </button>
+  </form>
+</div>
+</body>
+</html>

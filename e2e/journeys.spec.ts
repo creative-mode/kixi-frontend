@@ -2170,7 +2170,7 @@ test.describe('navegação do telemóvel (#704)', () => {
     const barra = page.getByTestId('nav-mobile');
     const itens = barra.getByRole('link');
     await expect(itens).toHaveCount(4);
-    for (const nome of ['Início', 'Provas', 'Ranking', 'Tutor']) {
+    for (const nome of ['Início', 'Provas', 'Explorar', 'Turma']) {
       await expect(barra.getByRole('link', { name: nome })).toBeVisible();
     }
     await expect(barra.getByRole('link', { name: 'Pautas' })).toHaveCount(0);

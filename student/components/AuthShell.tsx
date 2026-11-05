@@ -29,9 +29,9 @@ export function AuthShell({
   children: React.ReactNode;
 }) {
   const landing = backToLanding ? landingHref() : null;
-  const logo = <Logo size={28} wordmark />;
+  const logo = <Logo size={33} wordmark />;
   return (
-    <main className="relative flex above-banner-min-h flex-col items-center justify-center gap-8 px-6 pt-10 pb-32">
+    <main className="relative flex above-banner-min-h flex-col items-center justify-center gap-6 px-6 pt-10 pb-32 sm:px-12">
       {landing ? (
         <a
           href={landing}
@@ -46,13 +46,13 @@ export function AuthShell({
           {logo}
         </a>
       ) : logo}
-      <div className="grid w-full max-w-[400px] gap-6 px-box p-6 sm:p-8">
-        <div className="grid gap-1.5">
-          <h1 className="text-2xl leading-tight font-bold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground">{lead}</p>
+      <div className="grid w-full max-w-[380px] gap-6">
+        <div className="grid gap-1.5 text-center">
+          <h1 className="text-[26px] leading-tight font-extrabold tracking-tight">{title}</h1>
+          <p className="text-[15px] text-muted-foreground">{lead}</p>
         </div>
         {notice ? (
-          <div role="status" className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-foreground">
+          <div role="status" className="flex items-start gap-2 rounded-xl border border-primary/30 bg-accent p-3 text-sm text-foreground">
             <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>{notice}</span>
           </div>

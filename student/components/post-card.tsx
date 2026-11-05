@@ -167,29 +167,32 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post.id]);
 
-  const act = 'h-11 min-w-11 gap-1.5 px-3 text-muted-foreground aria-expanded:text-primary';
+  const act = 'h-9 min-w-9 gap-1.5 rounded-full px-3 text-[13px] font-bold text-muted-foreground hover:bg-secondary aria-expanded:bg-accent aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
   const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
 
   return (
-    <article ref={card} className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
-      <UserAvatar name={author.name} src={author.photo} size={44} />
-      <div className="min-w-0 flex-1">
-        <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">
-          {author.mine ? (
-            <span className="font-bold">{author.name}</span>
-          ) : (
-            <Link prefetch={false} href={`/u/${post.authorAccountId}`} className="inline-flex min-h-6 items-center font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
-          )}
-          {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
-          {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={16} /></span>}
-          {isPublishing
-            ? <span role="status" aria-live="polite" className="text-[14px] text-muted-foreground">· A publicar…</span>
-            : <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>}
-          <span title={typeLabel} role="img" aria-label={typeLabel} className="ml-auto grid size-7 place-items-center rounded-full bg-secondary text-muted-foreground">{studyTip ? <Lightbulb size={16} aria-hidden /> : <Ico name={post.type === 'doubt' ? 'chat' : post.type === 'simulation' || post.type === 'milestone' ? 'award' : post.type === 'challenge' ? 'flame' : 'file'} size={16} />}</span>
+    <article ref={card} className="rise border-t border-border px-6 py-5 first:border-t-0">
+      <div className="min-w-0">
+        <header className="flex items-center gap-3">
+          <UserAvatar name={author.name} src={author.photo} size={38} />
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="flex flex-wrap items-center gap-x-1.5">
+              {author.mine ? (
+                <span className="text-sm font-bold">{author.name}</span>
+              ) : (
+                <Link prefetch={false} href={`/u/${post.authorAccountId}`} className="inline-flex min-h-6 items-center text-sm font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
+              )}
+              {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
+              {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={15} /></span>}
+            </span>
+            {isPublishing
+              ? <span role="status" aria-live="polite" className="text-[13px] font-semibold text-muted-foreground">A publicar…</span>
+              : <span className="text-[13px] font-semibold text-muted-foreground">{typeLabel} · {sinceLabel(post.createdAt) ?? ''}</span>}
+          </div>
         </header>
-        <div className="mt-1 grid gap-2.5">
-          {post.title && <h3 className="font-semibold">{post.title}</h3>}
+        <div className="mt-3 grid gap-2.5">
+          {post.title && <h3 className="text-[15px] font-bold leading-snug">{post.title}</h3>}
           {post.simulation && (
             <SimulationCard
               card={post.simulation}
@@ -210,19 +213,19 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             : post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
         </div>
 
-        <div className="-ml-3 mt-1 flex items-center gap-1 py-0.5">
+        <div className="-ml-2.5 mt-2 flex items-center gap-0.5">
           <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
-            <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={24} className={cn(reaction.reacted && 'pop')} />
+            <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={18} className={cn(reaction.reacted && 'pop')} />
           </Button>
           <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
-            <Ico name="chat" filled={open} size={24} /><span className="min-w-3 text-[14px] tabular-nums">{count}</span>
+            <Ico name="chat" filled={open} size={18} /><span className="min-w-3 tabular-nums">{count}</span>
           </Button>
           <Button
-            variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
+            variant="ghost" size="icon" className="ml-auto size-9 rounded-full text-muted-foreground aria-pressed:text-destructive"
             aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported}
             onClick={() => setReporting((v) => !v)}
           >
-            <Ico name="flag" filled={reporting || reported} size={22} />
+            <Ico name="flag" filled={reporting || reported} size={18} />
           </Button>
         </div>
 

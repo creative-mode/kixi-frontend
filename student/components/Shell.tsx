@@ -6,7 +6,7 @@ import { Ico, type IcoName } from '@/components/ui/ico';
 import { AccountMenu } from './account-menu';
 import { Logo } from './brand';
 import { NavProgress } from './nav-progress';
-import { fullName, photoUrl } from '@/lib/profile';
+import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { useMe } from '@/lib/me-context';
 import { cn } from '@/lib/utils';
 import { mobileNavItems, type ShellNavItem } from '@/lib/shell-nav';
@@ -19,10 +19,10 @@ import { mobileNavItems, type ShellNavItem } from '@/lib/shell-nav';
 const ITEMS: (ShellNavItem & { label: string; ariaLabel?: string; icon: IcoName })[] = [
   { href: '/inicio', label: 'Início', icon: 'home', also: [] },
   { href: '/provas', label: 'Provas', icon: 'file', also: ['/prova', '/resultado', '/sala'] },
-  { href: '/ranking', label: 'Ranking', icon: 'trophy', also: [] },
+  { href: '/pesquisa', label: 'Explorar', ariaLabel: 'Pesquisar escolas, professores e alunos', icon: 'search', also: ['/escola', '/u'] },
+  { href: '/ranking', label: 'Turma', icon: 'trophy', also: [] },
+  { href: '/tutor', label: 'Tutor', icon: 'chat', also: [], mobileHidden: true },
   { href: '/pautas', label: 'Pautas', icon: 'award', also: [], mobileHidden: true },
-  { href: '/tutor', label: 'Tutor', icon: 'chat', also: [] },
-  { href: '/pesquisa', label: 'Pesquisar', ariaLabel: 'Pesquisar escolas, professores e alunos', icon: 'search', also: [], desktopOnly: true },
 ];
 
 /** Páginas onde a coluna da direita atrapalha: conversa com o tutor, que precisa de largura. */
@@ -49,10 +49,10 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
         Saltar para o conteúdo
       </a>
 
-      <header className="sticky top-0 hidden above-banner-h w-[72px] shrink-0 flex-col items-center justify-between border-r py-3 md:flex">
-        <div className="grid justify-items-center gap-1">
-          <Link href="/inicio" aria-label="Kixi, início" className="mb-2 grid size-12 place-items-center rounded-full transition-colors hover:bg-secondary"><Logo size={26} /></Link>
-          <nav aria-label="Principal" className="grid justify-items-center gap-1">
+      <header className="sticky top-0 hidden above-banner-h w-[232px] shrink-0 flex-col justify-between gap-7 px-4 py-7 md:flex">
+        <div className="grid gap-7">
+          <Link href="/inicio" aria-label="Kixi, início" className="flex items-center py-1 pl-3.5"><Logo size={24} wordmark /></Link>
+          <nav aria-label="Principal" className="grid gap-0.5">
             {ITEMS.map((it) => (
               <Link
                 key={it.href}
@@ -61,30 +61,29 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
                 href={it.href}
                 aria-current={on(it) ? 'page' : undefined}
                 aria-label={it.ariaLabel ?? it.label}
-                title={it.label}
-                className="grid size-12 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:text-primary"
+                className="flex h-[46px] items-center gap-3.5 rounded-xl px-3.5 text-[15px] font-semibold text-[#3d4a41] outline-none transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-accent aria-[current=page]:font-bold aria-[current=page]:text-primary"
               >
-                <Ico name={it.icon} filled={on(it)} size={28} />
+                <Ico name={it.icon} filled={on(it)} size={22} />
+                {it.label}
               </Link>
             ))}
           </nav>
         </div>
-        <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil' || path.startsWith('/perfil/')} placement="side" landingOrigin={landingOrigin} />
+        <AccountMenu name={name} photo={photoUrl(me)} subtitle={contextLine(me)} active={path === '/perfil' || path.startsWith('/perfil/')} placement="side" landingOrigin={landingOrigin} />
       </header>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 bg-background/90 px-5 backdrop-blur md:hidden">
+          <Link href="/inicio" aria-label="Kixi, início" className="grid min-h-11 place-items-center"><Logo size={26} wordmark /></Link>
           <AccountMenu name={name} photo={photoUrl(me)} active={path === '/perfil'} placement="top" landingOrigin={landingOrigin} />
-          <Link href="/inicio" aria-label="Kixi, início" className="grid min-h-11 place-items-center px-2"><Logo size={22} wordmark /></Link>
-          <Link href="/pesquisa" data-press aria-label="Pesquisar escolas, professores e alunos" title="Pesquisar" className="grid size-12 place-items-center rounded-full hover:bg-secondary"><Ico name="search" size={26} /></Link>
         </header>
 
         <div className="flex min-w-0 flex-1">
-          <main id="conteudo" tabIndex={-1} className={cn('min-w-0 flex-1 outline-none md:border-r', !showRail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/')) && 'md:max-w-[760px]')}>
+          <main id="conteudo" tabIndex={-1} className={cn('mx-auto min-w-0 w-full max-w-[728px] flex-1 outline-none md:px-6')}>
             {children}
           </main>
           {showRail && (
-            <aside aria-label="Destaques" className="sticky top-0 hidden above-banner-h w-[380px] shrink-0 overflow-y-auto px-4 py-3 [scrollbar-width:none] lg:block">
+            <aside aria-label="Destaques" className="sticky top-0 hidden above-banner-h w-[340px] shrink-0 overflow-y-auto py-7 pr-6 [scrollbar-width:none] xl:block">
               <div className="grid gap-4 pb-8">{rail}</div>
             </aside>
           )}
@@ -95,11 +94,11 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
           São sempre 4 itens (`mobileNavItems`) num `grid-cols-4`: um quinto partiria o último para outra linha (#704).
           O texto fica visível e o item ativo tem fundo e negrito, não só cor (#511); o rótulo de 11 px usa a cor
           do texto, não a atenuada, para ter contraste por cima do fundo translúcido da barra. */}
-      <nav aria-label="Principal" data-testid="nav-mobile" className="fixed inset-x-0 bottom-[var(--ck-banner-h,0px)] z-30 grid grid-cols-4 border-t bg-background/95 px-1 pt-1 pb-[calc(4px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+      <nav aria-label="Principal" data-testid="nav-mobile" className="fixed inset-x-0 bottom-[var(--ck-banner-h,0px)] z-30 grid grid-cols-4 border-t bg-background px-2 pt-1.5 pb-[calc(8px+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         {mobileNavItems(ITEMS).map((it) => (
-          <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} className="group grid min-h-14 min-w-0 place-items-center gap-0.5 rounded-md text-muted-foreground aria-[current=page]:bg-primary/10 aria-[current=page]:font-semibold aria-[current=page]:text-primary">
+          <Link key={it.href} prefetch data-press href={it.href} aria-current={on(it) ? 'page' : undefined} className="group grid min-h-14 min-w-0 place-items-center gap-0.5 rounded-xl text-muted-foreground aria-[current=page]:font-bold aria-[current=page]:text-primary">
             <Ico name={it.icon} filled={on(it)} size={24} />
-            <span className="text-[11px] leading-tight text-foreground group-aria-[current=page]:text-primary">{it.label}</span>
+            <span className="text-[11px] font-semibold leading-tight text-foreground group-aria-[current=page]:text-primary">{it.label}</span>
           </Link>
         ))}
       </nav>
