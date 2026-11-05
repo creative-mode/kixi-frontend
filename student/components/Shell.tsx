@@ -49,7 +49,11 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
         Saltar para o conteúdo
       </a>
 
-      <header className="sticky top-0 hidden above-banner-h w-[232px] shrink-0 flex-col justify-between border-r px-3 py-3 md:flex">
+      {/* `z-20` (#728): sem isto, o menu da conta (nascido aqui dentro, com `z-50` só relativo aos
+          seus irmãos) perde o empate de pintura contra a coluna central — que não tem `z-index`
+          mas vem depois no DOM — sempre que se estica para lá da barra, como acontece agora que
+          mostra legendas e fica mais larga. */}
+      <header className="sticky top-0 z-20 hidden above-banner-h w-[232px] shrink-0 flex-col justify-between border-r px-3 py-3 md:flex">
         <div className="grid gap-1">
           <Link href="/inicio" aria-label="Kixi, início" className="mb-2 flex h-12 items-center gap-3 rounded-full px-3 transition-colors hover:bg-secondary"><Logo size={26} wordmark /></Link>
           <nav aria-label="Principal" className="grid gap-1">
