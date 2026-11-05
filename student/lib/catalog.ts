@@ -39,6 +39,9 @@ export interface CatalogItem {
   title: string;
   subject: string;
   school: string;
+  /** O id da escola do enunciado (#728): o Explorar precisa dele para separar o que é
+   *  "da tua escola" do que é de outra, o que o nome sozinho não garante. */
+  schoolId: number | null;
   year: string;
   state: ExamState;
   score?: string;
@@ -153,6 +156,7 @@ export async function getCatalog(
       title: s.title || 'Sem título',
       subject: s.subjectId == null ? '' : (subjectById.get(s.subjectId) ?? ''),
       school: s.institutionId == null ? '' : (schoolById.get(s.institutionId) ?? ''),
+      schoolId: s.institutionId ?? null,
       year: s.schoolYearId == null ? '' : (yearById.get(s.schoolYearId) ?? ''),
       state: !attempt ? 'new' : finished ? 'done' : 'progress',
       score: finished ? formatScore(attempt?.finalScore) : undefined,

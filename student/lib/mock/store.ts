@@ -425,6 +425,11 @@ export function seed(): Store {
       { id: 5, title: 'Organização e Gestão Industrial', examType: 'Exame', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 90, totalMaxScore: 20, variant: 'B', source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
       // Nunca publicada: tem de dar 404 como se não existisse.
       { id: 4, title: 'Rascunho por publicar', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 10, variant: null, source: 'OCR', needsReview: true, ocrConfidence: 0.62, visible: false },
+      // Da outra escola (ISPTEC), na mesma disciplina de Redes: dá à secção "Para a tua
+      // prova de X" do Explorar (#728) o que mostrar — o ponto da secção é precisamente
+      // um enunciado que a própria escola do aluno nunca publicou.
+      { id: 6, title: 'Endereçamento IP e Sub-redes', examType: 'Exame', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 2, classId: 6, durationMinutes: 90, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
+      { id: 7, title: 'Protocolos de Encaminhamento', examType: 'Prova', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 2, classId: 6, durationMinutes: 60, totalMaxScore: 20, variant: null, source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
     ],
     questions: [
       {
