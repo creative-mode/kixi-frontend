@@ -24,6 +24,7 @@ import {
   type ExamQuestion,
 } from '@/lib/exam-rules';
 import type { RoomData } from '@/lib/exam';
+import { TreinoCorrecao } from '@/components/treino-correcao';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -951,6 +952,17 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                 )}
                 <p className="text-[13px] text-muted-foreground">As respostas abertas são corrigidas pelo professor.</p>
               </div>
+            )}
+
+            {!data.roomId && isChoice(current) && !closed && (
+              <TreinoCorrecao
+                key={`${current.id}-${drafts[current.id]?.optionId ?? 'x'}`}
+                simulationId={data.simulationId}
+                questionId={current.id}
+                optionId={drafts[current.id]?.optionId ?? null}
+                hasNext={index < questions.length - 1}
+                onNext={() => setIndex(index + 1)}
+              />
             )}
 
             <div aria-live="polite" role="status" className="flex min-h-5 flex-wrap items-center gap-2 text-sm text-muted-foreground">

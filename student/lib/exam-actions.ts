@@ -3,7 +3,7 @@
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
-import { getStatementFull, myAccountId, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
+import { checkQuestion, getStatementFull, myAccountId, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 import { isIntegrityKind, type IntegrityKind } from './integrity';
@@ -164,4 +164,15 @@ export async function registarEventoAction(input: EventoInput): Promise<{ ok: bo
 
   const result = await saveIntegrityEvent(simulationId, input.kind, id(input.questionId));
   return { ok: result.ok };
+}
+
+/** Treino: a correção de uma questão, logo a seguir à resposta. Uma sala de prova responde 403 e o botão nem aparece. */
+export async function verificarAction(simulationId: number, questionId: number, optionId: number | null): Promise<
+  | { ok: true; correct: boolean | null; correctOptionId: number | null; explanation: string | null }
+  | { ok: false; message: string }
+> {
+  await requireStudent();
+  const result = await checkQuestion(simulationId, questionId, optionId);
+  if (!result.ok) return { ok: false, message: result.status === 403 ? 'Esta prova não mostra a correção.' : translateError(result.message) };
+  return { ok: true, correct: result.data.correct, correctOptionId: result.data.correctOptionId, explanation: result.data.explanation };
 }
