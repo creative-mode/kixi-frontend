@@ -2,6 +2,8 @@ import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
 import { getFeed, loadAuthors } from '@/lib/feed';
+import { MobileInicio, MobileInicioSkeleton } from '@/components/mobile-inicio';
+import { Suspense } from 'react';
 import { ProximaProva } from '@/components/proxima-prova';
 import { loadSocial } from '@/lib/social';
 import { loadFirstConversations } from '@/lib/comments';
@@ -54,6 +56,7 @@ export default async function InicioPage() {
         authors={authors}
         conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
+        mobileHighlights={<Suspense fallback={<MobileInicioSkeleton />}><MobileInicio me={me} /></Suspense>}
         topo={<ProximaProva invitations={social.invitations.ok ? social.invitations.data : []} data={social} serverNow={Date.now()} />}
       />
     </>

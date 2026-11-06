@@ -58,7 +58,7 @@ export function PerfilView({
   startEditing?: boolean;
 }) {
   const [editing, setEditing] = useState(startEditing);
-  const [tab, setTab] = useState<ProfileTab>(initialTab === 'Experiência' ? 'Conquistas' : initialTab);
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
   const reduceMotion = useReduceMotion();
   const close = useCallback(() => setEditing(false), []);
 
@@ -68,7 +68,7 @@ export function PerfilView({
 
   const lbl = 'm-0 mb-3 text-[13px] font-bold tracking-[.04em] text-[#617066] uppercase';
   const mut = 'text-sm text-[#617066]';
-  const tabs: ProfileTab[] = ['Publicações', 'Conquistas', 'Definições'];
+  const tabs: ProfileTab[] = ['Publicações', 'Experiência', 'Conquistas', 'Definições'];
 
   return (
     <div className="flex w-full flex-col items-center pb-28 md:max-w-[480px] md:self-center md:pb-12 mx-auto">
@@ -111,7 +111,7 @@ export function PerfilView({
         ))}
       </div>
 
-      <div className="mt-6 w-full px-4 md:px-0">
+      <div role="tabpanel" aria-label={tab} className="mt-6 w-full px-4 md:px-0">
         {tab === 'Publicações' && (
           <section aria-label="Publicações" className="flex flex-col">
             {feedError ? (
@@ -139,7 +139,7 @@ export function PerfilView({
               </div>
             ))}
 
-            <h2 className={`${lbl} mt-6`}>Domínio por disciplina</h2>
+            <h2 className={`${lbl} mt-6`}>Domínio por prova</h2>
             {performance.mastery.length === 0 ? (
               <p className={mut}>Entrega uma prova para veres aqui o teu domínio.</p>
             ) : (
@@ -162,6 +162,11 @@ export function PerfilView({
                 <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c] tabular-nums">{item.score}</span>
               </div>
             ))}
+          </section>
+        )}
+
+        {tab === 'Experiência' && (
+          <section aria-label="Experiência">
             <Experience entries={experience} teacher={false} own />
           </section>
         )}

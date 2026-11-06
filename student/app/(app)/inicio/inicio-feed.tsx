@@ -26,6 +26,7 @@ export function InicioFeed({
   conversations = {},
   feedError,
   topo,
+  mobileHighlights,
 }: {
   myAccountId: number | null;
   classId: number | null;
@@ -36,6 +37,8 @@ export function InicioFeed({
   feedError?: string | null;
   /** O cartão da próxima prova, entregue pelo servidor. */
   topo?: React.ReactNode;
+  /** O progresso do telemóvel (#493), entregue pelo servidor com o seu próprio `Suspense`. */
+  mobileHighlights?: React.ReactNode;
 }) {
   const me = useMe();
   // As páginas seguintes ficam ao lado da primeira: a lista do servidor continua a ser a
@@ -85,7 +88,9 @@ export function InicioFeed({
   };
   return (
     <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-3 pb-24 md:gap-5 md:px-0 md:pt-7 md:pb-10">
+      <h1 className="sr-only">Início</h1>
       <div className="md:hidden">{topo}</div>
+      {mobileHighlights}
       {classId && (
         <Link href="/publicar" className="flex items-center gap-3 rounded-full border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
           <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />

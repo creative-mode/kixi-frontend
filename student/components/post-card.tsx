@@ -187,6 +187,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
               ? <span role="status" aria-live="polite" className="text-[13px] font-semibold text-muted-foreground">A publicar…</span>
               : <span className="lbl">{typeLabel}, {sinceLabel(post.createdAt) ?? ''}</span>}
           </div>
+          <span role="img" aria-label={typeLabel} title={typeLabel} className="sr-only" />
         </header>
         <div className="mt-[11px] grid gap-2.5">
           {post.title && <h3 className="text-[15px] font-bold leading-normal">{post.title}</h3>}
@@ -211,8 +212,8 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </div>
 
         <span className="acoes">
-          <button type="button" className="acao" aria-expanded={open} aria-label={`Responder, ${count} ${count === 1 ? 'resposta' : 'respostas'}`} title="Responder" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 1 4 7.5L3 21l1.6-4.3A8.96 8.96 0 0 1 3 12Z" /></svg>{count}</button>
-          <button type="button" className="acao" aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Útil, tocar para retirar' : 'Marcar como útil'} title="Útil" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 11v9H4v-9zm0 0 4-7a2 2 0 0 1 3.6 1.7L13 10h5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H9a2 2 0 0 1-2-2" /></svg>{reaction.reacted ? 1 : ''}</button>
+          <button type="button" className="acao" aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 1 4 7.5L3 21l1.6-4.3A8.96 8.96 0 0 1 3 12Z" /></svg>{count}</button>
+          <button type="button" className="acao" aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 11v9H4v-9zm0 0 4-7a2 2 0 0 1 3.6 1.7L13 10h5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H9a2 2 0 0 1-2-2" /></svg>{reaction.reacted ? 1 : ''}</button>
           <button type="button" className="acao ml-auto" aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported} onClick={() => setReporting((v) => !v)}>
             <Ico name="flag" filled={reporting || reported} size={15} />
           </button>

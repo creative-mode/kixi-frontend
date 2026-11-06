@@ -182,11 +182,14 @@ export function PostBuilder({ classId }: { classId: number }) {
         </div>
       </header>
 
-      <div role="radiogroup" aria-label="Que publicação queres criar?" className="mt-4 flex flex-wrap gap-2">
+      <fieldset className="m-0 mt-4 flex flex-wrap gap-2 border-0 p-0"><legend className="sr-only">Que publicação queres criar?</legend>
         {TEMPLATES.map((t) => (
-          <button key={t.kind} type="button" role="radio" aria-checked={template.kind === t.kind} title={t.hint} onClick={() => choose(t)} className={cn('h-10 rounded-full border px-4 text-sm font-bold', template.kind === t.kind ? 'border-[#1f5a2c] bg-[#1f5a2c] text-white' : 'border-[#dde3da] bg-white text-[#3d4a41]')}>{t.label}</button>
+          <label key={t.kind} title={t.hint} className={cn('flex h-10 cursor-pointer items-center rounded-full border px-4 text-sm font-bold has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/40', template.kind === t.kind ? 'border-[#1f5a2c] bg-[#1f5a2c] text-white' : 'border-[#dde3da] bg-white text-[#3d4a41]')}>
+            <input type="radio" name="modelo" className="sr-only" checked={template.kind === t.kind} onChange={() => choose(t)} />
+            {t.label}
+          </label>
         ))}
-      </div>
+      </fieldset>
       <p className="mt-2 text-[13px] text-[#617066]">{template.hint}</p>
 
       <label className="sr-only" htmlFor="pb-titulo">Título (opcional)</label>

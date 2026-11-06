@@ -6,7 +6,6 @@ import { AccountMenu } from './account-menu';
 import { NavProgress } from './nav-progress';
 import { NavIcon, type NavIconName } from './nav-icons';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
-import { UserAvatar } from './user-avatar';
 import { useMe } from '@/lib/me-context';
 import { cn } from '@/lib/utils';
 import { mobileNavItems, type ShellNavItem } from '@/lib/shell-nav';
@@ -18,12 +17,12 @@ const ITEMS: (ShellNavItem & { label: string; ariaLabel?: string; icon: NavIconN
   { href: '/inicio', label: 'Início', icon: 'inicio', also: [] },
   { href: '/provas', label: 'Provas', icon: 'provas', also: ['/prova', '/resultado', '/sala', '/tutor'] },
   { href: '/pesquisa', label: 'Explorar', ariaLabel: 'Pesquisar escolas, professores e alunos', icon: 'explorar', also: ['/escola', '/u'] },
-  { href: '/ranking', label: 'Turma', icon: 'turma', also: ['/pautas', '/discussao'] },
+  { href: '/turma', label: 'Turma', icon: 'turma', also: ['/ranking', '/pautas', '/discussao'] },
   { href: '/notificacoes', label: 'Notificações', icon: 'notificacoes', also: [], desktopOnly: true },
 ];
 
 /** Páginas onde a coluna da direita atrapalha: conversa com o tutor, que precisa de largura. */
-const NO_RAIL = ['/tutor', '/notificacoes', '/perfil', '/provas/preparar', '/ranking', '/publicar', '/discussao'];
+const NO_RAIL = ['/tutor', '/notificacoes', '/perfil', '/provas/preparar', '/turma', '/ranking', '/publicar', '/discussao'];
 
 const SHIP =
   'M12 0h1v1h-1zM10 1h3v1h-3zM8 2h5v1h-5zM8 3h5v1h-5zM8 4h5v1h-5zM8 5h5v1h-5zM8 6h5v1h-5zM8 7h5v1h-5zM8 8h5v1h-5zM8 9h6v1h-6zM7 10h7v1h-7zM7 11h8v1h-8zM6 12h10v1h-10zM6 13h11v1h-11zM5 14h14v1h-14zM4 15h18v1h-18zM3 16h21v1h-21zM3 17h4v1h-4zM14 17h9v1h-9zM1 18h2v1h-2zM17 18h5v1h-5zM19 19h1v1h-1z';
@@ -83,18 +82,16 @@ export function Shell({ children, rail, landingOrigin, unread = 0 }: { children:
       </header>
 
       <div className="flex min-w-0 flex-1 flex-col md:flex-[999_1_560px]">
-        {/* Telemóvel */}
-        <header className="flex items-center gap-1 pt-2 pr-3 pl-5 md:hidden">
-          <Link href="/inicio" aria-label="Kixi, início" className="mr-auto flex items-center py-1">
+        {/* Telemóvel: a nave, o sino e o avatar, que abre o menu da conta (perfil, privacidade, cookies, terminar sessão). */}
+        <header className="sticky top-0 z-20 flex items-center gap-1 bg-white pt-2 pr-3 pl-5 md:hidden">
+          <Link href="/inicio" aria-label="Kixi, início" className="mr-auto grid min-h-12 place-items-center py-1">
             <svg viewBox="0 0 24 20" width="34" height="28" shapeRendering="crispEdges" aria-hidden="true"><path d={SHIP} fill="#1f5a2c" /></svg>
           </Link>
           <Link href="/notificacoes" data-press aria-label={unread > 0 ? `Notificações, ${unread} novas` : 'Notificações'} className="relative grid size-12 place-items-center rounded-full text-[#121c15]">
             <NavIcon name="notificacoes" size={22} />
             {unread > 0 && <span className="absolute top-3 right-3 size-[7px] rounded-full bg-[#c2383e]" />}
           </Link>
-          <Link href="/perfil" data-press aria-label="O teu perfil" aria-current={profileActive ? 'page' : undefined} className="grid size-12 place-items-center rounded-full">
-            <UserAvatar name={name} src={photoUrl(me)} size={32} />
-          </Link>
+          <AccountMenu name={name} photo={photoUrl(me)} active={profileActive} placement="top" landingOrigin={landingOrigin} />
         </header>
 
         <div className="flex min-w-0 flex-1">

@@ -225,12 +225,12 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-[15px] font-semibold text-[#1f5a2c]">{view.title}</span>
             <h1 className="m-0 text-[28px] leading-[1.15] font-extrabold tracking-[-0.02em]">{me?.first_name ? `Bom trabalho, ${me.first_name}.` : 'Bom trabalho.'}</h1>
-            <span className="text-[15px] leading-[1.4] text-[#3d4a41]">
+            <span data-testid={reading ? 'resultado-leitura' : undefined} role={reading ? 'status' : undefined} className="text-[15px] leading-[1.4] text-[#3d4a41]">
               {reading ? reading.text : `${result.correctAnswers ?? '—'}${result.totalQuestions != null ? ` de ${result.totalQuestions}` : ''} respostas certas${time ? ` em ${time}` : ''}.`}
             </span>
-            <div className="mt-1 flex flex-wrap gap-2">
+            <div className="mt-1 flex flex-wrap gap-2" aria-label="O que ganhaste" role="group">
               {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1b4d27]">{stats.xp} XP · nível {stats.level}</span>}
-              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#fbe9ea] px-3 text-[13px] font-bold text-[#8a2a2e]">Sequência: {stats.streak} {stats.streak === 1 ? 'dia' : 'dias'}</span>}
+              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#fbe9ea] px-3 text-[13px] font-bold text-[#8a2a2e]">{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} de sequência</span>}
               {comparison && <span className="flex h-[30px] items-center rounded-full bg-[#fbf1d6] px-3 text-[13px] font-bold text-[#8a5a00]">{formatDelta(comparison.delta)} face à anterior</span>}
             </div>
           </div>
@@ -250,7 +250,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         <div className="flex flex-wrap items-center gap-2.5">
           {statementId != null && hasMistakes && (
             <Button asChild size="lg">
-              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}&de=resultado&simulacao=${result.simulationId}`}><MessageCircle aria-hidden />Explicar com o tutor</Link>
+              <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}&de=resultado&simulacao=${result.simulationId}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
           {statementId != null && <RefazerSimulacao statementId={statementId} />}

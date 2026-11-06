@@ -31,11 +31,11 @@ export function AuthShell({
   const landing = backToLanding ? landingHref() : null;
   const logo = <Logo size={33} wordmark />;
   return (
-    <main className="relative flex above-banner-min-h flex-col items-center justify-center gap-6 px-6 pt-10 pb-32 sm:px-12">
+    <main className="relative flex above-banner-min-h flex-col items-center justify-center gap-6 px-6 pt-6 pb-32 sm:px-12 sm:pt-10">
       {landing ? (
         <a
           href={landing}
-          className="absolute top-8 left-6 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[#5f6b63] no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-12"
+          className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-semibold text-[#5f6b63] no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:absolute sm:top-8 sm:left-12"
         >
           <ArrowLeft className="size-4" aria-hidden />
           Voltar ao início
