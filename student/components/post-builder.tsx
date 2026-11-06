@@ -226,13 +226,11 @@ export function PostBuilder({ classId }: { classId: number }) {
         </div>
       </section>
 
-      <details className="mt-6 rounded-2xl border border-[#e9ebe7]" aria-label="Pré-visualização">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-[15px] font-bold [&::-webkit-details-marker]:hidden">Pré-visualização<span className="text-[13px] font-semibold text-[#617066]">como vai aparecer na turma</span></summary>
-        <div className="grid gap-3 border-t border-[#eef0ec] p-4">
-          {title.trim() && <h3 className="m-0 font-bold">{title.trim()}</h3>}
-          {filled.length > 0 ? <PostBlocksView blocks={filled} /> : <p className="text-sm text-[#617066]">Preenche os blocos e vê aqui o resultado.</p>}
-        </div>
-      </details>
+      <section className="mt-6 grid gap-3 rounded-2xl border border-[#e9ebe7] p-4" aria-label="Pré-visualização">
+        <h2 className="m-0 text-[15px] font-bold">Pré-visualização <span className="text-[13px] font-semibold text-[#617066]">como vai aparecer na turma</span></h2>
+        {title.trim() && <h4 className="m-0 font-bold">{title.trim()}</h4>}
+        {filled.length > 0 ? <PostBlocksView blocks={filled} /> : <p className="text-sm text-[#617066]">Preenche os blocos e vê aqui o resultado.</p>}
+      </section>
 
       <div aria-live="polite" className="mt-4 empty:hidden">{error && <Alert variant="destructive">{error}</Alert>}</div>
       {showAltWarning && (

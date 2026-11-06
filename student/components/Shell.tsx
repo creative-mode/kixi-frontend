@@ -116,7 +116,7 @@ export function Shell({ children, rail, landingOrigin, unread = 0 }: { children:
             data-press
             href={it.href}
             aria-current={on(it) ? 'page' : undefined}
-            className="group flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] text-[11.5px] font-semibold text-[#7a857d] aria-[current=page]:font-bold aria-[current=page]:text-[#1f5a2c]"
+            className="group flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] text-[11.5px] font-semibold text-[#5f6b63] aria-[current=page]:font-bold aria-[current=page]:text-[#1f5a2c]"
           >
             <NavIcon name={it.icon} active={on(it)} size={24} />
             {it.label}
