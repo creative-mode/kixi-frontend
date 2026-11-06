@@ -34,7 +34,7 @@ const WORD =
  * Computador: barra lateral de 232 px, coluna central de 680 px e coluna da direita (`rail`, vinda do servidor).
  * Telemóvel: cabeçalho com a nave, o sino e o avatar, e barra de 4 separadores em baixo.
  */
-export function Shell({ children, rail, landingOrigin }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null }) {
+export function Shell({ children, rail, landingOrigin, unread = 0 }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null; unread?: number }) {
   const path = usePathname();
   const me = useMe();
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
@@ -73,6 +73,7 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
             >
               <NavIcon name={it.icon} active={on(it)} size={22} desktop />
               {it.label}
+              {it.icon === 'notificacoes' && unread > 0 && <span className="ml-auto size-[7px] shrink-0 rounded-full bg-[#c2383e]" aria-label={`${unread} novas`} />}
             </Link>
           ))}
         </nav>
@@ -87,8 +88,9 @@ export function Shell({ children, rail, landingOrigin }: { children: React.React
           <Link href="/inicio" aria-label="Kixi, início" className="mr-auto flex items-center py-1">
             <svg viewBox="0 0 24 20" width="34" height="28" shapeRendering="crispEdges" aria-hidden="true"><path d={SHIP} fill="#1f5a2c" /></svg>
           </Link>
-          <Link href="/notificacoes" data-press aria-label="Notificações" className="relative grid size-12 place-items-center rounded-full text-[#121c15]">
+          <Link href="/notificacoes" data-press aria-label={unread > 0 ? `Notificações, ${unread} novas` : 'Notificações'} className="relative grid size-12 place-items-center rounded-full text-[#121c15]">
             <NavIcon name="notificacoes" size={22} />
+            {unread > 0 && <span className="absolute top-3 right-3 size-[7px] rounded-full bg-[#c2383e]" />}
           </Link>
           <Link href="/perfil" data-press aria-label="O teu perfil" aria-current={profileActive ? 'page' : undefined} className="grid size-12 place-items-center rounded-full">
             <UserAvatar name={name} src={photoUrl(me)} size={32} />

@@ -6,6 +6,8 @@ import { MockPost, json, maskedName, meResponse, problem } from '../store';
 import type { MockCtx } from '../store';
 
 /** Rotas do domínio «feed» do mock; devolve `undefined` quando o pedido não é deste domínio. */
+const notificationReads = new Map<number, string>();
+
 export async function feedRoutes({ method, pathname, search, filter, body, text, accountId, account, staff, db }: MockCtx): Promise<Response | undefined> {
   void [method, pathname, search, filter, body, text, accountId, account, staff, db];
   // ── feed social da turma/escola (#120/#30) ──────────────────────────────────
@@ -124,6 +126,17 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
     }
     db.postReactions.push({ postId, accountId: account.id, type });
     return json({ reacted: true });
+  }
+
+  // Notificações lidas (kixi#729): até quando o aluno já viu o que é derivado das suas atividades.
+  if (pathname === '/me/notifications' && method === 'GET') {
+    const at = notificationReads.get(account.id);
+    return json(at ? { readAt: at } : {});
+  }
+  if (pathname === '/me/notifications/read' && method === 'POST') {
+    const at = new Date().toISOString();
+    notificationReads.set(account.id, at);
+    return json({ readAt: at });
   }
 
   const acceptMatch = pathname.match(/^\/feed\/posts\/(\d+)\/comments\/(\d+)\/accept$/);

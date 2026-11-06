@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { readConversation } from './comments';
 import { BACKEND } from './session';
-import { authHeaders, problem } from './api';
+import { apiPost, authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
 import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
 import { createBuiltPost, createPost, createSimulationPost, acceptComment, addComment, getFeed, loadAuthors, reportPost, setReaction, type FeedPost, type PostComment, type PostType } from './feed';
@@ -170,4 +170,12 @@ export async function acceptCommentAction(postId: number, commentId: number): Pr
   revalidatePath(`/discussao/${postId}`);
   revalidatePath('/ranking');
   return { ok: true };
+}
+
+/** «Marcar tudo como lido» nas notificações. */
+export async function marcarNotificacoesLidasAction(): Promise<{ ok: boolean }> {
+  const result = await apiPost<{ readAt: string }>('/me/notifications/read', {});
+  revalidatePath('/notificacoes');
+  revalidatePath('/inicio');
+  return { ok: result.ok };
 }
