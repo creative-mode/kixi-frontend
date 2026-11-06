@@ -167,12 +167,11 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post.id]);
 
-  const act = 'h-9 min-w-9 gap-1.5 rounded-full px-3 text-[13px] font-bold text-muted-foreground hover:bg-secondary aria-expanded:bg-accent aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
   const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
 
   return (
-    <article ref={card} className="rise border-t border-border px-6 py-5 first:border-t-0">
+    <article ref={card} className="post rise">
       <div className="min-w-0">
         <header className="flex items-center gap-3">
           <UserAvatar name={author.name} src={author.photo} size={38} />
@@ -188,11 +187,11 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             </span>
             {isPublishing
               ? <span role="status" aria-live="polite" className="text-[13px] font-semibold text-muted-foreground">A publicar…</span>
-              : <span className="text-[13px] font-semibold text-muted-foreground">{typeLabel} · {sinceLabel(post.createdAt) ?? ''}</span>}
+              : <span className="lbl">{typeLabel}, {sinceLabel(post.createdAt) ?? ''}</span>}
           </div>
         </header>
-        <div className="mt-3 grid gap-2.5">
-          {post.title && <h3 className="text-[15px] font-bold leading-snug">{post.title}</h3>}
+        <div className="mt-[11px] grid gap-2.5">
+          {post.title && <h3 className="text-[15px] font-bold leading-normal">{post.title}</h3>}
           {post.simulation && (
             <SimulationCard
               card={post.simulation}
@@ -210,24 +209,16 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           )}
           {post.blocks && post.blocks.length > 0
             ? <PostBlocksView blocks={post.blocks} />
-            : post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
+            : post.content && <p className="text-[15px] leading-normal break-words">{post.content}</p>}
         </div>
 
-        <div className="-ml-2.5 mt-2 flex items-center gap-0.5">
-          <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
-            <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={18} className={cn(reaction.reacted && 'pop')} />
-          </Button>
-          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
-            <Ico name="chat" filled={open} size={18} /><span className="min-w-3 tabular-nums">{count}</span>
-          </Button>
-          <Button
-            variant="ghost" size="icon" className="ml-auto size-9 rounded-full text-muted-foreground aria-pressed:text-destructive"
-            aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported}
-            onClick={() => setReporting((v) => !v)}
-          >
-            <Ico name="flag" filled={reporting || reported} size={18} />
-          </Button>
-        </div>
+        <span className="acoes">
+          <button type="button" className="acao" aria-expanded={open} aria-label={`Responder, ${count} ${count === 1 ? 'resposta' : 'respostas'}`} title="Responder" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 1 4 7.5L3 21l1.6-4.3A8.96 8.96 0 0 1 3 12Z" /></svg>{count}</button>
+          <button type="button" className="acao" aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Útil, tocar para retirar' : 'Marcar como útil'} title="Útil" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 11v9H4v-9zm0 0 4-7a2 2 0 0 1 3.6 1.7L13 10h5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H9a2 2 0 0 1-2-2" /></svg>{reaction.reacted ? 1 : ''}</button>
+          <button type="button" className="acao ml-auto" aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported} onClick={() => setReporting((v) => !v)}>
+            <Ico name="flag" filled={reporting || reported} size={15} />
+          </button>
+        </span>
 
         {reaction.pending && <p className="sr-only" role="status" aria-live="polite">A guardar o aplauso…</p>}
         {reaction.error && (
@@ -291,46 +282,41 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </form>
       )}
 
+      {conversation.comments && conversation.comments.length > 0 && (
+        <div className="mt-1 flex gap-3">
+          <div className="flex w-[38px] shrink-0 justify-center"><span className="w-0.5 self-stretch bg-[#dbe0da]" aria-hidden="true" /></div>
+          <ol className="flex min-w-0 flex-1 flex-col gap-[18px]">
+            {conversation.comments.map((c) => {
+              const who = commentAuthorLabel(c.displayName, c.mine);
+              return (
+                <li key={c.id} className="flex flex-col gap-2.5">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar name={who} src={c.mine ? myPhoto : c.photo} size={38} />
+                    <span className="flex flex-col gap-0.5">
+                      {c.mine ? <strong className="text-sm">{who}</strong> : <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="text-sm font-bold hover:underline">{who}<span className="sr-only">, ver perfil</span></Link>}
+                      <span className="lbl">{sinceLabel(c.createdAt) ?? ''}</span>
+                    </span>
+                  </div>
+                  <p className="ttl">{c.content}</p>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
       {open && (
-        <div className="grid gap-3 border-t py-3">
-          <div className="grid gap-3">
-            {conversation.error ? (
-              <Alert variant="destructive">
-                <span className="flex-1">{conversation.error}</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => readComments(true)}>Tentar de novo</Button>
-              </Alert>
-            ) : reading && conversation.comments === null ? (
-              <LoadingState label="A carregar os comentários…" lines={3} />
-            ) : conversation.comments === null || conversation.comments.length === 0 ? (
-              <p className="py-2 text-center text-sm text-muted-foreground">Ainda não há comentários nesta publicação.</p>
-            ) : (
-              <ol className="grid gap-3">
-                {conversation.comments.map((c) => (
-                  <li key={c.id} className="flex items-start gap-2.5">
-                    <UserAvatar
-                      name={commentAuthorLabel(c.displayName, c.mine)}
-                      src={c.mine ? myPhoto : c.photo}
-                      size={32}
-                    />
-                    <div className="min-w-0 flex-1 rounded-2xl bg-secondary px-3 py-2">
-                      <div className="flex items-baseline gap-2">
-                        {c.mine ? (
-                          <span className="text-sm font-semibold">{commentAuthorLabel(c.displayName, c.mine)}</span>
-                        ) : (
-                          <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="text-sm font-semibold hover:underline focus-visible:underline">{commentAuthorLabel(c.displayName, c.mine)}<span className="sr-only">, ver perfil</span></Link>
-                        )}
-                        <span className="text-xs text-muted-foreground">{sinceLabel(c.createdAt) ?? ''}</span>
-                      </div>
-                      <p className="text-sm leading-relaxed break-words">{c.content}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
+        <div className="grid gap-3 pt-3">
+          {conversation.error && (
+            <Alert variant="destructive">
+              <span className="flex-1">{conversation.error}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => readComments(true)}>Tentar de novo</Button>
+            </Alert>
+          )}
+          {reading && conversation.comments === null && <LoadingState label="A carregar os comentários…" lines={3} />}
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
-            <UserAvatar name={myName} src={myPhoto} size={32} />
-            <Input className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
+            <UserAvatar name={myName} src={myPhoto} size={38} />
+            <Input className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve uma resposta" aria-label="Escrever um comentário" maxLength={500} />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Ico name="send" size={22} /></Button>
           </form>
           {commentError && <Alert variant="destructive">{commentError}</Alert>}

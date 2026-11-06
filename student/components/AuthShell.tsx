@@ -35,7 +35,7 @@ export function AuthShell({
       {landing ? (
         <a
           href={landing}
-          className="absolute top-4 left-4 inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:top-6 sm:left-6"
+          className="absolute top-8 left-6 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[#5f6b63] no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:left-12"
         >
           <ArrowLeft className="size-4" aria-hidden />
           Voltar ao início
@@ -49,7 +49,7 @@ export function AuthShell({
       <div className="grid w-full max-w-[380px] gap-6">
         <div className="grid gap-1.5 text-center">
           <h1 className="text-[26px] leading-tight font-extrabold tracking-tight">{title}</h1>
-          <p className="text-[15px] text-muted-foreground">{lead}</p>
+          <p className="text-[15px] text-[#5f6b63]">{lead}</p>
         </div>
         {notice ? (
           <div role="status" className="flex items-start gap-2 rounded-xl border border-primary/30 bg-accent p-3 text-sm text-foreground">

@@ -13,6 +13,7 @@ import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@
 import { listInvitations } from '@/lib/exam-room';
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
+import { ProvasTemas } from '@/components/provas-temas';
 
 export const metadata = { title: 'Provas · Kixi' };
 
@@ -181,10 +182,18 @@ export default async function Provas({ searchParams }: { searchParams: Params })
   const page = Math.max(0, (Number(one(params.pagina)) || 1) - 1);
   const aba: Aba = one(params.aba) === 'salas' ? 'salas' : 'enunciados';
 
+  // Sem aba nem filtros é o ecrã novo («O que sai na prova»); o catálogo completo abre-se por `?aba=enunciados`.
+  const catalogoCompleto = ['aba', 'q', 'disciplina', 'tipo', 'ano', 'escola', 'pagina'].some((k) => one(params[k]));
+  if (!catalogoCompleto) {
+    const names = await getCatalogNames();
+    const catalog = await getCatalog({ size: 50 }, names);
+    return <ProvasTemas items={catalog.ok ? catalog.items : []} total={catalog.ok ? catalog.totalElements : 0} materia={one(params.materia) || null} />;
+  }
+
   const [names, invResult] = await Promise.all([getCatalogNames(), listInvitations()]);
   const invitations = invResult.ok ? invResult.data : [];
   const invitationsError = invitationsErrorOf(invResult);
-  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas" convites={invitations.length} />;
+  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas?aba=enunciados" convites={invitations.length} />;
 
   if (aba === 'salas') {
     return (
@@ -227,7 +236,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
     if (filters.institutionId) search.set('escola', String(filters.institutionId));
     if (pagina > 1) search.set('pagina', String(pagina));
     const query = search.toString();
-    return query ? `/provas?${query}` : '/provas';
+    return query ? `/provas?aba=enunciados&${query}` : '/provas?aba=enunciados';
   };
 
   const current = result.page + 1;

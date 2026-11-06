@@ -1,13 +1,11 @@
-import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
 import { getFeed, loadAuthors } from '@/lib/feed';
-import { listInvitations } from '@/lib/exam-room';
-import { MobileInicio, MobileInicioSkeleton } from '@/components/mobile-inicio';
+import { ProximaProva } from '@/components/proxima-prova';
+import { loadSocial } from '@/lib/social';
 import { loadFirstConversations } from '@/lib/comments';
 import { FEED_PAGE_SIZE } from '@/lib/feed-pagination';
-import { Suspense } from 'react';
 import { InicioFeed } from './inicio-feed';
 
 export const metadata = { title: 'Início · Kixi' };
@@ -38,11 +36,10 @@ export default async function InicioPage() {
   const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
-  const [feed, invResult] = await Promise.all([
+  const [feed, social] = await Promise.all([
     classId ? getFeed(classId, 1, FEED_PAGE_SIZE) : Promise.resolve(null),
-    // `listInvitations` é `cache` do React: o `loadSocial` do cartão e da coluna
-    // da direita reaproveitam esta mesma leitura no pedido.
-    listInvitations(),
+    // `loadSocial` é `cache` do React: a coluna da direita reaproveita esta mesma leitura no pedido.
+    loadSocial(me),
   ]);
   const posts = feed?.ok ? feed.data : [];
   const [authors, conversations] = await Promise.all([loadAuthors(posts, me.accountId), loadFirstConversations(posts)]);
@@ -51,19 +48,13 @@ export default async function InicioPage() {
     <>
       <FireEventOnce param="matriculado" event="onboarding_completed" />
       <InicioFeed
-        invitations={invResult.ok ? invResult.data : []}
-        invitationsError={invitationsErrorOf(invResult)}
         myAccountId={me.accountId}
         classId={classId}
         posts={posts}
         authors={authors}
         conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
-        mobileHighlights={
-          <Suspense fallback={<MobileInicioSkeleton />}>
-            <MobileInicio me={me} />
-          </Suspense>
-        }
+        topo={<ProximaProva invitations={social.invitations.ok ? social.invitations.data : []} data={social} serverNow={Date.now()} />}
       />
     </>
   );

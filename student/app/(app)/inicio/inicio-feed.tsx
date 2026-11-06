@@ -4,37 +4,29 @@ import { useEffect, useOptimistic, useRef, useState, useTransition } from 'react
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { Page, PageHeader } from '@/components/page';
 import { RefreshError } from '@/components/refresh-error';
 import { PostCard } from '@/components/post-card';
-import { PostComposer } from '@/components/post-composer';
-import { SalasDeProva } from '@/components/salas-de-prova';
+import { UserAvatar } from '@/components/user-avatar';
 import { EmptyState } from '@/components/states';
 import Link from 'next/link';
-import { phaseOf } from '@/lib/exam-room-rules';
 import { useMe } from '@/lib/me-context';
 import { fullName, photoUrl } from '@/lib/profile';
 import { loadFeedPageAction } from '@/lib/feed-actions';
 import { isLastFeedPage, mergeFeedPages } from '@/lib/feed-pagination';
-import type { Invitation } from '@/lib/exam-room-rules';
 import type { FeedPost, PostComment } from '@/lib/feed';
 import type { FeedAuthor } from '@/lib/feed-rules';
 
 /** O centro do início: as salas de prova, o compositor e o feed da turma. Os dados vêm por props:
  *  este ficheiro é cliente e tudo se lê no servidor, com o cookie da sessão (ver ./page.tsx). */
 export function InicioFeed({
-  invitations = [],
-  invitationsError,
   myAccountId,
   classId,
   posts,
   authors = {},
   conversations = {},
   feedError,
-  mobileHighlights,
+  topo,
 }: {
-  invitations?: Invitation[];
-  invitationsError?: { message: string; status: number | null } | null;
   myAccountId: number | null;
   classId: number | null;
   posts: FeedPost[];
@@ -42,8 +34,8 @@ export function InicioFeed({
   /** As conversas das primeiras publicações, já lidas no servidor: o painel abre sem ir à rede. */
   conversations?: Record<number, PostComment[]>;
   feedError?: string | null;
-  /** O progresso do telemóvel (#493), entregue pelo servidor com o seu próprio `Suspense`. */
-  mobileHighlights?: React.ReactNode;
+  /** O cartão da próxima prova, entregue pelo servidor. */
+  topo?: React.ReactNode;
 }) {
   const me = useMe();
   // As páginas seguintes ficam ao lado da primeira: a lista do servidor continua a ser a
@@ -92,37 +84,26 @@ export function InicioFeed({
       if (isLastFeedPage(result.posts.length)) setEnd(true);
     });
   };
-  // O início só mostra as salas que pedem ação (a decorrer, abertas, por abrir); as já entregues ou
-  // terminadas ficam em Provas, para o feed não ficar enterrado debaixo do histórico.
-  const pending = invitations.filter((inv) => ['live', 'lobby', 'scheduled'].includes(phaseOf(inv)));
-  const hidden = invitations.length - pending.length;
-
   return (
-    <Page className="gap-0 p-0 pb-24 md:pb-10">
-      <PageHeader title="Início" className="m-0" />
-
-      {mobileHighlights}
-
-      <div className="grid gap-3 px-4 pt-3 empty:hidden">
-      <SalasDeProva invitations={pending} invitationsError={invitationsError} />
-      {hidden > 0 && (
-        <p className="text-[13px] text-muted-foreground">
-          {hidden === 1 ? '1 sala já entregue ou terminada' : `${hidden} salas já entregues ou terminadas`} · <Link href="/provas" className="font-semibold text-primary hover:underline">ver em Provas</Link>
-        </p>
+    <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-3 pb-24 md:gap-5 md:px-0 md:pt-7 md:pb-10">
+      {topo}
+      {classId && (
+        <Link href="/publicar" className="flex items-center gap-3 rounded-full border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
+          <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
+          <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
+          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
+        </Link>
       )}
-      </div>
-
-      {classId && <PostComposer classId={classId} onOptimistic={addOptimistic} />}
 
       {feedError ? (
-        <div className="p-4"><RefreshError title="Não foi possível carregar as publicações" message={feedError} /></div>
+        <div><RefreshError title="Não foi possível carregar as publicações" message={feedError} /></div>
       ) : !classId ? (
         <EmptyState title="Matricula-te para veres o feed" message="As publicações da tua turma aparecem aqui depois da matrícula." />
       ) : shown.length === 0 ? (
         <EmptyState title="Ainda não há nada por aqui" message="Sê o primeiro a partilhar uma dúvida ou um tema com a turma." />
       ) : (
         <>
-          <div className="mx-4 mt-4 overflow-hidden rounded-[20px] border bg-card">
+          <section className="flex flex-col md:sheet md:px-6 md:py-1">
           {shown.map((p) => (
             <PostCard
               key={p.id}
@@ -135,8 +116,8 @@ export function InicioFeed({
               myPhoto={photoUrl(me)}
             />
           ))}
-          </div>
-          <div className="px-4 py-6">
+          </section>
+          <div className="pb-2">
             {moreError ? (
               <Alert variant="destructive" className="flex flex-wrap items-center justify-between gap-3">
                 <span className="min-w-0 flex-1">{moreError}</span>
@@ -154,6 +135,6 @@ export function InicioFeed({
           </div>
         </>
       )}
-    </Page>
+    </div>
   );
 }
