@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { Lightbulb } from 'lucide-react';
 import { Ico } from '@/components/ui/ico';
 import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
@@ -11,7 +10,6 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 import { sinceLabel } from '@/lib/attempt-history';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { CLASSMATE_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';

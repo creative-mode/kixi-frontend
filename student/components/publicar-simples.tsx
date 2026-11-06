@@ -53,7 +53,7 @@ export function PublicarSimples({ classId, turma }: { classId: number; turma: st
         {TIPOS.map((t) => (
           <button key={t.value} type="button" role="radio" aria-checked={type === t.value} onClick={() => setType(t.value)} className="flex min-h-[58px] w-full items-center justify-between gap-3 border-0 border-b border-[#eef0ec] bg-transparent py-2 text-left">
             <span className="flex flex-col"><span className="text-[13px] text-[#617066]">{t.hint}</span><span className="text-base font-bold">{t.label}</span></span>
-            <span className={`size-[22px] rounded-full border-2 ${type === t.value ? 'border-[#1f5a2c] bg-[#1f5a2c] shadow-[inset_0_0_0_4px_#fff]' : 'border-[#cdd6c9]'}`} />
+            <span className={`size-[22px] rounded-full border-2 ${type === t.value ? 'border-[#1f5a2c] bg-[#1f5a2c] shadow-[inset_0_0_0_4px_white]' : 'border-[#cdd6c9]'}`} />
           </button>
         ))}
         <div className="flex min-h-[58px] items-center justify-between border-b border-[#eef0ec] py-2">

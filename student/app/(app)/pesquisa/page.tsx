@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Page, PageHeader } from '@/components/page';
 import { UserAvatar } from '@/components/user-avatar';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { listFriends, listRequests, searchColleagues } from '@/lib/friends';

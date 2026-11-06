@@ -15,7 +15,7 @@ function estadoDe(value: number): { estado: Estado; label: string } {
 
 const Bolinha = ({ estado }: { estado: Estado }) => (
   <span className={`st ${estado}`}>
-    {estado === 'dom' && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
+    {estado === 'dom' && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
   </span>
 );
 

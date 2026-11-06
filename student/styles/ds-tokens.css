@@ -5,14 +5,14 @@
  * Tema único: claro. Rebranding «nova experiência» (#729): fundo branco, linhas finas, cantos redondos.
  */
 :root,[data-theme='light']{
-  --background:#ffffff;
+  --background:white;
   --foreground:#121c15;
-  --card:#ffffff;
+  --card:white;
   --card-foreground:#121c15;
-  --popover:#ffffff;
+  --popover:white;
   --popover-foreground:#121c15;
   --primary:#1f5a2c;
-  --primary-foreground:#ffffff;
+  --primary-foreground:white;
   --secondary:#f5f6f4;
   --secondary-foreground:#1b2a1f;
   --muted:#f5f6f4;
@@ -20,7 +20,7 @@
   --accent:#f1f6ee;
   --accent-foreground:#1b4d27;
   --destructive:#c2383e;
-  --destructive-foreground:#ffffff;
+  --destructive-foreground:white;
   --border:#e4e7e1;
   --input:#cfd8cb;
   --ring:#2a7a3c;
@@ -40,10 +40,10 @@
   --chart-4:#b0343a;
   --chart-5:#6b4aa3;
 
-  --sidebar:#ffffff;
+  --sidebar:white;
   --sidebar-foreground:#121c15;
   --sidebar-primary:#1f5a2c;
-  --sidebar-primary-foreground:#ffffff;
+  --sidebar-primary-foreground:white;
   --sidebar-accent:#f1f6ee;
   --sidebar-accent-foreground:#1b4d27;
   --sidebar-border:#e4e7e1;

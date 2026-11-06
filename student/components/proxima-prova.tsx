@@ -26,7 +26,7 @@ const Step = ({ state, last, children }: { state: 'done' | 'now' | 'todo'; last?
   <li className="grid grid-cols-[28px_minmax(0,1fr)] gap-4">
     <div className="flex flex-col items-center">
       {state === 'done' ? (
-        <span className="flex size-7 items-center justify-center rounded-full bg-[#1f5a2c]"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></span>
+        <span className="flex size-7 items-center justify-center rounded-full bg-[#1f5a2c]"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></span>
       ) : state === 'now' ? (
         <span className="flex size-7 items-center justify-center rounded-full border-[3px] border-[#1f5a2c] bg-white"><span className="size-2.5 rounded-full bg-[#1f5a2c]" /></span>
       ) : (
@@ -86,7 +86,7 @@ export function ProximaProva({ invitations, data, serverNow }: { invitations: In
           <span className="lbl">{doneCount} de {steps} passos</span>
         </div>
         <div className="mb-4 empty:hidden"><SalasDeProva invitations={pending} /></div>
-        <Link href={`/provas/preparar?materia=${encodeURIComponent(title)}`} className="mb-4 flex h-11 items-center justify-between rounded-xl bg-[#f1f6ee] px-4 text-[15px] font-bold text-[#1f5a2c] no-underline">O que sai na prova<span aria-hidden="true">›</span></Link>
+        <Link href={`/provas/preparar?materia=${encodeURIComponent(title)}`} className="mb-4 flex h-11 items-center justify-between rounded-xl bg-[#f1f6ee] px-4 text-[15px] font-bold text-[#1f5a2c] no-underline">O que sai na prova<span aria-hidden="true">&rsaquo;</span></Link>
         <ol className="m-0 flex list-none flex-col p-0">
           <Step state={last ? 'done' : 'now'}>
             <div className="flex justify-between gap-3">

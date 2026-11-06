@@ -120,11 +120,11 @@ html[data-reduce-motion='true'] *::after {
 .acao:hover { background: #f5f6f4; }
 .acao[aria-pressed='true'], .acao[aria-expanded='true'] { background: #eef6ea; color: #1b4d27; }
 .acao:disabled { opacity: .5; }
-.sheet { background: #fff; border: 1px solid #e9ebe7; border-radius: 20px; }
+.sheet { background: white; border: 1px solid #e9ebe7; border-radius: 20px; }
 .chk { display: flex; align-items: center; gap: 5px; color: #617066; font-size: 13px; font-weight: 600; margin-top: -2px; }
 .row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid #e4e7e1; text-decoration: none; color: #121c15; }
 .st { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
 .st.dom { background: #1f5a2c; }
 .st.apr { border: 2.5px solid #d49a00; border-right-color: #f0e2bd; border-bottom-color: #f0e2bd; }
 .st.fra { border: 2.5px solid #c2383e; }
-.st.nov { border: 2px solid #cdd6c9; background: #ffffff; }
+.st.nov { border: 2px solid #cdd6c9; background: white; }

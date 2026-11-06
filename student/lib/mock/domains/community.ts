@@ -1,6 +1,7 @@
 import { integrityRefusal, isIntegrityKind, parseQuestionId } from '@/lib/integrity';
 import { expired, toLocalDateTime } from '../simulation';
 
+import { practiceQuestionIds } from '../practice';
 import { QUESTIONS_BY_STATEMENT, SimulationRow, json, problem, simulationResponse, validationError } from '../store';
 import type { MockCtx } from '../store';
 
@@ -100,7 +101,8 @@ export async function communityRoutes({ method, pathname, search, filter, body, 
     if (!Number.isInteger(count) || count < 1) return problem(400, 'questionCount must be at least 1');
     // As respondíveis do enunciado: as folhas, sem os enunciados comuns de grupo.
     const inPaper = QUESTIONS_BY_STATEMENT[statementId] ?? [];
-    const ids = inPaper.filter((qid) => !db.questions.some((q) => q.parentId === qid));
+    const parents = new Set(db.questions.flatMap((q) => (q.parentId != null ? [q.parentId] : [])));
+    const chosen = practiceQuestionIds(inPaper, parents, count);
     const row: SimulationRow = {
       id: db.nextSimulation++,
       accountId: account.id,
@@ -110,7 +112,7 @@ export async function communityRoutes({ method, pathname, search, filter, body, 
       startedAt: toLocalDateTime(new Date()),
       finishedAt: null,
       timeSpentSeconds: null,
-      ...(count < ids.length ? { selectedQuestionIds: ids.slice(0, count) } : {}),
+      ...(chosen ? { selectedQuestionIds: chosen } : {}),
     };
     db.simulations.push(row);
     return json(simulationResponse(db, row), 201);

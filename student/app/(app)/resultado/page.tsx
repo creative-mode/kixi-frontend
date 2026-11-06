@@ -1,7 +1,7 @@
 import { CountUp } from '@/components/count-up';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { Award, Check, Clock, MessageCircle, Sparkles, X } from 'lucide-react';
+import { Award, Check, MessageCircle, X } from 'lucide-react';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { ClearExamLocal } from '@/components/clear-exam-local';
 import { Column, Page, PageHeader } from '@/components/page';
@@ -241,7 +241,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           </p>
         )}
         {medalhasNovas.map((badge) => (
-          <div key={badge.code} className="flex items-start gap-3 rounded-2xl bg-[#fff8e8] px-4 py-3.5">
+          <div key={badge.code} className="flex items-start gap-3 rounded-2xl bg-[#fef8e8] px-4 py-3.5">
             <Award className="mt-0.5 size-5 shrink-0 text-[#9a6400]" aria-hidden />
             <div className="leading-snug"><b className="block text-sm">Medalha nova: {badge.name}</b><span className="text-[13px] text-[#617066]">{badge.description}</span></div>
           </div>

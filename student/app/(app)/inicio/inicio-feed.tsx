@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useOptimistic, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -48,8 +48,7 @@ export function InicioFeed({
   const [loading, startLoading] = useTransition();
 
   const loaded = mergeFeedPages(posts, extra);
-  // A publicação nova aparece no instante em que se carrega em Publicar e é substituída pela do servidor quando chega.
-  const [shown, addOptimistic] = useOptimistic(loaded, (current: FeedPost[], post: FeedPost) => [post, ...current]);
+  const shown = loaded;
 
   // Depois de publicar, o servidor devolve uma página 1 nova. As páginas seguintes já não
   // encaixam nela (a mais recente empurrou as outras), por isso voltam a ser pedidas.

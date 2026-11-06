@@ -15,7 +15,7 @@ export function NavIcon({ name, active = false, size = 24, desktop = false }: { 
   }
   if (name === 'provas') {
     return active
-      ? <svg {...box}><path d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="currentColor" /><path d="M14 2v6h6" fill="none" stroke="#ffffff" strokeWidth={1.6} strokeLinejoin="round" /></svg>
+      ? <svg {...box}><path d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="currentColor" /><path d="M14 2v6h6" fill="none" stroke="white" strokeWidth={1.6} strokeLinejoin="round" /></svg>
       : <svg {...box} {...STROKE}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /></svg>;
   }
   if (name === 'explorar') {
@@ -23,7 +23,7 @@ export function NavIcon({ name, active = false, size = 24, desktop = false }: { 
       return <svg {...box} {...STROKE} strokeWidth={1.9} fill={active ? 'currentColor' : 'none'} fillOpacity={active ? 0.15 : 0}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></svg>;
     }
     return active
-      ? <svg {...box}><circle cx="11" cy="11" r="8" fill="currentColor" /><circle cx="11" cy="11" r="4.2" fill="#ffffff" /><path d="m20.5 20.5-4-4" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
+      ? <svg {...box}><circle cx="11" cy="11" r="8" fill="currentColor" /><circle cx="11" cy="11" r="4.2" fill="white" /><path d="m20.5 20.5-4-4" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
       : <svg {...box} {...STROKE}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
   }
   if (name === 'turma') {

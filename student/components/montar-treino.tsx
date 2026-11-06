@@ -47,7 +47,7 @@ export function MontarTreino({ disciplina, temas, inicial }: { disciplina: strin
             <label key={t.id} className="flex min-h-14 cursor-pointer items-center gap-3.5 border-[#eef0ec] py-2" style={{ borderTopWidth: i === 0 ? 0 : 1 }}>
               <input type="radio" name="tema" className="sr-only" checked={tema === t.id} onChange={() => setTema(t.id)} />
               <span className={`flex size-6 shrink-0 items-center justify-center rounded-md border-2 ${tema === t.id ? 'border-[#1f5a2c] bg-[#1f5a2c]' : 'border-[#cdd6c9] bg-white'}`}>
-                {tema === t.id && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
+                {tema === t.id && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
               </span>
               <span className="flex-1 text-[15px]" style={tema === t.id ? { fontWeight: 600 } : undefined}>{t.title}</span>
               <span className="text-xs text-[#617066]">{t.estado}</span>

@@ -51,3 +51,22 @@ export function conversation(
     displayName: maskedNameOf(c.authorAccountId),
   }));
 }
+
+/**
+ * Aceitar uma resposta (kixi#729), como o backend: só o autor da pergunta aceita, no máximo uma por
+ * publicação, e voltar a aceitar a mesma retira-a. Devolve o comentário como ficou.
+ */
+export function acceptAnswer(
+  comments: MockPostComment[],
+  post: { id: number; authorAccountId: number },
+  accountId: number,
+  commentId: number,
+): MockPostComment | CommentError {
+  const target = comments.find((c) => c.id === commentId && c.postId === post.id);
+  if (!target) return { ok: false, status: 404, message: 'Comment not found' };
+  if (post.authorAccountId !== accountId) return { ok: false, status: 403, message: 'Only the author can accept an answer' };
+  const accept = !target.isAccepted;
+  for (const c of comments) if (c.postId === post.id) c.isAccepted = false;
+  target.isAccepted = accept;
+  return target;
+}

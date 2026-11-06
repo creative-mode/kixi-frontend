@@ -54,7 +54,7 @@ export function ProvasTemas({ items, total, materia }: { items: CatalogItem[]; t
           <li key={item.id} className="border-b border-[#e4e7e1]">
             <Link prefetch={false} href={`/prova/${item.id}/detalhe`} className="flex items-center gap-3.5 py-3.5 text-[#121c15] no-underline">
               <span className={`st ${estado}`} style={{ width: 24, height: 24 }}>
-                {estado === 'dom' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
+                {estado === 'dom' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>}
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className={`text-[17px] leading-tight ${estado === 'fra' ? 'font-bold' : ''}`}>{item.title}</span>
@@ -67,7 +67,7 @@ export function ProvasTemas({ items, total, materia }: { items: CatalogItem[]; t
         {lista.length === 0 && <li className="py-6 text-sm text-[#617066]">Ainda não há provas para esta disciplina.</li>}
       </ul>
 
-      <Link href={`/provas/montar${ativa ? `?materia=${encodeURIComponent(ativa)}` : ''}`} className="mt-9 flex items-center gap-4 rounded-[20px] border border-[#e9ebe7] bg-[#f1f6ee] px-6 py-[18px] text-[#1f5a2c] no-underline"><strong className="flex-1 text-base">Montar um treino</strong><span aria-hidden="true">›</span></Link>
+      <Link href={`/provas/montar${ativa ? `?materia=${encodeURIComponent(ativa)}` : ''}`} className="mt-9 flex items-center gap-4 rounded-[20px] border border-[#e9ebe7] bg-[#f1f6ee] px-6 py-[18px] text-[#1f5a2c] no-underline"><strong className="flex-1 text-base">Montar um treino</strong><span aria-hidden="true">&rsaquo;</span></Link>
 
       <Link href="/provas" className="mt-3 flex items-center gap-4 rounded-[20px] border border-[#e9ebe7] bg-white px-6 py-[18px] text-[#121c15] no-underline">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /></svg>

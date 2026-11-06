@@ -175,7 +175,7 @@ export function PostBuilder({ classId }: { classId: number }) {
   return (
     <form className="mx-auto flex w-full max-w-[640px] flex-col px-4 pt-3 pb-28 md:px-0 md:pt-7 md:pb-12" onSubmit={publish} noValidate>
       <header className="sticky top-0 z-10 -mx-4 flex items-center justify-between bg-white/95 px-4 py-2 backdrop-blur md:mx-0 md:px-0">
-        <Link href="/publicar" className="px-1 py-3 text-[15px] font-semibold text-[#3d4a41] no-underline">← Simples</Link>
+        <Link href="/publicar" className="px-1 py-3 text-[15px] font-semibold text-[#3d4a41] no-underline">&larr; Simples</Link>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => router.push('/inicio')} className="h-[42px] rounded-full px-4 text-[15px] font-semibold text-[#3d4a41]">Cancelar</button>
           <button type="submit" disabled={pending || !!problem} className="h-[42px] rounded-full bg-[#1f5a2c] px-5 text-sm font-bold text-white disabled:opacity-50">{pending ? 'A publicar…' : 'Publicar'}</button>

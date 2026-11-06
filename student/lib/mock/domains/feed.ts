@@ -1,6 +1,6 @@
 import { toLocalDateTime } from '../simulation';
 
-import { conversation } from '../feed-comments';
+import { acceptAnswer, conversation } from '../feed-comments';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../../post-blocks';
 import { MockPost, json, maskedName, meResponse, problem } from '../store';
 import type { MockCtx } from '../store';
@@ -141,16 +141,11 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
 
   const acceptMatch = pathname.match(/^\/feed\/posts\/(\d+)\/comments\/(\d+)\/accept$/);
   if (acceptMatch && method === 'PATCH') {
-    const postId = Number(acceptMatch[1]);
-    const commentId = Number(acceptMatch[2]);
-    const post = db.posts.find((p) => p.id === postId);
-    const target = db.postComments.find((c) => c.id === commentId && c.postId === postId);
-    if (!post || !target) return problem(404, 'Comment not found');
-    if (post.authorAccountId !== account.id) return problem(403, 'Only the author can accept an answer');
-    const accept = !target.isAccepted;
-    for (const c of db.postComments) if (c.postId === postId) c.isAccepted = false;
-    target.isAccepted = accept;
-    return json({ ...target, mine: target.authorAccountId === account.id, displayName: maskedName(db, target.authorAccountId) });
+    const post = db.posts.find((p) => p.id === Number(acceptMatch[1]));
+    if (!post) return problem(404, 'Post not found');
+    const done = acceptAnswer(db.postComments, post, account.id, Number(acceptMatch[2]));
+    if ('ok' in done) return problem(done.status, done.message);
+    return json({ ...done, mine: done.authorAccountId === account.id, displayName: maskedName(db, done.authorAccountId) });
   }
 
   const commentMatch = pathname.match(/^\/feed\/posts\/(\d+)\/comments$/);

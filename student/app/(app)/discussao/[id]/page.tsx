@@ -30,7 +30,7 @@ export default async function DiscussaoPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="flex min-w-0 flex-col px-4 pt-3 pb-28 md:px-0 md:pt-7 md:pb-12">
-      <Link href="/ranking" className="mb-4 self-start text-sm font-semibold text-[#5f6b63] no-underline">← Turma</Link>
+      <Link href="/ranking" className="mb-4 self-start text-sm font-semibold text-[#5f6b63] no-underline">&larr; Turma</Link>
       <div className="flex items-center gap-3">
         <UserAvatar name={nome} src={a?.photo ?? null} size={38} />
         <span className="flex flex-col"><strong className="text-sm">{nome}</strong><span className="lbl">{sinceLabel(post.createdAt) ?? ''}</span></span>
