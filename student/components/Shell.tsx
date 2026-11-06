@@ -23,7 +23,7 @@ const ITEMS: (ShellNavItem & { label: string; ariaLabel?: string; icon: NavIconN
 ];
 
 /** Páginas onde a coluna da direita atrapalha: conversa com o tutor, que precisa de largura. */
-const NO_RAIL = ['/tutor', '/notificacoes', '/perfil', '/provas', '/ranking'];
+const NO_RAIL = ['/tutor', '/notificacoes', '/perfil', '/provas', '/ranking', '/publicar'];
 
 const SHIP =
   'M12 0h1v1h-1zM10 1h3v1h-3zM8 2h5v1h-5zM8 3h5v1h-5zM8 4h5v1h-5zM8 5h5v1h-5zM8 6h5v1h-5zM8 7h5v1h-5zM8 8h5v1h-5zM8 9h6v1h-6zM7 10h7v1h-7zM7 11h8v1h-8zM6 12h10v1h-10zM6 13h11v1h-11zM5 14h14v1h-14zM4 15h18v1h-18zM3 16h21v1h-21zM3 17h4v1h-4zM14 17h9v1h-9zM1 18h2v1h-2zM17 18h5v1h-5zM19 19h1v1h-1z';

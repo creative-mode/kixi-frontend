@@ -668,7 +668,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
 
   return (
     <div className="flex above-banner-min-h flex-col">
-      <header className="sticky top-0 z-10 border-b bg-card">
+      <header className="sticky top-0 z-10 border-b border-[#eef0ec] bg-white">
         <div className="flex items-center gap-3 px-4 py-2.5 md:px-5">
           {/* A tentativa a decorrer não se abandona por um toque a mais: sai-se pelo
               aviso. Fechada, o link direto chega. */}
@@ -722,6 +722,10 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
           >
             Entregar
           </Button>
+        </div>
+        <div className="flex items-center gap-3 px-4 pb-2.5 md:px-5" aria-hidden="true">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#eef0ec]"><span className="block h-full rounded-full bg-[#1f5a2c] transition-[width]" style={{ width: `${((index + 1) / Math.max(1, questions.length)) * 100}%` }} /></div>
+          <span className="text-[13px] font-bold tabular-nums text-[#617066]">{index + 1}/{questions.length}</span>
         </div>
         {!online && (
           <p

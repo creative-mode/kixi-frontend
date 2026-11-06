@@ -5,6 +5,7 @@ import { VerifiedBadge } from '@/components/verified-badge';
 import { listFriends, listRequests, searchColleagues } from '@/lib/friends';
 import { getProfile } from '@/lib/me';
 import { getSchoolTeachers, searchSchools, type SchoolCard, type TeacherCard } from '@/lib/profiles';
+import { getCatalog, getCatalogNames } from '@/lib/catalog';
 import { MIN_QUERY, isSearchable, matchesName, normalizeQuery, uniqueBy } from '@/lib/search-rules';
 
 export const metadata = { title: 'Pesquisar · Kixi' };
@@ -42,7 +43,10 @@ function Row({ href, name, sub, photo, verified }: { href: string; name: string;
  * que o servidor deixa pesquisar (nomes abreviados), porque não há pesquisa pública de alunos.
  */
 export default async function PesquisaPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const q = normalizeQuery((await searchParams).q);
+  const sp = await searchParams;
+  const q = normalizeQuery(sp.q);
+  const abaRaw = Array.isArray(sp.aba) ? sp.aba[0] : sp.aba;
+  const aba = abaRaw === 'escolas' || abaRaw === 'pessoas' ? abaRaw : 'enunciados';
   const ready = isSearchable(q);
 
   // A pesquisa de colegas do servidor deixa de fora quem já é amigo ou tem um pedido em curso
@@ -58,6 +62,8 @@ export default async function PesquisaPage({ searchParams }: { searchParams: Pro
     [...found, ...[...friends, ...requests].filter((f) => matchesName(q, f.displayName))],
     (s) => s.accountId,
   );
+  const catalogo = ready || aba === 'enunciados' ? await getCatalog({ q: ready ? q : '', size: 8 }, await getCatalogNames()) : null;
+  const enunciados = catalogo?.ok ? catalogo.items : [];
   const schools: SchoolCard[] = schoolsResult.ok ? schoolsResult.data : [];
   const mySchoolId = profile.kind === 'ok' ? (profile.me.school?.id ?? null) : null;
 
@@ -84,11 +90,24 @@ export default async function PesquisaPage({ searchParams }: { searchParams: Pro
       {q.length > 0 && !ready && <p className="text-sm text-muted-foreground">Escreve pelo menos {MIN_QUERY} letras.</p>}
       {!schoolsResult.ok && ready && <p role="alert" className="text-sm text-destructive">{schoolsResult.message}</p>}
 
-      {ready && (
+      <nav role="tablist" aria-label="Tipo de resultado" className="flex gap-1">
+        {([['enunciados', 'Enunciados'], ['escolas', 'Escolas'], ['pessoas', 'Pessoas']] as const).map(([id, label]) => (
+          <Link key={id} href={`/pesquisa?aba=${id}${q ? `&q=${encodeURIComponent(q)}` : ''}`} role="tab" aria-selected={aba === id} className="rounded-full px-4 py-2.5 text-[15px] font-bold text-[#617066] no-underline aria-selected:bg-[#f5f6f4] aria-selected:text-[#121c15]">{label}</Link>
+        ))}
+      </nav>
+
+      {aba === 'enunciados' && (
+        <Section title={ready ? 'Enunciados' : 'Enunciados recentes'} count={enunciados.length} empty="Nenhum enunciado encontrado.">
+          {enunciados.map((e) => <Row key={e.id} href={`/prova/${e.id}/detalhe`} name={`${e.kind} · ${e.title}`} sub={[e.school, e.subject].filter(Boolean).join(' · ')} />)}
+        </Section>
+      )}
+      {ready && aba === 'escolas' && (
+        <Section title="Escolas" count={schools.length} empty={`Nenhuma escola encontrada para «${q}».`}>
+          {schools.map((s) => <Row key={s.id} href={`/escola/${s.id}`} name={s.name} sub={s.code} photo={s.logo} verified={s.verified} />)}
+        </Section>
+      )}
+      {ready && aba === 'pessoas' && (
         <div className="grid gap-5">
-          <Section title="Escolas" count={schools.length} empty={`Nenhuma escola encontrada para «${q}».`}>
-            {schools.map((s) => <Row key={s.id} href={`/escola/${s.id}`} name={s.name} sub={s.code} photo={s.logo} verified={s.verified} />)}
-          </Section>
           <Section title="Professores" count={teachers.length} empty={`Nenhum professor encontrado para «${q}».`}>
             {teachers.map((t) => <Row key={t.accountId} href={`/u/${t.accountId}`} name={t.displayName} sub={t.specialty} photo={t.photo} verified={t.verified} />)}
           </Section>
@@ -97,6 +116,7 @@ export default async function PesquisaPage({ searchParams }: { searchParams: Pro
           </Section>
         </div>
       )}
+      {!ready && aba !== 'enunciados' && <p className="text-sm text-[#617066]">Escreve pelo menos {MIN_QUERY} letras para procurar.</p>}
     </div>
   );
 }
