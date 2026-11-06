@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { Lightbulb } from 'lucide-react';
 import { Ico } from '@/components/ui/ico';
 import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
@@ -11,7 +10,6 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 import { sinceLabel } from '@/lib/attempt-history';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { CLASSMATE_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
@@ -167,29 +165,31 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post.id]);
 
-  const act = 'h-11 min-w-11 gap-1.5 px-3 text-muted-foreground aria-expanded:text-primary';
   const author = authorView(post, myAccountId, authorProfile, myClassId, { name: myName, photo: myPhoto ?? null });
   const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
 
   return (
-    <article ref={card} className="rise flex gap-3 border-b px-4 pt-3 transition-colors hover:bg-secondary/40">
-      <UserAvatar name={author.name} src={author.photo} size={44} />
-      <div className="min-w-0 flex-1">
-        <header className="flex flex-wrap items-baseline gap-x-2 leading-tight">
-          {author.mine ? (
-            <span className="font-bold">{author.name}</span>
-          ) : (
-            <Link prefetch={false} href={`/u/${post.authorAccountId}`} className="inline-flex min-h-6 items-center font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
-          )}
-          {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
-          {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={16} /></span>}
-          {isPublishing
-            ? <span role="status" aria-live="polite" className="text-[14px] text-muted-foreground">· A publicar…</span>
-            : <span className="text-[14px] text-muted-foreground">· {sinceLabel(post.createdAt) ?? ''}</span>}
-          <span title={typeLabel} role="img" aria-label={typeLabel} className="ml-auto grid size-7 place-items-center rounded-full bg-secondary text-muted-foreground">{studyTip ? <Lightbulb size={16} aria-hidden /> : <Ico name={post.type === 'doubt' ? 'chat' : post.type === 'simulation' || post.type === 'milestone' ? 'award' : post.type === 'challenge' ? 'flame' : 'file'} size={16} />}</span>
+    <article ref={card} className="post rise">
+      <div className="min-w-0">
+        <header className="flex items-center gap-3">
+          <UserAvatar name={author.name} src={author.photo} size={38} />
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="flex flex-wrap items-center gap-x-1.5">
+              {author.mine ? (
+                <span className="text-sm font-bold">{author.name}</span>
+              ) : (
+                <Link prefetch={false} href={`/u/${post.authorAccountId}`} className="inline-flex min-h-6 items-center text-sm font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
+              )}
+              {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
+              {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={15} /></span>}
+            </span>
+            {isPublishing
+              ? <span role="status" aria-live="polite" className="text-[13px] font-semibold text-muted-foreground">A publicar…</span>
+              : <span className="lbl"><span role="img" aria-label={typeLabel}>{typeLabel}</span>, {sinceLabel(post.createdAt) ?? ''}</span>}
+          </div>
         </header>
-        <div className="mt-1 grid gap-2.5">
-          {post.title && <h3 className="font-semibold">{post.title}</h3>}
+        <div className="mt-[11px] grid gap-2.5">
+          {post.title && <h3 className="text-[15px] font-bold leading-normal">{post.title}</h3>}
           {post.simulation && (
             <SimulationCard
               card={post.simulation}
@@ -207,24 +207,16 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
           )}
           {post.blocks && post.blocks.length > 0
             ? <PostBlocksView blocks={post.blocks} />
-            : post.content && <p className="max-w-[62ch] leading-relaxed break-words">{post.content}</p>}
+            : post.content && <p className="text-[15px] leading-normal break-words">{post.content}</p>}
         </div>
 
-        <div className="-ml-3 mt-1 flex items-center gap-1 py-0.5">
-          <Button variant="ghost" className={cn(act, reaction.reacted && 'text-destructive')} aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}>
-            <Ico key={String(reaction.reacted)} name="heart" filled={reaction.reacted} size={24} className={cn(reaction.reacted && 'pop')} />
-          </Button>
-          <Button variant="ghost" className={act} aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
-            <Ico name="chat" filled={open} size={24} /><span className="min-w-3 text-[14px] tabular-nums">{count}</span>
-          </Button>
-          <Button
-            variant="ghost" size="icon" className="ml-auto text-muted-foreground aria-pressed:text-destructive"
-            aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported}
-            onClick={() => setReporting((v) => !v)}
-          >
-            <Ico name="flag" filled={reporting || reported} size={22} />
-          </Button>
-        </div>
+        <span className="acoes">
+          <button type="button" className="acao" aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 1 4 7.5L3 21l1.6-4.3A8.96 8.96 0 0 1 3 12Z" /></svg>{count}</button>
+          <button type="button" className="acao" aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 11v9H4v-9zm0 0 4-7a2 2 0 0 1 3.6 1.7L13 10h5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H9a2 2 0 0 1-2-2" /></svg>{reaction.reacted ? 1 : ''}</button>
+          <button type="button" className="acao ml-auto" aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported} onClick={() => setReporting((v) => !v)}>
+            <Ico name="flag" filled={reporting || reported} size={15} />
+          </button>
+        </span>
 
         {reaction.pending && <p className="sr-only" role="status" aria-live="polite">A guardar o aplauso…</p>}
         {reaction.error && (
@@ -288,46 +280,41 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         </form>
       )}
 
+      {conversation.comments && conversation.comments.length > 0 && (
+        <div className="mt-1 flex gap-3">
+          <div className="flex w-[38px] shrink-0 justify-center"><span className="w-0.5 self-stretch bg-[#dbe0da]" aria-hidden="true" /></div>
+          <ol className="flex min-w-0 flex-1 flex-col gap-[18px]">
+            {conversation.comments.map((c) => {
+              const who = commentAuthorLabel(c.displayName, c.mine);
+              return (
+                <li key={c.id} className="flex flex-col gap-2.5">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar name={who} src={c.mine ? myPhoto : c.photo} size={38} />
+                    <span className="flex flex-col gap-0.5">
+                      {c.mine ? <strong className="text-sm">{who}</strong> : <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="inline-flex min-h-6 items-center text-sm font-bold hover:underline">{who}<span className="sr-only">, ver perfil</span></Link>}
+                      <span className="lbl">{sinceLabel(c.createdAt) ?? ''}</span>
+                    </span>
+                  </div>
+                  <p className="ttl">{c.content}</p>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
       {open && (
-        <div className="grid gap-3 border-t py-3">
-          <div className="grid gap-3">
-            {conversation.error ? (
-              <Alert variant="destructive">
-                <span className="flex-1">{conversation.error}</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => readComments(true)}>Tentar de novo</Button>
-              </Alert>
-            ) : reading && conversation.comments === null ? (
-              <LoadingState label="A carregar os comentários…" lines={3} />
-            ) : conversation.comments === null || conversation.comments.length === 0 ? (
-              <p className="py-2 text-center text-sm text-muted-foreground">Ainda não há comentários nesta publicação.</p>
-            ) : (
-              <ol className="grid gap-3">
-                {conversation.comments.map((c) => (
-                  <li key={c.id} className="flex items-start gap-2.5">
-                    <UserAvatar
-                      name={commentAuthorLabel(c.displayName, c.mine)}
-                      src={c.mine ? myPhoto : c.photo}
-                      size={32}
-                    />
-                    <div className="min-w-0 flex-1 rounded-2xl bg-secondary px-3 py-2">
-                      <div className="flex items-baseline gap-2">
-                        {c.mine ? (
-                          <span className="text-sm font-semibold">{commentAuthorLabel(c.displayName, c.mine)}</span>
-                        ) : (
-                          <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="text-sm font-semibold hover:underline focus-visible:underline">{commentAuthorLabel(c.displayName, c.mine)}<span className="sr-only">, ver perfil</span></Link>
-                        )}
-                        <span className="text-xs text-muted-foreground">{sinceLabel(c.createdAt) ?? ''}</span>
-                      </div>
-                      <p className="text-sm leading-relaxed break-words">{c.content}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
+        <div className="grid gap-3 pt-3">
+          {conversation.error && (
+            <Alert variant="destructive">
+              <span className="flex-1">{conversation.error}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => readComments(true)}>Tentar de novo</Button>
+            </Alert>
+          )}
+          {reading && conversation.comments === null && <LoadingState label="A carregar os comentários…" lines={3} />}
           <form className="flex items-center gap-2.5" onSubmit={sendComment}>
-            <UserAvatar name={myName} src={myPhoto} size={32} />
-            <Input className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve um comentário" aria-label="Escrever um comentário" maxLength={500} />
+            <UserAvatar name={myName} src={myPhoto} size={38} />
+            <Input className="h-11 rounded-full bg-secondary" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreve uma resposta" aria-label="Escrever um comentário" maxLength={500} />
             <Button type="submit" variant="ghost" size="icon" aria-label="Enviar comentário" disabled={pending}><Ico name="send" size={22} /></Button>
           </form>
           {commentError && <Alert variant="destructive">{commentError}</Alert>}

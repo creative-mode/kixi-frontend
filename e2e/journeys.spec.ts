@@ -273,7 +273,7 @@ test.describe('jornadas críticas do Kixi', () => {
     // Reabrir (o rodapé faz o mesmo) e fechar devolve o foco a quem o tinha, e a barra ao fundo.
     await banner.getByRole('button', { name: 'Aceitar' }).click();
     await expect(banner).toHaveCount(0);
-    const campo = page.locator('#conteudo a[href]').first();
+    const campo = page.locator('#conteudo a[href]:visible').first();
     await campo.focus();
     await page.evaluate(() => {
       localStorage.removeItem('kixi-consent');
@@ -322,8 +322,10 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(desafio.getByText(/primeiro é o da rede/)).toBeVisible();
 
     // O construtor: modelo, blocos, imagem, pré-visualização e publicação.
-    await page.getByRole('link', { name: 'Criar publicação com imagens e blocos' }).click();
+    await page.getByRole('link', { name: /Partilha uma dúvida ou uma dica/ }).click();
     await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await page.getByRole('link', { name: 'Junta imagens, passos ou fórmulas' }).click();
+    await expect(page).toHaveURL(/avancado=1/);
     await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
     await page.getByLabel('Título 1', { exact: true }).fill('Endereços de uma rede');
     await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
@@ -356,7 +358,7 @@ test.describe('jornadas críticas do Kixi', () => {
 
     const id = randomUUID().slice(0, 6);
     const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
-    await page.goto('/aluno/publicar');
+    await page.goto('/aluno/publicar?avancado=1');
     await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
     await page.getByLabel('Título 1', { exact: true }).fill(`Esquema ${id}`);
     await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
@@ -405,12 +407,16 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.locator('#password').fill(PASSWORD);
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
-    await page.getByRole('link', { name: 'Pesquisar escolas, professores e alunos' }).click();
+    // No telemóvel a pesquisa abre-se por «Explorar», na barra inferior.
+    await page.getByTestId('nav-mobile').getByRole('link', { name: 'Explorar' }).click();
     await expect(page).toHaveURL(/\/aluno\/pesquisa/);
     await page.getByLabel(/Nome de uma escola/).fill('itel');
-    await page.getByRole('button', { name: 'Pesquisar' }).click();
-    for (const secao of ['Escolas', 'Professores', 'Alunos']) await expect(page.getByRole('region', { name: secao })).toBeVisible();
+    await page.keyboard.press('Enter');
+    await page.getByRole('tab', { name: 'Escolas' }).click();
+    await expect(page.getByRole('region', { name: 'Escolas' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Escolas' }).getByRole('link').first()).toBeVisible();
+    await page.getByRole('tab', { name: 'Pessoas' }).click();
+    for (const secao of ['Professores', 'Alunos']) await expect(page.getByRole('region', { name: secao })).toBeVisible();
   });
 
   test('pesquisar na barra lateral no desktop abre a mesma pesquisa', async ({ page }) => {
@@ -2170,7 +2176,7 @@ test.describe('navegação do telemóvel (#704)', () => {
     const barra = page.getByTestId('nav-mobile');
     const itens = barra.getByRole('link');
     await expect(itens).toHaveCount(4);
-    for (const nome of ['Início', 'Provas', 'Ranking', 'Tutor']) {
+    for (const nome of ['Início', 'Provas', 'Explorar', 'Turma']) {
       await expect(barra.getByRole('link', { name: nome })).toBeVisible();
     }
     await expect(barra.getByRole('link', { name: 'Pautas' })).toHaveCount(0);
@@ -2182,19 +2188,22 @@ test.describe('navegação do telemóvel (#704)', () => {
 
     // As pautas continuam alcançáveis: pelo perfil, que é como se chega no telemóvel.
     await page.goto('/aluno/perfil');
+    await page.getByRole('tab', { name: 'Definições' }).click();
     await page.getByRole('link', { name: /As minhas pautas/ }).click();
     await expect(page).toHaveURL(/\/aluno\/pautas/);
     await expect(page.getByRole('heading', { name: 'As minhas pautas' })).toBeVisible();
   });
 
-  test('no desktop a barra lateral mantém as Pautas', async ({ page }) => {
+  test('no desktop a barra lateral tem as cinco entradas, sem a barra inferior', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 860 });
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
     await page.locator('#password').fill(PASSWORD);
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
-    await expect(page.locator('header nav[aria-label="Principal"]').getByRole('link', { name: 'Pautas' })).toBeVisible();
+    for (const nome of ['Início', 'Provas', 'Pesquisar escolas, professores e alunos', 'Turma', 'Notificações']) {
+      await expect(page.locator('header nav[aria-label="Principal"]').getByRole('link', { name: nome })).toBeVisible();
+    }
     await expect(page.getByTestId('nav-mobile')).toBeHidden();
   });
 });

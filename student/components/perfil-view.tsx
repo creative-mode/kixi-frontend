@@ -2,40 +2,29 @@
 
 import { useCallback, useState } from 'react';
 import { Ico } from '@/components/ui/ico';
+import { UserAvatar } from '@/components/user-avatar';
 import { CountUp } from '@/components/count-up';
 import { Experience } from '@/components/experience';
 import type { ExperienceEntry } from '@/lib/experience-rules';
 import { sairAction } from '@/lib/auth-actions';
-import { Mastery } from '@/components/mastery';
-import { Page, PageHeader } from '@/components/page';
-import { ProfileHero } from '@/components/profile-hero';
 import { PostCard } from '@/components/post-card';
-import { PostComposer } from '@/components/post-composer';
 import { VisibilityPicker } from '@/components/visibility-picker';
 import type { Visibility } from '@/lib/profiles';
 import { ProfileEditor } from '@/components/profile-editor';
 import { EmptyState } from '@/components/states';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { RefreshError } from '@/components/refresh-error';
-import { Badge as Pill } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setReduceMotion, useReduceMotion } from '@/lib/motion';
 import { formatAverage } from '@/lib/ranking-rules';
-import { PROFILE_TABS, shortTitle, type ProfileTab } from '@/lib/social-rules';
+import { shortTitle, type ProfileTab } from '@/lib/social-rules';
 import type { Performance } from '@/lib/performance-rules';
 import type { CatalogItem } from '@/lib/catalog';
 import type { FeedPost } from '@/lib/feed';
 import type { Badge, Stats } from '@/lib/stats';
 import type { Me } from '@/lib/types';
-
-function Fact({ icon, children }: { icon: Parameters<typeof Ico>[0]['name']; children: React.ReactNode }) {
-  return <li className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground"><Ico name={icon} size={16} className="shrink-0" /><span className="min-w-0 truncate">{children}</span></li>;
-}
 
 /** O centro do perfil: cabeçalho, últimas simulações, sequência de estudo e separadores. */
 export function PerfilView({
@@ -69,6 +58,7 @@ export function PerfilView({
   startEditing?: boolean;
 }) {
   const [editing, setEditing] = useState(startEditing);
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
   const reduceMotion = useReduceMotion();
   const close = useCallback(() => setEditing(false), []);
 
@@ -76,146 +66,133 @@ export function PerfilView({
   const context = contextLine(me);
   const recent = performance.activity.slice(0, 3);
 
-  return (
-    <Page className="gap-0 p-0 pb-24 md:pb-10">
-      <PageHeader title={name} kicker={`${performance.activity.length} ${performance.activity.length === 1 ? 'simulação' : 'simulações'}`} back="/inicio" className="m-0" />
+  const lbl = 'm-0 mb-3 text-[13px] font-bold tracking-[.04em] text-[#617066] uppercase';
+  const mut = 'text-sm text-[#617066]';
+  const tabs: ProfileTab[] = ['Publicações', 'Experiência', 'Conquistas', 'Definições'];
 
-      <ProfileHero
-        name={name}
-        photo={photoUrl(me)}
-        actions={!editing ? <Button type="button" variant="outline" onClick={() => setEditing(true)}>Editar perfil</Button> : undefined}
-        footer={editing ? <div className="border-t"><ProfileEditor me={me} onDone={close} /></div> : undefined}
-      >
-        {!context && <p className="text-[15px] text-muted-foreground">Sem afiliação académica: matricula-te para veres o teu feed.</p>}
-        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-          {me.school && <Fact icon="building">{me.school.name}</Fact>}
-          {me.course && <Fact icon="file">{me.course.name}</Fact>}
-          {me.currentClass && <Fact icon="users">Turma {me.currentClass.code}</Fact>}
-          {me.currentClass?.school_year && <Fact icon="calendar">Ano letivo {me.currentClass.school_year}</Fact>}
-        </ul>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {stats && <Pill variant="secondary"><Ico name="award" size={14} />Nível {stats.level}</Pill>}
-          {stats && stats.streak > 0 && <Pill variant="outline"><Ico name="flame" filled size={14} />{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} seguidos</Pill>}
-          {stats && <Pill variant="outline"><CountUp value={String(stats.xp)} /> XP</Pill>}
-        </div>
-        {recent.length > 0 && (
-          <ul aria-label="Últimas simulações" className="mt-4 grid grid-cols-3 gap-2">
+  return (
+    <div className="flex w-full flex-col items-center pb-28 md:max-w-[480px] md:self-center md:pb-12 mx-auto">
+      <div aria-hidden className="h-[148px] w-full rounded-b-[24px] bg-[#dbe9d3]" />
+      <div className="relative -mt-[58px]">
+        <span className="block rounded-full border-4 border-white shadow-[0_1px_3px_rgba(18,28,21,.12)]"><UserAvatar name={name} src={photoUrl(me)} size={100} /></span>
+        <button type="button" aria-label="Editar perfil" onClick={() => setEditing(true)} className="absolute -right-1 -bottom-1 flex size-9 items-center justify-center rounded-full border-[3px] border-white bg-[#1f5a2c] text-white">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+        </button>
+      </div>
+      <h1 className="m-0 mt-3.5 text-[26px] leading-tight font-extrabold tracking-[-0.02em]">{name}</h1>
+      <span className={`${mut} mt-1`}>{context || 'Sem afiliação académica: matricula-te para veres o teu feed.'}</span>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        {stats && <span className="inline-flex h-8 items-center rounded-full bg-[#f1f6ee] px-3.5 text-sm font-bold text-[#1f5a2c]">Nível {stats.level}</span>}
+        {stats && stats.streak > 0 && <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#e3e6e0] px-3.5 text-sm font-bold whitespace-nowrap text-[#3d4a41]"><Ico name="flame" filled size={14} className="text-[#c2383e]" />{stats.streak} {stats.streak === 1 ? 'dia seguido' : 'dias seguidos'}</span>}
+        {stats && <span className="inline-flex h-8 items-center rounded-full border border-[#e3e6e0] px-3.5 text-sm font-bold whitespace-nowrap text-[#3d4a41]"><CountUp value={String(stats.xp)} />&nbsp;XP</span>}
+      </div>
+
+      {editing && <div className="mt-6 w-full px-4 md:px-0"><ProfileEditor me={me} onDone={close} /></div>}
+
+      {recent.length > 0 && (
+        <section className="mt-7 w-full px-4 md:px-0">
+          <h2 className={lbl}>Últimas simulações</h2>
+          <ul aria-label="Últimas simulações" className="m-0 grid list-none grid-cols-3 gap-2.5 p-0">
             {recent.map((a) => (
-              <li key={a.id}>
-                <Link prefetch={false} href={`/resultado?prova=${a.id}`} className="px-box grid h-full content-between gap-2 p-3 [--px-face:var(--secondary)] hover:[--px-face:var(--accent)]">
-                  <b className="text-lg leading-none tabular-nums">{formatAverage(a.score)}</b>
-                  <span className="line-clamp-2 text-[12px] leading-tight font-semibold">{shortTitle(a.title, 32)}</span>
+              <li key={a.id} className="min-w-0">
+                <Link prefetch={false} href={`/resultado?prova=${a.id}`} className="flex h-full flex-col gap-1.5 rounded-[14px] bg-[#f5f6f4] px-3.5 py-4 text-[#121c15] no-underline">
+                  <strong className="text-xl leading-none tabular-nums">{formatAverage(a.score)}</strong>
+                  <span className={`${mut} line-clamp-2`}>{shortTitle(a.title, 32)}</span>
                 </Link>
               </li>
             ))}
           </ul>
-        )}
-        {/* As Pautas saíram da barra inferior do telemóvel para a barra voltar a alinhar
-            (#704); esta é a porta para elas em mobile e desktop. */}
-        <Link
-          href="/pautas"
-          className="mt-4 flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-secondary/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-        >
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Ico name="award" size={22} /></span>
-          <span className="min-w-0 flex-1 leading-snug">
-            <b className="block text-[15px]">As minhas pautas</b>
-            <span className="text-[13px] text-muted-foreground">As tuas notas de cada trimestre, depois de a escola fechar a pauta.</span>
-          </span>
-          <Ico name="chevron" size={20} className="shrink-0 text-muted-foreground" aria-hidden />
-        </Link>
-      </ProfileHero>
+        </section>
+      )}
 
-      <Tabs defaultValue={initialTab}>
-        <TabsList aria-label="Perfil">{PROFILE_TABS.map((t) => <TabsTrigger key={t} value={t}>{t}</TabsTrigger>)}</TabsList>
+      <div role="tablist" aria-label="Perfil" className="mt-[30px] flex w-[calc(100%-32px)] gap-0.5 rounded-full bg-[#f5f6f4] p-1 md:w-full">
+        {tabs.map((t) => (
+          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`h-10 flex-1 rounded-full border-0 text-[15px] font-bold ${tab === t ? 'bg-[#1f5a2c] text-white' : 'bg-transparent text-[#617066]'}`}>{t}</button>
+        ))}
+      </div>
 
-        <TabsContent value="Publicações" className="flex flex-col">
-          {classId && <PostComposer classId={classId} />}
-          {feedError ? (
-            <div className="p-4"><RefreshError title="Não foi possível carregar as publicações" message={feedError} /></div>
-          ) : !classId ? (
-            <EmptyState title="Matricula-te para publicares" message="As publicações da tua turma aparecem aqui depois da matrícula." />
-          ) : posts.length === 0 ? (
-            <EmptyState title="Ainda não publicaste nada" message="Partilha uma dúvida ou um tema com a turma e fica aqui." />
-          ) : (
-            posts.map((p) => <PostCard key={p.id} post={p} myAccountId={me.accountId} myName={name} myPhoto={me.photo} />)
-          )}
-        </TabsContent>
-
-        <TabsContent value="Experiência">
-          <Experience entries={experience} teacher={false} own />
-        </TabsContent>
-
-        <TabsContent value="Conquistas" className="grid gap-4 p-4">
-          <Card><CardHeader><CardTitle>Medalhas</CardTitle></CardHeader>
-            <CardContent>
-              {badges.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Termina a primeira simulação para ganhar a primeira medalha.</p>
-              ) : (
-                <ul className="grid gap-3.5 sm:grid-cols-2">
-                  {badges.map((b) => (
-                    <li key={b.code} className="flex items-center gap-3.5">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Ico name="award" filled size={22} /></span>
-                      <div className="leading-snug"><b className="block text-sm">{b.name}</b><span className="text-[13px] text-muted-foreground">{b.description}</span></div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-          <Card><CardHeader><CardTitle>Domínio por prova</CardTitle></CardHeader>
-            <CardContent className="grid gap-3.5">
-              {performance.mastery.length === 0
-                ? <p className="text-sm text-muted-foreground">Entrega uma prova para veres aqui o teu domínio.</p>
-                : performance.mastery.map((t) => <Mastery key={t.id} label={t.label} value={t.value} />)}
-            </CardContent>
-          </Card>
-          <Card className="gap-0 divide-y py-0">
-            {history.length === 0 && (
-              <div className="grid justify-items-center gap-1 px-5 py-10 text-center text-sm text-muted-foreground">
-                <b className="text-foreground">Ainda não terminaste nenhuma prova</b>
-                <span>As provas concluídas aparecem aqui, com a nota.</span>
-              </div>
+      <div role="tabpanel" aria-label={tab} className="mt-6 w-full px-4 md:px-0">
+        {tab === 'Publicações' && (
+          <section aria-label="Publicações" className="flex flex-col">
+            {feedError ? (
+              <RefreshError title="Não foi possível carregar as publicações" message={feedError} />
+            ) : !classId ? (
+              <EmptyState title="Matricula-te para publicares" message="As publicações da tua turma aparecem aqui depois da matrícula." />
+            ) : posts.length === 0 ? (
+              <EmptyState title="Ainda não publicaste nada" message="Partilha uma dúvida ou um tema com a turma e fica aqui." />
+            ) : (
+              posts.map((p) => <PostCard key={p.id} post={p} myAccountId={me.accountId} myName={name} myPhoto={me.photo} />)
             )}
-            {history.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-3.5 px-5 py-3.5">
-                <div className="leading-snug">
-                  <b className="block text-sm">{item.title}</b>
-                  <span className="text-[13px] text-muted-foreground">{[item.kind, item.subject, item.school].filter(Boolean).join(' · ')}</span>
-                </div>
-                <Pill variant="success">{item.score}</Pill>
+            {classId && <Link href="/publicar" className="mt-3 flex h-11 items-center justify-center rounded-xl bg-[#1f5a2c] text-[15px] font-bold text-white no-underline">Nova publicação</Link>}
+          </section>
+        )}
+
+        {tab === 'Conquistas' && (
+          <section aria-label="Conquistas">
+            <h2 className={lbl}>Medalhas</h2>
+            {badges.length === 0 ? (
+              <p className={mut}>Termina a primeira simulação para ganhar a primeira medalha.</p>
+            ) : badges.map((b, i) => (
+              <div key={b.code} className="flex items-center gap-3.5 border-[#eef0ec] py-3.5" style={{ borderTopWidth: i === 0 ? 0 : 1 }}>
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#eef6ea] text-[#1f5a2c]"><Ico name="award" filled size={20} /></span>
+                <div><strong className="block text-[15px]">{b.name}</strong><span className={mut}>{b.description}</span></div>
               </div>
             ))}
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="Definições" className="p-4">
-          <Card><CardHeader><CardTitle>Definições</CardTitle></CardHeader>
-            <CardContent className="divide-y">
-              <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0">
-                <Label htmlFor="def-motion" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-[15px]">Reduzir movimento</span><span className="text-[13px] font-normal text-muted-foreground">Menos animações na interface.</span></Label>
-                <Switch id="def-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
+            <h2 className={`${lbl} mt-6`}>Domínio por prova</h2>
+            {performance.mastery.length === 0 ? (
+              <p className={mut}>Entrega uma prova para veres aqui o teu domínio.</p>
+            ) : (
+              <div className="flex flex-col gap-3.5">
+                {performance.mastery.map((t) => (
+                  <div key={t.id}>
+                    <div className="mb-1.5 flex justify-between text-sm"><span>{t.label}</span><span className="text-[#617066]">{Math.round(t.value)}%</span></div>
+                    <div className="h-2 overflow-hidden rounded-full bg-[#eef0ec]"><span className="block h-full rounded-full bg-[#1f5a2c]" style={{ width: `${Math.min(100, Math.max(0, t.value))}%` }} /></div>
+                  </div>
+                ))}
               </div>
-              {/* Issue #107: o tempo extra é do aluno, mas só um administrador o liga: é uma decisão da
-                  escola, não uma preferência de interface, por isso aparece aqui como estado e não como interruptor. */}
-              <div className="flex items-center justify-between gap-4 py-3.5 last:pb-0">
-                <div className="grid gap-0.5 leading-snug">
-                  <span className="text-[15px]">+25% de tempo nas provas</span>
-                  <span className="text-[13px] font-normal text-muted-foreground">Definido pela escola, não por ti.</span>
-                </div>
-                <Pill variant={me.accessibility_extra_time ? 'success' : 'secondary'}>{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</Pill>
+            )}
+
+            <h2 className={`${lbl} mt-6`}>Histórico</h2>
+            {history.length === 0 ? (
+              <p className={mut}>Ainda não terminaste nenhuma prova. As provas concluídas aparecem aqui, com a nota.</p>
+            ) : history.map((item, i) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 border-[#eef0ec] py-3.5" style={{ borderTopWidth: i === 0 ? 0 : 1 }}>
+                <div><strong className="block text-[15px]">{item.kind} · {item.title}</strong><span className={mut}>{[item.subject, item.school].filter(Boolean).join(' · ')}</span></div>
+                <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c] tabular-nums">{item.score}</span>
               </div>
-              <VisibilityPicker initial={visibility} />
-              <div className="grid gap-2 border-t py-3.5 text-[15px]">
-                <a href={`${landingOrigin ?? ''}/privacidade`} className="font-medium text-primary underline-offset-4 hover:underline">Privacidade</a>
-                <a href={`${landingOrigin ?? ''}/cookies`} className="font-medium text-primary underline-offset-4 hover:underline">Cookies</a>
-              </div>
-              <form action={sairAction} className="pt-3.5 last:pb-0">
-                <Button type="submit" variant="outline" className="w-full text-destructive sm:w-auto"><Ico name="logout" size={20} />Terminar sessão</Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </Page>
+            ))}
+          </section>
+        )}
+
+        {tab === 'Experiência' && (
+          <section aria-label="Experiência">
+            <Experience entries={experience} teacher={false} own />
+          </section>
+        )}
+
+        {tab === 'Definições' && (
+          <section aria-label="Definições">
+            <h2 className={lbl}>Definições</h2>
+            <div className="flex items-center justify-between gap-4 py-3.5">
+              <Label htmlFor="def-motion" className="grid cursor-pointer gap-0.5 leading-snug"><span className="text-base">Reduzir movimento</span><span className={`${mut} font-normal`}>Menos animações na interface.</span></Label>
+              <Switch id="def-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
+            </div>
+            {/* Issue #107: o tempo extra é uma decisão da escola, não uma preferência de interface: é estado, não interruptor. */}
+            <div className="flex items-center justify-between gap-4 border-t border-[#eef0ec] py-3.5">
+              <div className="grid gap-0.5 leading-snug"><span className="text-base">+25% de tempo nas provas</span><span className={mut}>Definido pela escola, não por ti.</span></div>
+              <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c]">{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</span>
+            </div>
+            <VisibilityPicker initial={visibility} />
+            <Link href="/pautas" className="flex min-h-[58px] items-center gap-3 border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]"><span className="flex-1">As minhas pautas</span><Ico name="chevron" size={18} className="text-[#7a857d]" aria-hidden /></Link>
+            <a href={`${landingOrigin ?? ''}/privacidade`} className="flex min-h-[58px] items-center border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]">Privacidade</a>
+            <a href={`${landingOrigin ?? ''}/cookies`} className="flex min-h-[58px] items-center border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]">Cookies</a>
+            <form action={sairAction} className="border-t border-[#eef0ec] pt-3.5">
+              <button type="submit" className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#dde3da] bg-white text-[15px] font-bold text-[#c2383e]"><Ico name="logout" size={20} />Terminar sessão</button>
+            </form>
+          </section>
+        )}
+      </div>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { CountUp } from '@/components/count-up';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { Award, Check, Clock, MessageCircle, Sparkles, X } from 'lucide-react';
+import { Award, Check, MessageCircle, X } from 'lucide-react';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { ClearExamLocal } from '@/components/clear-exam-local';
 import { Column, Page, PageHeader } from '@/components/page';
@@ -211,98 +211,50 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
       <FireEventOnce param="submetida" event="exam_submitted" />
       <ClearExamLocal simulationId={id} />
       <Column className="gap-5">
-        <PageHeader kicker="Resultado" title={view.title} back="/provas" />
-
-        <div className="flex flex-wrap items-end gap-x-3.5 gap-y-2">
-          <span className="text-[52px] leading-[.95] font-bold tracking-tighter tabular-nums md:text-[64px]">{score ? <CountUp value={score} /> : '—'}</span>
-          {totalMax != null && (
-            <span className="pb-1.5 text-lg font-semibold text-muted-foreground">de {formatScore(totalMax)} valores</span>
-          )}
-          {comparison && (
-            <Badge variant={comparison.delta >= 0 ? 'success' : 'warning'} className="mb-2">
-              {formatDelta(comparison.delta)} face à tentativa anterior ({formatScore(comparison.previousScore)})
-            </Badge>
-          )}
-        </div>
+        <section className="flex items-center gap-[22px] px-1 pb-2 pt-1">
+          <div className="relative size-[132px] shrink-0" role="img" aria-label={`${score ?? '—'} de ${totalMax != null ? formatScore(totalMax) : '—'} valores`}>
+            <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#eef0ec" strokeWidth="10" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#1f5a2c" strokeWidth="10" strokeLinecap="round" strokeDasharray="326.7" strokeDashoffset={326.7 * (1 - Math.min(1, Math.max(0, totalMax ? (result.finalScore ?? 0) / totalMax : 0)))} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-[38px] leading-none font-extrabold tracking-[-0.03em] tabular-nums">{score ? <CountUp value={score} /> : '—'}</span>
+              {totalMax != null && <span className="text-[13px] font-semibold text-[#5f6b63]">de {formatScore(totalMax)}</span>}
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-[15px] font-semibold text-[#1f5a2c]">{view.title}</span>
+            <h1 className="m-0 text-[28px] leading-[1.15] font-extrabold tracking-[-0.02em]">{me?.first_name ? `Bom trabalho, ${me.first_name}.` : 'Bom trabalho.'}</h1>
+            <span data-testid={reading ? 'resultado-leitura' : undefined} role={reading ? 'status' : undefined} className="text-[15px] leading-[1.4] text-[#3d4a41]">
+              {reading ? reading.text : `${result.correctAnswers ?? '—'}${result.totalQuestions != null ? ` de ${result.totalQuestions}` : ''} respostas certas${time ? ` em ${time}` : ''}.`}
+            </span>
+            <div className="mt-1 flex flex-wrap gap-2" aria-label="O que ganhaste" role="group">
+              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1b4d27]">{stats.xp} XP · nível {stats.level}</span>}
+              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#fbe9ea] px-3 text-[13px] font-bold text-[#8a2a2e]">{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} de sequência</span>}
+              {comparison && <span className="flex h-[30px] items-center rounded-full bg-[#fbf1d6] px-3 text-[13px] font-bold text-[#8a5a00]">{formatDelta(comparison.delta)} face à anterior</span>}
+            </div>
+          </div>
+        </section>
         {pending > 0 && (
           <p className="-mt-2 text-sm text-muted-foreground" role="status">
             {pending === 1 ? '1 resposta aberta ainda está' : `${pending} respostas abertas ainda estão`} a ser corrigida{pending === 1 ? '' : 's'}: a nota pode mudar quando terminar.
-            Não precisas de esperar aqui, esta página atualiza-se quando voltares.
           </p>
         )}
+        {medalhasNovas.map((badge) => (
+          <div key={badge.code} className="flex items-start gap-3 rounded-2xl bg-[#fef8e8] px-4 py-3.5">
+            <Award className="mt-0.5 size-5 shrink-0 text-[#9a6400]" aria-hidden />
+            <div className="leading-snug"><b className="block text-sm">Medalha nova: {badge.name}</b><span className="text-[13px] text-[#617066]">{badge.description}</span></div>
+          </div>
+        ))}
 
-        {reading && (
-          <p
-            data-testid="resultado-leitura"
-            role="status"
-            className={
-              'flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm leading-relaxed ' +
-              (reading.tone === 'low' ? 'border-warning/40 bg-warning-soft' : 'border-success/30 bg-success-soft')
-            }
-          >
-            <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>{reading.text}</span>
-          </p>
-        )}
-
-        {/* As acções principais ficam logo a seguir à leitura da nota (#492): quem
-            quer estudar os erros não tem de atravessar a folha inteira. */}
-        <div className="flex flex-wrap items-start gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {statementId != null && hasMistakes && (
-            <Button asChild>
-              {/* `de=resultado&simulacao=` diz ao tutor que «Voltar» tem de regressar
-                  a este resultado, e não ao detalhe da prova (#491). */}
+            <Button asChild size="lg">
               <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}&de=resultado&simulacao=${result.simulationId}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
           {statementId != null && <RefazerSimulacao statementId={statementId} />}
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
-        </div>
-
-        {(stats != null || medalhasNovas.length > 0) && (
-          <Card className="gap-3 px-4 py-4" aria-label="O que ganhaste">
-            <h2 className="text-[17px] font-bold tracking-tight">O que ganhaste</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {stats != null && (
-                <div className="rounded-lg bg-secondary/60 px-3.5 py-3">
-                  <b className="block text-[22px] leading-none tracking-tight tabular-nums">{stats.xp} XP</b>
-                  <span className="text-[13px] text-muted-foreground">no total · nível {stats.level}</span>
-                </div>
-              )}
-              {stats != null && (
-                <div className="rounded-lg bg-secondary/60 px-3.5 py-3">
-                  <b className="block text-[22px] leading-none tracking-tight tabular-nums">
-                    {stats.streak} {stats.streak === 1 ? 'dia' : 'dias'}
-                  </b>
-                  <span className="text-[13px] text-muted-foreground">de sequência</span>
-                </div>
-              )}
-              {medalhasNovas.map((badge) => (
-                <div key={badge.code} className="flex items-start gap-3 rounded-lg border border-success/30 bg-success-soft px-3.5 py-3 sm:col-span-2">
-                  <Award className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
-                  <div className="leading-snug">
-                    <b className="block text-sm">Medalha nova: {badge.name}</b>
-                    <span className="text-[13px] text-muted-foreground">{badge.description}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Card className="gap-0.5 px-4 py-3.5">
-            <b className="text-[22px] tracking-tight tabular-nums">
-              {result.correctAnswers ?? '—'}{result.totalQuestions != null ? ` de ${result.totalQuestions}` : ''}
-            </b>
-            <span className="text-[13px] text-muted-foreground">respostas certas</span>
-          </Card>
-          <Card className="gap-0.5 px-4 py-3.5">
-            <b className="inline-flex items-center gap-2 text-[22px] tracking-tight tabular-nums">
-              <Clock className="size-5 text-muted-foreground" aria-hidden />{time ?? '—'}
-            </b>
-            <span className="text-[13px] text-muted-foreground">tempo gasto</span>
-          </Card>
         </div>
 
         {questions.length > 0 && (
@@ -325,7 +277,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         )}
 
         <Card className="gap-0 py-0" aria-label="Revisão questão a questão">
-          <CardHeader className="pt-5 pb-3"><CardTitle>Revisão questão a questão</CardTitle></CardHeader>
+          <CardHeader className="pt-5 pb-3"><CardTitle>{questions.filter((q) => ['wrong', 'blank'].includes(verdict(q))).length > 0 ? 'As que falhaste e as que acertaste' : 'Revisão questão a questão'}</CardTitle></CardHeader>
           {questions.length === 0 ? (
             <p className="border-t px-5 py-4 text-sm text-muted-foreground">Não respondeste a nenhuma questão desta prova.</p>
           ) : (
