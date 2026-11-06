@@ -99,7 +99,7 @@ export function ProximaProva({ invitations, data, serverNow }: { invitations: In
               <strong className="text-[15px]">{weak ? `Treinar ${weak.label}` : 'Treinar'}</strong>
               <span className="text-sm text-[#617066]">{weak ? 'É o tema onde tens mais a rever. Questões com explicação do tutor.' : 'Faz uma prova para o tutor saber o que treinar.'}</span>
             </span>
-            {weak && <Link href={`/tutor?statementId=${weak.id}`} className="mt-3 flex h-11 items-center self-start rounded-xl bg-[#1f5a2c] px-5 text-[15px] font-bold text-white no-underline">Começar o treino</Link>}
+            {weak && <Link href={`/provas/montar?statementId=${weak.id}`} className="mt-3 flex h-11 items-center self-start rounded-xl bg-[#1f5a2c] px-5 text-[15px] font-bold text-white no-underline">Começar o treino</Link>}
           </Step>
           <Step state="todo">
             <strong className="text-[15px] text-[#3d4a41]">Simulação completa</strong>

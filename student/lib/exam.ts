@@ -50,6 +50,8 @@ export interface Simulation {
   timeSpentSeconds?: number | null;
   finalScore?: number | null;
   status?: string | null;
+  /** Só num treino montado (kixi#729): as questões escolhidas. Ausente numa simulação normal. */
+  selectedQuestionIds?: number[] | null;
 }
 
 export interface StatementFull {
@@ -120,6 +122,11 @@ export async function listSimulationsResult(): Promise<Result<SimulationSummary[
  *  The school year is not optional in practice. The simulation stores whatever it is
  *  given and the leaderboard only counts simulations of the cohort's year, so an attempt
  *  started without it never appears in any ranking, with no error to say why. */
+/** «Montar treino» (kixi#729): uma simulação livre com N das questões do enunciado. */
+export async function startPractice(statementId: number, questionCount: number): Promise<Result<Simulation>> {
+  return apiPost<Simulation>('/simulations/practice', { statementId, questionCount });
+}
+
 export async function startSimulation(
   statementId: number,
   accountId: number,
@@ -319,7 +326,11 @@ export async function getRoom(statementId: number): Promise<Room> {
     };
   }
 
-  const questions = statement.data.questions;
+  // Um treino montado só mostra as questões escolhidas (e os cabeçalhos de grupo de que dependem).
+  const chosen = detail.data.selectedQuestionIds ? new Set(detail.data.selectedQuestionIds) : null;
+  const all = statement.data.questions;
+  const parents = new Set(all.filter((q) => chosen?.has(q.id) && q.parentId != null).map((q) => q.parentId));
+  const questions = chosen ? all.filter((q) => chosen.has(q.id) || parents.has(q.id)) : all;
   const images: RoomData['images'] = {};
   await Promise.all(
     questions.map(async (question) => {

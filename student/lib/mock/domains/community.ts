@@ -91,6 +91,31 @@ export async function communityRoutes({ method, pathname, search, filter, body, 
     return json(mine.map((s) => simulationResponse(db, s)));
   }
 
+  // «Montar treino» (kixi#729): uma simulação livre com N das questões do enunciado.
+  if (pathname === '/simulations/practice' && method === 'POST') {
+    const statementId = Number(body.statementId);
+    const count = Number(body.questionCount);
+    const statement = db.statements.find((s) => s.id === statementId);
+    if (!statement || !statement.visible) return problem(404, 'Statement not found');
+    if (!Number.isInteger(count) || count < 1) return problem(400, 'questionCount must be at least 1');
+    // As respondíveis do enunciado: as folhas, sem os enunciados comuns de grupo.
+    const inPaper = QUESTIONS_BY_STATEMENT[statementId] ?? [];
+    const ids = inPaper.filter((qid) => !db.questions.some((q) => q.parentId === qid));
+    const row: SimulationRow = {
+      id: db.nextSimulation++,
+      accountId: account.id,
+      statementId,
+      status: 'IN_PROGRESS',
+      finalScore: null,
+      startedAt: toLocalDateTime(new Date()),
+      finishedAt: null,
+      timeSpentSeconds: null,
+      ...(count < ids.length ? { selectedQuestionIds: ids.slice(0, count) } : {}),
+    };
+    db.simulations.push(row);
+    return json(simulationResponse(db, row), 201);
+  }
+
   if (pathname === '/simulations' && method === 'POST') {
     const target = Number(body.accountId);
     const statementId = Number(body.statementId);

@@ -3,7 +3,7 @@
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
-import { checkQuestion, getStatementFull, myAccountId, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
+import { checkQuestion, getStatementFull, myAccountId, startPractice, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 import { isIntegrityKind, type IntegrityKind } from './integrity';
@@ -175,4 +175,19 @@ export async function verificarAction(simulationId: number, questionId: number, 
   const result = await checkQuestion(simulationId, questionId, optionId);
   if (!result.ok) return { ok: false, message: result.status === 403 ? 'Esta prova não mostra a correção.' : translateError(result.message) };
   return { ok: true, correct: result.data.correct, correctOptionId: result.data.correctOptionId, explanation: result.data.explanation };
+}
+
+/** «Montar treino»: começa uma simulação livre com N questões do enunciado escolhido e vai para a sala. */
+export async function montarTreinoAction(_: StartState, form: FormData): Promise<StartState> {
+  await requireStudent();
+  const statementId = id(form.get('statementId'));
+  const count = Number(form.get('questionCount'));
+  if (statementId === null) return { error: 'Escolhe o tema do treino.' };
+  if (!Number.isInteger(count) || count < 1) return { error: 'Escolhe quantas questões queres.' };
+  const result = await startPractice(statementId, count);
+  if (!result.ok) {
+    return { error: result.status === 409 ? 'Esta prova está atribuída a uma sala de prova neste momento.' : translateError(result.message) };
+  }
+  forgetVisitedPages();
+  await redirectFromAction(`/prova/${statementId}?iniciada=1`);
 }

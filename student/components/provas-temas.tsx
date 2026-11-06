@@ -67,7 +67,9 @@ export function ProvasTemas({ items, total, materia }: { items: CatalogItem[]; t
         {lista.length === 0 && <li className="py-6 text-sm text-[#617066]">Ainda não há provas para esta disciplina.</li>}
       </ul>
 
-      <Link href="/provas" className="mt-9 flex items-center gap-4 rounded-[20px] border border-[#e9ebe7] bg-white px-6 py-[18px] text-[#121c15] no-underline">
+      <Link href={`/provas/montar${ativa ? `?materia=${encodeURIComponent(ativa)}` : ''}`} className="mt-9 flex items-center gap-4 rounded-[20px] border border-[#e9ebe7] bg-[#f1f6ee] px-6 py-[18px] text-[#1f5a2c] no-underline"><strong className="flex-1 text-base">Montar um treino</strong><span aria-hidden="true">›</span></Link>
+
+      <Link href="/provas" className="mt-3 flex items-center gap-4 rounded-[20px] border border-[#e9ebe7] bg-white px-6 py-[18px] text-[#121c15] no-underline">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /></svg>
         <span className="flex flex-1 flex-col"><strong className="text-base">Fazer um enunciado completo</strong><span className="text-sm text-[#617066]">{total} provas reais, da tua e de outras escolas</span></span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a857d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>

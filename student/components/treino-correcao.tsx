@@ -9,6 +9,8 @@ import { verificarAction } from '@/lib/exam-actions';
  */
 export function TreinoCorrecao({ simulationId, questionId, optionId, onNext, hasNext }: { simulationId: number; questionId: number; optionId: number | null; onNext: () => void; hasNext: boolean }) {
   const [pending, start] = useTransition();
+  // «Só no fim» (escolhido ao montar o treino): a correção fica para o resultado.
+  const [soNoFim] = useState(() => { try { return localStorage.getItem('kixi-treino-correcao') === 'fim'; } catch { return false; } });
   const [result, setResult] = useState<{ correct: boolean | null; explanation: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +21,7 @@ export function TreinoCorrecao({ simulationId, questionId, optionId, onNext, has
     setResult({ correct: r.correct, explanation: r.explanation });
   });
 
+  if (soNoFim) return null;
   if (!result) {
     return (
       <div className="grid gap-2">
