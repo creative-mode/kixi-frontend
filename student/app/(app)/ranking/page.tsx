@@ -39,7 +39,7 @@ export default async function TurmaPage({ searchParams }: { searchParams: Params
           const nome = a?.name ?? (p.authorAccountId === me?.accountId ? 'Tu' : 'Colega');
           const semResposta = p.commentCount === 0;
           return (
-            <Link key={p.id} href="/inicio" className="flex items-center gap-3.5 border-b border-[#eef0ec] py-4 text-[#121c15] no-underline">
+            <Link key={p.id} href={`/discussao/${p.id}`} className="flex items-center gap-3.5 border-b border-[#eef0ec] py-4 text-[#121c15] no-underline">
               <UserAvatar name={nome} src={a?.photo ?? null} size={40} />
               <span className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="line-clamp-2 text-base leading-[1.45]">{p.title || p.content}</span>
