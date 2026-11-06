@@ -13,13 +13,13 @@ export function Column({ className, children }: { className?: string; children: 
 /** Cabeçalho colado ao topo da coluna, com fundo desfocado, como numa rede social. */
 export function PageHeader({ title, description, kicker, back, className }: { className?: string; title: string; description?: string; kicker?: string; back?: string }) {
   return (
-    <header className={cn('sticky top-14 z-10 -mx-4 -mt-4 flex items-center gap-3 border-b bg-background/85 px-4 py-2.5 backdrop-blur md:top-0', className)}>
+    <header className={cn('sticky top-14 z-10 -mx-4 -mt-4 flex items-center gap-3 bg-background/90 px-4 pb-2 pt-3 backdrop-blur md:top-0 md:pt-7', className)}>
       {back && (
         <BackLink href={back} />
       )}
       <div className="min-w-0">
         {kicker && <p className="text-[13px] leading-tight text-muted-foreground">{kicker}</p>}
-        <h1 className="truncate text-xl leading-tight font-bold tracking-tight">{title}</h1>
+        <h1 className="truncate text-[28px] leading-tight font-extrabold tracking-tight">{title}</h1>
         {description && <p className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{description}</p>}
       </div>
     </header>

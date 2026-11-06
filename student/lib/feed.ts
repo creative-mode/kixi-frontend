@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { apiGet, apiPost, apiPut, type Result } from './api';
+import { apiGet, apiPatch, apiPost, apiPut, type Result } from './api';
 import { getPerson } from './profiles';
 import { authorOfPerson, type FeedAuthor } from './feed-rules';
 import type { BuiltKind, PostBlock } from './post-blocks';
@@ -118,6 +118,8 @@ export interface PostComment {
   authorAccountId: number;
   content: string;
   isHidden: boolean;
+  /** Resposta aceite pelo autor da publicação (no máximo uma). Ausente num backend antigo. */
+  isAccepted?: boolean;
   createdAt: string;
   updatedAt: string;
   /** O backend diz se a linha é do aluno, para o cliente não comparar ids. */
@@ -139,6 +141,11 @@ export async function getComments(postId: number, page = 1, limit = 20): Promise
  *  para o painel a poder mostrar sem esperar por outra leitura. */
 export async function addComment(postId: number, content: string) {
   return apiPost<PostComment>(`/feed/posts/${postId}/comments`, { content });
+}
+
+/** O autor da publicação aceita (ou retira) uma resposta; devolve a linha como ficou. */
+export async function acceptComment(postId: number, commentId: number) {
+  return apiPatch<PostComment>(`/feed/posts/${postId}/comments/${commentId}/accept`);
 }
 
 export async function reportPost(postId: number, reason: string) {

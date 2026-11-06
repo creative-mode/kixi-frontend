@@ -313,7 +313,7 @@ export function TutorChat({
             <Link href={back.href}><FileText aria-hidden />{back.label}</Link>
           </Button>
         </div>
-        <Card className="min-h-[calc(100dvh-230px)] gap-0 py-0" aria-label="Conversa com o tutor">
+        <Card className="min-h-[calc(100dvh-230px)] gap-0 border-0 bg-transparent py-0 shadow-none [--px-edge:transparent]" aria-label="Conversa com o tutor">
           <div className="flex flex-1 flex-col gap-4 p-4 md:p-5" role="log" aria-live="off" aria-busy={busy}>
             {messages.length === 0 && (
               <p className="m-auto max-w-[44ch] text-center text-sm text-muted-foreground">
@@ -323,9 +323,9 @@ export function TutorChat({
             {messages.map((m) => (
               <div key={m.id} className={cn('flex max-w-[94%] gap-2.5 md:max-w-[88%]', m.role === 'student' ? 'flex-row-reverse self-end' : 'min-w-0')}>
                 {m.role === 'tutor'
-                  ? <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-[13px] font-bold text-background" aria-hidden="true">K</span>
+                  ? <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#e3efe0]" aria-hidden="true"><svg viewBox="0 0 24 20" width="18" height="15" shapeRendering="crispEdges"><path fill="#1f5a2c" d="M12 0h1v1h-1zM10 1h3v1h-3zM8 2h5v1h-5zM8 3h5v1h-5zM8 4h5v1h-5zM8 5h5v1h-5zM8 6h5v1h-5zM8 7h5v1h-5zM8 8h5v1h-5zM8 9h6v1h-6zM7 10h7v1h-7zM7 11h8v1h-8zM6 12h10v1h-10zM6 13h11v1h-11zM5 14h14v1h-14zM4 15h18v1h-18zM3 16h21v1h-21zM3 17h4v1h-4zM14 17h9v1h-9zM1 18h2v1h-2zM17 18h5v1h-5zM19 19h1v1h-1z" /></svg></span>
                   : <UserAvatar name={fullName(me)} src={photoUrl(me)} size={32} className="max-md:hidden" />}
-                <div className={cn('min-w-0 rounded-xl border px-3.5 py-2.5 leading-relaxed', m.role === 'student' ? 'whitespace-pre-wrap border-primary bg-primary text-primary-foreground' : 'bg-secondary')}>
+                <div className={cn('min-w-0 leading-relaxed', m.role === 'student' ? 'whitespace-pre-wrap rounded-[18px] bg-[#f1f3ef] px-4 py-3 text-[#121c15]' : 'py-1')}>
                   {m.role === 'tutor' && m.text
                     ? <TutorText text={m.text} streaming={!!m.streaming} />
                     : m.text || (m.streaming ? <span className="text-muted-foreground">A pensar…</span> : null)}
@@ -384,7 +384,7 @@ export function TutorChat({
 
           {/* Coluna flex e não `grid`: uma grelha de uma coluna dimensiona a pista
               pelo conteúdo e alargava a caixa do compositor para além do ecrã. */}
-          <div className="flex flex-col gap-2.5 border-t p-3.5 md:px-5">
+          <div className="flex flex-col gap-2.5 border-t border-[#eef0ec] p-3.5 md:px-0">
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Modo do tutor">
               {([
                 ['CONCEPT', 'Conceito'],

@@ -30,14 +30,14 @@ test('a barra inferior do aluno mostra rótulos e identifica a página atual', a
 
   const nav = page.getByRole('navigation', { name: 'Principal' }).last();
   // As Pautas saem da barra no telemóvel (#704): chega-se a elas pelo perfil.
-  for (const label of ['Início', 'Provas', 'Ranking', 'Tutor']) {
+  for (const label of ['Início', 'Provas', 'Explorar', 'Turma']) {
     await expect(nav.getByRole('link', { name: label })).toBeVisible();
     await expect(nav.getByRole('link', { name: label })).toContainText(label);
   }
   const active = nav.locator('a[aria-current="page"]');
   await expect(active).toHaveCount(1);
-  await expect(active).toContainText('Ranking');
-  await expect(active).toHaveClass(/font-semibold/);
+  await expect(active).toContainText('Turma');
+  await expect(active).toHaveClass(/font-bold/);
 });
 
 test('a landing e as páginas de erro mantêm cópia em português', async ({ page }) => {

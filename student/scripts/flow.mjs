@@ -562,7 +562,7 @@ async function main() {
         // "Partilhar resultado" saiu do compositor com o #30: o backend só deixa o
         // aluno criar publicações do tipo doubt/topic à mão (PostType.isManual()),
         // nunca milestone - por isso o atalho deixou de fingir que essa opção existe.
-        const falta = ['Início', 'Fazer uma pergunta'].find((t) => !html.includes(t));
+        const falta = ['Início', 'Partilha uma dúvida ou uma dica'].find((t) => !html.includes(t));
         return falta ? `não encontrei "${falta}"` : null;
       },
     );
@@ -588,7 +588,7 @@ async function main() {
 
     await passo(
       'o ranking liga-se ao backend, não às linhas fixas de lib/data.ts',
-      'GET', '/aluno/ranking', {},
+      'GET', '/aluno/ranking?aba=medias', {},
       async (r) => {
         // #117/#31: esta conta é desta corrida, sozinha na sua turma (curso TLP-ITEL,
         // #31 não partilha semente com a 12B) - por isso a janela do backend é só ela

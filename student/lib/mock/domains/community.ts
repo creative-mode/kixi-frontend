@@ -1,6 +1,7 @@
 import { integrityRefusal, isIntegrityKind, parseQuestionId } from '@/lib/integrity';
 import { expired, toLocalDateTime } from '../simulation';
 
+import { practiceQuestionIds } from '../practice';
 import { QUESTIONS_BY_STATEMENT, SimulationRow, json, problem, simulationResponse, validationError } from '../store';
 import type { MockCtx } from '../store';
 
@@ -89,6 +90,32 @@ export async function communityRoutes({ method, pathname, search, filter, body, 
   if (pathname === '/simulations' && method === 'GET') {
     const mine = db.simulations.filter((s) => s.accountId === account.id);
     return json(mine.map((s) => simulationResponse(db, s)));
+  }
+
+  // «Montar treino» (kixi#729): uma simulação livre com N das questões do enunciado.
+  if (pathname === '/simulations/practice' && method === 'POST') {
+    const statementId = Number(body.statementId);
+    const count = Number(body.questionCount);
+    const statement = db.statements.find((s) => s.id === statementId);
+    if (!statement || !statement.visible) return problem(404, 'Statement not found');
+    if (!Number.isInteger(count) || count < 1) return problem(400, 'questionCount must be at least 1');
+    // As respondíveis do enunciado: as folhas, sem os enunciados comuns de grupo.
+    const inPaper = QUESTIONS_BY_STATEMENT[statementId] ?? [];
+    const parents = new Set(db.questions.flatMap((q) => (q.parentId != null ? [q.parentId] : [])));
+    const chosen = practiceQuestionIds(inPaper, parents, count);
+    const row: SimulationRow = {
+      id: db.nextSimulation++,
+      accountId: account.id,
+      statementId,
+      status: 'IN_PROGRESS',
+      finalScore: null,
+      startedAt: toLocalDateTime(new Date()),
+      finishedAt: null,
+      timeSpentSeconds: null,
+      ...(chosen ? { selectedQuestionIds: chosen } : {}),
+    };
+    db.simulations.push(row);
+    return json(simulationResponse(db, row), 201);
   }
 
   if (pathname === '/simulations' && method === 'POST') {
