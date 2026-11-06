@@ -86,7 +86,7 @@ export function InicioFeed({
   };
   return (
     <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-3 pb-24 md:gap-5 md:px-0 md:pt-7 md:pb-10">
-      {topo}
+      <div className="md:hidden">{topo}</div>
       {classId && (
         <Link href="/publicar" className="flex items-center gap-3 rounded-full border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
           <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
