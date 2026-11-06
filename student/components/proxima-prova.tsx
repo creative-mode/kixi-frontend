@@ -86,11 +86,12 @@ export function ProximaProva({ invitations, data, serverNow }: { invitations: In
           <span className="lbl">{doneCount} de {steps} passos</span>
         </div>
         <div className="mb-4 empty:hidden"><SalasDeProva invitations={pending} /></div>
+        <Link href={`/provas/preparar?materia=${encodeURIComponent(title)}`} className="mb-4 flex h-11 items-center justify-between rounded-xl bg-[#f1f6ee] px-4 text-[15px] font-bold text-[#1f5a2c] no-underline">O que sai na prova<span aria-hidden="true">›</span></Link>
         <ol className="m-0 flex list-none flex-col p-0">
           <Step state={last ? 'done' : 'now'}>
             <div className="flex justify-between gap-3">
               <span className="flex flex-col"><strong className="text-[15px]">Diagnóstico</strong><span className="text-sm text-[#617066]">{last ? `${last.title}${last.score ? `. Ficaste com ${last.score}.` : '.'}` : 'Ainda não fizeste nenhuma prova.'}</span></span>
-              <Link href={last ? '/resultado' : '/provas'} className="text-sm font-bold text-[#1f5a2c] no-underline">{last ? 'Ver resultado' : 'Escolher prova'}</Link>
+              <Link href={last ? '/provas' : '/provas'} className="text-sm font-bold text-[#1f5a2c] no-underline">{last ? 'Ver resultado' : 'Escolher prova'}</Link>
             </div>
           </Step>
           <Step state={last ? 'now' : 'todo'}>

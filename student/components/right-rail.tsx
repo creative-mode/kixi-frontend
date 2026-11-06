@@ -52,10 +52,10 @@ export function RightRail({ data }: { me: Me; data: SocialData }) {
           <h2 className="m-0 mb-3.5 text-base font-extrabold">Calendário</h2>
           <div className="flex flex-col gap-3.5">
             {soon.map((u) => (
-              <div key={u.key} className="flex items-center gap-3.5">
+              <Link key={u.key} href={`/provas/preparar?materia=${encodeURIComponent(u.title)}`} className="flex items-center gap-3.5 text-[#121c15] no-underline">
                 <span className="w-11 text-center"><span className="block text-xs text-[#617066]">{u.month}</span><strong className="text-[22px] leading-none">{u.day}</strong></span>
                 <span className="flex flex-col"><strong className="text-sm">{u.title}</strong><span className="text-[13px] text-[#617066]">{u.meta}</span></span>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
