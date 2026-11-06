@@ -126,6 +126,20 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
     return json({ reacted: true });
   }
 
+  const acceptMatch = pathname.match(/^\/feed\/posts\/(\d+)\/comments\/(\d+)\/accept$/);
+  if (acceptMatch && method === 'PATCH') {
+    const postId = Number(acceptMatch[1]);
+    const commentId = Number(acceptMatch[2]);
+    const post = db.posts.find((p) => p.id === postId);
+    const target = db.postComments.find((c) => c.id === commentId && c.postId === postId);
+    if (!post || !target) return problem(404, 'Comment not found');
+    if (post.authorAccountId !== account.id) return problem(403, 'Only the author can accept an answer');
+    const accept = !target.isAccepted;
+    for (const c of db.postComments) if (c.postId === postId) c.isAccepted = false;
+    target.isAccepted = accept;
+    return json({ ...target, mine: target.authorAccountId === account.id, displayName: maskedName(db, target.authorAccountId) });
+  }
+
   const commentMatch = pathname.match(/^\/feed\/posts\/(\d+)\/comments$/);
   if (commentMatch && method === 'POST') {
     const postId = Number(commentMatch[1]);

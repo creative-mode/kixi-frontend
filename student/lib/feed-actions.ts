@@ -6,7 +6,7 @@ import { BACKEND } from './session';
 import { authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
 import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
-import { createBuiltPost, createPost, createSimulationPost, addComment, getFeed, loadAuthors, reportPost, setReaction, type FeedPost, type PostComment, type PostType } from './feed';
+import { createBuiltPost, createPost, createSimulationPost, acceptComment, addComment, getFeed, loadAuthors, reportPost, setReaction, type FeedPost, type PostComment, type PostType } from './feed';
 import { canPublish, canPublishReflection, type FeedAuthor } from './feed-rules';
 import { FEED_PAGE_SIZE } from './feed-pagination';
 
@@ -161,4 +161,13 @@ export async function enviarImagemPostAction(form: FormData): Promise<{ url?: st
   } catch {
     return { error: 'Não foi possível enviar a imagem agora. Tenta outra vez.' };
   }
+}
+
+/** O autor da pergunta aceita (ou retira) uma resposta. */
+export async function acceptCommentAction(postId: number, commentId: number): Promise<{ ok: true } | { ok: false; message: string }> {
+  const result = await acceptComment(postId, commentId);
+  if (!result.ok) return { ok: false, message: result.status === 403 ? 'Só quem fez a pergunta pode aceitar uma resposta.' : result.message };
+  revalidatePath(`/discussao/${postId}`);
+  revalidatePath('/ranking');
+  return { ok: true };
 }

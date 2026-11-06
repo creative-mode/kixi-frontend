@@ -8,6 +8,7 @@ export type MockPostComment = {
   authorAccountId: number;
   content: string;
   isHidden: boolean;
+  isAccepted?: boolean;
   createdAt: string;
   updatedAt: string;
 };
