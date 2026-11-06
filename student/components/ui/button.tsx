@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: 'px-btn',
-        destructive: 'px-btn [--face:var(--destructive)] [--edge:#6e1a1e] [--face-hover:#d4494f]',
+        destructive: 'px-btn [--face:var(--destructive)] [--face-hover:#d4494f]',
         outline: 'px-btn [--face:var(--card)] [--edge:var(--input)] [--txt:var(--foreground)] [--face-hover:var(--secondary)]',
         secondary: 'px-btn [--face:var(--secondary)] [--edge:var(--input)] [--txt:var(--secondary-foreground)] [--face-hover:var(--accent)]',
         ghost: 'rounded-full hover:bg-secondary',
@@ -21,7 +21,7 @@ const buttonVariants = cva(
         // tabelas do gestor, e a issue pede o telemovel.
         default: 'h-11 px-5 py-2 md:h-10',
         sm: 'h-11 gap-1.5 px-4 md:h-9',
-        lg: 'h-12 px-7 text-[15px]',
+        lg: 'h-[54px] px-7 text-base',
         icon: 'size-11 md:size-10',
       },
     },

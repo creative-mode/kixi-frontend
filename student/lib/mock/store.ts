@@ -112,6 +112,8 @@ export type SimulationRow = {
   timeSpentSeconds: number | null;
   /** Só nas simulações de uma sala de prova (FE-14). */
   examRoomId?: number | null;
+  /** Só num treino montado (kixi#729). */
+  selectedQuestionIds?: number[];
 };
 
 export type Store = {
@@ -792,6 +794,7 @@ export function simulationResponse(db: Store, row: SimulationRow) {
     createdAt: row.startedAt,
     updatedAt: row.finishedAt,
     deletedAt: null,
+    ...(row.selectedQuestionIds ? { selectedQuestionIds: row.selectedQuestionIds } : {}),
   };
 }
 

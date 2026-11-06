@@ -6,6 +6,7 @@ import { Shell } from '@/components/Shell';
 import { RightRail } from '@/components/right-rail';
 import { RightRailSkeleton } from '@/components/right-rail-skeleton';
 import { loadSocial } from '@/lib/social';
+import { loadNotifications } from '@/lib/notifications';
 import type { Me } from '@/lib/types';
 import { Suspense } from 'react';
 import { appOrigin } from '@/lib/origin';
@@ -28,9 +29,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // A coluna da direita é global e custa 8 leituras: já não faz a página esperar por ela (#393).
   // Chega depois, em streaming, e o conteúdo aparece primeiro.
 
+  // O ponto da barra: só as fontes baratas (medalhas e resultados), para não custar leituras de conversas em cada página.
+  const unread = profile.kind === 'ok' ? (await loadNotifications(profile.me, false).catch(() => ({ unreadCount: 0 }))).unreadCount : 0;
+
   return (
     <MeProvider me={profile.me}>
       <Shell
+        unread={unread}
         landingOrigin={appOrigin()}
         rail={profile.kind === 'ok'
           ? <Suspense fallback={<RightRailSkeleton />}><Rail me={profile.me} /></Suspense>

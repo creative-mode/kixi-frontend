@@ -98,22 +98,33 @@ html[data-reduce-motion='true'] *::after {
 }
 .social-rail { grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 768px) and (max-width: 1099px) { .social-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.px-step {
-  --step: 4px;
-  clip-path: polygon(0 var(--step), var(--step) var(--step), var(--step) 0, calc(100% - var(--step)) 0, calc(100% - var(--step)) var(--step), 100% var(--step), 100% calc(100% - var(--step)), calc(100% - var(--step)) calc(100% - var(--step)), calc(100% - var(--step)) 100%, var(--step) 100%, var(--step) calc(100% - var(--step)), 0 calc(100% - var(--step)));
+.px-step { border-radius: 12px; }
+
+/* Botões e caixas da nova experiência (#729): cantos redondos, linha fina, sem degraus. Os nomes `px-*` mantêm-se
+ * para os componentes que já os usam; `--face`/`--edge`/`--txt` continuam a ser as variáveis de cada variante. */
+@layer components {
+.px-btn { --face: var(--primary); --edge: transparent; --txt: var(--primary-foreground); --face-hover: #2a7a3c; background: var(--face); color: var(--txt); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--edge); transition: background-color .15s, transform .12s; }
+.px-btn:hover:not(:disabled):not([aria-disabled='true']) { background: var(--face-hover); }
+.px-btn:active:not(:disabled):not([aria-disabled='true']) { transform: scale(.97); }
+.px-btn:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent); }
+.px-box { --px-edge: var(--border); --px-face: var(--card); background: var(--px-face); border: 1px solid var(--px-edge); border-radius: 20px; }
 }
 
-/* Botões e caixas da marca, os mesmos da landing: cantos em degrau, contorno de 2 px e uma aresta de 4 px que cede ao toque. */
-:root { --kx-step: 4px; --kx-clip: polygon(0 var(--kx-step), var(--kx-step) var(--kx-step), var(--kx-step) 0, calc(100% - var(--kx-step)) 0, calc(100% - var(--kx-step)) var(--kx-step), 100% var(--kx-step), 100% calc(100% - var(--kx-step)), calc(100% - var(--kx-step)) calc(100% - var(--kx-step)), calc(100% - var(--kx-step)) 100%, var(--kx-step) 100%, var(--kx-step) calc(100% - var(--kx-step)), 0 calc(100% - var(--kx-step))); }
-@layer components {
-.px-btn { --face: var(--primary); --edge: #0d2a15; --txt: var(--primary-foreground); --face-hover: #2a7a3c; position: relative; isolation: isolate; background: var(--edge); color: var(--txt); clip-path: var(--kx-clip); padding-bottom: var(--kx-step); }
-.px-btn::before { content: ''; position: absolute; z-index: -1; left: 2px; right: 2px; top: 2px; bottom: var(--kx-step); background: var(--face); clip-path: var(--kx-clip); }
-.px-btn:hover:not(:disabled):not([aria-disabled='true']) { --face: var(--face-hover); }
-.px-btn:active:not(:disabled):not([aria-disabled='true']) { padding-top: var(--kx-step); padding-bottom: 0; }
-.px-btn:active:not(:disabled):not([aria-disabled='true'])::before { top: var(--kx-step); bottom: 2px; }
-/* O anel de foco seria cortado pelo recorte: a aresta passa a verde vivo e o texto sublinha-se. */
-.px-btn:focus-visible { --edge: var(--ring); text-decoration: underline; text-underline-offset: 3px; }
-.px-box { --px-edge: #c9d4c5; --px-face: var(--card); position: relative; clip-path: var(--kx-clip); background: var(--px-edge); }
-.px-box::before { content: ''; position: absolute; inset: 2px; z-index: 0; background: var(--px-face); clip-path: var(--kx-clip); }
-.px-box > * { position: relative; z-index: 1; }
-}
+/* Publicações e utilitários da «nova experiência» (#729), copiados do protótipo. */
+.post { display: flex; flex-direction: column; gap: 11px; padding: 20px 0; border-top: 1px solid #e4e7e1; }
+.post:first-child { border-top: 0; }
+.ttl { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #121c15; text-decoration: none; font-size: 15px; line-height: 1.5; }
+.lbl { font-size: 13px; font-weight: 600; color: #617066; }
+.acoes { display: flex; align-items: center; gap: 2px; margin: 2px 0 -6px -10px; }
+.acao { height: 34px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: #617066; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.acao:hover { background: #f5f6f4; }
+.acao[aria-pressed='true'], .acao[aria-expanded='true'] { background: #eef6ea; color: #1b4d27; }
+.acao:disabled { opacity: .5; }
+.sheet { background: white; border: 1px solid #e9ebe7; border-radius: 20px; }
+.chk { display: flex; align-items: center; gap: 5px; color: #617066; font-size: 13px; font-weight: 600; margin-top: -2px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid #e4e7e1; text-decoration: none; color: #121c15; }
+.st { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+.st.dom { background: #1f5a2c; }
+.st.apr { border: 2.5px solid #d49a00; border-right-color: #f0e2bd; border-bottom-color: #f0e2bd; }
+.st.fra { border: 2.5px solid #c2383e; }
+.st.nov { border: 2px solid #cdd6c9; background: white; }

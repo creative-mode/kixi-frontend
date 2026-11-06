@@ -65,6 +65,24 @@ export async function roomsRoutes({ method, pathname, search, filter, body, text
     return json(simulationResponse(db, row));
   }
 
+  // Correção por questão no treino (kixi#729): só simulações livres do próprio aluno, em curso.
+  const checkMatch = /^\/simulations\/(\d+)\/questions\/(\d+)\/check$/.exec(pathname);
+  if (checkMatch && method === 'POST') {
+    const row = db.simulations.find((s) => s.id === Number(checkMatch[1]) && s.accountId === account.id);
+    if (!row) return problem(404, 'Simulation not found');
+    if (row.status !== 'IN_PROGRESS') return problem(409, 'The simulation is not in progress');
+    const question = db.questions.find((q) => q.id === Number(checkMatch[2]));
+    if (!question) return problem(404, 'Question not found');
+    const selected = Number((body as Record<string, unknown>).selectedOptionId) || undefined;
+    const right = question.options.find((o) => o.isCorrect);
+    return json({
+      questionId: question.id,
+      correct: question.options.length === 0 ? null : !!selected && selected === right?.id,
+      correctOptionId: right?.id ?? null,
+      explanation: null,
+    });
+  }
+
   const submitMatch = /^\/simulations\/(\d+)\/submit$/.exec(pathname);
   if (submitMatch && method === 'POST') {
     const id = Number(submitMatch[1]);

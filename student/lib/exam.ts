@@ -50,6 +50,8 @@ export interface Simulation {
   timeSpentSeconds?: number | null;
   finalScore?: number | null;
   status?: string | null;
+  /** Só num treino montado (kixi#729): as questões escolhidas. Ausente numa simulação normal. */
+  selectedQuestionIds?: number[] | null;
 }
 
 export interface StatementFull {
@@ -120,6 +122,11 @@ export async function listSimulationsResult(): Promise<Result<SimulationSummary[
  *  The school year is not optional in practice. The simulation stores whatever it is
  *  given and the leaderboard only counts simulations of the cohort's year, so an attempt
  *  started without it never appears in any ranking, with no error to say why. */
+/** «Montar treino» (kixi#729): uma simulação livre com N das questões do enunciado. */
+export async function startPractice(statementId: number, questionCount: number): Promise<Result<Simulation>> {
+  return apiPost<Simulation>('/simulations/practice', { statementId, questionCount });
+}
+
 export async function startSimulation(
   statementId: number,
   accountId: number,
@@ -189,6 +196,19 @@ export async function saveAnswer(
 /** POST /simulations/{id}/submit — the server grades what is stored and closes the
  *  simulation, so nothing is sent: a client-sent score would be ignored anyway
  *  (BE-09). Answering twice is a 409, which the room reads as "já entregue". */
+/** O que o servidor diz depois de uma resposta no treino (kixi#729). `correct` é null numa questão aberta. */
+export interface QuestionFeedback {
+  questionId: number;
+  correct: boolean | null;
+  correctOptionId: number | null;
+  explanation: string | null;
+}
+
+/** Corrige uma questão no treino. O servidor só responde numa simulação livre do próprio aluno, nunca numa sala de prova. */
+export async function checkQuestion(simulationId: number, questionId: number, selectedOptionId: number | null): Promise<Result<QuestionFeedback>> {
+  return apiPost<QuestionFeedback>(`/simulations/${simulationId}/questions/${questionId}/check`, { selectedOptionId });
+}
+
 export async function submitSimulation(simulationId: number): Promise<Result<SimulationResult>> {
   // O corpo vai vazio de propósito: a nota calcula-se no servidor, a partir do que
   // está guardado, e um score enviado pelo cliente seria ignorado (BE-09).
@@ -306,7 +326,11 @@ export async function getRoom(statementId: number): Promise<Room> {
     };
   }
 
-  const questions = statement.data.questions;
+  // Um treino montado só mostra as questões escolhidas (e os cabeçalhos de grupo de que dependem).
+  const chosen = detail.data.selectedQuestionIds ? new Set(detail.data.selectedQuestionIds) : null;
+  const all = statement.data.questions;
+  const parents = new Set(all.filter((q) => chosen?.has(q.id) && q.parentId != null).map((q) => q.parentId));
+  const questions = chosen ? all.filter((q) => chosen.has(q.id) || parents.has(q.id)) : all;
   const images: RoomData['images'] = {};
   await Promise.all(
     questions.map(async (question) => {
