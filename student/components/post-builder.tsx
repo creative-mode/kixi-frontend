@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, Heading, ImageIcon, Lightbulb, List, ListChecks, Sigma, Trash2, Type } from 'lucide-react';
 import { PostBlocksView } from '@/components/post-blocks-view';
@@ -172,81 +173,78 @@ export function PostBuilder({ classId }: { classId: number }) {
   };
 
   return (
-    <form className="grid gap-5 lg:grid-cols-2 lg:items-start" onSubmit={publish} noValidate>
-      <div className="grid gap-5">
-        <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-semibold">Que publicação queres criar?</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {TEMPLATES.map((t) => (
-              <label key={t.kind} className={cn('flex min-h-14 cursor-pointer flex-col justify-center rounded-xl border px-3 py-2 transition-colors has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/40', template.kind === t.kind ? 'border-primary bg-accent' : 'hover:bg-secondary')}>
-                <input type="radio" name="modelo" className="sr-only" checked={template.kind === t.kind} onChange={() => choose(t)} />
-                <span className="text-[15px] font-semibold">{t.label}</span>
-                <span className="text-[13px] text-muted-foreground">{t.hint}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <label className="grid gap-1 text-sm font-semibold">
-          Título (opcional)
-          <Input maxLength={LIMITS.title} placeholder="Dá um nome à publicação" value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-
-        <ol className="grid gap-3" aria-label="Blocos da publicação">
-          {blocks.map((b, i) => {
-            const Icon = ICON[b.type];
-            const label = `${BLOCK_LABEL[b.type]} ${i + 1}`;
-            return (
-              <li key={b.key} className="grid gap-2.5 rounded-xl border bg-card p-3">
-                <div className="flex items-center gap-1">
-                  <Icon className="size-4 text-muted-foreground" aria-hidden />
-                  <h2 className="flex-1 text-sm font-semibold">{label}</h2>
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Subir: ${label}`} disabled={i === 0} onClick={() => setBlocks((l) => moved(l, i, i - 1))}><ArrowUp /></Button>
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Descer: ${label}`} disabled={i === blocks.length - 1} onClick={() => setBlocks((l) => moved(l, i, i + 1))}><ArrowDown /></Button>
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Tirar: ${label}`} onClick={() => setBlocks((l) => l.filter((x) => x.key !== b.key))}><Trash2 /></Button>
-                </div>
-                <BlockFields block={b} label={label} onChange={(patch) => update(b.key, patch)} />
-              </li>
-            );
-          })}
-        </ol>
-
-        <section className="grid gap-2" aria-label="Acrescentar um bloco">
-          <h2 className="text-sm font-semibold">Acrescentar</h2>
-          <div className="flex flex-wrap gap-2">
-            {ADDABLE.map((type) => {
-              const Icon = ICON[type];
-              return <Button key={type} type="button" variant="outline" size="sm" disabled={blocks.length >= LIMITS.blocks} onClick={() => add(type)}><Icon />{BLOCK_LABEL[type]}</Button>;
-            })}
-          </div>
-        </section>
-      </div>
-
-      <div className="grid gap-4 lg:sticky lg:top-20">
-        <section className="grid gap-3 rounded-xl border bg-card p-4" aria-label="Pré-visualização">
-          <h2 className="text-sm font-semibold text-muted-foreground">Pré-visualização</h2>
-          {title.trim() && <h3 className="font-semibold">{title.trim()}</h3>}
-          {filled.length > 0 ? <PostBlocksView blocks={filled} /> : <p className="text-sm text-muted-foreground">Preenche os blocos e vê aqui como a publicação vai aparecer na turma.</p>}
-        </section>
-        <div aria-live="polite">{error && <Alert variant="destructive">{error}</Alert>}</div>
-        {showAltWarning && (
-          <div role="alert" className="grid gap-3 rounded-lg border border-warning/30 bg-warning-soft p-3 text-sm text-warning">
-            <p>
-              {withoutAlt.length === 1 ? 'Há 1 imagem sem descrição' : `Há ${withoutAlt.length} imagens sem descrição`}{' '}
-              ({withoutAlt.map((i) => `${BLOCK_LABEL.image} ${i + 1}`).join(', ')}). Quem usa um leitor de ecrã não vai saber o que mostra{withoutAlt.length === 1 ? '' : 'm'}.
-            </p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={writeAlt}>Escrever a descrição</Button>
-              <Button type="button" onClick={send} disabled={pending}>Publicar mesmo assim</Button>
-            </div>
-          </div>
-        )}
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => router.push('/inicio')}>Cancelar</Button>
-          <Button type="submit" disabled={pending || !!problem}>{pending ? 'A publicar…' : 'Publicar'}</Button>
+    <form className="mx-auto flex w-full max-w-[640px] flex-col px-4 pt-3 pb-28 md:px-0 md:pt-7 md:pb-12" onSubmit={publish} noValidate>
+      <header className="sticky top-0 z-10 -mx-4 flex items-center justify-between bg-white/95 px-4 py-2 backdrop-blur md:mx-0 md:px-0">
+        <Link href="/publicar" className="px-1 py-3 text-[15px] font-semibold text-[#3d4a41] no-underline">← Simples</Link>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => router.push('/inicio')} className="h-[42px] rounded-full px-4 text-[15px] font-semibold text-[#3d4a41]">Cancelar</button>
+          <button type="submit" disabled={pending || !!problem} className="h-[42px] rounded-full bg-[#1f5a2c] px-5 text-sm font-bold text-white disabled:opacity-50">{pending ? 'A publicar…' : 'Publicar'}</button>
         </div>
-        {problem && filled.length > 0 && <p className="text-right text-[13px] text-muted-foreground">{problem}</p>}
+      </header>
+
+      <div role="radiogroup" aria-label="Que publicação queres criar?" className="mt-4 flex flex-wrap gap-2">
+        {TEMPLATES.map((t) => (
+          <button key={t.kind} type="button" role="radio" aria-checked={template.kind === t.kind} title={t.hint} onClick={() => choose(t)} className={cn('h-10 rounded-full border px-4 text-sm font-bold', template.kind === t.kind ? 'border-[#1f5a2c] bg-[#1f5a2c] text-white' : 'border-[#dde3da] bg-white text-[#3d4a41]')}>{t.label}</button>
+        ))}
       </div>
+      <p className="mt-2 text-[13px] text-[#617066]">{template.hint}</p>
+
+      <label className="sr-only" htmlFor="pb-titulo">Título (opcional)</label>
+      <input id="pb-titulo" maxLength={LIMITS.title} placeholder="Título (opcional)" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-5 w-full border-0 border-b border-[#eef0ec] bg-transparent pb-3 text-[24px] leading-tight font-extrabold tracking-[-0.02em] outline-none placeholder:text-[#a5aea7] focus:border-[#1f5a2c]" />
+
+      <ol className="m-0 mt-2 flex list-none flex-col p-0" aria-label="Blocos da publicação">
+        {blocks.map((b, i) => {
+          const Icon = ICON[b.type];
+          const label = `${BLOCK_LABEL[b.type]} ${i + 1}`;
+          return (
+            <li key={b.key} className="group flex flex-col gap-2 border-b border-[#eef0ec] py-4">
+              <div className="flex items-center gap-1">
+                <Icon className="size-4 text-[#617066]" aria-hidden />
+                <h2 className="m-0 flex-1 text-[13px] font-bold tracking-[.04em] text-[#617066] uppercase">{label}</h2>
+                <div className="flex items-center opacity-60 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                  <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={`Subir: ${label}`} disabled={i === 0} onClick={() => setBlocks((l) => moved(l, i, i - 1))}><ArrowUp /></Button>
+                  <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={`Descer: ${label}`} disabled={i === blocks.length - 1} onClick={() => setBlocks((l) => moved(l, i, i + 1))}><ArrowDown /></Button>
+                  <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={`Tirar: ${label}`} onClick={() => setBlocks((l) => l.filter((x) => x.key !== b.key))}><Trash2 /></Button>
+                </div>
+              </div>
+              <BlockFields block={b} label={label} onChange={(patch) => update(b.key, patch)} />
+            </li>
+          );
+        })}
+      </ol>
+
+      <section className="mt-4" aria-label="Acrescentar um bloco">
+        <h2 className="m-0 mb-2 text-[13px] font-bold tracking-[.04em] text-[#617066] uppercase">Acrescentar</h2>
+        <div className="flex flex-wrap gap-2">
+          {ADDABLE.map((type) => {
+            const Icon = ICON[type];
+            return <button key={type} type="button" disabled={blocks.length >= LIMITS.blocks} onClick={() => add(type)} className="flex h-10 items-center gap-1.5 rounded-full bg-[#f5f6f4] px-3.5 text-sm font-semibold text-[#3d4a41] disabled:opacity-50"><Icon className="size-4" aria-hidden />{BLOCK_LABEL[type]}</button>;
+          })}
+        </div>
+      </section>
+
+      <details className="mt-6 rounded-2xl border border-[#e9ebe7]" aria-label="Pré-visualização">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-[15px] font-bold [&::-webkit-details-marker]:hidden">Pré-visualização<span className="text-[13px] font-semibold text-[#617066]">como vai aparecer na turma</span></summary>
+        <div className="grid gap-3 border-t border-[#eef0ec] p-4">
+          {title.trim() && <h3 className="m-0 font-bold">{title.trim()}</h3>}
+          {filled.length > 0 ? <PostBlocksView blocks={filled} /> : <p className="text-sm text-[#617066]">Preenche os blocos e vê aqui o resultado.</p>}
+        </div>
+      </details>
+
+      <div aria-live="polite" className="mt-4 empty:hidden">{error && <Alert variant="destructive">{error}</Alert>}</div>
+      {showAltWarning && (
+        <div role="alert" className="mt-4 grid gap-3 rounded-2xl bg-[#fbf1d6] p-4 text-sm text-[#8a5a00]">
+          <p className="m-0">
+            {withoutAlt.length === 1 ? 'Há 1 imagem sem descrição' : `Há ${withoutAlt.length} imagens sem descrição`}{' '}
+            ({withoutAlt.map((i) => `${BLOCK_LABEL.image} ${i + 1}`).join(', ')}). Quem usa um leitor de ecrã não vai saber o que mostra{withoutAlt.length === 1 ? '' : 'm'}.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={writeAlt}>Escrever a descrição</Button>
+            <Button type="button" onClick={send} disabled={pending}>Publicar mesmo assim</Button>
+          </div>
+        </div>
+      )}
+      {problem && filled.length > 0 && <p className="mt-3 text-[13px] text-[#617066]">{problem}</p>}
     </form>
   );
 }
