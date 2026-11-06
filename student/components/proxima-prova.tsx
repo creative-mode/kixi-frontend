@@ -70,7 +70,7 @@ export function ProximaProva({ invitations, data, serverNow }: { invitations: In
           <div className="pb-1.5 text-[11px] text-[#5f6b63] md:pb-[9px] md:text-[13px]">{DIAS[when.weekday]}</div>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1 md:min-w-[240px] md:gap-1.5">
-          <span className="inline-flex h-5 self-start items-center rounded-full bg-[#fdf0d9] px-[9px] text-[11px] md:h-[22px] md:px-2.5 md:text-xs font-bold text-[#9a6400]">{badge(daysLeft, live)}</span>
+          <span className="inline-flex h-5 self-start items-center rounded-full bg-[#fdf0d9] px-[9px] text-[11px] md:h-[22px] md:px-2.5 md:text-xs font-bold text-[#6f4700]">{badge(daysLeft, live)}</span>
           <h1 className="m-0 text-[21px] leading-[1.15] font-extrabold tracking-[-0.02em] md:text-[32px] md:leading-[1.1] md:tracking-[-0.025em]">{title}</h1>
           <span className="text-[13px] text-[#5f6b63] md:text-[15px]">{dateLong}. {next.durationMinutes} min.</span>
         </div>

@@ -185,9 +185,8 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
             </span>
             {isPublishing
               ? <span role="status" aria-live="polite" className="text-[13px] font-semibold text-muted-foreground">A publicar…</span>
-              : <span className="lbl">{typeLabel}, {sinceLabel(post.createdAt) ?? ''}</span>}
+              : <span className="lbl"><span role="img" aria-label={typeLabel}>{typeLabel}</span>, {sinceLabel(post.createdAt) ?? ''}</span>}
           </div>
-          <span role="img" aria-label={typeLabel} title={typeLabel} className="sr-only" />
         </header>
         <div className="mt-[11px] grid gap-2.5">
           {post.title && <h3 className="text-[15px] font-bold leading-normal">{post.title}</h3>}
@@ -292,7 +291,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
                   <div className="flex items-center gap-3">
                     <UserAvatar name={who} src={c.mine ? myPhoto : c.photo} size={38} />
                     <span className="flex flex-col gap-0.5">
-                      {c.mine ? <strong className="text-sm">{who}</strong> : <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="text-sm font-bold hover:underline">{who}<span className="sr-only">, ver perfil</span></Link>}
+                      {c.mine ? <strong className="text-sm">{who}</strong> : <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="inline-flex min-h-6 items-center text-sm font-bold hover:underline">{who}<span className="sr-only">, ver perfil</span></Link>}
                       <span className="lbl">{sinceLabel(c.createdAt) ?? ''}</span>
                     </span>
                   </div>

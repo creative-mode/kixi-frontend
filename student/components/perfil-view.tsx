@@ -107,7 +107,7 @@ export function PerfilView({
 
       <div role="tablist" aria-label="Perfil" className="mt-[30px] flex w-[calc(100%-32px)] gap-0.5 rounded-full bg-[#f5f6f4] p-1 md:w-full">
         {tabs.map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => setTab(t)} className={`h-10 flex-1 rounded-full border-0 text-[15px] font-bold ${tab === t ? 'bg-[#1f5a2c] text-white' : 'bg-transparent text-[#617066]'}`}>{t}</button>
+          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`h-10 flex-1 rounded-full border-0 text-[15px] font-bold ${tab === t ? 'bg-[#1f5a2c] text-white' : 'bg-transparent text-[#617066]'}`}>{t}</button>
         ))}
       </div>
 
