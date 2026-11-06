@@ -134,19 +134,21 @@ test('o login e o estado de carregamento do gestor usam cópia PT-AO', () => {
   assert.doesNotMatch(crudForm, /Atualizando|Adicionando|Salvando/);
 });
 
-test('o conceito do menu do aluno usa sempre Ranking e a navegação móvel tem rótulos', () => {
+test('o menu do aluno chama «Turma» ao destino do ranking e a navegação móvel tem rótulos', () => {
   const shell = read('student/components/Shell.tsx');
   const ranking = read('student/app/(app)/ranking/page.tsx');
   const rail = read('student/components/right-rail.tsx');
-  assert.match(shell, /href: '\/ranking', label: 'Ranking'/);
+  // Nova experiência (#729): o item do menu é «Turma» (/turma); o ranking continua em /ranking, com o seu nome.
+  assert.match(shell, /href: '\/turma', label: 'Turma'/);
+  assert.match(shell, /also: \['\/ranking'/);
   assert.match(ranking, /title: 'Ranking · Kixi'/);
   assert.match(rail, /linkLabel="Ranking"/);
-  // 4 colunas (#704) e o rótulo inteiro, sem `truncate`: a 320 px «Ranking» cabe numa coluna.
+  // 4 colunas (#704) e o rótulo inteiro, visível, sem `truncate`.
   assert.match(shell, /grid-cols-4/);
-  assert.match(shell, /<span className="text-\[11px\] leading-tight[^"]*">\{it\.label\}<\/span>/);
+  assert.doesNotMatch(shell, /truncate/);
+  assert.match(shell, /<NavIcon name=\{it\.icon\} active=\{on\(it\)\} size=\{24\} \/>\s*\{it\.label\}/);
   assert.match(shell, /aria-current=\{on\(it\) \? 'page' : undefined\}/);
-  assert.match(shell, /aria-\[current=page\]:font-semibold/);
-  assert.match(shell, /aria-\[current=page\]:bg-primary\/10/);
+  assert.match(shell, /aria-\[current=page\]:font-bold/);
 });
 
 test('idioma das aplicações, manifest e Open Graph identificam português de Angola', () => {
