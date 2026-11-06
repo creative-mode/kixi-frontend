@@ -29,14 +29,14 @@ export function ProfileHero({
   children?: React.ReactNode;
 }) {
   return (
-    <section aria-label="Perfil" className="border-b">
-      <div aria-hidden className="h-32 bg-gradient-to-br from-accent to-secondary" />
+    <section aria-label="Perfil" className="border-b border-[#eef0ec]">
+      <div aria-hidden className="h-[148px] rounded-b-[24px] bg-[#dbe9d3]" />
       <div className="px-4 pb-4">
         <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
-          <div className="-mt-12 w-fit rounded-full border-4 border-background bg-background"><UserAvatar name={photoName ?? name} src={photo} size={88} /></div>
+          <div className="-mt-12 w-fit rounded-full border-4 border-white bg-white shadow-[0_1px_3px_rgba(18,28,21,.12)]"><UserAvatar name={photoName ?? name} src={photo} size={100} /></div>
           {actions && <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>}
         </div>
-        <h2 className="mt-2 flex items-center gap-1.5 text-xl leading-tight font-extrabold tracking-tight">
+        <h2 className="mt-2 flex items-center gap-1.5 text-[26px] leading-tight font-extrabold tracking-[-0.02em]">
           {name}
           {verified && <VerifiedBadge label={verifiedLabel} />}
         </h2>
