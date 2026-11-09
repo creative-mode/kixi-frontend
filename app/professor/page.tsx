@@ -122,7 +122,7 @@ export default function TeacherHome() {
   return (
     <div className="mx-auto max-w-7xl space-y-8 p-6 md:p-8 lg:p-10">
       <div>
-        <h1 className="text-2xl leading-tight tracking-tight text-foreground">Início</h1>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-foreground">Início</h1>
         <p className="mt-1 text-muted-foreground">Atalhos e resumo da sua atividade.</p>
       </div>
 
@@ -133,7 +133,7 @@ export default function TeacherHome() {
           <Link
             key={href}
             href={href}
-            className="group flex items-center gap-4 rounded-xl border bg-card p-5 shadow-xs transition-colors hover:border-primary"
+            className="group flex items-center gap-4 rounded-[20px] border bg-card p-5 transition-colors hover:border-primary"
           >
             <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-primary">
               <Icon className="size-5" aria-hidden />
@@ -152,7 +152,7 @@ export default function TeacherHome() {
 
       <Link
         href="/desempenho"
-        className="group flex items-center gap-4 rounded-xl border bg-card p-5 shadow-xs transition-colors hover:border-primary"
+        className="group flex items-center gap-4 rounded-[20px] border bg-card p-5 transition-colors hover:border-primary"
       >
         <span className="min-w-0 flex-1 leading-tight">
           <span className="block font-semibold text-foreground">Desempenho da turma</span>
@@ -163,7 +163,7 @@ export default function TeacherHome() {
 
       <Link
         href="/professor/tutor"
-        className="group flex items-center gap-4 rounded-xl border bg-card p-5 shadow-xs transition-colors hover:border-primary"
+        className="group flex items-center gap-4 rounded-[20px] border bg-card p-5 transition-colors hover:border-primary"
       >
         <span className="min-w-0 flex-1 leading-tight">
           <span className="block font-semibold text-foreground">Estilo do tutor</span>

@@ -11,9 +11,9 @@ export default function RecuperarPage() {
         <KixiLogo size={28} wordmark />
         <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">Manager</span>
       </div>
-      <div className="grid w-full max-w-[400px] gap-6 rounded-xl border bg-card p-6 shadow-xs sm:p-8">
+      <div className="grid w-full max-w-[400px] gap-6 rounded-[20px] border bg-card p-6 sm:p-8">
         <div className="grid gap-1.5">
-          <h1 className="text-2xl leading-tight font-bold tracking-tight">Recuperar palavra-passe</h1>
+          <h1 className="text-[26px] leading-tight font-extrabold tracking-tight">Recuperar palavra-passe</h1>
           <p className="text-sm text-muted-foreground">A recuperação automática ainda não está disponível.</p>
         </div>
         <div role="note" className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-foreground">

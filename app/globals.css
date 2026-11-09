@@ -89,7 +89,7 @@ math-virtual-keyboard {
 
 /* Largura que a barra lateral do gestor reserva ao conteúdo (components/manager-navbar.tsx). Só vale a partir de `lg`. */
 :root {
-  --nav-width: 16rem;
+  --nav-width: 14.5rem;
 }
 :root[data-nav='collapsed'] {
   --nav-width: 4rem;

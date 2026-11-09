@@ -494,7 +494,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
         <Button variant="outline" size="sm" onClick={leave}>
           <ArrowLeft size={14} /> Voltar
         </Button>
-        <h1 className="text-xl font-bold tracking-tight">Rever enunciado</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">Rever enunciado</h1>
         {place?.position ? <p className="text-sm text-muted-foreground">Fila de revisão: {place.position} de {place.total}</p> : null}
         <div className="ml-auto flex flex-wrap gap-2">
           {meta.needsReview ? <Badge variant="secondary">A rever</Badge> : <Badge variant="default">Revista</Badge>}

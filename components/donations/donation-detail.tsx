@@ -80,7 +80,7 @@ export function DonationDetailView({ id }: { id: number }) {
       {back}
       <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold md:text-3xl">{donation.subjectName} · {donation.examType}</h1>
+          <h1 className="text-[26px] font-extrabold md:text-3xl">{donation.subjectName} · {donation.examType}</h1>
           <p className="text-sm text-muted-foreground">{donation.institutionName} · <span className="tabular-nums">{donation.reference}</span></p>
         </div>
         <DonationStatusBadge status={donation.status} />

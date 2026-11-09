@@ -65,7 +65,7 @@ export function DonationsList() {
       <div className="mb-6 flex items-center gap-3">
         <div className="rounded-md bg-accent p-2 text-primary"><Gift size={20} aria-hidden /></div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground md:text-3xl">Doações</h1>
+          <h1 className="text-[26px] font-extrabold text-foreground md:text-3xl">Doações</h1>
           <p className="text-sm text-muted-foreground">Enunciados enviados pela página pública. Reveja, aprove e abra no construtor.</p>
         </div>
       </div>
@@ -97,7 +97,7 @@ export function DonationsList() {
           <ul className="grid gap-3 md:hidden">
             {data.items.map((d) => (
               <li key={d.id}>
-                <Link href={`/donations/${d.id}`} className="block rounded-xl border bg-card p-4 shadow-xs transition-colors hover:border-primary">
+                <Link href={`/donations/${d.id}`} className="block rounded-[20px] border bg-card p-4 transition-colors hover:border-primary">
                   <div className="flex items-start justify-between gap-3">
                     <span className="font-semibold">{d.subjectName} · {d.examType}</span>
                     <DonationStatusBadge status={d.status} />

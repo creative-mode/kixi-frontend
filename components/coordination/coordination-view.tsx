@@ -46,7 +46,7 @@ export function CoordinationView() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-7">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Salas da instituição</h1>
+        <h1 className="text-[26px] font-extrabold tracking-tight">Salas da instituição</h1>
         <p className="text-sm text-muted-foreground">Acompanhe as provas em curso e as notas por aluno. Só leitura: quem fecha e corrige é o professor.</p>
       </header>
       <SectionState section={rooms} onRetry={() => void load()} isEmpty={(d) => d.length === 0} empty={<p className="text-sm text-muted-foreground">Ainda não há salas na sua instituição.</p>}>

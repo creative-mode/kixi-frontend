@@ -45,7 +45,7 @@ export default function TutorStylePage() {
             <ArrowLeft size={14} aria-hidden /> Início
           </Link>
         </Button>
-        <h1 className="text-2xl leading-tight tracking-tight text-foreground">Estilo do tutor</h1>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-foreground">Estilo do tutor</h1>
         <p className="text-muted-foreground">
           Diga ao tutor de IA como costuma explicar: o tom, os passos, os exemplos. Ele usa este texto quando os
           seus alunos estudam um enunciado da turma e disciplina correspondentes. As regras do tutor não mudam:

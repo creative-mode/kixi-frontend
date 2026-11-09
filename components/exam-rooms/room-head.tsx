@@ -40,7 +40,7 @@ export function RoomHead({
             <DoorOpen size={20} aria-hidden />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold text-foreground md:text-3xl">{title}</h1>
+            <h1 className="truncate text-[26px] font-extrabold text-foreground md:text-3xl">{title}</h1>
             <div className="text-sm text-muted-foreground">{subtitle}</div>
           </div>
         </div>
