@@ -11,10 +11,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
+import { Badge } from '@/components/ui/badge';
 import { FormSkeleton } from '@/components/crud/loading';
 import { createRoom, roomContext, type RoomContext } from '@/app/actions/exam-rooms';
 import { ACTION_TIMEOUT_MS, TIMEOUT_MESSAGE, isTimeout, withDeadline } from '@/lib/timeout';
-import { draftProblem, formatWall, hasFutureRoomStart, luandaNowInput, preselectFromStatement, statementFitsRoom, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
+import { draftProblem, formatWall, hasFutureRoomStart, luandaNowInput, preselectFromStatement, roomStatementChoices, searchStatements, statementDetails, statementStateLabel, wallMinutes, type RoomDraft } from '@/lib/exam-rooms/model';
 import { RoomHead } from './room-head';
 import { useSessionAccount } from '@/components/session-account';
 import { clearFormDraft, clearStaleFormDrafts, loadFormDraft, saveFormDraft } from '@/lib/form-drafts';
@@ -100,10 +101,15 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt]);
 
-  const statements = useMemo(
-    () => (ctx && draft.classId ? ctx.statements.filter((s) => statementFitsRoom(s, Number(draft.classId), ctx.admin)) : []),
+  const [query, setQuery] = useState('');
+  // Os enunciados a que o professor tem acesso, repartidos entre os que servem a esta turma e os que não, com a razão.
+  const { usable: statements, blocked } = useMemo(
+    () => (ctx && draft.classId
+      ? roomStatementChoices(ctx.statements, Number(draft.classId), ctx.admin, Object.fromEntries(ctx.classes.map((c) => [c.id, c.label])))
+      : { usable: [], blocked: [] }),
     [ctx, draft.classId],
   );
+  const shown = useMemo(() => searchStatements(statements, query), [statements, query]);
   const chosen = statements.find((s) => String(s.id) === draft.statementId) ?? null;
   const problem = draftProblem(draft);
   const windowMinutes = (wallMinutes(draft.endsAt) ?? 0) - (wallMinutes(draft.startsAt) ?? 0);
@@ -136,7 +142,7 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
         subtitle="Escolha a prova, a janela e quem entra. A sala fica em rascunho até a abrir."
         back={{ href: '/exam-rooms', label: 'Voltar às salas' }}
       />
-      {restored ? <p role="status" className="mb-4 text-sm text-muted-foreground">Retomámos o que tinhas preenchido neste separador.</p> : null}
+      {restored ? <p role="status" className="mb-4 text-sm text-muted-foreground">Retomámos o que tinha preenchido neste separador.</p> : null}
       {error ? (
         <Card>
           <CardContent role="status" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
@@ -168,17 +174,75 @@ export function RoomWizard({ initialStatementId = null }: { initialStatementId?:
                   </NativeSelect>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="room-statement">Enunciado</Label>
-                  <NativeSelect id="room-statement" value={draft.statementId} onChange={(e) => chooseStatement(e.target.value)} disabled={!draft.classId} required>
-                    <option value="">{draft.classId ? (statements.length ? 'Escolha o enunciado…' : 'Sem enunciados desta turma') : 'Escolha primeiro a turma'}</option>
-                    {statements.map((s) => (
-                      <option key={s.id} value={s.id}>{s.title}{s.needsReview ? ' (por aprovar)' : ''}</option>
-                    ))}
-                  </NativeSelect>
+                  <Label htmlFor="room-statement-search">Enunciado</Label>
+                  <Input
+                    id="room-statement-search"
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Pesquisar por título, disciplina ou tipo…"
+                    disabled={statements.length === 0}
+                    aria-controls="room-statement-list"
+                  />
+                  <div
+                    id="room-statement-list"
+                    role="radiogroup"
+                    aria-label="Enunciados da turma"
+                    className="max-h-72 divide-y overflow-y-auto rounded-md border"
+                  >
+                    {!draft.classId ? (
+                      <p className="p-3 text-sm text-muted-foreground">Escolha primeiro a turma.</p>
+                    ) : statements.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground">Sem enunciados desta turma.</p>
+                    ) : shown.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground">Nenhum enunciado corresponde à pesquisa.</p>
+                    ) : (
+                      shown.map((s) => (
+                        <label key={s.id} className="flex cursor-pointer items-start gap-3 p-3 text-sm hover:bg-accent/40 has-[:checked]:bg-accent">
+                          <input
+                            type="radio"
+                            name="room-statement"
+                            value={s.id}
+                            checked={String(s.id) === draft.statementId}
+                            onChange={() => chooseStatement(String(s.id))}
+                            className="mt-1 size-4 accent-primary"
+                          />
+                          <span className="grid min-w-0 flex-1 gap-0.5">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{s.title}</span>
+                              <Badge variant={s.needsReview ? 'warning' : s.visible ? 'success' : 'secondary'}>{statementStateLabel(s)}</Badge>
+                            </span>
+                            {statementDetails(s) ? <span className="text-xs text-muted-foreground">{statementDetails(s)}</span> : null}
+                          </span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  {draft.classId && statements.length > 0 ? (
+                    <p role="status" className="text-xs text-muted-foreground">
+                      {query.trim() ? `${shown.length} de ${statements.length} enunciados.` : `${statements.length} ${statements.length === 1 ? 'enunciado' : 'enunciados'} desta turma.`}
+                    </p>
+                  ) : null}
                   {draft.classId && statements.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                       A prova é dada a partir de um enunciado, numa sala. A sala usa um enunciado da mesma turma: <Link href="/exam-builder?importar=1" className="underline">importe a prova de uma imagem</Link> ou <Link href="/exam-builder" className="underline">monte-a</Link>, e associe-a a esta turma.
                     </p>
+                  ) : null}
+                  {blocked.length > 0 ? (
+                    <details className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer font-medium text-foreground">
+                        {blocked.length === 1 ? 'Há 1 enunciado a que tem acesso que não serve a esta turma' : `Há ${blocked.length} enunciados a que tem acesso que não servem a esta turma`}
+                      </summary>
+                      <ul className="mt-2 grid gap-2">
+                        {blocked.map(({ statement, reason, fix }) => (
+                          <li key={statement.id}>
+                            <span className="font-medium text-foreground">{statement.title}</span>
+                            {statementDetails(statement) ? ` (${statementDetails(statement)})` : ''}: {reason}{' '}
+                            {fix === 'review' ? <Link href={`/statements/${statement.id}`} className="underline">Rever enunciado</Link> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                   ) : null}
                   {chosen?.needsReview ? (
                     <p className="text-xs text-warning">Este enunciado ainda não foi aprovado: confirme o gabarito antes de abrir a sala, senão a correção automática não tem com que comparar.</p>

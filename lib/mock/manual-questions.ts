@@ -10,7 +10,7 @@
  */
 
 export interface RawOption { label?: string; text?: string; correct?: boolean }
-export interface RawItem { label?: string; text?: string; type?: string; maxScore?: number | null; options?: RawOption[] }
+export interface RawItem { label?: string; text?: string; type?: string; maxScore?: number | null; modelAnswer?: string | null; options?: RawOption[] }
 export interface RawQuestion { text?: string; type?: string; maxScore?: number | null; modelAnswer?: string | null; options?: RawOption[]; items?: RawItem[] }
 
 export interface BuiltOption { id: number; questionId: number | null; optionLabel: string; optionText: string; isCorrect: boolean; orderIndex: number; deletedAt: null }
@@ -65,11 +65,14 @@ export function buildQuestions(input: RawQuestion[], nextQuestionId: () => numbe
   let total = 0;
   let order = 0;
 
+  /** Como o backend: só uma questão aberta guarda a resposta-modelo (as outras têm a opção correta), sem espaços nas pontas. */
+  const keyOf = (kind: string, text: string | null | undefined): string | null => (kind === 'open' && text?.trim() ? text.trim() : null);
+
   const row = (q: { text: string; kind: string; maxScore: number | null; number: number; parentId: number | null; label: string | null; modelAnswer?: string | null; options: RawOption[] }): BuiltQuestion => {
     const id = nextQuestionId();
     return {
       id, statementId: null, number: q.number, orderIndex: order++, text: q.text, maxScore: q.maxScore, questionType: q.kind,
-      parentId: q.parentId, label: q.label, pageIndex: null, modelAnswer: q.modelAnswer ?? null, needsReview: false,
+      parentId: q.parentId, label: q.label, pageIndex: null, modelAnswer: keyOf(q.kind, q.modelAnswer), needsReview: false,
       options: q.options.map((o, j) => ({ id: nextOptionId(), questionId: id, optionLabel: String(o.label ?? ''), optionText: String(o.text).trim(), isCorrect: !!o.correct, orderIndex: j, deletedAt: null })),
     };
   };
@@ -95,7 +98,7 @@ export function buildQuestions(input: RawQuestion[], nextQuestionId: () => numbe
         if ('error' in opts) return fail(opts.error);
         const maxScore = item.maxScore == null ? null : Number(item.maxScore);
         total += maxScore ?? 0;
-        questions.push(row({ text: String(item.text).trim(), kind: item.type as string, maxScore, number: n * 100 + (j + 1), parentId: parent.id, label, options: opts.options }));
+        questions.push(row({ text: String(item.text).trim(), kind: item.type as string, maxScore, number: n * 100 + (j + 1), parentId: parent.id, label, modelAnswer: item.modelAnswer, options: opts.options }));
       }
       continue;
     }

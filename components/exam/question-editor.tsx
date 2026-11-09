@@ -158,7 +158,7 @@ export function QuestionEditor({
         </div>
       ) : (
         <div className="grid gap-2 pl-8">
-          <LeafBody kind={kind as LeafKind} options={item.options} where={String(n)} onChange={(options) => onChange({ options })} />
+          <LeafBody kind={kind as LeafKind} options={item.options} where={String(n)} onChange={(options) => onChange({ options })} modelAnswer={item.modelAnswer ?? ''} onModelAnswer={(modelAnswer) => onChange({ modelAnswer })} />
         </div>
       )}
 

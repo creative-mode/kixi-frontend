@@ -26,6 +26,10 @@ import {
   toLocalDateTime,
   wallMinutes,
   preselectFromStatement,
+  roomStatementChoices,
+  searchStatements,
+  statementDetails,
+  statementStateLabel,
   type IntegrityEvent,
 } from './model.ts';
 
@@ -69,6 +73,49 @@ test('o enunciado tem de ser da turma da sala; sem turma, só o ADMIN', () => {
   assert.equal(statementFitsRoom({ classId: 4 }, 3, true), false);
   assert.equal(statementFitsRoom({ classId: null }, 3, false), false);
   assert.equal(statementFitsRoom({ classId: null }, 3, true), true);
+});
+
+const PROVAS = [
+  { id: 1, title: 'Prova do 1.º trimestre', classId: 3, subjectName: 'Matemática', examType: 'Teste', variant: 'A', durationMinutes: 90, needsReview: false, visible: true },
+  { id: 2, title: 'Exame de Física', classId: 3, subjectName: 'Física', examType: 'Exame', variant: null, durationMinutes: null, needsReview: true, visible: false },
+  { id: 3, title: 'Prova antiga (OCR)', classId: null, subjectName: null, examType: null, variant: null, durationMinutes: 60, needsReview: true, visible: false },
+  { id: 4, title: 'Teste da 11.ª', classId: 4, subjectName: 'Matemática', examType: 'Teste', variant: null, durationMinutes: 45, needsReview: false, visible: false },
+];
+
+test('o estado do enunciado diz se está por aprovar, publicado ou oculto', () => {
+  assert.equal(statementStateLabel(PROVAS[0]), 'Publicado');
+  assert.equal(statementStateLabel(PROVAS[1]), 'Por aprovar');
+  assert.equal(statementStateLabel(PROVAS[3]), 'Oculto');
+});
+
+test('a linha de apoio do enunciado não deixa separadores soltos', () => {
+  assert.equal(statementDetails(PROVAS[0]), 'Matemática · Teste · variante A · 90 min');
+  assert.equal(statementDetails(PROVAS[1]), 'Física · Exame');
+  assert.equal(statementDetails({ subjectName: null, examType: '  ', variant: null, durationMinutes: 0 }), '');
+});
+
+test('a pesquisa de enunciados ignora acentos e maiúsculas e exige todas as palavras', () => {
+  assert.deepEqual(searchStatements(PROVAS, '').map((s) => s.id), [1, 2, 3, 4]);
+  assert.deepEqual(searchStatements(PROVAS, 'FISICA').map((s) => s.id), [2]);
+  assert.deepEqual(searchStatements(PROVAS, 'matematica teste').map((s) => s.id), [1, 4]);
+  assert.deepEqual(searchStatements(PROVAS, 'matematica exame').map((s) => s.id), []);
+  assert.deepEqual(searchStatements(PROVAS, 'variante'), []);
+  assert.deepEqual(searchStatements(PROVAS, '1.º').map((s) => s.id), [1]);
+});
+
+test('os enunciados da turma ficam disponíveis e os outros dizem porque não servem', () => {
+  const r = roomStatementChoices(PROVAS, 3, false, { 4: '11B · Informática' });
+  assert.deepEqual(r.usable.map((s) => s.id), [1, 2]);
+  assert.deepEqual(r.blocked.map((b) => [b.statement.id, b.fix]), [[3, 'review'], [4, null]]);
+  assert.match(r.blocked[0].reason, /Não tem turma/);
+  assert.match(r.blocked[1].reason, /11B · Informática/);
+});
+
+test('o ADMIN pode usar um enunciado sem turma', () => {
+  const r = roomStatementChoices(PROVAS, 3, true);
+  assert.deepEqual(r.usable.map((s) => s.id), [1, 2, 3]);
+  assert.deepEqual(r.blocked.map((b) => b.statement.id), [4]);
+  assert.match(r.blocked[0].reason, /turma 4/);
 });
 
 const room = { startsAt: '2026-10-12T09:00:00', endsAt: '2026-10-12T11:00:00' };
