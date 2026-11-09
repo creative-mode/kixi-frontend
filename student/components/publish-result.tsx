@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useId, useState, useTransition } from 'react';
 import { Check, Loader2, Share2 } from 'lucide-react';
-import { SimulationCard, type SimulationCardData } from '@/components/simulation-card';
+import type { SimulationCardData } from '@/components/simulation-card';
+import { PostPreview } from '@/components/post-parts';
+import { useMe } from '@/lib/me-context';
+import { fullName, photoUrl } from '@/lib/profile';
+import { postTypeLabel } from '@/lib/feed-rules';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,6 +27,7 @@ export function PublishResult({
   simulationId: number;
   card: SimulationCardData;
 }) {
+  const me = useMe();
   const fieldId = useId();
   const [reflection, setReflection] = useState('');
   const [published, setPublished] = useState(false);
@@ -44,7 +49,12 @@ export function PublishResult({
     <Card className="gap-0 py-0" aria-label="Publicar o resultado no feed">
       <CardHeader className="pt-5 pb-3"><CardTitle>Partilhar com a turma</CardTitle></CardHeader>
       <div className="grid gap-4 border-t px-5 py-4">
-        <SimulationCard card={card} />
+        {/* A pré-visualização é a publicação inteira, como a turma a vai ver: cabeçalho, cartão e reflexão. */}
+        <PostPreview
+          author={{ name: fullName(me) || 'Tu', photo: photoUrl(me) }}
+          typeLabel={postTypeLabel('simulation')}
+          post={{ title: null, content: reflection.trim(), simulation: card, blocks: null }}
+        />
         {published ? (
           <div className="flex flex-wrap items-center gap-3" role="status">
             <span className="inline-flex items-center gap-2 text-sm font-semibold text-success"><Check className="size-4" aria-hidden />Publicado no feed da turma.</span>

@@ -70,6 +70,7 @@ export async function roomsRoutes({ method, pathname, search, filter, body, text
   if (checkMatch && method === 'POST') {
     const row = db.simulations.find((s) => s.id === Number(checkMatch[1]) && s.accountId === account.id);
     if (!row) return problem(404, 'Simulation not found');
+    if (row.examRoomId != null) return problem(403, 'Controlled exams do not show the answer key');
     if (row.status !== 'IN_PROGRESS') return problem(409, 'The simulation is not in progress');
     const question = db.questions.find((q) => q.id === Number(checkMatch[2]));
     if (!question) return problem(404, 'Question not found');

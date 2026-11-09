@@ -1,7 +1,6 @@
 import { Column, Page } from '@/components/page';
 import { Card } from '@/components/ui/card';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
-import { MobileInicioSkeleton } from '@/components/mobile-inicio';
 
 /** Cabeçalho de página (título + descrição). */
 export function HeaderSkeleton({ kicker }: { kicker?: boolean }) {
@@ -46,7 +45,6 @@ export function InicioSkeleton() {
     <Page className="gap-0 p-0">
       <StatusLabel />
       <div className="border-b px-4 py-3"><Skeleton className="h-6 w-24" /></div>
-      <MobileInicioSkeleton />
       <div className="flex gap-3 border-b px-4 py-3"><Skeleton className="size-11 shrink-0 rounded-full" /><Skeleton className="h-11 flex-1" /></div>
       <PostSkeleton /><PostSkeleton /><PostSkeleton />
     </Page>

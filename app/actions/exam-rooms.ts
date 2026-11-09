@@ -10,6 +10,7 @@ import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { assignmentsFrom, teacherCanWrite } from '@/lib/crud/teacher-scope';
 import type { BulkGradeResult, ExamRoom, Grade, RoomAction, RoomDraft, RoomIntegrity, RoomReview } from '@/lib/exam-rooms/model';
 import { draftProblem, toLocalDateTime } from '@/lib/exam-rooms/model';
+import { fold, keywordsOf, problemsOf, type MatrixDraft, type MatrixPayload, type MatrixView } from '@/lib/exam-rooms/matrix';
 
 const BASE = '/api/v1/exam-rooms';
 
@@ -28,6 +29,7 @@ export type StatementChoice = {
   id: number;
   title: string;
   classId: number | null;
+  subjectId: number | null;
   durationMinutes: number | null;
   totalMaxScore: number | null;
   needsReview: boolean;
@@ -45,6 +47,7 @@ const toStatement = (s: Row): StatementChoice => ({
   id: Number(s.id),
   title: String(s.title ?? `Enunciado ${s.id}`),
   classId: s.classId == null ? null : Number(s.classId),
+  subjectId: s.subjectId == null ? null : Number(s.subjectId),
   durationMinutes: s.durationMinutes == null ? null : Number(s.durationMinutes),
   totalMaxScore: s.totalMaxScore == null ? null : Number(s.totalMaxScore),
   needsReview: !!s.needsReview,
@@ -203,5 +206,90 @@ export async function gradeRoom(id: number, grades: { answerId: number; score: n
     if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath('/exam-rooms');
     return ok((await res.json()) as BulkGradeResult);
+  });
+}
+
+// ── A matriz da prova: os temas que saem, as questões e a cotação de cada um ──────────────────────────────────────
+
+/** A matriz da sala, ou `null` quando o professor ainda não a carregou (o servidor responde 404). */
+export async function getRoomMatrix(id: number): Promise<Result<MatrixView | null>> {
+  return guard(async () => {
+    const res = await call(`${BASE}/${safeId(id)}/matrix`);
+    if (res.status === 404) return ok(null);
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as MatrixView);
+  });
+}
+
+export type SubjectTopic = { id: number; name: string; grade: number | null; keywords: string | null; questionCount: number };
+
+/** Os temas da disciplina, com as palavras-chave e quantas questões já têm. */
+export async function subjectTopics(subjectId: number): Promise<Result<SubjectTopic[]>> {
+  return guard(async () => {
+    const res = await json<Row[]>(`/api/v1/subjects/${safeId(subjectId)}/topics`);
+    if (!res.ok) return res;
+    return ok(res.data.map((t) => ({ id: Number(t.id), name: String(t.name), grade: t.grade == null ? null : Number(t.grade), keywords: t.keywords == null ? null : String(t.keywords), questionCount: Number(t.questionCount ?? 0) })));
+  });
+}
+
+async function send(path: string, method: string, body: unknown): Promise<Result & { status?: number }> {
+  const res = await call(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return res.ok ? ok(undefined) : { ...fail(await message(res)), status: res.status };
+}
+
+/**
+ * Guarda a matriz (substitui a anterior). Antes, cria ou atualiza os temas que trazem palavras-chave: é por elas que
+ * o Kixi encontra, nas provas anteriores, as questões de cada tema. Os temas sem palavras-chave nascem pelo nome.
+ */
+export async function saveRoomMatrix(id: number, draft: MatrixDraft, payload: MatrixPayload, subjectId: number | null): Promise<Result<MatrixView>> {
+  return guard(async () => {
+    // O servidor volta a validar; isto só evita a viagem quando o editor deixou passar um rascunho partido.
+    const problems = problemsOf(draft);
+    if (problems.length > 0) return fail(problems[0]!);
+    const withWords = keywordsOf(draft);
+    if (subjectId != null && withWords.length > 0) {
+      const known = await subjectTopics(subjectId);
+      if (!known.ok) return known;
+      for (const { name, keywords } of withWords) {
+        // Com o mesmo nome em várias classes, o tema de todas as classes (sem classe) é o que o servidor escolhe.
+        const same = known.data.filter((t) => fold(t.name) === fold(name));
+        const found = same.find((t) => t.grade == null) ?? same[0];
+        const done = found
+          ? await send(`/api/v1/topics/${found.id}`, 'PUT', { name: found.name, grade: found.grade, keywords })
+          : await send(`/api/v1/subjects/${safeId(subjectId)}/topics`, 'POST', { name, keywords });
+        // Um tema de outro autor não se edita (403): usam-se as palavras-chave que já tem, sem travar a matriz.
+        if (!done.ok && !(found && done.status === 403)) return done;
+      }
+    }
+    const res = await call(`${BASE}/${safeId(id)}/matrix`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as MatrixView);
+  });
+}
+
+/** Etiqueta com tema as questões das provas da disciplina que ainda não têm nenhum (nunca mexe nas já etiquetadas). */
+export async function tagSubjectQuestions(subjectId: number): Promise<Result<{ tagged: number; untagged: number; statements: number }>> {
+  return guard(async () => {
+    const list = await json<Row[]>('/api/v1/statements');
+    if (!list.ok) return list;
+    const mine = list.data.filter((s) => Number(s.subjectId) === safeId(subjectId));
+    let tagged = 0;
+    let untagged = 0;
+    for (const statement of mine) {
+      const res = await call(`/api/v1/statements/${Number(statement.id)}/topics/auto-tag`, { method: 'POST' });
+      if (!res.ok) continue;
+      const body = (await res.json()) as { tagged?: number; untagged?: number };
+      tagged += body.tagged ?? 0;
+      untagged += body.untagged ?? 0;
+    }
+    return ok({ tagged, untagged, statements: mine.length });
+  });
+}
+
+export async function removeRoomMatrix(id: number): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`${BASE}/${safeId(id)}/matrix`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) return fail(await message(res));
+    return ok(undefined);
   });
 }

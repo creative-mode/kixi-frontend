@@ -1,3 +1,4 @@
+import type { MatrixPick, TrainingPlan } from './training';
 import 'server-only';
 
 import { apiGet, apiPost, apiPut, type Result } from './api';
@@ -125,6 +126,20 @@ export async function listSimulationsResult(): Promise<Result<SimulationSummary[
 /** «Montar treino» (kixi#729): uma simulação livre com N das questões do enunciado. */
 export async function startPractice(statementId: number, questionCount: number): Promise<Result<Simulation>> {
   return apiPost<Simulation>('/simulations/practice', { statementId, questionCount });
+}
+
+/** A matriz da prova agendada e o que há para treinar em cada tema (404 quando o professor ainda não carregou matriz). */
+export async function getTrainingPlan(roomId: number): Promise<Result<TrainingPlan>> {
+  return apiGet<TrainingPlan>(`/training/rooms/${roomId}/plan`);
+}
+
+/** «Simular a prova»: uma simulação com as questões escolhidas por tema, vindas de provas anteriores. */
+export async function startMatrixPractice(
+  roomId: number,
+  items: MatrixPick[],
+  durationMinutes?: number | null,
+): Promise<Result<{ simulation: Simulation; allocation: { topicId: number; requested: number; provided: number }[] }>> {
+  return apiPost('/simulations/practice/matrix', { roomId, items, ...(durationMinutes ? { durationMinutes } : {}) });
 }
 
 export async function startSimulation(

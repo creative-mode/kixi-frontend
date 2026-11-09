@@ -2,7 +2,7 @@ import { toLocalDateTime, type MockQuestion } from '../simulation';
 
 import { turmaDoCodigo, validarCodigoDeMatricula, type EnrollmentCode } from '../enrollment-codes';
 import type { Enrollment } from '@/lib/types';
-import { QUESTIONS_BY_STATEMENT, classResponse, json, problem, statementSummary, tutorSources, validationError } from '../store';
+import { QUESTIONS_BY_STATEMENT, canReadStatement, classResponse, json, problem, statementSummary, tutorSources, validationError } from '../store';
 import type { MockCtx } from '../store';
 
 /** Rotas do domínio «tutor» do mock; devolve `undefined` quando o pedido não é deste domínio. */
@@ -20,7 +20,7 @@ export async function tutorRoutes({ method, pathname, search, filter, body, text
       return validationError({ statementId: 'statementId is required' });
     }
     const statement = db.statements.find((x) => x.id === statementId);
-    if (!statement || (!staff && !statement.visible)) return problem(404, 'Statement not found');
+    if (!statement || !canReadStatement(statement, account.id, staff)) return problem(404, 'Statement not found');
     const rawMode = body.mode ?? null;
     const allowedModes = ['GENERAL', 'EXPLAIN_QUESTION', 'SIMILAR_EXERCISES', 'CONCEPT'];
     if (rawMode !== null && !allowedModes.includes(String(rawMode))) {
@@ -127,7 +127,7 @@ export async function tutorRoutes({ method, pathname, search, filter, body, text
     if (!statement) return problem(404, 'Statement not found');
     // Um aluno só lê o enunciado publicado (StatementController.java:135). O mock
     // devolve 404 como o backend, para o cartão não abrir uma prova invisível.
-    if (!staff && !statement.visible) return problem(404, 'Statement not found');
+    if (!canReadStatement(statement, account.id, staff)) return problem(404, 'Statement not found');
 
     const ids = QUESTIONS_BY_STATEMENT[statement.id] ?? [];
     const questions = ids

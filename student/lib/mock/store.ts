@@ -11,6 +11,8 @@ import { type MockPostComment } from './feed-comments';
 import { type PostBlock } from '../post-blocks';
 import { parseServerTime } from '../exam-rules';
 import { type EnrollmentCode } from './enrollment-codes';
+import type { MockMatrix, MockTopic } from './training';
+import { SEED_BY_STATEMENT, SEED_MATRICES, SEED_QUESTION_TOPICS, SEED_QUESTIONS, SEED_STATEMENTS, TOPICS } from './training-seed';
 import type { Course, Enrollment, Institution, Me, SchoolYear } from '@/lib/types';
 
 /** In-process stand-in for the Spring Boot backend: the aluno app needs no server
@@ -99,6 +101,8 @@ export type CatalogRow = {
   needsReview: boolean;
   ocrConfidence: number | null;
   visible: boolean;
+  /** Só no enunciado virtual de um treino por matriz: a conta dona, a única que o pode ler. */
+  practiceOwner?: number;
 };
 
 export type SimulationRow = {
@@ -142,6 +146,12 @@ export type Store = {
   answers: MockAnswer[];
   nextSimulation: number;
   nextAnswer: number;
+  /** Temas por disciplina, as etiquetas das questões e as matrizes das salas (treino por temas). */
+  topics: MockTopic[];
+  questionTopics: Record<number, number[]>;
+  matrices: MockMatrix[];
+  /** Questão copiada para um treino por matriz -> a questão original (o histórico do aluno conta pelo original). */
+  questionSource: Record<number, number>;
   /** Sessões do tutor: a (conta, enunciado) a que cada id pertence e o contexto da
    *  sessão (#115), mais quantas mensagens a conta já enviou para o limite. */
   chatSessions: {
@@ -293,6 +303,7 @@ export function seed(): Store {
   const schoolYears: SchoolYear[] = [
     { id: 1, startYear: 2025, endYear: 2026 },
     { id: 2, startYear: 2024, endYear: 2025 },
+    { id: 3, startYear: 2023, endYear: 2024 },
   ];
   const institutions: Institution[] = [
     { id: 1, code: 'ITEL', name: 'Instituto de Telecomunicações', short_name: 'ITEL', logo: null },
@@ -425,8 +436,10 @@ export function seed(): Store {
       { id: 5, title: 'Organização e Gestão Industrial', examType: 'Exame', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 90, totalMaxScore: 20, variant: 'B', source: 'MANUAL', needsReview: false, ocrConfidence: null, visible: true },
       // Nunca publicada: tem de dar 404 como se não existisse.
       { id: 4, title: 'Rascunho por publicar', examType: 'Teste', subjectId: 1, schoolYearId: 1, termId: 1, institutionId: 1, classId: 1, durationMinutes: 60, totalMaxScore: 10, variant: null, source: 'OCR', needsReview: true, ocrConfidence: 0.62, visible: false },
+      ...SEED_STATEMENTS,
     ],
     questions: [
+      ...SEED_QUESTIONS,
       {
         id: 1, number: 1, text: 'Uma rede de classe A tem, por omissão, um prefixo de:',
         questionType: 'multiple_choice', maxScore: 2, orderIndex: 0,
@@ -566,6 +579,10 @@ export function seed(): Store {
     ],
     nextSimulation: 8,
     nextAnswer: 5,
+    topics: TOPICS.map((t) => ({ ...t })),
+    questionTopics: structuredClone(SEED_QUESTION_TOPICS),
+    matrices: structuredClone(SEED_MATRICES),
+    questionSource: {},
     chatSessions: [],
     chatSent: {},
     // The seeded student is also explicitly affiliated with ITEL, as an administrator
@@ -578,12 +595,14 @@ export function seed(): Store {
     rooms: [
       { id: 1, statementId: 3, status: 'RUNNING', startsAt: toLocalDateTime(new Date(Date.now() - 10 * 60_000)), endsAt: toLocalDateTime(new Date(Date.now() + 80 * 60_000)), durationMinutes: 45 },
       { id: 2, statementId: 3, status: 'OPEN', startsAt: toLocalDateTime(new Date(Date.now() + 2 * 3_600_000)), endsAt: toLocalDateTime(new Date(Date.now() + 3 * 3_600_000)), durationMinutes: 45 },
+      { id: 4, statementId: 9, status: 'OPEN', startsAt: toLocalDateTime(new Date(Date.now() + 3 * 86_400_000)), endsAt: toLocalDateTime(new Date(Date.now() + 3 * 86_400_000 + 3_600_000)), durationMinutes: 60 },
       { id: 3, statementId: 1, status: 'CLOSED', startsAt: toLocalDateTime(new Date(Date.now() - 26 * 3_600_000)), endsAt: toLocalDateTime(new Date(Date.now() - 25 * 3_600_000)), durationMinutes: 45 },
     ],
     participants: [
       { roomId: 1, accountId: 3, simulationId: null, joinedAt: null },
       { roomId: 2, accountId: 3, simulationId: null, joinedAt: null },
       { roomId: 3, accountId: 3, simulationId: null, joinedAt: null },
+      { roomId: 4, accountId: 3, simulationId: null, joinedAt: null },
     ],
     // Consistente com a única simulação terminada da semente (RED, 16,4/20): XP de
     // uma prova, nível 1, sequência de 1 dia (hoje), e a medalha que esse resultado
@@ -717,6 +736,11 @@ export function maskedName(db: Store, id: number): string | null {
   return `${account.firstName} ${account.lastName.charAt(0)}.`;
 }
 
+/** Quem pode ler um enunciado: o pessoal, qualquer um se estiver publicado, e a conta dona de um treino por matriz. */
+export function canReadStatement(statement: { visible: boolean; practiceOwner?: number }, accountId: number, staff: boolean): boolean {
+  return staff || statement.visible || statement.practiceOwner === accountId;
+}
+
 export function ownedBy(db: Store, simulationId: number, accountId: number): boolean {
   return db.simulations.some((s) => s.id === simulationId && s.accountId === accountId);
 }
@@ -730,6 +754,7 @@ export const QUESTIONS_BY_STATEMENT: Record<number, number[]> = {
   3: [1, 2, 4],
   // OGI: as folhas e, no meio, os enunciados comuns (que o aluno não responde).
   5: [101, 102, 103, 104, 105, 106, 107, 108],
+  ...SEED_BY_STATEMENT,
 };
 
 /** StatementBasicResponse, as it nests inside SimulationResponse. */

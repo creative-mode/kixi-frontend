@@ -48,3 +48,10 @@ test('N que chega para a prova toda não restringe nada', () => {
   assert.equal(practiceQuestionIds(paper, new Set(), 3), undefined);
   assert.equal(practiceQuestionIds(paper, new Set(), 50), undefined);
 });
+
+test('o calendário aponta ao enunciado da prova, para «O que sai na prova» saber a disciplina', async () => {
+  const { upcomingInvitations } = await import('../home-rules.ts');
+  const inv = { roomId: 7, accountId: 1, simulationId: null, joinedAt: null, statementId: 42, statementTitle: 'Teste 2.º trimestre', status: 'OPEN', startsAt: '2099-11-05T08:00:00', endsAt: '2099-11-05T09:00:00', durationMinutes: 60, simulationStatus: null, serverTime: '2026-11-05T07:00:00' } as never;
+  const [first] = upcomingInvitations([inv]);
+  assert.equal(first?.statementId, 42);
+});
