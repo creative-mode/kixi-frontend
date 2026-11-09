@@ -334,9 +334,9 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
     await expect(page.getByText('Imagem pronta')).toBeVisible();
     await page.getByLabel('Imagem 5: descrição da imagem').fill('Esquema de uma rede');
-    // A pré-visualização é a própria publicação: o mesmo cabeçalho, título (h3) e figura que o feed vai mostrar.
+    // A pré-visualização é a própria publicação: o mesmo cabeçalho, bloco de título (h4) e figura que o feed vai mostrar.
     const previa = page.getByRole('region', { name: 'Pré-visualização' });
-    await expect(previa.getByRole('heading', { name: 'Endereços de uma rede', level: 3 })).toBeVisible();
+    await expect(previa.getByRole('heading', { name: 'Endereços de uma rede', level: 4 })).toBeVisible();
     await expect(previa.getByRole('img', { name: 'Cartão de estudo' })).toBeVisible();
     await expect(previa.getByRole('img', { name: 'Esquema de uma rede' })).toBeVisible();
     await page.getByRole('button', { name: 'Publicar' }).click();
