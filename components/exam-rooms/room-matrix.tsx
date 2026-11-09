@@ -27,6 +27,12 @@ import {
 
 const fmt = (n: number) => String(n).replace('.', ',');
 
+/** Preenche as palavras-chave que faltam com as do tema já guardado na disciplina. */
+const withKeywords = (draft: MatrixDraft, known: SubjectTopic[]): MatrixDraft => ({
+  ...draft,
+  rows: draft.rows.map((r) => (r.keywords ? r : { ...r, keywords: known.find((t) => fold(t.name) === fold(r.topic))?.keywords ?? '' })),
+});
+
 /**
  * A matriz da prova (matriz de especificação): os temas que saem, quantas questões e que cotação tem cada um, em
  * 20 valores. Os alunos convidados veem-na em «Prepara-te para a prova» e treinam por tema com questões de provas
@@ -36,8 +42,7 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
   const [draft, setDraft] = useState<MatrixDraft | null>(null);
   const [saved, setSaved] = useState(false);
   const [topics, setTopics] = useState<SubjectTopic[]>([]);
-  const [topicsLoaded, setTopicsLoaded] = useState(false);
-  const prefilled = useRef(false);
+  const topicsRef = useRef<SubjectTopic[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -51,7 +56,7 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
     if (!res.ok) return void setError(res.error);
     setError(null);
     setSaved(res.data != null);
-    setDraft(draftFrom(res.data));
+    setDraft(withKeywords(draftFrom(res.data), topicsRef.current));
   }, [roomId]);
 
   useEffect(() => {
@@ -62,21 +67,17 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
   const loadTopics = useCallback(async () => {
     if (subjectId == null) return;
     const res = await subjectTopics(subjectId);
-    if (res.ok) setTopics(res.data);
-    setTopicsLoaded(true);
+    if (!res.ok) return;
+    topicsRef.current = res.data;
+    setTopics(res.data);
+    // As palavras-chave já guardadas voltam ao editor, sem pisar o que o professor escreveu.
+    setDraft((d) => (d ? withKeywords(d, res.data) : d));
   }, [subjectId]);
 
   useEffect(() => {
     const task = window.setTimeout(() => void loadTopics(), 0);
     return () => window.clearTimeout(task);
   }, [loadTopics]);
-
-  // As palavras-chave já guardadas voltam ao editor, uma só vez, sem pisar o que o professor escreveu.
-  useEffect(() => {
-    if (prefilled.current || !topicsLoaded || !draft) return;
-    prefilled.current = true;
-    setDraft({ ...draft, rows: draft.rows.map((r) => (r.keywords ? r : { ...r, keywords: topics.find((t) => fold(t.name) === fold(r.topic))?.keywords ?? '' })) });
-  }, [topicsLoaded, draft, topics]);
 
   const totals = useMemo(() => (draft ? totalsOf(draft) : null), [draft]);
   const problems = useMemo(() => (draft ? problemsOf(draft) : []), [draft]);
