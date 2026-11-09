@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, Heading, ImageIcon, Lightbulb, List, ListChecks, Sigma, Trash2, Type } from 'lucide-react';
 import { PostBlocksView } from '@/components/post-blocks-view';
@@ -10,7 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
-import { enviarImagemPostAction, publishBuiltPostAction } from '@/lib/feed-actions';
+import { enviarImagemPostAction, publishBuiltPostAction, publishPostAction } from '@/lib/feed-actions';
+import { PostPreview } from '@/components/post-parts';
+import { useMe } from '@/lib/me-context';
+import { fullName, photoUrl } from '@/lib/profile';
+import { canPublish } from '@/lib/feed-rules';
 import {
   BLOCK_LABEL, LIMITS, TEMPLATES, TONE_LABEL, emptyBlock, imagesWithoutAlt, moved, payloadOf, problemOf, templateBlocks,
   type BlockDraft, type BlockType, type BuiltKind, type CalloutTone, type Template,
@@ -122,6 +125,7 @@ function BlockFields({ block, label, onChange }: { block: BlockDraft; label: str
 /** O construtor de publicações (#388): escolhe-se um modelo, montam-se os blocos e vê-se o resultado ao lado. */
 export function PostBuilder({ classId }: { classId: number }) {
   const router = useRouter();
+  const me = useMe();
   const [template, setTemplate] = useState<Template>(TEMPLATES[0]);
   const [title, setTitle] = useState('');
   const [blocks, setBlocks] = useState<BlockDraft[]>(() => templateBlocks(TEMPLATES[0]));
@@ -132,7 +136,9 @@ export function PostBuilder({ classId }: { classId: number }) {
 
   const filled = payloadOf(blocks);
   const kind: BuiltKind = template.kind;
-  const problem = problemOf(kind, title, filled);
+  // Uma pergunta ou dica só de texto, sem título, publica-se como sempre (um texto simples): o feed mostra-a igual.
+  const plainText = (kind === 'doubt' || kind === 'topic') && !title.trim() && filled.length === 1 && filled[0].type === 'text' ? (filled[0].text ?? '') : null;
+  const problem = plainText !== null ? (canPublish(plainText) ? null : 'Escreve pelo menos 5 caracteres.') : problemOf(kind, title, filled);
 
   const choose = (next: Template) => {
     setTemplate(next);
@@ -150,7 +156,9 @@ export function PostBuilder({ classId }: { classId: number }) {
     setError(null);
     setAltWarning(false);
     startTransition(async () => {
-      const result = await publishBuiltPostAction(classId, kind, title, blocks);
+      const result = plainText !== null
+        ? await publishPostAction(classId, kind as 'doubt' | 'topic', plainText.trim())
+        : await publishBuiltPostAction(classId, kind, title, blocks);
       if (result.ok) router.push('/inicio');
       else setError(result.message);
     });
@@ -175,9 +183,8 @@ export function PostBuilder({ classId }: { classId: number }) {
   return (
     <form className="mx-auto flex w-full max-w-[640px] flex-col px-4 pt-3 pb-28 md:px-0 md:pt-7 md:pb-12" onSubmit={publish} noValidate>
       <header className="sticky top-0 z-10 -mx-4 flex items-center justify-between bg-white/95 px-4 py-2 backdrop-blur md:mx-0 md:px-0">
-        <Link href="/publicar" className="px-1 py-3 text-[15px] font-semibold text-[#3d4a41] no-underline">&larr; Simples</Link>
+        <button type="button" onClick={() => router.push('/inicio')} className="px-1 py-3 text-[15px] font-semibold text-[#3d4a41]">Cancelar</button>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => router.push('/inicio')} className="h-[42px] rounded-full px-4 text-[15px] font-semibold text-[#3d4a41]">Cancelar</button>
           <button type="submit" disabled={pending || !!problem} className="h-[42px] rounded-full bg-[#1f5a2c] px-5 text-sm font-bold text-white disabled:opacity-50">{pending ? 'A publicar…' : 'Publicar'}</button>
         </div>
       </header>
@@ -226,10 +233,15 @@ export function PostBuilder({ classId }: { classId: number }) {
         </div>
       </section>
 
-      <section className="mt-6 grid gap-3 rounded-2xl border border-[#e9ebe7] p-4" aria-label="Pré-visualização">
-        <h2 className="m-0 text-[15px] font-bold">Pré-visualização <span className="text-[13px] font-semibold text-[#617066]">como vai aparecer na turma</span></h2>
-        {title.trim() && <h4 className="m-0 font-bold">{title.trim()}</h4>}
-        {filled.length > 0 ? <PostBlocksView blocks={filled} /> : <p className="text-sm text-[#617066]">Preenche os blocos e vê aqui o resultado.</p>}
+      <section className="mt-6 rounded-2xl border border-[#e9ebe7] p-4" aria-label="Pré-visualização">
+        <h2 className="m-0 mb-3 text-[13px] font-bold tracking-[.04em] text-[#617066] uppercase">Pré-visualização <span className="font-semibold normal-case tracking-normal">como vai aparecer na turma</span></h2>
+        {filled.length > 0 ? (
+          <PostPreview
+            author={{ name: fullName(me) || 'Tu', photo: photoUrl(me) }}
+            typeLabel={template.label}
+            post={{ title: title.trim() || null, content: plainText ?? '', simulation: null, blocks: plainText !== null ? null : filled }}
+          />
+        ) : <p className="m-0 text-sm text-[#617066]">Escreve ou acrescenta um bloco e vê aqui a publicação como a turma a vai ver.</p>}
       </section>
 
       <div aria-live="polite" className="mt-4 empty:hidden">{error && <Alert variant="destructive">{error}</Alert>}</div>
