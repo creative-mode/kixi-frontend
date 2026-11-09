@@ -137,12 +137,11 @@ test('o login e o estado de carregamento do gestor usam cópia PT-AO', () => {
 test('o menu do aluno chama «Turma» ao destino do ranking e a navegação móvel tem rótulos', () => {
   const shell = read('student/components/Shell.tsx');
   const ranking = read('student/app/(app)/ranking/page.tsx');
-  const rail = read('student/components/right-rail.tsx');
   // Nova experiência (#729): o item do menu é «Turma» (/turma); o ranking continua em /ranking, com o seu nome.
   assert.match(shell, /href: '\/turma', label: 'Turma'/);
   assert.match(shell, /also: \['\/ranking'/);
   assert.match(ranking, /title: 'Ranking · Kixi'/);
-  assert.match(rail, /linkLabel="Ranking"/);
+  // A coluna da direita só tem os temas e o calendário: o ranking chega-se pela «Turma» (Médias).
   // 4 colunas (#704) e o rótulo inteiro, visível, sem `truncate`.
   assert.match(shell, /grid-cols-4/);
   assert.doesNotMatch(shell, /truncate/);

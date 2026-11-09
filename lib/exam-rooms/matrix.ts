@@ -113,9 +113,9 @@ const blank = (row: MatrixRow) => row.topic.trim() === '' && row.count.trim() ==
 export function problemsOf(draft: MatrixDraft): string[] {
   const out: string[] = [];
   const scale = parseNumber(draft.totalPoints);
-  if (!Number.isFinite(scale) || scale <= 0) out.push('Indica a escala da prova, por exemplo 20 valores.');
+  if (!Number.isFinite(scale) || scale <= 0) out.push('Indique a escala da prova, por exemplo 20 valores.');
   const rows = draft.rows.filter((r) => !blank(r));
-  if (rows.length === 0) out.push('Acrescenta pelo menos um tema.');
+  if (rows.length === 0) out.push('Acrescente pelo menos um tema.');
   const seen = new Set<string>();
   rows.forEach((row, i) => {
     const at = `Linha ${i + 1}`;
@@ -124,7 +124,7 @@ export function problemsOf(draft: MatrixDraft): string[] {
     else if (seen.has(key)) out.push(`${at}: o tema «${row.topic.trim()}» já está na matriz.`);
     seen.add(key);
     const q = parseNumber(row.count);
-    if (!Number.isInteger(q) || q < 1) out.push(`${at}: indica quantas questões saem (um número inteiro, pelo menos 1).`);
+    if (!Number.isInteger(q) || q < 1) out.push(`${at}: indique quantas questões saem (um número inteiro, pelo menos 1).`);
     if (row.points.trim() !== '') {
       const p = parseNumber(row.points);
       if (!Number.isFinite(p) || p <= 0) out.push(`${at}: a cotação tem de ser um número maior que zero.`);

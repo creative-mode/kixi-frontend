@@ -242,7 +242,7 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
                         if (!known) return null;
                         return known.questionCount > 0
                           ? <span className="mt-1 block text-xs text-muted-foreground">{known.questionCount} {known.questionCount === 1 ? 'questão' : 'questões'} nas provas</span>
-                          : <span className="mt-1 block text-xs text-warning">Sem questões nas provas: junta palavras-chave.</span>;
+                          : <span className="mt-1 block text-xs text-warning">Sem questões nas provas: junte palavras-chave.</span>;
                       })()}
                     </td>
                     <td className="pb-2 pr-2"><Input aria-label={`Questões da linha ${i + 1}`} inputMode="numeric" value={row.count} disabled={readOnly} onChange={(e) => setRow(row.key, { count: e.target.value })} /></td>

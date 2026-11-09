@@ -47,9 +47,9 @@ test('ou todos os temas têm cotação ou nenhum', () => {
 test('temas repetidos, sem tema, sem questões e sem linhas', () => {
   assert.deepEqual(problemsOf(draft([{ topic: 'Sub-redes', count: '2' }, { topic: 'sub redes', count: '1' }])), ['Linha 2: o tema «sub redes» já está na matriz.']);
   assert.deepEqual(problemsOf(draft([{ topic: '', count: '2' }])), ['Linha 1: falta o tema.']);
-  assert.deepEqual(problemsOf(draft([{ topic: 'IP', count: '0' }])), ['Linha 1: indica quantas questões saem (um número inteiro, pelo menos 1).']);
-  assert.deepEqual(problemsOf(emptyDraft()), ['Acrescenta pelo menos um tema.']);
-  assert.deepEqual(problemsOf(draft([{ topic: 'IP', count: '1' }], { totalPoints: '' })), ['Indica a escala da prova, por exemplo 20 valores.']);
+  assert.deepEqual(problemsOf(draft([{ topic: 'IP', count: '0' }])), ['Linha 1: indique quantas questões saem (um número inteiro, pelo menos 1).']);
+  assert.deepEqual(problemsOf(emptyDraft()), ['Acrescente pelo menos um tema.']);
+  assert.deepEqual(problemsOf(draft([{ topic: 'IP', count: '1' }], { totalPoints: '' })), ['Indique a escala da prova, por exemplo 20 valores.']);
 });
 
 test('o modelo de CSV que se descarrega é lido sem erros e soma 20 valores', () => {
