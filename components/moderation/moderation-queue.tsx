@@ -158,7 +158,7 @@ export function ModerationQueue() {
     <div className="grid gap-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground md:text-3xl">Moderação</h1>
+          <h1 className="text-[26px] font-extrabold text-foreground md:text-3xl">Moderação</h1>
           <p className="text-sm text-muted-foreground">
             Denúncias de perfis e de escolas. Só o administrador decide, e cada decisão fica registada.
           </p>

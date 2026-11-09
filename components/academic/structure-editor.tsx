@@ -168,7 +168,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle?: string
   return (
     <div className="mx-auto max-w-5xl p-4 md:p-8">
       <Link href="/institutions" className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Instituições</Link>
-      <h1 className="text-2xl font-bold md:text-3xl">{title}</h1>
+      <h1 className="text-[26px] font-extrabold md:text-3xl">{title}</h1>
       {subtitle ? <p className="mb-6 text-sm text-muted-foreground">{subtitle}</p> : <div className="mb-6" />}
       {children}
     </div>

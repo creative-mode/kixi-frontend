@@ -73,7 +73,7 @@ export function RoomsList() {
           <ul className="grid gap-3 md:hidden">
             {data.rooms.map((room) => (
               <li key={room.id}>
-                <Link href={`/exam-rooms/${room.id}`} className="block rounded-xl border bg-card p-4 shadow-xs transition-colors hover:border-primary">
+                <Link href={`/exam-rooms/${room.id}`} className="block rounded-[20px] border bg-card p-4 transition-colors hover:border-primary">
                   <div className="flex items-start justify-between gap-3">
                     <span className="font-semibold">{titleOf(data, room.statementId)}</span>
                     <RoomStatusBadge status={room.status} />

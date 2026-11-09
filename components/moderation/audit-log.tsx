@@ -36,7 +36,7 @@ export function AuditLog() {
   return (
     <div className="grid gap-6">
       <header>
-        <h1 className="text-2xl font-bold text-foreground md:text-3xl">Auditoria</h1>
+        <h1 className="text-[26px] font-extrabold text-foreground md:text-3xl">Auditoria</h1>
         <p className="text-sm text-muted-foreground">
           Quem decidiu o quê, quando e porquê. Só de leitura.
         </p>

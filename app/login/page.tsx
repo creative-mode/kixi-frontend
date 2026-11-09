@@ -80,9 +80,9 @@ function LoginContent() {
         <KixiLogo size={28} wordmark />
         <span className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">Manager</span>
       </div>
-      <div className="grid w-full max-w-[400px] gap-6 rounded-xl border bg-card p-6 shadow-xs sm:p-8">
+      <div className="grid w-full max-w-[400px] gap-6 rounded-[20px] border bg-card p-6 sm:p-8">
         <div className="grid gap-1.5">
-          <h1 className="text-2xl leading-tight font-bold tracking-tight">Bem-vindo de volta</h1>
+          <h1 className="text-[26px] leading-tight font-extrabold tracking-tight">Bem-vindo de volta</h1>
           <p className="text-sm text-muted-foreground">Inicie sessão para aceder ao painel de gestão.</p>
         </div>
         {notice ? (
