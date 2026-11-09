@@ -42,6 +42,10 @@ export interface MatrixPick {
   count: number;
 }
 
+/** O backend aceita no máximo 100 questões por treino e 600 minutos. */
+export const MAX_QUESTIONS = 100;
+export const MAX_MINUTES = 600;
+
 export type Preset = 'prova' | 'dobro' | 'fracos';
 
 const LEVELS: Record<string, string> = {
@@ -91,21 +95,27 @@ export interface PlanSummary {
 }
 
 export function summarize(plan: Pick<TrainingPlan, 'durationMinutes' | 'items'>, counts: Record<number, number>): PlanSummary {
-  const questions = plan.items.reduce((n, item) => n + clampCount(counts[item.topicId] ?? 0, item), 0);
+  const questions = picksOf(plan, counts).reduce((n, pick) => n + pick.count, 0);
   const examQuestions = plan.items.reduce((n, item) => n + item.questionCount, 0);
   const minutes =
     plan.durationMinutes && examQuestions > 0 && questions > 0
-      ? Math.max(5, Math.round((plan.durationMinutes * questions) / examQuestions))
+      ? Math.min(MAX_MINUTES, Math.max(5, Math.round((plan.durationMinutes * questions) / examQuestions)))
       : null;
   const short = plan.items.filter((item) => item.available < item.questionCount).length;
   return { questions, minutes, short };
 }
 
-/** Os pedidos que seguem para o servidor: só os temas com pelo menos uma questão. */
+/** Os pedidos que seguem para o servidor: só os temas com pelo menos uma questão, até ao máximo de um treino. */
 export function picksOf(plan: Pick<TrainingPlan, 'items'>, counts: Record<number, number>): MatrixPick[] {
-  return plan.items
-    .map((item) => ({ topicId: item.topicId, count: clampCount(counts[item.topicId] ?? 0, item) }))
-    .filter((pick) => pick.count > 0);
+  let left = MAX_QUESTIONS;
+  const picks: MatrixPick[] = [];
+  for (const item of plan.items) {
+    const count = Math.min(clampCount(counts[item.topicId] ?? 0, item), left);
+    if (count <= 0) continue;
+    picks.push({ topicId: item.topicId, count });
+    left -= count;
+  }
+  return picks;
 }
 
 /** «12 questões de 4 provas · 2022 a 2024»: de onde vêm as questões que o aluno tem para treinar. */

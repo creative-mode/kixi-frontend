@@ -232,9 +232,9 @@ export async function subjectTopics(subjectId: number): Promise<Result<SubjectTo
   });
 }
 
-async function send(path: string, method: string, body: unknown): Promise<Result> {
+async function send(path: string, method: string, body: unknown): Promise<Result & { status?: number }> {
   const res = await call(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  return res.ok ? ok(undefined) : fail(await message(res));
+  return res.ok ? ok(undefined) : { ...fail(await message(res)), status: res.status };
 }
 
 /**
@@ -251,11 +251,14 @@ export async function saveRoomMatrix(id: number, draft: MatrixDraft, payload: Ma
       const known = await subjectTopics(subjectId);
       if (!known.ok) return known;
       for (const { name, keywords } of withWords) {
-        const found = known.data.find((t) => fold(t.name) === fold(name));
+        // Com o mesmo nome em várias classes, o tema de todas as classes (sem classe) é o que o servidor escolhe.
+        const same = known.data.filter((t) => fold(t.name) === fold(name));
+        const found = same.find((t) => t.grade == null) ?? same[0];
         const done = found
           ? await send(`/api/v1/topics/${found.id}`, 'PUT', { name: found.name, grade: found.grade, keywords })
           : await send(`/api/v1/subjects/${safeId(subjectId)}/topics`, 'POST', { name, keywords });
-        if (!done.ok) return done;
+        // Um tema de outro autor não se edita (403): usam-se as palavras-chave que já tem, sem travar a matriz.
+        if (!done.ok && !(found && done.status === 403)) return done;
       }
     }
     const res = await call(`${BASE}/${safeId(id)}/matrix`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

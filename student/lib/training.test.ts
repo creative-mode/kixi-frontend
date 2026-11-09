@@ -75,3 +75,10 @@ test('níveis e valores como se escrevem em Angola', () => {
   assert.equal(valuesLabel(1), '1 valor');
   assert.equal(valuesLabel(null), null);
 });
+
+test('um treino nunca passa das 100 questões que o servidor aceita', () => {
+  const items = [item({ topicId: 1, available: 80 }), item({ topicId: 2, available: 80 })];
+  const picks = picksOf({ items }, { 1: 80, 2: 80 });
+  assert.deepEqual(picks, [{ topicId: 1, count: 80 }, { topicId: 2, count: 20 }]);
+  assert.equal(summarize({ durationMinutes: 60, items }, { 1: 80, 2: 80 }).questions, 100);
+});
