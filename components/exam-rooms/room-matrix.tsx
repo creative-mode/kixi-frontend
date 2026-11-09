@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Download, FileUp, Plus, Save, Trash2 } from 'lucide-react';
+import { Download, FileUp, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reportActionError } from '@/lib/notify-session-expired';
 import { Badge } from '@/components/ui/badge';
@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
-import { getRoomMatrix, removeRoomMatrix, saveRoomMatrix, subjectTopics } from '@/app/actions/exam-rooms';
+import { getRoomMatrix, removeRoomMatrix, saveRoomMatrix, subjectTopics, tagSubjectQuestions, type SubjectTopic } from '@/app/actions/exam-rooms';
 import {
   CSV_TEMPLATE,
   LEVELS,
   draftFrom,
+  fold,
   newRow,
   parseMatrixText,
   payloadOf,
@@ -34,7 +35,9 @@ const fmt = (n: number) => String(n).replace('.', ',');
 export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; subjectId: number | null; readOnly: boolean }) {
   const [draft, setDraft] = useState<MatrixDraft | null>(null);
   const [saved, setSaved] = useState(false);
-  const [topics, setTopics] = useState<string[]>([]);
+  const [topics, setTopics] = useState<SubjectTopic[]>([]);
+  const [topicsLoaded, setTopicsLoaded] = useState(false);
+  const prefilled = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -56,12 +59,24 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
     return () => window.clearTimeout(task);
   }, [load]);
 
-  useEffect(() => {
+  const loadTopics = useCallback(async () => {
     if (subjectId == null) return;
-    let alive = true;
-    void subjectTopics(subjectId).then((res) => { if (alive && res.ok) setTopics(res.data.map((t) => t.name)); });
-    return () => { alive = false; };
+    const res = await subjectTopics(subjectId);
+    if (res.ok) setTopics(res.data);
+    setTopicsLoaded(true);
   }, [subjectId]);
+
+  useEffect(() => {
+    const task = window.setTimeout(() => void loadTopics(), 0);
+    return () => window.clearTimeout(task);
+  }, [loadTopics]);
+
+  // As palavras-chave já guardadas voltam ao editor, uma só vez, sem pisar o que o professor escreveu.
+  useEffect(() => {
+    if (prefilled.current || !topicsLoaded || !draft) return;
+    prefilled.current = true;
+    setDraft({ ...draft, rows: draft.rows.map((r) => (r.keywords ? r : { ...r, keywords: topics.find((t) => fold(t.name) === fold(r.topic))?.keywords ?? '' })) });
+  }, [topicsLoaded, draft, topics]);
 
   const totals = useMemo(() => (draft ? totalsOf(draft) : null), [draft]);
   const problems = useMemo(() => (draft ? problemsOf(draft) : []), [draft]);
@@ -87,12 +102,28 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
   async function save() {
     if (!draft || problems.length > 0) return;
     setBusy(true);
-    const res = await saveRoomMatrix(roomId, draft, payloadOf(draft));
-    setBusy(false);
-    if (!res.ok) return void reportActionError(res.error);
+    const res = await saveRoomMatrix(roomId, draft, payloadOf(draft), subjectId);
+    if (!res.ok) {
+      setBusy(false);
+      return void reportActionError(res.error);
+    }
     setSaved(true);
-    setDraft(draftFrom(res.data));
+    const keywords = new Map(draft.rows.map((r) => [fold(r.topic), r.keywords]));
+    setDraft({ ...draftFrom(res.data), rows: draftFrom(res.data).rows.map((r) => ({ ...r, keywords: keywords.get(fold(r.topic)) ?? '' })) });
     toast.success('Matriz guardada. Os alunos convidados já a veem para treinar.');
+    // Procura logo nas provas anteriores as questões dos temas, para o treino ter com que trabalhar.
+    await findQuestions(true);
+    setBusy(false);
+  }
+
+  async function findQuestions(quiet = false) {
+    if (subjectId == null) return;
+    if (!quiet) setBusy(true);
+    const res = await tagSubjectQuestions(subjectId);
+    await loadTopics();
+    if (!quiet) setBusy(false);
+    if (!res.ok) return void (quiet ? toast.error(res.error) : reportActionError(res.error));
+    toast.success(res.data.tagged > 0 ? `${res.data.tagged} ${res.data.tagged === 1 ? 'questão etiquetada' : 'questões etiquetadas'} nas provas anteriores.` : 'Não há questões novas para etiquetar.');
   }
 
   async function remove() {
@@ -145,12 +176,15 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
               />
               <Button type="button" variant="outline" size="sm" aria-expanded={pasting} onClick={() => setPasting((v) => !v)}>Colar do Excel</Button>
               <Button type="button" variant="ghost" size="sm" onClick={download}><Download size={14} aria-hidden /> Modelo CSV</Button>
+              {subjectId != null ? (
+                <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void findQuestions()}><Search size={14} aria-hidden /> Procurar questões nas provas anteriores</Button>
+              ) : null}
             </div>
           )}
 
           {pasting && !readOnly ? (
             <div className="grid gap-2">
-              <label htmlFor={`${listId}-paste`} className="text-sm font-medium">Cole as linhas: tema, questões, cotação, nível</label>
+              <label htmlFor={`${listId}-paste`} className="text-sm font-medium">Cole as linhas: tema, questões, cotação, nível, palavras-chave</label>
               <textarea
                 id={`${listId}-paste`}
                 value={pasted}
@@ -183,23 +217,33 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
             </div>
           </div>
 
-          <datalist id={listId}>{topics.map((t) => <option key={t} value={t} />)}</datalist>
+          <datalist id={listId}>{topics.map((t) => <option key={t.id} value={t.name} />)}</datalist>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] text-sm">
+            <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="text-left text-xs font-medium text-muted-foreground">
                   <th className="pb-2 pr-2 font-medium">Tema</th>
                   <th className="w-24 pb-2 pr-2 font-medium">Questões</th>
                   <th className="w-24 pb-2 pr-2 font-medium">Valores</th>
                   <th className="w-44 pb-2 pr-2 font-medium">Nível</th>
+                  <th className="w-64 pb-2 pr-2 font-medium">Palavras-chave</th>
                   <th className="w-10 pb-2"><span className="sr-only">Remover</span></th>
                 </tr>
               </thead>
               <tbody>
                 {draft.rows.map((row, i) => (
                   <tr key={row.key} className="align-top">
-                    <td className="pb-2 pr-2"><Input aria-label={`Tema da linha ${i + 1}`} list={listId} value={row.topic} disabled={readOnly} maxLength={120} placeholder="Sub-redes" onChange={(e) => setRow(row.key, { topic: e.target.value })} /></td>
+                    <td className="pb-2 pr-2">
+                      <Input aria-label={`Tema da linha ${i + 1}`} list={listId} value={row.topic} disabled={readOnly} maxLength={120} placeholder="Sub-redes" onChange={(e) => setRow(row.key, { topic: e.target.value })} />
+                      {(() => {
+                        const known = topics.find((t) => fold(t.name) === fold(row.topic));
+                        if (!known) return null;
+                        return known.questionCount > 0
+                          ? <span className="mt-1 block text-xs text-muted-foreground">{known.questionCount} {known.questionCount === 1 ? 'questão' : 'questões'} nas provas</span>
+                          : <span className="mt-1 block text-xs text-warning">Sem questões nas provas: junta palavras-chave.</span>;
+                      })()}
+                    </td>
                     <td className="pb-2 pr-2"><Input aria-label={`Questões da linha ${i + 1}`} inputMode="numeric" value={row.count} disabled={readOnly} onChange={(e) => setRow(row.key, { count: e.target.value })} /></td>
                     <td className="pb-2 pr-2"><Input aria-label={`Valores da linha ${i + 1}`} inputMode="decimal" value={row.points} disabled={readOnly} onChange={(e) => setRow(row.key, { points: e.target.value })} /></td>
                     <td className="pb-2 pr-2">
@@ -208,6 +252,7 @@ export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; su
                         {LEVELS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
                       </NativeSelect>
                     </td>
+                    <td className="pb-2 pr-2"><Input aria-label={`Palavras-chave da linha ${i + 1}`} value={row.keywords} disabled={readOnly} placeholder="máscara, /24, host" onChange={(e) => setRow(row.key, { keywords: e.target.value })} /></td>
                     <td className="pb-2">
                       {readOnly ? null : (
                         <Button type="button" variant="ghost" size="icon" aria-label={`Remover a linha ${i + 1}`} onClick={() => dropRow(row.key)}><Trash2 size={15} aria-hidden /></Button>

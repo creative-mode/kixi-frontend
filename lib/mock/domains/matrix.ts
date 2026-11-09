@@ -7,7 +7,7 @@ import { fold } from '../../exam-rooms/matrix';
 
 /** A matriz da prova no mock do gestor: as regras do backend (`/exam-rooms/{id}/matrix`), em memória. */
 const matrices = new Map<number, any>();
-const topicsBySubject = new Map<number, { id: number; name: string }[]>();
+const topicsBySubject = new Map<number, { id: number; name: string; keywords?: string | null }[]>();
 let nextTopic = 1;
 
 const subjectOfRoom = (roomId: number): number | null => {
@@ -30,9 +30,33 @@ function topicFor(subjectId: number | null, name: string) {
 
 export async function matrixRoutes({ method, path, auth, isStaff, readBody }: MockContext): Promise<Response | undefined> {
   let m: RegExpMatchArray | null = null;
-  if ((m = path.match(/^\/api\/v1\/subjects\/(\d+)\/topics$/)) && method === 'GET') {
-    return json(200, (topicsBySubject.get(Number(m[1])) ?? []).map((t) => ({ ...t, subjectId: Number(m![1]), grade: null, keywords: null, questionCount: 0 })));
+  if ((m = path.match(/^\/api\/v1\/subjects\/(\d+)\/topics$/))) {
+    const subject = Number(m[1]);
+    if (method === 'GET') {
+      return json(200, (topicsBySubject.get(subject) ?? []).map((t) => ({ id: t.id, name: t.name, subjectId: subject, grade: null, keywords: t.keywords ?? null, questionCount: 0 })));
+    }
+    if (method === 'POST' && isStaff) {
+      const body = readBody();
+      const name = String(body.name ?? '').trim();
+      if (!name) return problem(400, 'O nome do tema é obrigatório');
+      if ((topicsBySubject.get(subject) ?? []).some((t) => fold(t.name) === fold(name))) return problem(409, 'Já existe um tema com este nome');
+      const topic = topicFor(subject, name);
+      topic.keywords = body.keywords ?? null;
+      return json(201, { id: topic.id, name: topic.name, subjectId: subject, grade: null, keywords: topic.keywords, questionCount: 0 });
+    }
   }
+  if ((m = path.match(/^\/api\/v1\/topics\/(\d+)$/)) && method === 'PUT' && isStaff) {
+    const body = readBody();
+    for (const list of topicsBySubject.values()) {
+      const found = list.find((t) => t.id === Number(m![1]));
+      if (found) {
+        found.keywords = body.keywords ?? null;
+        return json(200, { id: found.id, name: found.name, keywords: found.keywords, grade: null, questionCount: 0 });
+      }
+    }
+    return problem(404, 'Topic not found');
+  }
+  if (path.match(/^\/api\/v1\/statements\/\d+\/topics\/auto-tag$/) && method === 'POST' && isStaff) return json(200, { tagged: 0, untagged: 0 });
   if (!(m = path.match(/^\/api\/v1\/exam-rooms\/(\d+)\/matrix$/))) return undefined;
   const roomId = Number(m[1]);
   if (!isStaff) return problem(403, 'Only teachers or ADMIN can manage the exam room matrix');

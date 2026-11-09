@@ -1,7 +1,7 @@
 // node --test lib/exam-rooms/matrix.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CSV_TEMPLATE, draftFrom, emptyDraft, fold, levelFrom, newRow, parseMatrixText, parseNumber, payloadOf, problemsOf, totalsOf, type MatrixDraft } from './matrix.ts';
+import { CSV_TEMPLATE, draftFrom, emptyDraft, fold, keywordsOf, levelFrom, newRow, parseMatrixText, parseNumber, payloadOf, problemsOf, totalsOf, type MatrixDraft } from './matrix.ts';
 
 /** A matriz da prova: o que o professor escreve ou importa tem de chegar ao servidor certo, ou dizer porque não. */
 
@@ -84,4 +84,12 @@ test('a matriz guardada volta ao editor com vírgula decimal', () => {
   assert.equal(d.title, 'Matriz');
   assert.deepEqual(d.rows.map((r) => [r.topic, r.count, r.points, r.level]), [['IP', '3', '4,5', 'APPLICATION']]);
   assert.equal(draftFrom(null).rows.length, 2);
+});
+
+test('as palavras-chave vêm do CSV e seguem limpas para o servidor', () => {
+  const { rows, errors } = parseMatrixText(CSV_TEMPLATE);
+  assert.deepEqual(errors, []);
+  assert.equal(rows[1]!.keywords, 'máscara, sub-rede, /24');
+  const d = draft([{ topic: 'IP', count: '1', keywords: ' ipv4 ,, endereço ip ' }, { topic: 'OSI', count: '1' }]);
+  assert.deepEqual(keywordsOf(d), [{ name: 'IP', keywords: 'ipv4, endereço ip' }]);
 });

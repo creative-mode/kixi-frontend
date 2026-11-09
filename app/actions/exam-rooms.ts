@@ -10,7 +10,7 @@ import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { assignmentsFrom, teacherCanWrite } from '@/lib/crud/teacher-scope';
 import type { BulkGradeResult, ExamRoom, Grade, RoomAction, RoomDraft, RoomIntegrity, RoomReview } from '@/lib/exam-rooms/model';
 import { draftProblem, toLocalDateTime } from '@/lib/exam-rooms/model';
-import { problemsOf, type MatrixDraft, type MatrixPayload, type MatrixView } from '@/lib/exam-rooms/matrix';
+import { fold, keywordsOf, problemsOf, type MatrixDraft, type MatrixPayload, type MatrixView } from '@/lib/exam-rooms/matrix';
 
 const BASE = '/api/v1/exam-rooms';
 
@@ -221,15 +221,65 @@ export async function getRoomMatrix(id: number): Promise<Result<MatrixView | nul
   });
 }
 
-/** Guarda a matriz (substitui a anterior). Os temas que ainda não existem na disciplina nascem aqui, pelo nome. */
-export async function saveRoomMatrix(id: number, draft: MatrixDraft, payload: MatrixPayload): Promise<Result<MatrixView>> {
+export type SubjectTopic = { id: number; name: string; grade: number | null; keywords: string | null; questionCount: number };
+
+/** Os temas da disciplina, com as palavras-chave e quantas questões já têm. */
+export async function subjectTopics(subjectId: number): Promise<Result<SubjectTopic[]>> {
+  return guard(async () => {
+    const res = await json<Row[]>(`/api/v1/subjects/${safeId(subjectId)}/topics`);
+    if (!res.ok) return res;
+    return ok(res.data.map((t) => ({ id: Number(t.id), name: String(t.name), grade: t.grade == null ? null : Number(t.grade), keywords: t.keywords == null ? null : String(t.keywords), questionCount: Number(t.questionCount ?? 0) })));
+  });
+}
+
+async function send(path: string, method: string, body: unknown): Promise<Result> {
+  const res = await call(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return res.ok ? ok(undefined) : fail(await message(res));
+}
+
+/**
+ * Guarda a matriz (substitui a anterior). Antes, cria ou atualiza os temas que trazem palavras-chave: é por elas que
+ * o Kixi encontra, nas provas anteriores, as questões de cada tema. Os temas sem palavras-chave nascem pelo nome.
+ */
+export async function saveRoomMatrix(id: number, draft: MatrixDraft, payload: MatrixPayload, subjectId: number | null): Promise<Result<MatrixView>> {
   return guard(async () => {
     // O servidor volta a validar; isto só evita a viagem quando o editor deixou passar um rascunho partido.
     const problems = problemsOf(draft);
     if (problems.length > 0) return fail(problems[0]!);
+    const withWords = keywordsOf(draft);
+    if (subjectId != null && withWords.length > 0) {
+      const known = await subjectTopics(subjectId);
+      if (!known.ok) return known;
+      for (const { name, keywords } of withWords) {
+        const found = known.data.find((t) => fold(t.name) === fold(name));
+        const done = found
+          ? await send(`/api/v1/topics/${found.id}`, 'PUT', { name: found.name, grade: found.grade, keywords })
+          : await send(`/api/v1/subjects/${safeId(subjectId)}/topics`, 'POST', { name, keywords });
+        if (!done.ok) return done;
+      }
+    }
     const res = await call(`${BASE}/${safeId(id)}/matrix`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as MatrixView);
+  });
+}
+
+/** Etiqueta com tema as questões das provas da disciplina que ainda não têm nenhum (nunca mexe nas já etiquetadas). */
+export async function tagSubjectQuestions(subjectId: number): Promise<Result<{ tagged: number; untagged: number; statements: number }>> {
+  return guard(async () => {
+    const list = await json<Row[]>('/api/v1/statements');
+    if (!list.ok) return list;
+    const mine = list.data.filter((s) => Number(s.subjectId) === safeId(subjectId));
+    let tagged = 0;
+    let untagged = 0;
+    for (const statement of mine) {
+      const res = await call(`/api/v1/statements/${Number(statement.id)}/topics/auto-tag`, { method: 'POST' });
+      if (!res.ok) continue;
+      const body = (await res.json()) as { tagged?: number; untagged?: number };
+      tagged += body.tagged ?? 0;
+      untagged += body.untagged ?? 0;
+    }
+    return ok({ tagged, untagged, statements: mine.length });
   });
 }
 
@@ -238,13 +288,5 @@ export async function removeRoomMatrix(id: number): Promise<Result> {
     const res = await call(`${BASE}/${safeId(id)}/matrix`, { method: 'DELETE' });
     if (!res.ok && res.status !== 404) return fail(await message(res));
     return ok(undefined);
-  });
-}
-
-/** Os temas já conhecidos da disciplina, para o editor sugerir em vez de o professor reescrever. */
-export async function subjectTopics(subjectId: number): Promise<Result<{ id: number; name: string }[]>> {
-  return guard(async () => {
-    const res = await json<{ id: number; name: string }[]>(`/api/v1/subjects/${safeId(subjectId)}/topics`);
-    return res.ok ? ok(res.data.map((t) => ({ id: Number(t.id), name: String(t.name) }))) : res;
   });
 }

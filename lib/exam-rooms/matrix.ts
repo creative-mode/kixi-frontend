@@ -19,6 +19,9 @@ export interface MatrixRow {
   count: string;
   points: string;
   level: Level | '';
+  /** Palavras que identificam o tema no texto das questões, separadas por vírgula (opcional): é o que deixa o Kixi
+   *  encontrar, nas provas anteriores, as questões deste tema. */
+  keywords: string;
 }
 
 export interface MatrixDraft {
@@ -67,7 +70,7 @@ export function levelFrom(text: string): Level | '' {
 }
 
 let counter = 0;
-export const newRow = (extra: Partial<MatrixRow> = {}): MatrixRow => ({ key: `r${++counter}`, topic: '', count: '', points: '', level: '', ...extra });
+export const newRow = (extra: Partial<MatrixRow> = {}): MatrixRow => ({ key: `r${++counter}`, topic: '', count: '', points: '', level: '', keywords: '', ...extra });
 
 export const emptyDraft = (): MatrixDraft => ({ title: '', totalPoints: '20', rows: [newRow(), newRow()] });
 
@@ -153,7 +156,15 @@ export function payloadOf(draft: MatrixDraft): MatrixPayload {
   };
 }
 
-export const CSV_TEMPLATE = 'tema;questões;cotação;nível\nEndereçamento IP;3;6;Aplicação\nSub-redes;3;7;Aplicação\nModelo OSI;2;4;Conhecimento\nProtocolos de rede;2;3;Compreensão\n';
+export const CSV_TEMPLATE =
+  'tema;questões;cotação;nível;palavras-chave\nEndereçamento IP;3;6;Aplicação;ipv4, ipv6, endereço ip\nSub-redes;3;7;Aplicação;máscara, sub-rede, /24\nModelo OSI;2;4;Conhecimento;camada, osi\nProtocolos de rede;2;3;Compreensão;dns, dhcp, http\n';
+
+/** Os temas com palavras-chave, para o servidor os criar ou atualizar antes de guardar a matriz. */
+export function keywordsOf(draft: MatrixDraft): { name: string; keywords: string }[] {
+  return draft.rows
+    .filter((r) => r.topic.trim() !== '' && r.keywords.trim() !== '')
+    .map((r) => ({ name: r.topic.trim(), keywords: r.keywords.split(',').map((k) => k.trim()).filter(Boolean).join(', ') }));
+}
 
 /**
  * Lê uma matriz de texto (CSV ou colada do Excel): `tema;questões;cotação;nível`, com `;`, `,` ou tabulação, cabeçalho
@@ -169,7 +180,7 @@ export function parseMatrixText(text: string): { rows: MatrixRow[]; errors: stri
     const sep = raw.includes(';') ? ';' : raw.includes('\t') ? '\t' : ',';
     // Com «,» como separador, uma cotação «4,5» já não cabe: só se trata assim quando não há «;» nem tabulação.
     const cells = raw.split(sep).map((c) => c.trim());
-    const [topic = '', count = '', points = '', level = ''] = cells;
+    const [topic = '', count = '', points = '', level = '', keywords = ''] = cells;
     const first = fold(topic);
     if (rows.length === 0 && errors.length === 0 && (first === 'tema' || first === 'conteudo' || first === 'unidade tematica') && Number.isNaN(parseNumber(count))) return;
     const at = `Linha ${index + 1}`;
@@ -178,7 +189,7 @@ export function parseMatrixText(text: string): { rows: MatrixRow[]; errors: stri
     if (!Number.isInteger(q) || q < 1) return void errors.push(`${at}: «${count}» não é um número de questões.`);
     if (points !== '' && !(parseNumber(points) > 0)) return void errors.push(`${at}: «${points}» não é uma cotação.`);
     if (level !== '' && levelFrom(level) === '') return void errors.push(`${at}: o nível «${level}» não existe (conhecimento, compreensão, aplicação ou análise).`);
-    rows.push(newRow({ topic, count: String(q), points: points.replace('.', ','), level: levelFrom(level) }));
+    rows.push(newRow({ topic, count: String(q), points: points.replace('.', ','), level: levelFrom(level), keywords: sep === ',' ? '' : keywords }));
   });
   return { rows, errors };
 }
