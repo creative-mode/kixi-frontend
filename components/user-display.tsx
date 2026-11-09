@@ -5,7 +5,8 @@ import { User } from 'lucide-react'
 import { fetchCurrentUser } from '@/lib/auth'
 import type { CurrentUser } from '@/types/auth'
 
-export function UserDisplay() {
+/** `showText`: mostra o nome do papel ao lado do avatar (barra lateral); sem ele, só o avatar (cabeçalho do telemóvel). */
+export function UserDisplay({ showText }: { showText?: boolean } = {}) {
     const [user, setUser] = useState<CurrentUser | null>(null)
 
     useEffect(() => {
@@ -16,14 +17,16 @@ export function UserDisplay() {
 
     const primaryRole = user.roles?.[0] ?? 'User'
 
+    const label = primaryRole === 'TEACHER' ? 'Professor' : primaryRole === 'COORDINATOR' ? 'Coordenador' : 'Admin'
+
     return (
-        <div className="flex items-center gap-2 text-sm">
-            <div className="h-8 w-8 rounded-md border border-primary/40 bg-accent flex items-center justify-center">
-                <User size={16} className="text-foreground" />
+        <div className="flex items-center gap-3 text-sm">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent">
+                <User size={17} className="text-primary" aria-hidden="true" />
             </div>
-            <div className="hidden lg:block">
-                <p className="font-medium leading-none text-foreground">{primaryRole === 'TEACHER' ? 'Professor' : 'Admin'}</p>
-                <p className="text-xs text-muted-foreground capitalize">{primaryRole.toLowerCase()}</p>
+            <div className={showText ? 'min-w-0' : 'hidden'}>
+                <p className="truncate font-bold leading-tight text-foreground">{label}</p>
+                <p className="text-xs capitalize text-muted-foreground">{primaryRole.toLowerCase()}</p>
             </div>
         </div>
     )

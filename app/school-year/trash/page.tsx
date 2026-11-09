@@ -104,7 +104,7 @@ export default function SchoolYearTrashPage() {
               <Trash2 size={20} className="text-destructive" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Lixeira</h1>
+              <h1 className="text-[26px] md:text-3xl font-extrabold text-foreground">Lixeira</h1>
               <p className="text-sm text-muted-foreground">Anos letivos eliminados</p>
             </div>
           </div>

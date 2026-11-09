@@ -151,7 +151,7 @@ export default function ManagerDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl leading-tight tracking-tight text-foreground">
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-foreground">
             Dashboard
           </h1>
           <p className="mt-1 text-muted-foreground">
@@ -268,7 +268,7 @@ export default function ManagerDashboard() {
                 <Link
                   key={k}
                   href={`/${e.path}`}
-                  className="group flex items-center gap-3 rounded-xl border bg-card p-3 shadow-xs transition-colors hover:border-primary"
+                  className="group flex items-center gap-3 rounded-[20px] border bg-card p-3 transition-colors hover:border-primary"
                 >
                   <span
                     className={`flex size-9 shrink-0 items-center justify-center rounded-md ${e.tone}`}

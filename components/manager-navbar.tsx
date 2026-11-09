@@ -135,12 +135,12 @@ function NavList({
           aria-current={active ? "page" : undefined}
           title={collapsed ? label : undefined}
           className={cn(
-            "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+            "flex min-h-[46px] items-center gap-3.5 rounded-xl px-3.5 text-[15px] font-semibold outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40",
             collapsed && "justify-center px-0",
-            active ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            active ? "bg-accent font-bold text-primary" : "text-foreground/80 hover:bg-secondary hover:text-foreground",
           )}
         >
-          <Icon size={18} aria-hidden="true" className="shrink-0" />
+          <Icon size={22} aria-hidden="true" className="shrink-0" strokeWidth={active ? 2.4 : 1.9} />
           <span className={collapsed ? "sr-only" : "truncate"}>{label}</span>
         </Link>
       </li>
@@ -148,21 +148,21 @@ function NavList({
   };
 
   return (
-    <div className="space-y-4">
-      {top.length > 0 && <ul className="space-y-1">{top.map(renderLink)}</ul>}
+    <div className="space-y-6">
+      {top.length > 0 && <ul className="space-y-0.5">{top.map(renderLink)}</ul>}
       {groups.map((group) => (
         <section key={group.id} aria-labelledby={`nav-group-${group.id}`}>
           <h2
             id={`nav-group-${group.id}`}
             className={cn(
-              "mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+              "mb-1.5 px-3.5 text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground",
               collapsed && "sr-only",
             )}
           >
             {group.label}
           </h2>
           {collapsed && <hr className="mx-3 mb-2 border-border" aria-hidden="true" />}
-          <ul className="space-y-1">{group.items.map(renderLink)}</ul>
+          <ul className="space-y-0.5">{group.items.map(renderLink)}</ul>
         </section>
       ))}
     </div>
@@ -241,7 +241,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card lg:hidden">
         <div className="mx-auto flex h-16 items-center justify-between px-4">
           <div className="relative z-50 flex items-center gap-2">
             <button
@@ -250,7 +250,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
               aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
               aria-expanded={isOpen}
               aria-controls="manager-menu"
-              className="flex size-11 items-center justify-center rounded-md border border-transparent transition-colors hover:border-border hover:bg-accent lg:hidden"
+              className="flex size-11 items-center justify-center rounded-xl transition-colors hover:bg-secondary lg:hidden"
             >
               {isOpen ? <X size={24} aria-hidden="true" /> : <MenuIcon size={24} aria-hidden="true" />}
             </button>
@@ -274,37 +274,46 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
       {/* Ecrã largo: a barra está sempre à vista, sem clique. */}
       <aside
         className={cn(
-          "fixed bottom-0 left-0 top-16 z-30 hidden flex-col border-r-2 border-border bg-card transition-[width] duration-150 lg:flex",
+          "fixed bottom-0 left-0 top-0 z-30 hidden flex-col border-r border-border bg-card transition-[width] duration-150 lg:flex",
           "w-(--nav-width)",
         )}
       >
-        <nav aria-label="Principal" className="nav-scroll flex-1 overflow-y-auto p-3">
+        <Link
+          href="/"
+          aria-label="Kixi Manager, início"
+          className={cn("flex h-16 shrink-0 items-center gap-2 px-6 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40", collapsed && "justify-center px-0")}
+        >
+          <KixiLogo size={collapsed ? 28 : 30} wordmark={!collapsed} />
+          {!collapsed && <span className="ml-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-primary">Manager</span>}
+        </Link>
+        <nav aria-label="Principal" className="nav-scroll flex-1 overflow-y-auto px-4 pb-4 pt-2">
           <NavList links={navLinks} pathname={pathname} collapsed={collapsed} />
         </nav>
-        <div className="space-y-2 border-t border-border p-3">
-          <button
-            type="button"
-            onClick={() => writeCollapsed(!collapsed)}
-            aria-label={collapsed ? "Expandir o menu lateral" : "Recolher o menu lateral"}
-            title={collapsed ? "Expandir o menu lateral" : undefined}
-            className={cn(
-              "flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-              collapsed && "justify-center px-0",
-            )}
-          >
-            {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
-            {!collapsed && <span>Recolher</span>}
-          </button>
-          <Button
-            variant="destructive"
-            className={cn("min-h-11 w-full", collapsed && "px-0")}
-            onClick={logout}
-            aria-label="Sair do sistema"
-            title={collapsed ? "Sair do sistema" : undefined}
-          >
-            <LogOut size={18} aria-hidden="true" />
-            {!collapsed && "Sair"}
-          </Button>
+        <div className="border-t border-border p-3">
+          <div className={cn("px-2 pb-2 pt-1", collapsed && "flex justify-center px-0")}>
+            <UserDisplay showText={!collapsed} />
+          </div>
+          <div className={cn("flex items-center gap-1", collapsed && "flex-col")}>
+            <Button
+              variant="ghost"
+              className={cn("min-h-11 flex-1 justify-start gap-3 rounded-xl px-3 font-semibold text-destructive hover:bg-danger-soft hover:text-destructive", collapsed && "w-full justify-center px-0")}
+              onClick={logout}
+              aria-label="Sair do sistema"
+              title={collapsed ? "Sair do sistema" : undefined}
+            >
+              <LogOut size={18} aria-hidden="true" />
+              {!collapsed && "Sair"}
+            </Button>
+            <button
+              type="button"
+              onClick={() => writeCollapsed(!collapsed)}
+              aria-label={collapsed ? "Expandir o menu lateral" : "Recolher o menu lateral"}
+              title={collapsed ? "Expandir o menu lateral" : "Recolher"}
+              className="flex size-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -333,16 +342,16 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="fixed bottom-0 left-0 top-16 z-40 flex w-80 max-w-[85vw] flex-col border-r-2 border-border bg-card"
+              className="fixed bottom-0 left-0 top-16 z-40 flex w-80 max-w-[85vw] flex-col border-r border-border bg-card"
             >
-              <nav aria-label="Principal" className="nav-scroll flex-1 overflow-y-auto p-3">
+              <nav aria-label="Principal" className="nav-scroll flex-1 overflow-y-auto p-4">
                 <NavList links={navLinks} pathname={pathname} />
               </nav>
               <div className="flex items-center justify-between gap-3 border-t border-border p-3">
                 <div className="md:hidden">
                   <UserDisplay />
                 </div>
-                <Button variant="destructive" className="ml-auto min-h-11" onClick={logout}>
+                <Button variant="ghost" className="ml-auto min-h-11 rounded-xl font-semibold text-destructive hover:bg-danger-soft hover:text-destructive" onClick={logout}>
                   <LogOut size={18} aria-hidden="true" />
                   Sair do sistema
                 </Button>
