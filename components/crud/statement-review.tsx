@@ -539,7 +539,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
               </p>
               <p className="mt-1 text-muted-foreground">
                 Pode publicar na mesma, mas sem gabarito a correção automática não corrige{semGabarito.length === 1 ? ' esta questão' : ' estas questões'} e a nota da simulação do aluno fica por dar.
-                Escreva a resposta modelo (e, se quiser, os critérios depois de «Critérios:») em: {semGabarito.map((q) => `Questão ${displayNumber(q, questions)}`).join(', ')}.
+                Escreva a resposta-modelo (e, se quiser, os critérios depois de «Critérios:») em: {semGabarito.map((q) => `Questão ${displayNumber(q, questions)}`).join(', ')}.
               </p>
             </div>
           </CardContent>
@@ -649,7 +649,7 @@ export function StatementReview({ id, onExit }: { id: number; onExit: () => void
                 </div>
               ) : (
                 <label className="mt-3 grid gap-1 text-sm">
-                  <span className="text-xs text-muted-foreground">Resposta modelo (opcional)</span>
+                  <span className="text-xs text-muted-foreground">Resposta-modelo / chave (opcional)</span>
                   <textarea value={q.modelAnswer} onChange={(e) => patchQ(q.id, { modelAnswer: e.target.value })} rows={2} className="rounded-md border border-border bg-card px-3 py-2" />
                 </label>
               )}

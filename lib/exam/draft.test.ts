@@ -620,3 +620,20 @@ test('a pergunta de topo nunca leva parentId, e o grupo leva a disposição', ()
   assert.equal('parentId' in body, false);
   assert.equal(body.groupLayout, 'lettered');
 });
+
+test('a resposta-modelo de uma questão aberta e de uma alínea aberta viaja no pedido de criação', () => {
+  const q = { ...open('Defina inflação.', 4), modelAnswer: '  Subida geral dos preços.  ' };
+  const g = grupo('Resolva:', [{ ...emptyItem('open'), text: 'Calcule x.', points: 2, modelAnswer: 'x = 3' }, { ...emptyItem('open'), text: 'Justifique.', points: 2, modelAnswer: '   ' }]);
+  const [aberta, grupoReq] = toRequest([q, g]);
+  assert.equal(aberta.modelAnswer, 'Subida geral dos preços.');
+  assert.equal(grupoReq.modelAnswer, undefined);
+  assert.equal(grupoReq.items?.[0].modelAnswer, 'x = 3');
+  assert.equal(grupoReq.items?.[1].modelAnswer, undefined);
+});
+
+test('uma resposta-modelo que sobrou de antes de mudar o tipo não é enviada', () => {
+  const sobra = { ...choice('q', 2, 1), modelAnswer: 'resto' };
+  assert.equal(toRequest([sobra])[0].modelAnswer, undefined);
+  assert.equal(toUpdateRequest([sobra])[0].modelAnswer, null);
+  assert.equal(toUpdateRequest([{ ...open('a', 1), modelAnswer: ' chave ' }])[0].modelAnswer, 'chave');
+});

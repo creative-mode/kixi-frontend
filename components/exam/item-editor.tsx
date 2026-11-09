@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
+import { Textarea } from '@/components/ui/textarea';
 import { convertItemKind, invalidateReviewOnContentChange, kindOf, type DraftItem, type LeafKind } from '@/lib/exam/draft';
 import { OptionEditor } from './option-editor';
 import { TruthChoice } from './truth-choice';
@@ -18,11 +19,48 @@ export const LEAF_LABELS: Record<LeafKind, string> = {
   true_false: 'Verdadeiro/Falso',
 };
 
-/** O corpo de uma folha, conforme o tipo: nada para a dissertativa, opções ou o par Verdadeiro/Falso. */
-export function LeafBody({ kind, options, where, onChange }: { kind: LeafKind; options: DraftItem['options']; where: string; onChange: (options: DraftItem['options']) => void }) {
+/**
+ * O corpo de uma folha, conforme o tipo: a resposta-modelo para a dissertativa, opções ou o par Verdadeiro/Falso.
+ *
+ * Numa dissertativa não há alternativa a marcar: a chave é o texto da resposta esperada, que a correção automática
+ * compara com a do aluno e a sala usa para contar os acertos.
+ */
+export function LeafBody({
+  kind,
+  options,
+  where,
+  onChange,
+  modelAnswer = '',
+  onModelAnswer,
+}: {
+  kind: LeafKind;
+  options: DraftItem['options'];
+  where: string;
+  onChange: (options: DraftItem['options']) => void;
+  modelAnswer?: string;
+  onModelAnswer?: (value: string) => void;
+}) {
   if (kind === 'multiple_choice') return <OptionEditor options={options} where={where} onChange={onChange} />;
   if (kind === 'true_false') return <TruthChoice options={options} where={where} onChange={onChange} />;
-  return null;
+  if (!onModelAnswer) return null;
+  return (
+    <label className="grid gap-1 text-sm">
+      <span className="text-[13px] font-medium">Resposta-modelo / chave <span className="font-normal text-muted-foreground">(opcional)</span></span>
+      <Textarea
+        value={modelAnswer}
+        onChange={(e) => onModelAnswer(e.target.value)}
+        rows={2}
+        className="min-h-14"
+        aria-label={`Resposta-modelo n.º ${where}`}
+        placeholder="A resposta esperada, para a correção"
+      />
+      <span className="text-xs text-muted-foreground">
+        {modelAnswer.trim()
+          ? 'A correção automática compara as respostas dos alunos com este texto.'
+          : 'Sem ela, a correção automática não corrige esta questão e a nota fica por dar.'}
+      </span>
+    </label>
+  );
 }
 
 /** Uma alínea (a, b, c…) de uma questão com alíneas: tem o seu texto, tipo, cotação e resposta. */
@@ -103,7 +141,7 @@ export function ItemEditor({
         </span>
       </div>
       <div className="pl-8">
-        <LeafBody kind={kind} options={item.options} where={where} onChange={(options) => onChange({ ...item, options })} />
+        <LeafBody kind={kind} options={item.options} where={where} onChange={(options) => onChange({ ...item, options })} modelAnswer={item.modelAnswer ?? ''} onModelAnswer={(modelAnswer) => onChange({ ...item, modelAnswer })} />
       </div>
     </fieldset>
   );

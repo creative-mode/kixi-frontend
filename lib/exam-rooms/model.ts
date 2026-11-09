@@ -278,6 +278,74 @@ export function statementFitsRoom(
   return own === classId;
 }
 
+/** O que o assistente de salas mostra de cada enunciado para o professor reconhecer o que escolhe. */
+export type RoomStatement = {
+  id: number;
+  title: string;
+  classId: number | null;
+  subjectName?: string | null;
+  examType?: string | null;
+  variant?: string | null;
+  durationMinutes?: number | null;
+  needsReview: boolean;
+  visible: boolean;
+};
+
+/** O estado do enunciado em palavras: o que o professor vê antes de o escolher. */
+export function statementStateLabel(s: Pick<RoomStatement, 'needsReview' | 'visible'>): string {
+  if (s.needsReview) return 'Por aprovar';
+  return s.visible ? 'Publicado' : 'Oculto';
+}
+
+/** Uma linha de apoio: disciplina, tipo, variante e duração, sem buracos nem separadores soltos. */
+export function statementDetails(s: Pick<RoomStatement, 'subjectName' | 'examType' | 'variant' | 'durationMinutes'>): string {
+  return [
+    s.subjectName,
+    s.examType,
+    s.variant ? `variante ${s.variant}` : null,
+    s.durationMinutes && s.durationMinutes > 0 ? `${s.durationMinutes} min` : null,
+  ].filter((x): x is string => !!x && !!x.trim()).join(' · ');
+}
+
+const plain = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** A pesquisa do assistente: todas as palavras têm de estar no título, na disciplina, no tipo ou na variante, sem acentos nem maiúsculas. */
+export function searchStatements<T extends RoomStatement>(statements: readonly T[], query: string): T[] {
+  const words = plain(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...statements];
+  return statements.filter((s) => {
+    const hay = plain([s.title, s.subjectName, s.examType, s.variant].filter(Boolean).join(' '));
+    return words.every((w) => hay.includes(w));
+  });
+}
+
+/**
+ * Os enunciados de que o professor dispõe para a turma escolhida, e os que ficam de fora com a razão.
+ *
+ * O `ExamRoomService.create` só aceita um enunciado da mesma turma da sala, e recusa ao professor um enunciado
+ * sem turma (os do OCR antigo e os da escola). Esconder estes sem dizer nada deixava o professor a procurar
+ * uma prova que sabe ter: aqui cada um dos que ele pode ver mas não usar leva o motivo e, se houver
+ * remédio, qual (`review`: escolher a turma em «Rever enunciado»).
+ */
+export function roomStatementChoices<T extends RoomStatement>(
+  statements: readonly T[],
+  classId: number,
+  admin: boolean,
+  classLabels: Readonly<Record<number, string>> = {},
+): { usable: T[]; blocked: { statement: T; reason: string; fix: 'review' | null }[] } {
+  const usable: T[] = [];
+  const blocked: { statement: T; reason: string; fix: 'review' | null }[] = [];
+  for (const statement of statements) {
+    if (statementFitsRoom(statement, classId, admin)) usable.push(statement);
+    else if (statement.classId === null || statement.classId === undefined) {
+      blocked.push({ statement, reason: 'Não tem turma: escolha a turma em «Rever enunciado» para o poder usar numa sala.', fix: 'review' });
+    } else {
+      blocked.push({ statement, reason: `É da turma ${classLabels[statement.classId] ?? statement.classId}, não desta.`, fix: null });
+    }
+  }
+  return { usable, blocked };
+}
+
 /**
  * A turma e o enunciado com que o assistente de salas abre quando vem de um enunciado
  * (`/exam-rooms/new?statementId=…`): o professor acabou de guardar ou ver uma prova e quer dá-la.

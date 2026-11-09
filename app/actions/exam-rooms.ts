@@ -30,6 +30,10 @@ export type StatementChoice = {
   title: string;
   classId: number | null;
   subjectId: number | null;
+  /** O nome da disciplina, para o professor distinguir provas com o mesmo título. `null` se não se soube. */
+  subjectName: string | null;
+  examType: string | null;
+  variant: string | null;
   durationMinutes: number | null;
   totalMaxScore: number | null;
   needsReview: boolean;
@@ -48,6 +52,9 @@ const toStatement = (s: Row): StatementChoice => ({
   title: String(s.title ?? `Enunciado ${s.id}`),
   classId: s.classId == null ? null : Number(s.classId),
   subjectId: s.subjectId == null ? null : Number(s.subjectId),
+  subjectName: null,
+  examType: s.examType ? String(s.examType) : null,
+  variant: s.variant ? String(s.variant) : null,
   durationMinutes: s.durationMinutes == null ? null : Number(s.durationMinutes),
   totalMaxScore: s.totalMaxScore == null ? null : Number(s.totalMaxScore),
   needsReview: !!s.needsReview,
@@ -69,16 +76,19 @@ export async function roomContext(): Promise<Result<RoomContext>> {
     const user = await getCurrentUser();
     if (!user) return fail('Sessão expirada. Inicie sessão novamente.');
     const admin = user.roles.includes('ADMIN');
-    const [classes, statements, mine] = await Promise.all([
+    const [classes, statements, mine, subjects] = await Promise.all([
       json<Row[]>(ENTITIES.classes.api),
       json<Row[]>('/api/v1/statements'),
       admin ? Promise.resolve(ok<Row[]>([])) : json<Row[]>('/api/v1/teaching-assignments/me'),
+      json<Row[]>(ENTITIES.subjects.api),
     ]);
     if (!classes.ok) return classes;
     if (!statements.ok) return statements;
     if (!mine.ok) return mine;
     const assignments = assignmentsFrom(mine.data);
     const myClasses = new Set(assignments.map((a) => a.classId));
+    // O nome da disciplina é só para reconhecer a prova: sem ele a lista continua a servir.
+    const subjectNames = new Map((subjects.ok ? subjects.data : []).map((x) => [Number(x.id), String(x.name ?? '')]));
     return ok({
       admin,
       classes: classes.data
@@ -86,7 +96,7 @@ export async function roomContext(): Promise<Result<RoomContext>> {
         .map((c) => ({ id: Number(c.id), label: classLabel(c) })),
       statements: statements.data
         .filter((s) => admin || teacherCanWrite(assignments, s))
-        .map(toStatement),
+        .map((s) => ({ ...toStatement(s), subjectName: subjectNames.get(Number(s.subjectId)) || null })),
     });
   });
 }

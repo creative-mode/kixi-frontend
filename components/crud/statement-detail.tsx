@@ -226,6 +226,14 @@ export function StatementDetail({ id, startReviewing = false }: { id: number; st
                       ))}
                     </ul>
                   ) : null}
+                  {/* A chave de uma questão aberta é a resposta-modelo: sem ela a correção automática não a corrige. */}
+                  {!isGroup(q) && !q.options?.length ? (
+                    q.modelAnswer?.trim() ? (
+                      <p className="mt-3 rounded-md border border-success bg-success-soft p-2 text-sm"><span className="font-semibold">Resposta-modelo: </span><span className="whitespace-pre-wrap">{q.modelAnswer}</span></p>
+                    ) : Number(q.maxScore) > 0 ? (
+                      <p className="mt-3 text-xs text-muted-foreground">Sem resposta-modelo: a correção automática não corrige esta questão. Escreva-a em «Rever enunciado».</p>
+                    ) : null
+                  ) : null}
                   <QuestionImages questionId={q.id} />
                 </div>
               ))}

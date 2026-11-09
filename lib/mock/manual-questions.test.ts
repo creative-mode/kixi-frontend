@@ -90,3 +90,15 @@ test('os ids saem de sequências globais, sem repetir entre questões e opções
   const optionIds = questions.flatMap((q) => q.options.map((o) => o.id));
   assert.equal(new Set(optionIds).size, optionIds.length);
 });
+
+test('a resposta-modelo só se guarda numa questão ou alínea aberta, sem espaços nas pontas (como o ManualStatementService)', () => {
+  const { questions } = ok(build([
+    { text: 'Defina inflação', type: 'open', maxScore: 2, modelAnswer: '  Subida geral dos preços.  ' },
+    { text: 'Escolha', type: 'multiple_choice', maxScore: 1, modelAnswer: 'resto', options: [{ label: 'A', text: 'x', correct: true }, { label: 'B', text: 'y' }] },
+    { text: 'Grupo', type: 'group', items: [
+      { text: 'a', type: 'open', maxScore: 1, modelAnswer: 'x = 3' },
+      { text: 'b', type: 'open', maxScore: 1, modelAnswer: '   ' },
+    ] },
+  ]));
+  assert.deepEqual(questions.map((q) => q.modelAnswer), ['Subida geral dos preços.', null, null, 'x = 3', null]);
+});
