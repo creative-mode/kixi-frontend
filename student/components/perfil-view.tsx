@@ -105,9 +105,19 @@ export function PerfilView({
         </section>
       )}
 
-      <div role="tablist" aria-label="Perfil" className="mt-[30px] flex w-[calc(100%-32px)] gap-0.5 rounded-full bg-[#f5f6f4] p-1 md:w-full">
+      <div role="tablist" aria-label="Perfil" className="mt-6 flex w-full gap-1 overflow-x-auto border-b border-[#e9ece6] px-4 [scrollbar-width:none] md:px-0 [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,#000_88%,transparent)] md:[mask-image:none]">
         {tabs.map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`h-10 flex-1 rounded-full border-0 text-[15px] font-bold ${tab === t ? 'bg-[#1f5a2c] text-white' : 'bg-transparent text-[#617066]'}`}>{t}</button>
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={`relative h-12 shrink-0 whitespace-nowrap rounded-t-xl border-0 bg-transparent px-4 text-[15px] outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 md:flex-1 ${tab === t ? 'font-bold text-[#1f5a2c]' : 'font-semibold text-[#617066] hover:bg-[#f5f6f4] hover:text-[#121c15]'}`}
+          >
+            {t}
+            {tab === t && <span aria-hidden="true" className="absolute inset-x-3 -bottom-px h-[3px] rounded-full bg-[#1f5a2c]" />}
+          </button>
         ))}
       </div>
 
