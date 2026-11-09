@@ -2,10 +2,6 @@ import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { RefreshError } from '@/components/refresh-error';
 import { getProfile } from '@/lib/me';
 import { getFeed, loadAuthors } from '@/lib/feed';
-import { MobileInicio, MobileInicioSkeleton } from '@/components/mobile-inicio';
-import { Suspense } from 'react';
-import { ProximaProva } from '@/components/proxima-prova';
-import { loadSocial } from '@/lib/social';
 import { loadFirstConversations } from '@/lib/comments';
 import { FEED_PAGE_SIZE } from '@/lib/feed-pagination';
 import { InicioFeed } from './inicio-feed';
@@ -13,7 +9,7 @@ import { InicioFeed } from './inicio-feed';
 export const metadata = { title: 'Início · Kixi' };
 
 /**
- * O início: as salas de prova que pedem ação, o compositor e o feed da turma, na coluna central.
+ * O início: o feed da turma, na coluna central, a começar logo nas publicações.
  * Os widgets estão na coluna da direita, global (ver `(app)/layout.tsx`).
  *
  * Os convites leem-se aqui, no servidor, porque `GET /exam-rooms/mine` precisa do cookie da sessão.
@@ -38,11 +34,7 @@ export default async function InicioPage() {
   const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
-  const [feed, social] = await Promise.all([
-    classId ? getFeed(classId, 1, FEED_PAGE_SIZE) : Promise.resolve(null),
-    // `loadSocial` é `cache` do React: a coluna da direita reaproveita esta mesma leitura no pedido.
-    loadSocial(me),
-  ]);
+  const feed = classId ? await getFeed(classId, 1, FEED_PAGE_SIZE) : null;
   const posts = feed?.ok ? feed.data : [];
   const [authors, conversations] = await Promise.all([loadAuthors(posts, me.accountId), loadFirstConversations(posts)]);
 
@@ -56,8 +48,6 @@ export default async function InicioPage() {
         authors={authors}
         conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
-        mobileHighlights={<Suspense fallback={<MobileInicioSkeleton />}><MobileInicio me={me} /></Suspense>}
-        topo={<ProximaProva invitations={social.invitations.ok ? social.invitations.data : []} data={social} serverNow={Date.now()} />}
       />
     </>
   );

@@ -7,6 +7,8 @@ import { phaseOf, sortInvitations, type Invitation } from './exam-room-rules.ts'
 
 export interface UpcomingInvitation {
   key: number;
+  /** O enunciado da sala: é por ele que «O que sai na prova» sabe a disciplina. */
+  statementId: number;
   day: string;
   month: string;
   title: string;
@@ -44,6 +46,7 @@ export function upcomingInvitations(invitations: readonly Invitation[], limit = 
       const when = wallClockOf(inv.startsAt);
       return {
         key: inv.roomId,
+        statementId: inv.statementId,
         day: when.day,
         month: when.month,
         title: inv.statementTitle ?? 'Sala de prova',
