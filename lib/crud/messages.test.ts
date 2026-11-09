@@ -39,3 +39,19 @@ test('texto desconhecido e corpo que não é JSON ficam como vieram', () => {
   assert.equal(friendlyMessage(500, 'boom'), 'boom');
   assert.equal(friendlyMessage(500, ''), 'Erro 500');
 });
+
+test('403 e 404 com um motivo conhecido mostram o motivo; o 401 é sempre a sessão', () => {
+  assert.equal(friendlyMessage(403, problem('The room class must match the statement class')), 'A turma da sala tem de ser a do enunciado: escolha um enunciado desta turma.');
+  assert.match(friendlyMessage(403, problem('A teacher may only create a room for an assigned class')), /não tem turma/);
+  assert.match(friendlyMessage(403, problem('Teacher is not assigned to this class and subject')), /Não está atribuído/);
+  assert.equal(friendlyMessage(404, problem('Statement not found')), 'O enunciado não existe ou foi removido.');
+  assert.equal(friendlyMessage(404, problem('Algo que não conhecemos')), 'Registo não encontrado.');
+  assert.equal(friendlyMessage(403, 'não é JSON'), 'Não tem permissão para esta operação.');
+  assert.equal(friendlyMessage(401, problem('The room class must match the statement class')), 'Sessão expirada. Inicie sessão novamente.');
+});
+
+test('o convite à turma explica porque falhou', () => {
+  assert.match(friendlyMessage(403, problem('The invited account must be a STUDENT')), /papel de aluno/);
+  assert.equal(friendlyMessage(400, problem('The class has no active students')), 'A turma não tem alunos matriculados para convidar.');
+  assert.match(friendlyMessage(409, problem('Invalid exam room state transition')), /não pode passar/);
+});

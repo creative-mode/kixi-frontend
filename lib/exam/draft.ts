@@ -578,6 +578,15 @@ function ocrEvidence(item: MathContentFields & { reviewed?: boolean }) {
 }
 
 /**
+ * The answer key of an open question is its expected answer. The other types are keyed by the option marked
+ * correct, and a group has nothing to answer, so a stray text left from before a type change is not sent.
+ */
+function modelAnswerOf(kind: QuestionKind, modelAnswer: string | null | undefined): string | null {
+  const text = kind === 'open' ? modelAnswer?.trim() : '';
+  return text ? text : null;
+}
+
+/**
  * The draft as `POST /api/v1/statements/manual` wants it.
  *
  * Questions with no text are dropped rather than sent: `QuestionRequest.text` is
@@ -604,17 +613,20 @@ export function toRequest(questions: DraftQuestion[]): RequestQuestion[] {
             .filter((i) => i.text.trim())
             .map((i, j) => {
               const k = kindOf(i) as LeafKind;
-              return { label: sourceItemLabel(i, j), text: serializeMathText(i.text, i.formulas, i.blocks).trim(), type: k, maxScore: i.points === '' ? null : Number(i.points), options: leafOptions(k, i.options), ...ocrEvidence(i) };
+              const key = modelAnswerOf(k, i.modelAnswer);
+              return { label: sourceItemLabel(i, j), text: serializeMathText(i.text, i.formulas, i.blocks).trim(), type: k, maxScore: i.points === '' ? null : Number(i.points), options: leafOptions(k, i.options), ...(key ? { modelAnswer: key } : {}), ...ocrEvidence(i) };
             }),
           ...(q.groupLayout ? { groupLayout: q.groupLayout } : {}),
           ...ocrEvidence(q),
         };
       }
+      const key = modelAnswerOf(kind, q.modelAnswer);
       return {
         text: serializeMathText(q.text, q.formulas, q.blocks).trim(),
         type: kind,
         maxScore: q.points === '' ? null : Number(q.points),
         options: leafOptions(kind as LeafKind, q.options),
+        ...(key ? { modelAnswer: key } : {}),
         ...ocrEvidence(q),
       };
     });
@@ -633,7 +645,7 @@ export function toUpdateRequest(questions: DraftQuestion[]): RequestQuestion[] {
     const identified: RequestQuestion = {
       ...question,
       ...(source.serverId ? { serverId: source.serverId } : {}),
-      modelAnswer: source.modelAnswer?.trim() || null,
+      modelAnswer: modelAnswerOf(question.type, source.modelAnswer),
       options: identifyOptions(question.options, source.options),
     };
     if (question.items && source.items) {
@@ -643,7 +655,7 @@ export function toUpdateRequest(questions: DraftQuestion[]): RequestQuestion[] {
         return {
           ...item,
           ...(sourceItem.serverId ? { serverId: sourceItem.serverId } : {}),
-          modelAnswer: sourceItem.modelAnswer?.trim() || null,
+          modelAnswer: modelAnswerOf(item.type, sourceItem.modelAnswer),
           options: identifyOptions(item.options, sourceItem.options),
         };
       });

@@ -25,6 +25,27 @@ const KNOWN: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^No institution exists with that id/i, () => 'A escola não existe.'],
   [/^Class violates a database constraint/i, () => 'Já existe uma turma com estes dados.'],
   [/^A term with number (\d+) already exists/i, (m) => `Já existe o período ${m[1]}.`],
+  // Salas de prova (ExamRoomService): a maior parte chega como 403/404, que antes escondiam o motivo.
+  [/^The room class must match the statement class/i, () => 'A turma da sala tem de ser a do enunciado: escolha um enunciado desta turma.'],
+  [/^A teacher may only create a room for an assigned class/i, () => 'Este enunciado não tem turma, por isso um professor não o pode usar numa sala: escolha a turma em «Rever enunciado» e crie a sala de novo.'],
+  [/^Teacher is not assigned to this class and subject/i, () => 'Não está atribuído a esta turma e disciplina, por isso não pode usar este enunciado.'],
+  [/^Teacher is not affiliated with this institution/i, () => 'Não está afiliado à escola deste enunciado.'],
+  [/^Teacher is not assigned to this statement/i, () => 'Este enunciado é de uma turma ou disciplina que não lhe está atribuída.'],
+  [/^Only an administrator may change a statement without a class/i, () => 'Este enunciado não tem turma: só o administrador o pode alterar.'],
+  [/^Only teachers or ADMIN can (create|manage) exam rooms/i, () => 'Só um professor ou o administrador pode gerir salas de prova.'],
+  [/^Only the room owner or ADMIN can manage it/i, () => 'Só o dono da sala ou o administrador a pode gerir.'],
+  [/^Statement not found/i, () => 'O enunciado não existe ou foi removido.'],
+  [/^Class not found/i, () => 'A turma não existe ou foi removida.'],
+  [/^The class has no active students/i, () => 'A turma não tem alunos matriculados para convidar.'],
+  [/^The invited account must be a STUDENT/i, () => 'Há uma conta matriculada nesta turma que não tem o papel de aluno, por isso ninguém foi convidado: retire-a da turma ou dê-lhe o papel de aluno.'],
+  [/^The student is not enrolled in this room class/i, () => 'Há um aluno que não está matriculado na turma da sala, por isso ninguém foi convidado.'],
+  [/^The invitation class must match the room class/i, () => 'A turma do convite tem de ser a da sala.'],
+  [/^The exam room end must be after its start/i, () => 'A sala tem de fechar depois de abrir.'],
+  [/^The account is already invited to this room/i, () => 'Esta conta já foi convidada para a sala.'],
+  [/^Invalid exam room state transition/i, () => 'A sala não pode passar a esse estado agora.'],
+  [/^The exam room has ended/i, () => 'A hora de fecho da sala já passou.'],
+  [/^The exam room is outside its active window/i, () => 'Só pode iniciar a prova dentro da janela da sala.'],
+  [/^Exam room changed concurrently/i, () => 'A sala mudou entretanto: atualize a página e tente de novo.'],
 ];
 
 const BY_STATUS: Record<number, string> = {
@@ -32,6 +53,18 @@ const BY_STATUS: Record<number, string> = {
   403: 'Não tem permissão para esta operação.',
   404: 'Registo não encontrado.',
 };
+
+/** O `detail` do corpo, traduzido, só quando é um dos textos conhecidos; senão `null`. */
+function knownDetail(body: string): string | null {
+  try {
+    const detail = JSON.parse(body)?.detail;
+    if (typeof detail !== 'string') return null;
+    const text = translate(detail);
+    return text === detail ? null : text;
+  } catch {
+    return null;
+  }
+}
 
 /** Traduz um texto do backend quando é conhecido; senão devolve-o como veio. */
 export function translate(text: string): string {
@@ -44,7 +77,15 @@ export function translate(text: string): string {
 
 /** O texto de um erro HTTP, pronto a mostrar. */
 export function friendlyMessage(status: number, body: string): string {
-  if (BY_STATUS[status]) return BY_STATUS[status];
+  if (BY_STATUS[status]) {
+    // 403 e 404 dizem pouco: «Não tem permissão» não diz que a turma do enunciado é outra. Quando o corpo traz um
+    // motivo conhecido, é esse que se mostra; o 401 é sempre a sessão.
+    if (status !== 401) {
+      const known = knownDetail(body);
+      if (known) return known;
+    }
+    return BY_STATUS[status];
+  }
   try {
     const j = JSON.parse(body);
     const props = j.properties && typeof j.properties === 'object'
