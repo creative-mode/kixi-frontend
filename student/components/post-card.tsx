@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Ico } from '@/components/ui/ico';
-import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
-import { PostBlocksView } from '@/components/post-blocks-view';
 import { UserAvatar } from '@/components/user-avatar';
 import { PostBody, PostHeader } from '@/components/post-parts';
 import { Alert } from '@/components/ui/alert';
@@ -12,8 +10,7 @@ import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
 import { sinceLabel } from '@/lib/attempt-history';
-import { VerifiedBadge } from '@/components/verified-badge';
-import { CLASSMATE_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
+import { authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
 import { addCommentAction, getCommentsAction, reportPostAction, setReactionAction } from '@/lib/feed-actions';
 import type { FeedPost, PostComment } from '@/lib/feed';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';

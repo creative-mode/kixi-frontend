@@ -3,7 +3,6 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, Heading, ImageIcon, Lightbulb, List, ListChecks, Sigma, Trash2, Type } from 'lucide-react';
-import { PostBlocksView } from '@/components/post-blocks-view';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
