@@ -13,7 +13,7 @@ permissions:
 jobs:
   journeys:
     name: 'Playwright: jornadas críticas'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # As três apps leem estas variáveis em runtime, inclusive nos passos de build.
     env:
       JWT_SECRET: e2e-ci-secret-that-is-at-least-32-characters-long

@@ -2,17 +2,15 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Ico } from '@/components/ui/ico';
-import { SimulationCard } from '@/components/simulation-card';
 import Link from 'next/link';
-import { PostBlocksView } from '@/components/post-blocks-view';
 import { UserAvatar } from '@/components/user-avatar';
+import { PostBody, PostHeader } from '@/components/post-parts';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
 import { sinceLabel } from '@/lib/attempt-history';
-import { VerifiedBadge } from '@/components/verified-badge';
-import { CLASSMATE_LABEL, REFLECTION_LABEL, authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
+import { authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
 import { addCommentAction, getCommentsAction, reportPostAction, setReactionAction } from '@/lib/feed-actions';
 import type { FeedPost, PostComment } from '@/lib/feed';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';
@@ -171,44 +169,18 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   return (
     <article ref={card} className="post rise">
       <div className="min-w-0">
-        <header className="flex items-center gap-3">
-          <UserAvatar name={author.name} src={author.photo} size={38} />
-          <div className="flex min-w-0 flex-col leading-tight">
-            <span className="flex flex-wrap items-center gap-x-1.5">
-              {author.mine ? (
-                <span className="text-sm font-bold">{author.name}</span>
-              ) : (
-                <Link prefetch={false} href={`/u/${post.authorAccountId}`} className="inline-flex min-h-6 items-center text-sm font-bold hover:underline focus-visible:underline">{author.name}<span className="sr-only">, ver perfil</span></Link>
-              )}
-              {author.verified && <VerifiedBadge label="Perfil verificado" className="self-center" />}
-              {author.classmate && <span title={CLASSMATE_LABEL} role="img" aria-label={CLASSMATE_LABEL} className="self-center text-muted-foreground"><Ico name="users" size={15} /></span>}
-            </span>
-            {isPublishing
-              ? <span role="status" aria-live="polite" className="text-[13px] font-semibold text-muted-foreground">A publicar…</span>
-              : <span className="lbl"><span role="img" aria-label={typeLabel}>{typeLabel}</span>, {sinceLabel(post.createdAt) ?? ''}</span>}
-          </div>
-        </header>
-        <div className="mt-[11px] grid gap-2.5">
-          {post.title && <h3 className="text-[15px] font-bold leading-normal">{post.title}</h3>}
-          {post.simulation && (
-            <SimulationCard
-              card={post.simulation}
-              // O `/resultado?prova={id}` lê a simulação de quem está a ver: só o
-              // dono recebe o link, para um colega não aterrar num 403 (#602).
-              correctionHref={
-                post.authorAccountId === myAccountId && post.simulation.simulationId != null
-                  ? `/resultado?prova=${post.simulation.simulationId}`
-                  : null
-              }
-            />
-          )}
-          {post.simulation && post.content && (
-            <p className="-mb-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">{REFLECTION_LABEL}</p>
-          )}
-          {post.blocks && post.blocks.length > 0
-            ? <PostBlocksView blocks={post.blocks} />
-            : post.content && <p className="text-[15px] leading-normal break-words">{post.content}</p>}
-        </div>
+        <PostHeader
+          author={{ name: author.name, photo: author.photo, verified: author.verified, classmate: author.classmate, href: author.mine ? undefined : `/u/${post.authorAccountId}` }}
+          typeLabel={typeLabel}
+          when={sinceLabel(post.createdAt) ?? ''}
+          publishing={isPublishing}
+        />
+        <PostBody
+          post={post}
+          // O `/resultado?prova={id}` lê a simulação de quem está a ver: só o
+          // dono recebe o link, para um colega não aterrar num 403 (#602).
+          correctionHref={post.authorAccountId === myAccountId && post.simulation?.simulationId != null ? `/resultado?prova=${post.simulation.simulationId}` : null}
+        />
 
         <span className="acoes">
           <button type="button" className="acao" aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 1 4 7.5L3 21l1.6-4.3A8.96 8.96 0 0 1 3 12Z" /></svg>{count}</button>

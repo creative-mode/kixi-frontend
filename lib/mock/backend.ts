@@ -9,6 +9,7 @@ import { authRoutes, type MockContext } from './domains/auth';
 import { institutionRoutes } from './domains/institutions';
 import { statementRoutes } from './domains/statements';
 import { roomAndSimulationRoutes } from './domains/rooms-and-simulations';
+import { matrixRoutes } from './domains/matrix';
 import { academicRoutes } from './domains/academic';
 import { crudRoutes } from './domains/crud';
 import { termSheetRoutes } from './domains/term-sheets';
@@ -36,7 +37,7 @@ export async function handle(method: string, rawUrl: string, authorization: stri
 
   try {
     const ctx: MockContext = { method, path, url, auth, isStaff, readBody, loginResponse, ...requestHelpers(auth) };
-    for (const domain of [authRoutes, institutionRoutes, statementRoutes, roomAndSimulationRoutes, academicRoutes, termSheetRoutes, termPlanRoutes, coordinationRoutes, crudRoutes]) {
+    for (const domain of [authRoutes, institutionRoutes, statementRoutes, matrixRoutes, roomAndSimulationRoutes, academicRoutes, termSheetRoutes, termPlanRoutes, coordinationRoutes, crudRoutes]) {
       const response = await domain(ctx);
       if (response) return response;
     }

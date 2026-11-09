@@ -64,11 +64,11 @@ export interface Template {
 }
 
 export const TEMPLATES: Template[] = [
-  { kind: 'doubt', label: 'Dúvida com imagem', hint: 'Mostra o exercício e pergunta à turma.', blocks: ['text', 'image'] },
+  { kind: 'doubt', label: 'Pergunta', hint: 'Pergunta à turma. Podes juntar imagem, fórmula ou passos.', blocks: ['text'] },
+  { kind: 'topic', label: 'Dica de estudo', hint: 'Partilha algo que te ajudou a estudar.', blocks: ['text'] },
   { kind: 'study_card', label: 'Cartão de estudo', hint: 'Um resumo com pontos-chave e um destaque.', blocks: ['heading', 'text', 'list', 'callout'] },
   { kind: 'solution', label: 'Resolução passo a passo', hint: 'Os passos, as fórmulas e as figuras.', blocks: ['heading', 'text', 'formula', 'text'] },
   { kind: 'challenge', label: 'Desafio', hint: 'Uma pergunta com opções e a explicação.', blocks: ['choice'] },
-  { kind: 'topic', label: 'Publicação livre', hint: 'Junta os blocos que quiseres.', blocks: ['text'] },
 ];
 
 let counter = 0;

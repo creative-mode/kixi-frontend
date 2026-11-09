@@ -3,11 +3,12 @@
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
-import { checkQuestion, getStatementFull, myAccountId, startPractice, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
+import { checkQuestion, getStatementFull, myAccountId, startPractice, startMatrixPractice, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 import { isIntegrityKind, type IntegrityKind } from './integrity';
 import { redirectFromAction } from './action-redirect';
+import type { MatrixPick } from './training';
 
 /** What the room sends to save one answer. Plain values, not a FormData: the save
  *  queue calls this directly, and it is the queue — not a form — that knows the
@@ -188,6 +189,34 @@ export async function montarTreinoAction(_: StartState, form: FormData): Promise
   if (!result.ok) {
     return { error: result.status === 409 ? 'Esta prova está atribuída a uma sala de prova neste momento.' : translateError(result.message) };
   }
+  forgetVisitedPages();
+  await redirectFromAction(`/prova/${statementId}?iniciada=1`);
+}
+
+/** «Simular a prova» (matriz): monta o treino com as questões por tema e vai para a sala do treino. */
+export async function simularProvaAction(_: StartState, form: FormData): Promise<StartState> {
+  await requireStudent();
+  const roomId = id(form.get('roomId'));
+  if (roomId === null) return { error: 'Esta prova já não está disponível.' };
+  let picks: MatrixPick[] = [];
+  try {
+    const raw: unknown = JSON.parse(String(form.get('items') ?? '[]'));
+    if (Array.isArray(raw)) {
+      picks = raw
+        .map((x) => ({ topicId: Number((x as MatrixPick).topicId), count: Number((x as MatrixPick).count) }))
+        .filter((x) => Number.isInteger(x.topicId) && x.topicId > 0 && Number.isInteger(x.count) && x.count > 0);
+    }
+  } catch {
+    picks = [];
+  }
+  if (picks.length === 0) return { error: 'Escolhe pelo menos uma questão.' };
+  const minutes = Number(form.get('durationMinutes'));
+  const result = await startMatrixPractice(roomId, picks, Number.isInteger(minutes) && minutes > 0 ? minutes : null);
+  if (!result.ok) {
+    return { error: result.status === 404 ? 'Não há questões para estes temas.' : translateError(result.message) };
+  }
+  const statementId = result.data.simulation.statement?.id;
+  if (!statementId) return { error: 'Não foi possível abrir o treino.' };
   forgetVisitedPages();
   await redirectFromAction(`/prova/${statementId}?iniciada=1`);
 }

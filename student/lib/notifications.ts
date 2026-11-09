@@ -3,6 +3,7 @@ import 'server-only';
 import { cache } from 'react';
 import { apiGet } from './api';
 import { getBadges } from './stats';
+import { parseServerTime } from './exam-rules';
 import { getFeed, getComments } from './feed';
 import type { RawSimulation } from './performance-rules';
 import type { Me } from './types';
@@ -27,7 +28,7 @@ export interface Notifications {
 async function readAtOf(): Promise<number> {
   const r = await apiGet<{ readAt?: string }>('/me/notifications');
   const at = r.ok ? r.data?.readAt : undefined;
-  return at ? Date.parse(at) || 0 : 0;
+  return at ? parseServerTime(at) || 0 : 0;
 }
 
 /**
@@ -69,8 +70,11 @@ export const loadNotifications = cache(async (me: Me, withReplies = true): Promi
     }
   }
 
+  // Um só instante por item, lido com a convenção do servidor: serve para o por ler e para a ordem (as fontes
+  // misturam datas com e sem fuso, e ordenar pelo texto trocava-as até uma hora).
   const stamped = items
-    .map((i) => ({ ...i, unread: (Date.parse(i.at.includes('Z') || /[+-]\d\d:?\d\d$/.test(i.at) ? i.at : `${i.at}+01:00`) || 0) > readAt }))
-    .sort((a, b) => b.at.localeCompare(a.at));
+    .map((i) => ({ ...i, ts: parseServerTime(i.at) || 0 }))
+    .sort((a, b) => b.ts - a.ts)
+    .map(({ ts, ...i }) => ({ ...i, unread: ts > readAt }));
   return { items: stamped, unreadCount: stamped.filter((i) => i.unread).length };
 });

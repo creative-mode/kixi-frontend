@@ -25,8 +25,6 @@ export function InicioFeed({
   authors = {},
   conversations = {},
   feedError,
-  topo,
-  mobileHighlights,
 }: {
   myAccountId: number | null;
   classId: number | null;
@@ -35,10 +33,6 @@ export function InicioFeed({
   /** As conversas das primeiras publicações, já lidas no servidor: o painel abre sem ir à rede. */
   conversations?: Record<number, PostComment[]>;
   feedError?: string | null;
-  /** O cartão da próxima prova, entregue pelo servidor. */
-  topo?: React.ReactNode;
-  /** O progresso do telemóvel (#493), entregue pelo servidor com o seu próprio `Suspense`. */
-  mobileHighlights?: React.ReactNode;
 }) {
   const me = useMe();
   // As páginas seguintes ficam ao lado da primeira: a lista do servidor continua a ser a
@@ -89,10 +83,8 @@ export function InicioFeed({
   return (
     <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-3 pb-24 md:gap-5 md:px-0 md:pt-7 md:pb-10">
       <h1 className="sr-only">Início</h1>
-      <div className="md:hidden">{topo}</div>
-      {mobileHighlights}
       {classId && (
-        <Link href="/publicar" className="flex items-center gap-3 rounded-full border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
+        <Link href="/publicar" className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
           <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
           <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
           <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
@@ -107,7 +99,7 @@ export function InicioFeed({
         <EmptyState title="Ainda não há nada por aqui" message="Sê o primeiro a partilhar uma dúvida ou um tema com a turma." />
       ) : (
         <>
-          <section className="flex flex-col md:sheet md:px-6 md:py-1">
+          <section className="flex flex-col md:rounded-[20px] md:border md:border-[#e9ebe7] md:bg-white md:px-6 md:py-1">
           {shown.map((p) => (
             <PostCard
               key={p.id}
@@ -138,6 +130,12 @@ export function InicioFeed({
             )}
           </div>
         </>
+      )}
+      {/* No telemóvel a porta para publicar é um botão por cima da barra inferior; o feed começa logo nas publicações. */}
+      {classId && (
+        <Link href="/publicar" aria-label="Criar publicação" data-press className="fixed right-4 bottom-[calc(84px+var(--ck-banner-h,0px))] z-20 flex size-14 items-center justify-center rounded-full bg-[#1f5a2c] text-white shadow-[0_6px_18px_rgba(18,28,21,.25)] md:hidden">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </Link>
       )}
     </div>
   );
