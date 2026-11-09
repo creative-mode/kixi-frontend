@@ -196,7 +196,7 @@ export async function profilesRoutes({ method, pathname, search, filter, body, t
   // o que está publicado, e responde 404 ao resto, inclusive a algo que existe.
   const detail = pathname.match(/^\/statements\/(\d+)$/);
   if (detail && method === 'GET') {
-    const row = findVisible(db.statements, Number(detail[1]));
+    const row = findVisible(db.statements, Number(detail[1])) ?? db.statements.find((x) => x.id === Number(detail[1]) && x.practiceOwner === account.id) ?? null;
     if (!row) return problem(404, 'Statement not found');
     return json(summaryOf(row));
   }

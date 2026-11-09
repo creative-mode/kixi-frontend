@@ -8,6 +8,7 @@ import { feedRoutes } from './domains/feed';
 import { profilesRoutes } from './domains/profiles';
 import { communityRoutes } from './domains/community';
 import { roomsRoutes } from './domains/rooms';
+import { trainingRoutes } from './domains/training';
 import { tutorRoutes } from './domains/tutor';
 
 export async function mockHandle(
@@ -105,7 +106,7 @@ export async function mockHandle(
   }
 
   const ctx: MockCtx = { method, pathname, search, filter, body, text, accountId, account, staff, db };
-  for (const domain of [friendsRoutes, rankingRoutes, pautasRoutes, feedRoutes, profilesRoutes, communityRoutes, roomsRoutes, tutorRoutes]) {
+  for (const domain of [friendsRoutes, rankingRoutes, pautasRoutes, feedRoutes, profilesRoutes, communityRoutes, roomsRoutes, trainingRoutes, tutorRoutes]) {
     const response = await domain(ctx);
     if (response) return response;
   }

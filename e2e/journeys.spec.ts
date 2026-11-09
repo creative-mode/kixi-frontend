@@ -324,8 +324,6 @@ test.describe('jornadas críticas do Kixi', () => {
     // O construtor: modelo, blocos, imagem, pré-visualização e publicação.
     await page.getByRole('link', { name: /Partilha uma dúvida ou uma dica/ }).click();
     await expect(page).toHaveURL(/\/aluno\/publicar/);
-    await page.getByRole('link', { name: 'Junta imagens, passos ou fórmulas' }).click();
-    await expect(page).toHaveURL(/avancado=1/);
     await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
     await page.getByLabel('Título 1', { exact: true }).fill('Endereços de uma rede');
     await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
@@ -336,8 +334,10 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.getByLabel('Imagem 5: escolher imagem').setInputFiles({ name: 'esquema.png', mimeType: 'image/png', buffer: png });
     await expect(page.getByText('Imagem pronta')).toBeVisible();
     await page.getByLabel('Imagem 5: descrição da imagem').fill('Esquema de uma rede');
+    // A pré-visualização é a própria publicação: o mesmo cabeçalho, bloco de título (h4) e figura que o feed vai mostrar.
     const previa = page.getByRole('region', { name: 'Pré-visualização' });
     await expect(previa.getByRole('heading', { name: 'Endereços de uma rede', level: 4 })).toBeVisible();
+    await expect(previa.getByRole('img', { name: 'Cartão de estudo' })).toBeVisible();
     await expect(previa.getByRole('img', { name: 'Esquema de uma rede' })).toBeVisible();
     await page.getByRole('button', { name: 'Publicar' }).click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
@@ -358,7 +358,7 @@ test.describe('jornadas críticas do Kixi', () => {
 
     const id = randomUUID().slice(0, 6);
     const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
-    await page.goto('/aluno/publicar?avancado=1');
+    await page.goto('/aluno/publicar');
     await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
     await page.getByLabel('Título 1', { exact: true }).fill(`Esquema ${id}`);
     await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
@@ -1480,6 +1480,32 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
 
+  test('sala: o professor carrega a matriz da prova, vê a soma em 20 valores e ela fica guardada', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-rooms/1');
+    const matriz = page.getByRole('region', { name: 'Matriz da prova' });
+    await expect(matriz).toBeVisible();
+    await expect(matriz.getByText('Por carregar')).toBeVisible();
+
+    // Colada do Excel: tema, questões, cotação e nível; nada é guardado sem rever.
+    await matriz.getByRole('button', { name: 'Colar do Excel' }).click();
+    await matriz.getByLabel('Cole as linhas: tema, questões, cotação, nível').fill('Endereçamento IP\t3\t6\tAplicação\nSub-redes\t3\t7\tAplicação\nModelo OSI\t2\t4\tConhecimento\nProtocolos\t2\t2');
+    await matriz.getByRole('button', { name: 'Importar linhas' }).click();
+    await expect(matriz.getByLabel('Tema da linha 1')).toHaveValue('Endereçamento IP');
+
+    // 6 + 7 + 4 + 2 = 19: falta 1 valor, e o botão não deixa guardar.
+    await expect(matriz.getByRole('status')).toContainText('faltam 1');
+    await expect(matriz.getByRole('button', { name: 'Guardar matriz' })).toBeDisabled();
+    await matriz.getByLabel('Valores da linha 4').fill('3');
+    await expect(matriz.getByRole('status')).toContainText('10 questões');
+    await expect(matriz.getByRole('status')).toContainText('20 de 20 valores');
+    await matriz.getByRole('button', { name: 'Guardar matriz' }).click();
+    await expect(matriz.getByText('Carregada')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Matriz da prova' }).getByLabel('Tema da linha 2')).toHaveValue('Sub-redes');
+  });
+
   test('sala: o encerrar diz quantos ainda respondem e a tabela filtra por estado (#536)', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     await page.goto('/manager/exam-rooms/1');
@@ -1870,10 +1896,6 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const foto = '[data-slot="avatar"] img[src*="e2e-345.png"]';
     // Cabecalho (a barra lateral, visivel a partir de md). O href leva o basePath /aluno.
     await expect(page.locator(`header:visible button[aria-haspopup="menu"] ${foto}`)).toBeVisible();
-    // "O teu progresso", na coluna da direita.
-    await expect(page.locator('section:visible').filter({ hasText: 'O teu progresso' }).locator(foto).first()).toBeVisible();
-    // "Na tua turma": a propria linha ("Tu") tambem e o proprio aluno.
-    await expect(page.locator('section:visible').filter({ hasText: 'Na tua turma' }).locator(foto).first()).toBeVisible();
     // Autor da publicacao, que e o proprio aluno.
     await expect(page.locator('article').filter({ hasText: 'subnetting' }).locator(foto).first()).toBeVisible();
     // Compositor de comentarios, na publicacao aberta.

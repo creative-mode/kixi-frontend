@@ -13,6 +13,7 @@ import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@
 import { listInvitations } from '@/lib/exam-room';
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
+import { Calendario } from '@/components/calendario';
 
 export const metadata = { title: 'Provas · Kixi' };
 
@@ -238,6 +239,8 @@ export default async function Provas({ searchParams }: { searchParams: Params })
         <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
 
         {abas}
+
+        <Calendario invitations={invitations} className="xl:hidden" />
 
         <Filters
           values={{

@@ -7,6 +7,8 @@ import { phaseOf, sortInvitations, type Invitation } from './exam-room-rules.ts'
 
 export interface UpcomingInvitation {
   key: number;
+  /** O enunciado da sala: é por ele que «O que sai na prova» sabe a disciplina. */
+  statementId: number;
   day: string;
   month: string;
   title: string;
@@ -19,7 +21,7 @@ const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'o
 
 /** Dia, mês e hora de um `LocalDateTime` sem fuso, pelo texto, para o ecrã não
  *  mudar de hora conforme o computador do aluno (CI em UTC, escola em Lisboa). */
-function wallClockOf(value: string): { day: string; month: string; time: string } {
+export function wallClockOf(value: string): { day: string; month: string; time: string } {
   const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(value.trim());
   if (match) {
     const month = MESES[Number(match[2]) - 1];
@@ -44,6 +46,7 @@ export function upcomingInvitations(invitations: readonly Invitation[], limit = 
       const when = wallClockOf(inv.startsAt);
       return {
         key: inv.roomId,
+        statementId: inv.statementId,
         day: when.day,
         month: when.month,
         title: inv.statementTitle ?? 'Sala de prova',
