@@ -324,6 +324,7 @@ test.describe('jornadas críticas do Kixi', () => {
     // O construtor: modelo, blocos, imagem, pré-visualização e publicação.
     await page.getByRole('link', { name: /Partilha uma dúvida ou uma dica/ }).click();
     await expect(page).toHaveURL(/\/aluno\/publicar/);
+    await page.getByRole('button', { name: /Tipo de publicação/ }).click();
     await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
     await page.getByLabel('Título 1', { exact: true }).fill('Endereços de uma rede');
     await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
@@ -335,6 +336,7 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText('Imagem pronta')).toBeVisible();
     await page.getByLabel('Imagem 5: descrição da imagem').fill('Esquema de uma rede');
     // A pré-visualização é a própria publicação: o mesmo cabeçalho, bloco de título (h4) e figura que o feed vai mostrar.
+    await page.getByRole('button', { name: 'Pré-visualizar' }).click();
     const previa = page.getByRole('region', { name: 'Pré-visualização' });
     await expect(previa.getByRole('heading', { name: 'Endereços de uma rede', level: 4 })).toBeVisible();
     await expect(previa.getByRole('img', { name: 'Cartão de estudo' })).toBeVisible();
@@ -349,6 +351,44 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   });
 
+  test('compositor: escreve-se logo, o tipo é uma escolha discreta, a pré-visualização é um botão e Ctrl+Enter publica', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/publicar');
+
+    // À entrada só há o campo da pergunta e a barra de ferramentas: nada de blocos nem pré-visualização.
+    const texto = page.getByLabel('Texto 1', { exact: true });
+    await expect(texto).toBeFocused().catch(() => undefined);
+    await expect(page.getByRole('region', { name: 'Pré-visualização' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Publicar', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Pré-visualizar' })).toBeDisabled();
+
+    const id = randomUUID().slice(0, 6);
+    await texto.fill(`Como se calcula o número de hosts de uma sub-rede? ${id}`);
+    await expect(page.getByRole('button', { name: 'Publicar', exact: true })).toBeEnabled();
+
+    // O tipo vive numa escolha discreta; trocar de tipo com texto escrito não apaga o que se escreveu.
+    await page.getByRole('button', { name: /Tipo de publicação: Pergunta/ }).click();
+    await page.locator('label').filter({ hasText: 'Dica de estudo' }).click();
+    await expect(page.getByRole('button', { name: /Tipo de publicação: Dica de estudo/ })).toBeVisible();
+    await expect(texto).toHaveValue(new RegExp(id));
+
+    // A barra de ferramentas acrescenta blocos; a pré-visualização abre e fecha à vontade.
+    await page.getByRole('button', { name: 'Fórmula', exact: true }).click();
+    await page.getByLabel('Fórmula 2', { exact: true }).fill('2^h - 2');
+    await page.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(page.getByRole('region', { name: 'Pré-visualização' })).toBeVisible();
+    await page.getByRole('button', { name: 'Voltar a escrever' }).click();
+    await expect(page.getByRole('region', { name: 'Pré-visualização' })).toHaveCount(0);
+
+    await page.keyboard.press('Control+Enter');
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await expect(page.getByRole('article').filter({ hasText: id }).first()).toBeVisible();
+  });
+
   test('imagens do feed: aviso ao publicar sem descrição e espaço reservado antes de a imagem chegar (#524)', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -359,6 +399,7 @@ test.describe('jornadas críticas do Kixi', () => {
     const id = randomUUID().slice(0, 6);
     const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
     await page.goto('/aluno/publicar');
+    await page.getByRole('button', { name: /Tipo de publicação/ }).click();
     await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
     await page.getByLabel('Título 1', { exact: true }).fill(`Esquema ${id}`);
     await page.getByLabel('Texto 2', { exact: true }).fill('Numa rede /28 há 16 endereços, mas só 14 servem para máquinas.');
