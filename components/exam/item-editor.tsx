@@ -51,7 +51,7 @@ export function LeafBody({
         onChange={(e) => onModelAnswer(e.target.value)}
         rows={2}
         className="min-h-14"
-        aria-label={`Resposta-modelo da questão ${where}`}
+        aria-label={`Resposta-modelo n.º ${where}`}
         placeholder="A resposta esperada, para a correção"
       />
       <span className="text-xs text-muted-foreground">
