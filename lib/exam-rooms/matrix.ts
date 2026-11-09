@@ -52,7 +52,7 @@ export function parseNumber(text: string): number {
 
 /** Sem acentos e em minúsculas: «Aplicação» e «aplicacao» são o mesmo nível, «Sub-redes» e «sub redes» o mesmo tema. */
 export function fold(text: string): string {
-  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/[\s-]+/g, ' ');
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim().replace(/[\s-]+/g, ' ');
 }
 
 const LEVEL_WORDS: Record<string, Level> = {
@@ -163,7 +163,7 @@ export const CSV_TEMPLATE = 'tema;questões;cotação;nível\nEndereçamento IP;
 export function parseMatrixText(text: string): { rows: MatrixRow[]; errors: string[] } {
   const rows: MatrixRow[] = [];
   const errors: string[] = [];
-  const lines = text.replace(/^﻿/, '').split(/\r?\n/);
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
   lines.forEach((raw, index) => {
     if (raw.trim() === '') return;
     const sep = raw.includes(';') ? ';' : raw.includes('\t') ? '\t' : ',';
