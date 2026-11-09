@@ -95,7 +95,7 @@ export default function SchoolYearsManager() {
             <div className="p-2 rounded-md bg-warning-soft text-warning">
               <Calendar size={20} />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Anos Letivos</h1>
+            <h1 className="text-[26px] md:text-3xl font-extrabold text-foreground">Anos Letivos</h1>
           </div>
           <p className="text-sm text-muted-foreground ml-12">Gestão de períodos letivos do sistema</p>
         </div>

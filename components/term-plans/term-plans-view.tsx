@@ -50,7 +50,7 @@ export function TermPlansView() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-7">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Plano do trimestre</h1>
+        <h1 className="text-[26px] font-extrabold tracking-tight">Plano do trimestre</h1>
         <p className="text-sm text-muted-foreground">P1, P2 e as avaliações de MAC com as datas. A pauta abre quando tudo estiver corrigido ou dispensado.</p>
       </header>
       {notice && <p role="status" className="rounded-md border bg-muted px-3 py-2 text-sm">{notice}</p>}

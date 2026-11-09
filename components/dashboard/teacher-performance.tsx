@@ -93,7 +93,7 @@ export function TeacherPerformance() {
     <div className="mx-auto max-w-7xl space-y-8 p-6 md:p-8 lg:p-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl leading-tight tracking-tight text-foreground">Desempenho da turma</h1>
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-foreground">Desempenho da turma</h1>
           <p className="mt-1 text-muted-foreground">Onde a turma falha, quem precisa de ajuda e como evolui.</p>
         </div>
         {classes && classes.length > 1 ? (

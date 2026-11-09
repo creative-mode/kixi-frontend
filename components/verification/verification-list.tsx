@@ -132,7 +132,7 @@ export function VerificationList() {
       <div className="mb-6 flex items-center gap-3">
         <div className="rounded-md bg-accent p-2 text-primary"><BadgeCheck size={20} aria-hidden /></div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground md:text-3xl">Verificação</h1>
+          <h1 className="text-[26px] font-extrabold text-foreground md:text-3xl">Verificação</h1>
           <p className="text-sm text-muted-foreground">Pedidos do selo de escola verificada. Só o administrador aprova, recusa ou revoga.</p>
         </div>
       </div>

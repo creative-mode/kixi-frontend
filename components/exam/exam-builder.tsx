@@ -581,7 +581,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       <style>{`@media print{body *{visibility:hidden}#exam-sheet,#exam-sheet *{visibility:visible}#exam-sheet{position:absolute;left:0;top:0;width:100%;box-shadow:none}.exam-preview{display:block!important}@page{size:A4;margin:10mm}}`}</style>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-2xl leading-tight tracking-tight">Montar prova</h1>
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Montar prova</h1>
           <p className="mt-1 text-muted-foreground">A prova segue o modelo oficial. Só o logótipo, o nome da escola e a disciplina mudam.</p>
         </div>
         <div className="flex flex-wrap gap-2">
