@@ -15,7 +15,7 @@ export function Calendario({ invitations, limit = 4, className = '' }: { invitat
       <h2 className="m-0 mb-3.5 text-base font-extrabold">Calendário</h2>
       <div className="flex flex-col gap-3.5">
         {soon.map((u) => (
-          <Link key={u.key} href={`/provas/preparar?prova=${u.statementId}`} className="flex items-center gap-3.5 text-[#121c15] no-underline">
+          <Link key={u.key} href={`/provas/preparar?sala=${u.key}&prova=${u.statementId}`} className="flex items-center gap-3.5 text-[#121c15] no-underline">
             <span className="w-11 text-center"><span className="block text-xs text-[#617066]">{u.month}</span><strong className="text-[22px] leading-none">{u.day}</strong></span>
             <span className="flex flex-col"><strong className="text-sm">{u.title}</strong><span className="text-[13px] text-[#617066]">{u.meta}</span></span>
           </Link>

@@ -28,6 +28,7 @@ import {
   type RoomAction,
 } from '@/lib/exam-rooms/model';
 import { RoomHead, RoomStatusBadge } from './room-head';
+import { RoomMatrix } from './room-matrix';
 import { RoomResults } from './room-results';
 import { RoomIntegrity } from './room-integrity';
 import { useRoomLive } from './use-room-live';
@@ -196,6 +197,8 @@ export function RoomConsole({ id }: { id: number }) {
       ) : (
         <LivePanel live={live} running={room.status === 'RUNNING'} />
       )}
+
+      <RoomMatrix roomId={id} subjectId={statement?.subjectId ?? null} readOnly={room.status === 'CLOSED'} />
 
       {/* Os eventos só existem depois de a prova correr; a sala em espera ainda não
           os tem, e mostrá-los ali seria uma coluna sempre vazia. */}

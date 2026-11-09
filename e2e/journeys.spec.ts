@@ -1480,6 +1480,32 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Desempenho dos estudantes e estado das provas')).toBeVisible();
   });
 
+  test('sala: o professor carrega a matriz da prova, vê a soma em 20 valores e ela fica guardada', async ({ page }) => {
+    await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
+    await page.goto('/manager/exam-rooms/1');
+    const matriz = page.getByRole('region', { name: 'Matriz da prova' });
+    await expect(matriz).toBeVisible();
+    await expect(matriz.getByText('Por carregar')).toBeVisible();
+
+    // Colada do Excel: tema, questões, cotação e nível; nada é guardado sem rever.
+    await matriz.getByRole('button', { name: 'Colar do Excel' }).click();
+    await matriz.getByLabel('Cole as linhas: tema, questões, cotação, nível').fill('Endereçamento IP\t3\t6\tAplicação\nSub-redes\t3\t7\tAplicação\nModelo OSI\t2\t4\tConhecimento\nProtocolos\t2\t2');
+    await matriz.getByRole('button', { name: 'Importar linhas' }).click();
+    await expect(matriz.getByLabel('Tema da linha 1')).toHaveValue('Endereçamento IP');
+
+    // 6 + 7 + 4 + 2 = 19: falta 1 valor, e o botão não deixa guardar.
+    await expect(matriz.getByRole('status')).toContainText('faltam 1');
+    await expect(matriz.getByRole('button', { name: 'Guardar matriz' })).toBeDisabled();
+    await matriz.getByLabel('Valores da linha 4').fill('3');
+    await expect(matriz.getByRole('status')).toContainText('10 questões');
+    await expect(matriz.getByRole('status')).toContainText('20 de 20 valores');
+    await matriz.getByRole('button', { name: 'Guardar matriz' }).click();
+    await expect(matriz.getByText('Carregada')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Matriz da prova' }).getByLabel('Tema da linha 2')).toHaveValue('Sub-redes');
+  });
+
   test('sala: o encerrar diz quantos ainda respondem e a tabela filtra por estado (#536)', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     await page.goto('/manager/exam-rooms/1');

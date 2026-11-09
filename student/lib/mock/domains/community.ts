@@ -2,7 +2,7 @@ import { integrityRefusal, isIntegrityKind, parseQuestionId } from '@/lib/integr
 import { expired, toLocalDateTime } from '../simulation';
 
 import { practiceQuestionIds } from '../practice';
-import { QUESTIONS_BY_STATEMENT, SimulationRow, json, problem, simulationResponse, validationError } from '../store';
+import { QUESTIONS_BY_STATEMENT, SimulationRow, canReadStatement, json, problem, simulationResponse, validationError } from '../store';
 import type { MockCtx } from '../store';
 
 /** Rotas do domínio «community» do mock; devolve `undefined` quando o pedido não é deste domínio. */
@@ -128,7 +128,7 @@ export async function communityRoutes({ method, pathname, search, filter, body, 
     }
     const statement = db.statements.find((s) => s.id === statementId);
     // Um aluno só começa uma prova que pode ler: publicada, senão 404 como no /full.
-    if (!statement || (!staff && !statement.visible)) return problem(404, 'Statement not found');
+    if (!statement || !canReadStatement(statement, account.id, staff)) return problem(404, 'Statement not found');
 
     const row: SimulationRow = {
       id: db.nextSimulation++,

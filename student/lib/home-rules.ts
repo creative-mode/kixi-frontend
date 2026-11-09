@@ -21,7 +21,7 @@ const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'o
 
 /** Dia, mês e hora de um `LocalDateTime` sem fuso, pelo texto, para o ecrã não
  *  mudar de hora conforme o computador do aluno (CI em UTC, escola em Lisboa). */
-function wallClockOf(value: string): { day: string; month: string; time: string } {
+export function wallClockOf(value: string): { day: string; month: string; time: string } {
   const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(value.trim());
   if (match) {
     const month = MESES[Number(match[2]) - 1];

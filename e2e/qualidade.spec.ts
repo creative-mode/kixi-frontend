@@ -455,6 +455,56 @@ test.describe('início sem blocos acima das publicações', () => {
   });
 });
 
+/** Prepara-te para a prova: a matriz que o professor carregou, o treino por temas e a simulação com questões de provas anteriores. */
+test.describe('treino por temas a partir da matriz da prova', () => {
+  test('do calendário à simulação: temas da matriz, quantidades por tema e prova montada', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await alunoLogin(page);
+    await page.goto('/aluno/inicio');
+    await page.locator('aside[aria-label="Destaques"]').getByRole('link', { name: /Teste 2 de Redes/ }).click();
+    await expect(page).toHaveURL(/provas\/preparar\?sala=4/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Teste 2 de Redes de Computadores' })).toBeVisible();
+    for (const tema of ['Endereçamento IP', 'Sub-redes', 'Modelo OSI', 'Protocolos de rede']) {
+      await expect(page.getByRole('heading', { level: 3, name: tema })).toBeVisible();
+    }
+    expect(await graves(page), 'acessibilidade do ecrã de preparação').toEqual([]);
+
+    // Por omissão, as quantidades da matriz: 3 + 3 + 2 + 2.
+    await expect(page.getByText('10 questões · cerca de 60 min')).toBeVisible();
+    await page.getByRole('button', { name: 'Menos questões de Modelo OSI' }).click();
+    await page.getByRole('button', { name: 'Menos questões de Modelo OSI' }).click();
+    await expect(page.getByText('8 questões · cerca de 48 min')).toBeVisible();
+    // «Como na prova» deixa de estar escolhido quando se mexe à mão, e volta a repor a matriz.
+    await expect(page.getByRole('button', { name: 'Como na prova' })).toHaveAttribute('aria-pressed', 'false');
+    await page.getByRole('button', { name: 'Como na prova' }).click();
+    await expect(page.getByText('10 questões · cerca de 60 min')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Simular a prova' }).click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Treino · Matriz do Teste 2' })).toBeVisible();
+    // As 10 questões escolhidas, num tempo proporcional ao da prova, e nenhuma é da prova agendada (enunciado 9).
+    await expect(page.getByText('1/10')).toBeVisible();
+    await expect(page.getByRole('timer', { name: 'Tempo restante' })).toBeVisible();
+  });
+
+  test('no telemóvel o ecrã cabe e a barra de resumo não tapa a navegação', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await alunoLogin(page);
+    await page.goto('/aluno/provas/preparar?sala=4&prova=9');
+    await expect(page.getByRole('button', { name: 'Simular a prova' })).toBeVisible();
+    await expect(page.getByTestId('nav-mobile')).toBeVisible();
+    const semScroll = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+    expect(semScroll, 'sem scroll horizontal').toBe(true);
+  });
+
+  test('uma sala sem matriz continua a mostrar as provas da disciplina', async ({ page }) => {
+    await alunoLogin(page);
+    await page.goto('/aluno/provas/preparar?sala=3&prova=1');
+    await expect(page.getByRole('heading', { name: 'O que sai na prova' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Simular a prova' })).toHaveCount(0);
+  });
+});
+
 /** O 404 da landing (#544): endereço partido devolve "Esta página não existe" em
  *  português, na marca do site, com saída clara - e o banner de cookies nunca por
  *  cima de nada. Antes era o 404 de omissão do Next: inglês, sem marca, sem saída. */

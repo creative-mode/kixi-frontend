@@ -10,6 +10,7 @@ import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { assignmentsFrom, teacherCanWrite } from '@/lib/crud/teacher-scope';
 import type { BulkGradeResult, ExamRoom, Grade, RoomAction, RoomDraft, RoomIntegrity, RoomReview } from '@/lib/exam-rooms/model';
 import { draftProblem, toLocalDateTime } from '@/lib/exam-rooms/model';
+import { problemsOf, type MatrixDraft, type MatrixPayload, type MatrixView } from '@/lib/exam-rooms/matrix';
 
 const BASE = '/api/v1/exam-rooms';
 
@@ -28,6 +29,7 @@ export type StatementChoice = {
   id: number;
   title: string;
   classId: number | null;
+  subjectId: number | null;
   durationMinutes: number | null;
   totalMaxScore: number | null;
   needsReview: boolean;
@@ -45,6 +47,7 @@ const toStatement = (s: Row): StatementChoice => ({
   id: Number(s.id),
   title: String(s.title ?? `Enunciado ${s.id}`),
   classId: s.classId == null ? null : Number(s.classId),
+  subjectId: s.subjectId == null ? null : Number(s.subjectId),
   durationMinutes: s.durationMinutes == null ? null : Number(s.durationMinutes),
   totalMaxScore: s.totalMaxScore == null ? null : Number(s.totalMaxScore),
   needsReview: !!s.needsReview,
@@ -203,5 +206,45 @@ export async function gradeRoom(id: number, grades: { answerId: number; score: n
     if (!res.ok) return fail(await message(res), res.status === 401 ? 'SESSION_EXPIRED' : undefined);
     revalidatePath('/exam-rooms');
     return ok((await res.json()) as BulkGradeResult);
+  });
+}
+
+// ── A matriz da prova: os temas que saem, as questões e a cotação de cada um ──────────────────────────────────────
+
+/** A matriz da sala, ou `null` quando o professor ainda não a carregou (o servidor responde 404). */
+export async function getRoomMatrix(id: number): Promise<Result<MatrixView | null>> {
+  return guard(async () => {
+    const res = await call(`${BASE}/${safeId(id)}/matrix`);
+    if (res.status === 404) return ok(null);
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as MatrixView);
+  });
+}
+
+/** Guarda a matriz (substitui a anterior). Os temas que ainda não existem na disciplina nascem aqui, pelo nome. */
+export async function saveRoomMatrix(id: number, draft: MatrixDraft, payload: MatrixPayload): Promise<Result<MatrixView>> {
+  return guard(async () => {
+    // O servidor volta a validar; isto só evita a viagem quando o editor deixou passar um rascunho partido.
+    const problems = problemsOf(draft);
+    if (problems.length > 0) return fail(problems[0]!);
+    const res = await call(`${BASE}/${safeId(id)}/matrix`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as MatrixView);
+  });
+}
+
+export async function removeRoomMatrix(id: number): Promise<Result> {
+  return guard(async () => {
+    const res = await call(`${BASE}/${safeId(id)}/matrix`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) return fail(await message(res));
+    return ok(undefined);
+  });
+}
+
+/** Os temas já conhecidos da disciplina, para o editor sugerir em vez de o professor reescrever. */
+export async function subjectTopics(subjectId: number): Promise<Result<{ id: number; name: string }[]>> {
+  return guard(async () => {
+    const res = await json<{ id: number; name: string }[]>(`/api/v1/subjects/${safeId(subjectId)}/topics`);
+    return res.ok ? ok(res.data.map((t) => ({ id: Number(t.id), name: String(t.name) }))) : res;
   });
 }
