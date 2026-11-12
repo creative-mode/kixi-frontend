@@ -98,6 +98,24 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
   };
 
   const item = 'flex min-h-12 w-full items-center gap-3 px-4 text-left text-[15px] font-semibold outline-none hover:bg-secondary focus-visible:bg-secondary';
+  const entries = (
+    <>
+      <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
+        <Ico name="user" size={22} />O meu perfil
+      </Link>
+      <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/privacidade`} className={item} onClick={() => setOpen(false)}>
+        Privacidade
+      </a>
+      <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/cookies`} className={item} onClick={() => setOpen(false)}>
+        Cookies
+      </a>
+      <form action={sairAction} role="none" className="border-t">
+        <button role="menuitem" tabIndex={-1} type="submit" className={cn(item, 'text-destructive')}>
+          <Ico name="logout" size={22} />Terminar sessão
+        </button>
+      </form>
+    </>
+  );
   return (
     <div className="relative">
       <button
@@ -118,7 +136,7 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
           </span>
         )}
       </button>
-      {open && position && createPortal(
+      {open && position ? createPortal(
         <div
           ref={menu}
           role="menu"
@@ -134,22 +152,14 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
           // abaixo da barra de progresso da navegação (z-[60]).
           className="rise fixed z-50 w-60 overflow-hidden rounded-2xl border bg-background shadow-lg"
         >
-          <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
-            <Ico name="user" size={22} />O meu perfil
-          </Link>
-          <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/privacidade`} className={item} onClick={() => setOpen(false)}>
-            Privacidade
-          </a>
-          <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/cookies`} className={item} onClick={() => setOpen(false)}>
-            Cookies
-          </a>
-          <form action={sairAction} role="none" className="border-t">
-            <button role="menuitem" tabIndex={-1} type="submit" className={cn(item, 'text-destructive')}>
-              <Ico name="logout" size={22} />Terminar sessão
-            </button>
-          </form>
+          {entries}
         </div>,
         document.body,
+      ) : (
+        // Fechado, o menu continua no HTML do servidor, escondido, como sempre esteve: o
+        // formulário de «Terminar sessão» é o que o fluxo HTTP (`scripts/flow.mjs`) submete,
+        // e é o logout que funciona antes de o JavaScript carregar. Só vai para o portal ao abrir.
+        <div hidden role="menu" aria-label="Conta">{entries}</div>
       )}
     </div>
   );
