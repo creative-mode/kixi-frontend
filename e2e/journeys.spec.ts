@@ -432,13 +432,78 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.reload();
     const figura = page.getByRole('article').filter({ hasText: `Esquema ${id}` }).first().locator('figure img');
     await figura.scrollIntoViewIfNeeded();
-    const caixa = figura.locator('..');
+    // img -> botão «Ampliar imagem» -> caixa com a proporção fixa.
+    const caixa = figura.locator('..').locator('..');
     await expect(caixa).toHaveCSS('aspect-ratio', '4 / 3');
     const antes = await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height));
     expect(antes).toBeGreaterThan(100);
     soltar();
     await expect.poll(() => figura.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
     expect(await caixa.evaluate((el) => Math.round(el.getBoundingClientRect().height))).toBe(antes);
+  });
+
+  test('imagens da publicação: abrem em ecrã inteiro, navegam com as setas e fecham com Escape (#755)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const id = randomUUID().slice(0, 6);
+    const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207, 192, 80, 15, 0, 4, 133, 1, 128, 132, 169, 140, 33, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
+    await page.goto('/aluno/publicar');
+    await page.getByRole('button', { name: /Tipo de publicação/ }).click();
+    await page.locator('label').filter({ hasText: 'Cartão de estudo' }).click();
+    await page.getByLabel('Título 1', { exact: true }).fill(`Galeria ${id}`);
+    await page.getByLabel('Texto 2', { exact: true }).fill('Duas figuras para ampliar.');
+    await page.getByLabel('Lista 3: linha 1').fill('Primeira');
+
+    // Duas imagens seguidas: a galeria tem de saber passar de uma para a outra.
+    for (const [i, descricao] of ['Primeira imagem', 'Segunda imagem'].entries()) {
+      await page.getByRole('button', { name: 'Imagem', exact: true }).click();
+      await page.getByLabel(/escolher imagem/).nth(i).setInputFiles({ name: `figura-${i}.png`, mimeType: 'image/png', buffer: png });
+      await expect(page.getByText('Imagem pronta')).toHaveCount(i + 1);
+      await page.getByLabel(/descrição da imagem/).nth(i).fill(descricao);
+    }
+    await page.getByRole('button', { name: 'Publicar' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const artigo = page.getByRole('article').filter({ hasText: `Galeria ${id}` }).first();
+    const miniaturas = artigo.getByRole('button', { name: 'Ampliar imagem' });
+    await expect(miniaturas).toHaveCount(2);
+
+    // Tocar na miniatura abre a imagem em ecrã inteiro, já carregada.
+    await miniaturas.first().click();
+    const dialogo = page.getByRole('dialog', { name: 'Imagem ampliada' });
+    await expect(dialogo).toBeVisible();
+    const ampliada = dialogo.getByRole('img', { name: 'Primeira imagem' });
+    await expect(ampliada).toBeVisible();
+    await expect.poll(() => ampliada.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+
+    // As setas passam à seguinte e dão a volta; o contador diz onde se está.
+    await page.keyboard.press('ArrowRight');
+    await expect(dialogo.getByRole('img', { name: 'Segunda imagem' })).toBeVisible();
+    await expect(dialogo.getByText('Imagem 2 de 2')).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(dialogo.getByRole('img', { name: 'Primeira imagem' })).toBeVisible();
+    await expect(dialogo.getByText('Imagem 1 de 2')).toBeVisible();
+
+    // O zoom troca para o tamanho real e volta a caber no ecrã.
+    await dialogo.getByRole('button', { name: 'Aumentar zoom' }).click();
+    await expect(dialogo.getByRole('button', { name: 'Reduzir zoom' })).toBeVisible();
+    await dialogo.getByRole('button', { name: 'Reduzir zoom' }).click();
+    await expect(dialogo.getByRole('button', { name: 'Aumentar zoom' })).toBeVisible();
+
+    // Escape fecha e devolve o foco à miniatura que abriu o diálogo.
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+    await expect(miniaturas.first()).toBeFocused();
+
+    // Clicar fora da imagem (no fundo escuro) também fecha.
+    await miniaturas.first().click();
+    await expect(dialogo).toBeVisible();
+    await page.mouse.click(4, 4);
+    await expect(dialogo).toHaveCount(0);
   });
 
   test('pesquisar no cabeçalho abre a pesquisa de escolas, professores e alunos', async ({ page }) => {
