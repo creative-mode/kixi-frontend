@@ -556,6 +556,11 @@ test.describe('jornadas críticas do Kixi', () => {
     const terminar = page.getByRole('menuitem', { name: 'Terminar sessão' });
     await expect(perfil).toBeFocused();
     await page.keyboard.press('ArrowDown');
+    // #762: a doação entra depois do perfil, para estar a um toque em qualquer ecrã.
+    const doar = page.getByRole('menuitem', { name: 'Doar um enunciado' });
+    await expect(doar).toBeFocused();
+    await expect(doar).toHaveAttribute('href', /\/doar$/);
+    await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
@@ -565,6 +570,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('menuitem', { name: 'Cookies' })).toBeFocused();
     await page.keyboard.press('ArrowUp');
     await expect(page.getByRole('menuitem', { name: 'Privacidade' })).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(doar).toBeFocused();
     await page.keyboard.press('ArrowUp');
     await expect(perfil).toBeFocused();
     await page.keyboard.press('Escape');
