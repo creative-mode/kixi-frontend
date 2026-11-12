@@ -48,6 +48,8 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
   const { scope, retry: retryScope } = useTeacherScope();
   // A estrutura académica (turmas incluídas) só o ADMIN altera: o professor só consulta, sem botões que falhariam com 403.
   const readOnly = isStructureEntity(entityKey) && !!scope?.restricted;
+  // Apagar e restaurar respostas é do ADMIN, com motivo (kixi#596); o professor só consulta.
+  const mayDelete = !readOnly && !(entity.audited && (scope?.restricted ?? true));
 
   const load = useCallback(async () => {
     setError(null);
@@ -131,8 +133,9 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
       action: copy?.action ?? 'Mover para a lixeira',
       destructive: true,
       busyLabel: 'A mover para a lixeira…',
-      run: async () => {
-        const res = await deleteRow(entityKey, rowId(entity, row));
+      reason: entity.audited ? { label: `Motivo para mover ${gender(entity, 'o')} ${entity.singular.toLowerCase()} para a lixeira`, min: 5 } : undefined,
+      run: async (reason) => {
+        const res = await deleteRow(entityKey, rowId(entity, row), reason);
         if (res.ok) {
           toast.success(copy?.done ?? `${entity.singular} ${gender(entity, 'movido')} para a lixeira`, {
             duration: 10_000,
@@ -140,7 +143,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
               label: 'Desfazer',
               onClick: async () => {
                 const { restoreRow } = await import('@/app/actions/crud');
-                const restored = await restoreRow(entityKey, rowId(entity, row));
+                const restored = await restoreRow(entityKey, rowId(entity, row), entity.audited ? `Desfeito logo após apagar: ${reason}` : undefined);
                 if (restored.ok) { toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`); void load(); }
                 else reportActionError(restored.error);
               },
@@ -163,7 +166,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
         entity={entity}
         actions={
           <>
-            {entity.trashable !== false && !readOnly ? (
+            {entity.trashable !== false && mayDelete ? (
               <Button asChild variant="outline">
                 <Link href={`/${entity.path}/trash`}>
                   <Archive size={16} className="mr-2" /> Lixeira
@@ -289,7 +292,7 @@ export function CrudList({ entityKey }: { entityKey: EntityKey }) {
                             <Link href={`/${entity.path}/${rowId(entity, row)}/edit${list.queryString}`}><Edit size={16} /></Link>
                           </Button>
                         ) : null}
-                        {readOnly ? null : (
+                        {!mayDelete ? null : (
                           <Button variant="ghost" size="sm" aria-label="Mover para a lixeira" className="hover:bg-danger-soft hover:text-destructive" onClick={() => askDelete(row)}>
                             <Trash2 size={16} />
                           </Button>
