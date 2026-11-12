@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { buildPaper, containsLeaf, leafNumber, type PaperAnswer, type PaperItem, type PaperMark, type PaperMeta, type PaperQuestion, type PaperStamp } from '@/lib/folha-da-prova';
 import type { ExamOption, ExamQuestion } from '@/lib/exam-rules';
@@ -8,6 +8,8 @@ import type { QuestionImage } from '@/lib/exam';
 import { BASE_PATH } from '@/lib/base-path';
 import { cn } from '@/lib/utils';
 import { assetUrl } from '@/lib/assets';
+import { imageAlt } from '@/lib/lightbox';
+import { ImageLightbox } from '@/components/image-lightbox';
 import { MathText } from '../lib/shared/math-text';
 
 export type { PaperAnswer, PaperMark, PaperStamp };
@@ -292,15 +294,43 @@ function Answer({ options, answer, mark, lines }: { options: ExamOption[]; answe
 }
 
 function Figures({ images }: { images?: QuestionImage[] }) {
+  const [openAt, setOpenAt] = useState<number | null>(null);
+  const [opener, setOpener] = useState<HTMLElement | null>(null);
+  const [failed, setFailed] = useState<Record<number, boolean>>({});
   if (!images || images.length === 0) return null;
+  const alt = (image: QuestionImage) => imageAlt(image.caption, 'Figura da questão');
   return (
     <span className="my-1.5 flex flex-wrap gap-2">
-      {images.map((image) => (
+      {images.map((image, i) => (
         <figure key={image.id} className="m-0 max-w-full">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={assetUrl(image.imageUrl, 768)} loading="lazy" decoding="async" alt={image.caption ?? 'Figura da questão'} className="max-h-72 max-w-full object-contain" />
+          {failed[i] ? (
+            <span className="block px-3 py-6 text-[13px] text-neutral-600">Não foi possível carregar a figura.</span>
+          ) : (
+            <button
+              type="button"
+              aria-label="Ampliar imagem"
+              onClick={(event) => { setOpener(event.currentTarget); setOpenAt(i); }}
+              className="block cursor-zoom-in rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={assetUrl(image.imageUrl, 768)}
+                loading="lazy"
+                decoding="async"
+                alt={alt(image)}
+                onError={() => setFailed((current) => ({ ...current, [i]: true }))}
+                className="max-h-72 max-w-full object-contain"
+              />
+            </button>
+          )}
         </figure>
       ))}
+      <ImageLightbox
+        images={images.map((image) => ({ url: image.imageUrl, alt: alt(image), caption: image.caption }))}
+        index={openAt}
+        onClose={() => setOpenAt(null)}
+        returnFocusTo={opener}
+      />
     </span>
   );
 }

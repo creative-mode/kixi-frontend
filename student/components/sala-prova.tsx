@@ -23,7 +23,7 @@ import {
   type CellState,
   type ExamQuestion,
 } from '@/lib/exam-rules';
-import type { RoomData } from '@/lib/exam';
+import type { QuestionImage, RoomData } from '@/lib/exam';
 import { TreinoCorrecao } from '@/components/treino-correcao';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +32,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { displayNumber } from '@/lib/question-number';
 import { FolhaDaProva } from '@/components/folha-da-prova';
+import { ImageLightbox } from '@/components/image-lightbox';
 import { assetUrl } from '@/lib/assets';
+import { imageAlt } from '@/lib/lightbox';
 import { track } from '@/lib/analytics';
 
 const CELL = {
@@ -59,6 +61,57 @@ const CELL_TEXT: Record<CellState, string> = {
   empty: 'Por responder',
   unsaved: 'Por guardar',
 };
+
+/** As figuras da questão aberta. Cada uma abre no lightbox: o enunciado fotografado tem muitas vezes
+ *  texto pequeno que no ecrã da sala não se lê. */
+function QuestionImages({ images }: { images: QuestionImage[] }) {
+  const [openAt, setOpenAt] = useState<number | null>(null);
+  const [opener, setOpener] = useState<HTMLElement | null>(null);
+  const [failed, setFailed] = useState<Record<number, boolean>>({});
+  const alt = (image: QuestionImage) => imageAlt(image.caption, 'Figura da questão');
+  return (
+    <div className="grid gap-2">
+      {images.map((image, i) => (
+        <figure key={image.id} className="grid gap-1">
+          {failed[i] ? (
+            <p className="rounded-lg border bg-secondary px-4 py-8 text-center text-sm text-muted-foreground">
+              Não foi possível carregar a figura.
+            </p>
+          ) : (
+            <button
+              type="button"
+              aria-label="Ampliar imagem"
+              onClick={(event) => { setOpener(event.currentTarget); setOpenAt(i); }}
+              className="cursor-zoom-in rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              {/* A URL vem do armazenamento do backend, por isso é um img simples:
+                  next/image exigiria o domínio na lista e um tamanho configurado
+                  do lado de quem guarda a imagem. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={assetUrl(image.imageUrl, 768)}
+                loading="lazy"
+                decoding="async"
+                alt={alt(image)}
+                onError={() => setFailed((current) => ({ ...current, [i]: true }))}
+                className="w-full rounded-lg border"
+              />
+            </button>
+          )}
+          {image.caption && (
+            <figcaption className="text-[13px] text-muted-foreground">{image.caption}</figcaption>
+          )}
+        </figure>
+      ))}
+      <ImageLightbox
+        images={images.map((image) => ({ url: image.imageUrl, alt: alt(image), caption: image.caption }))}
+        index={openAt}
+        onClose={() => setOpenAt(null)}
+        returnFocusTo={opener}
+      />
+    </div>
+  );
+}
 
 /** One question's draft: what is on screen, which may be ahead of the server. The
  *  `answerId` is not here — it belongs to the save queue, which reads it when a
@@ -985,20 +1038,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             </div>
 
             {data.images[current.id]?.length > 0 && (
-              <div className="grid gap-2">
-                {data.images[current.id].map((image) => (
-                  <figure key={image.id} className="grid gap-1">
-                    {/* A URL vem do armazenamento do backend, por isso é um img simples:
-                        next/image exigiria o domínio na lista e um tamanho configurado
-                        do lado de quem guarda a imagem. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={assetUrl(image.imageUrl, 768)} decoding="async" alt={image.caption ?? ''} className="w-full rounded-lg border" />
-                    {image.caption && (
-                      <figcaption className="text-[13px] text-muted-foreground">{image.caption}</figcaption>
-                    )}
-                  </figure>
-                ))}
-              </div>
+              <QuestionImages images={data.images[current.id]} />
             )}
 
             <div className="flex flex-wrap items-center gap-2.5">

@@ -15,17 +15,29 @@ import { cn } from '@/lib/utils';
  *  botão de zoom troca entre «cabe no ecrã» e «tamanho real», com scroll quando não cabe.
  *
  *  Controlado: `index` é a imagem aberta (null fecha) e `onClose` é quem devolve o estado. */
-export function ImageLightbox({ images, index, onClose }: {
+export function ImageLightbox({ images, index, onClose, returnFocusTo }: {
   images: LightboxImage[];
   index: number | null;
   onClose: () => void;
+  /** O botão que abriu o lightbox. O Radix devolve o foco ao `Trigger` dele; como a miniatura
+   *  não é um Trigger, quem abre passa o elemento para o foco voltar ao mesmo sítio. */
+  returnFocusTo?: HTMLElement | null;
 }) {
+  const fallbackOpener = useRef<HTMLElement | null>(null);
   return (
     <DialogPrimitive.Root open={index !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           className="fixed inset-0 z-50 m-auto grid h-fit max-h-[94dvh] w-fit max-w-[96vw] grid-rows-[minmax(0,1fr)_auto] rounded-xl bg-black/35 text-white outline-none data-[state=open]:animate-in data-[state=open]:zoom-in-95"
+          onOpenAutoFocus={() => {
+            fallbackOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            (returnFocusTo ?? fallbackOpener.current)?.focus();
+            fallbackOpener.current = null;
+          }}
           onPointerDownOutside={onClose}
         >
           <DialogPrimitive.Title className="sr-only">Imagem ampliada</DialogPrimitive.Title>
@@ -87,7 +99,10 @@ function Viewer({ images, start, onClose }: { images: LightboxImage[]; start: nu
       </Button>
 
       <div
-        className={cn('relative flex min-h-0 items-center justify-center', zoomed ? 'overflow-auto' : 'overflow-hidden')}
+        className={cn(
+          'relative flex min-h-0',
+          zoomed ? 'items-start justify-start overflow-auto' : 'items-center justify-center overflow-hidden',
+        )}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
