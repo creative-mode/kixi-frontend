@@ -29,7 +29,7 @@ export interface HeaderAuthor {
   href?: string;
 }
 
-export function PostHeader({ author, typeLabel, when, publishing = false }: { author: HeaderAuthor; typeLabel: string; when: string; publishing?: boolean }) {
+export function PostHeader({ author, typeLabel, when, publishing = false, edited = false }: { author: HeaderAuthor; typeLabel: string; when: string; publishing?: boolean; edited?: boolean }) {
   return (
     <header className="flex items-center gap-3">
       <UserAvatar name={author.name} src={author.photo} size={38} />
@@ -45,7 +45,7 @@ export function PostHeader({ author, typeLabel, when, publishing = false }: { au
         </span>
         {publishing
           ? <span role="status" aria-live="polite" className="text-[13px] font-semibold text-muted-foreground">A publicar…</span>
-          : <span className="lbl"><span role="img" aria-label={typeLabel}>{typeLabel}</span>, {when}</span>}
+          : <span className="lbl"><span role="img" aria-label={typeLabel}>{typeLabel}</span>, {when}{edited ? ', editado' : ''}</span>}
       </div>
     </header>
   );
