@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { apiGet, apiPatch, apiPost, apiPut, type Result } from './api';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, type Result } from './api';
 import { getPerson } from './profiles';
 import { authorOfPerson, type FeedAuthor } from './feed-rules';
 import type { BuiltKind, PostBlock } from './post-blocks';
@@ -59,6 +59,8 @@ export interface FeedPost {
   hasReacted: boolean;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou a publicação (#753). Ausente num backend antigo. */
+  edited?: boolean;
   /** Só nas publicações do tipo `simulation`. */
   simulation?: SimulationCard | null;
   /** Só nas publicações construídas (kixi#347); as simples não os trazem. */
@@ -122,6 +124,8 @@ export interface PostComment {
   isAccepted?: boolean;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou o comentário (#753). Ausente num backend antigo. */
+  edited?: boolean;
   /** O backend diz se a linha é do aluno, para o cliente não comparar ids. */
   mine: boolean;
   displayName: string | null;
@@ -146,6 +150,29 @@ export async function addComment(postId: number, content: string) {
 /** O autor da publicação aceita (ou retira) uma resposta; devolve a linha como ficou. */
 export async function acceptComment(postId: number, commentId: number) {
   return apiPatch<PostComment>(`/feed/posts/${postId}/comments/${commentId}/accept`);
+}
+
+/** O autor edita o texto, o título ou os blocos de uma publicação; o tipo não muda (#753). */
+export async function updatePost(
+  postId: number,
+  values: { title?: string; content?: string; blocks?: PostBlock[] },
+) {
+  return apiPut<FeedPost>(`/feed/posts/${postId}`, values);
+}
+
+/** Elimina uma publicação; o servidor decide se quem pede é o autor ou um moderador (#753). */
+export async function deletePost(postId: number) {
+  return apiDelete<void>(`/feed/posts/${postId}`);
+}
+
+/** O autor edita o texto de um comentário (#753). */
+export async function updateComment(postId: number, commentId: number, content: string) {
+  return apiPut<PostComment>(`/feed/posts/${postId}/comments/${commentId}`, { content });
+}
+
+/** Elimina um comentário. Uma resposta aceite recusa-se: retira-se a aceitação primeiro (#753). */
+export async function deleteComment(postId: number, commentId: number) {
+  return apiDelete<void>(`/feed/posts/${postId}/comments/${commentId}`);
 }
 
 export async function reportPost(postId: number, reason: string) {
