@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SIGNUP_URL } from '@/lib/content';
 
 import { Cartridge } from './Cartridge';
-import { Cta } from './CtaLink';
+import { Cta, TrackedLink } from './CtaLink';
 import { GameDemo } from './GameDemo';
 import { Gameboy } from './Gameboy';
 import { Prologue } from './Prologue';
@@ -180,6 +180,9 @@ export function Presentation() {
         <div className="pres__hero" style={{ opacity: reduced ? 1 : hero, transform: reduced ? 'none' : `translateY(${(1 - hero) * -24}px)`, visibility: reduced || hero > 0.01 ? 'visible' : 'hidden' }}>
           <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
           <p className="pres__hero-sub">{HERO_SUB}</p>
+          {/* #762: a doação tem de estar à vista no primeiro ecrã, sobretudo no telemóvel,
+              onde a navegação do cabeçalho está escondida. */}
+          <TrackedLink href="/doar" origem="hero" className="pres__donate">Doar um enunciado</TrackedLink>
           {/* Fora do herói não há salto focável: apagado não entra no Tab. */}
           {hero > 0.5 && <SkipShow />}
         </div>
