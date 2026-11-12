@@ -65,6 +65,7 @@ function Choice({ block }: { block: PostBlock }) {
 
 function Gallery({ images }: { images: PostBlock[] }) {
   const [openAt, setOpenAt] = useState<number | null>(null);
+  const [opener, setOpener] = useState<HTMLElement | null>(null);
   const [failed, setFailed] = useState<Record<number, boolean>>({});
   return (
     <div className={cn('grid gap-2', images.length > 1 && 'sm:grid-cols-2')}>
@@ -85,7 +86,7 @@ function Gallery({ images }: { images: PostBlock[] }) {
                 <button
                   type="button"
                   aria-label="Ampliar imagem"
-                  onClick={() => setOpenAt(i)}
+                  onClick={(event) => { setOpener(event.currentTarget); setOpenAt(i); }}
                   className="group absolute inset-0 block size-full cursor-zoom-in outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -114,6 +115,7 @@ function Gallery({ images }: { images: PostBlock[] }) {
         images={images.map((b) => ({ url: b.url ?? '', alt: imageAlt(b.alt, 'Imagem da publicação'), caption: b.caption }))}
         index={openAt}
         onClose={() => setOpenAt(null)}
+        returnFocusTo={opener}
       />
     </div>
   );
