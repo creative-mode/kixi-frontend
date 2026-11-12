@@ -238,6 +238,8 @@ export type MockPost = {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou a publicação (#753). */
+  edited?: boolean;
   /** Posts construídos (kixi#347): a lista de blocos; ausente nos simples. */
   blocks?: PostBlock[];
   /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend.
