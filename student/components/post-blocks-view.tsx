@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Info, Lightbulb, TriangleAlert, X } from 'lucide-react';
+import { Check, Info, Lightbulb, Maximize2, TriangleAlert, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TONE_LABEL, type CalloutTone, type PostBlock } from '@/lib/post-blocks';
 import { assetUrl } from '@/lib/assets';
+import { imageAlt } from '@/lib/lightbox';
+import { ImageLightbox } from '@/components/image-lightbox';
 
 const TONE: Record<CalloutTone, { box: string; Icon: typeof Info }> = {
   info: { box: 'border-info/30 bg-info-soft', Icon: Info },
@@ -62,19 +64,57 @@ function Choice({ block }: { block: PostBlock }) {
 }
 
 function Gallery({ images }: { images: PostBlock[] }) {
+  const [openAt, setOpenAt] = useState<number | null>(null);
+  const [failed, setFailed] = useState<Record<number, boolean>>({});
   return (
     <div className={cn('grid gap-2', images.length > 1 && 'sm:grid-cols-2')}>
-      {images.map((b, i) => (
-        <figure key={i} className="grid gap-1">
-          {/* A caixa tem a proporção (4:3) antes de a imagem chegar: o feed não salta quando ela carrega (CLS, #524).
-              O backend não guarda as dimensões de cada imagem, por isso a proporção é fixa e a imagem cabe dentro. */}
-          <div className="relative aspect-[4/3] max-h-[420px] w-full overflow-hidden rounded-lg border bg-secondary">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={assetUrl(b.url, 768)} alt={b.alt ?? ''} loading="lazy" decoding="async" className="absolute inset-0 size-full object-contain" />
-          </div>
-          {b.caption && <figcaption className="text-[13px] text-muted-foreground">{b.caption}</figcaption>}
-        </figure>
-      ))}
+      {images.map((b, i) => {
+        // O #524 deixou a descrição opcional: publicações antigas não têm. Mesmo assim o leitor de ecrã
+        // tem de saber que ali está uma imagem, por isso o texto alternativo nunca fica vazio.
+        const alt = imageAlt(b.alt, 'Imagem da publicação');
+        return (
+          <figure key={i} className="grid gap-1">
+            {/* A caixa tem a proporção (4:3) antes de a imagem chegar: o feed não salta quando ela carrega (CLS, #524).
+                O backend não guarda as dimensões de cada imagem, por isso a proporção é fixa e a imagem cabe dentro. */}
+            <div className="relative aspect-[4/3] max-h-[420px] w-full overflow-hidden rounded-lg border bg-secondary">
+              {failed[i] ? (
+                <p className="absolute inset-0 grid place-items-center p-4 text-center text-sm text-muted-foreground">
+                  Não foi possível carregar a imagem.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Ampliar imagem"
+                  onClick={() => setOpenAt(i)}
+                  className="group absolute inset-0 block size-full cursor-zoom-in outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={assetUrl(b.url, 768)}
+                    alt={alt}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setFailed((current) => ({ ...current, [i]: true }))}
+                    className="absolute inset-0 size-full object-contain"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-2 bottom-2 grid size-8 place-items-center rounded-full bg-black/55 text-white transition-colors group-hover:bg-black/75 group-focus-visible:bg-black/75"
+                  >
+                    <Maximize2 className="size-4" />
+                  </span>
+                </button>
+              )}
+            </div>
+            {b.caption && <figcaption className="text-[13px] text-muted-foreground">{b.caption}</figcaption>}
+          </figure>
+        );
+      })}
+      <ImageLightbox
+        images={images.map((b) => ({ url: b.url ?? '', alt: imageAlt(b.alt, 'Imagem da publicação'), caption: b.caption }))}
+        index={openAt}
+        onClose={() => setOpenAt(null)}
+      />
     </div>
   );
 }
