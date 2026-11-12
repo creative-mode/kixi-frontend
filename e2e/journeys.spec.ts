@@ -389,6 +389,73 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('article').filter({ hasText: id }).first()).toBeVisible();
   });
 
+  test('aluno edita e elimina as suas publicações e comentários, com confirmação e sem recarregar (#753)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    const id = randomUUID().slice(0, 6);
+
+    // Uma publicação nova, do próprio aluno: o cartão tem «...» e não tem «Denunciar».
+    await page.goto('/aluno/publicar');
+    await page.getByLabel('Texto 1', { exact: true }).fill(`Publicação a editar ${id}`);
+    await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    const meu = page.getByRole('article').filter({ hasText: id }).first();
+    await expect(meu).toBeVisible();
+    await expect(meu.getByRole('button', { name: 'Denunciar publicação' })).toHaveCount(0);
+
+    // Editar reabre o compositor com o conteúdo e não cria outra publicação.
+    await meu.getByRole('button', { name: 'Acções da publicação' }).click();
+    await meu.getByRole('menuitem', { name: 'Editar' }).click();
+    await expect(page).toHaveURL(new RegExp(`/aluno/publicar\\?editar=\\d+`));
+    const texto = page.getByLabel('Texto 1', { exact: true });
+    await expect(texto).toHaveValue(new RegExp(id));
+    await expect(page.getByRole('button', { name: 'Tipo de publicação' })).toHaveCount(0);
+    await texto.fill(`Publicação editada ${id}`);
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    const editada = page.getByRole('article').filter({ hasText: `Publicação editada ${id}` }).first();
+    await expect(editada).toBeVisible();
+    await expect(editada.getByText(/editado/)).toBeVisible();
+    await expect(page.getByRole('article').filter({ hasText: `Publicação a editar ${id}` })).toHaveCount(0);
+
+    // Eliminar pede confirmação, avisa e tira o cartão do feed.
+    await editada.getByRole('button', { name: 'Acções da publicação' }).click();
+    await editada.getByRole('menuitem', { name: 'Eliminar' }).click();
+    const confirmarPost = page.getByRole('alertdialog', { name: 'Eliminar publicação?' });
+    await expect(confirmarPost).toBeVisible();
+    await confirmarPost.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(confirmarPost).toHaveCount(0);
+    await editada.getByRole('button', { name: 'Acções da publicação' }).click();
+    await editada.getByRole('menuitem', { name: 'Eliminar' }).click();
+    await page.getByRole('alertdialog', { name: 'Eliminar publicação?' }).getByRole('button', { name: 'Eliminar' }).click();
+    await expect(page.getByText('Publicação eliminada.')).toBeVisible();
+    await expect(page.getByRole('article').filter({ hasText: `Publicação editada ${id}` })).toHaveCount(0);
+
+    // A conversa de outra publicação: comentar, editar o comentário e eliminá-lo, cada um com o seu menu.
+    const alheio = page.getByRole('article').filter({ hasText: 'Resumo rápido: o /28' }).first();
+    await alheio.getByRole('button', { name: /^Comentar/ }).click();
+    await alheio.getByLabel('Escrever um comentário').fill(`Comentário a editar ${id}`);
+    await alheio.getByRole('button', { name: 'Enviar comentário' }).click();
+    const linha = alheio.getByRole('listitem').filter({ hasText: id }).first();
+    await expect(linha).toBeVisible();
+    await linha.getByRole('button', { name: 'Acções do comentário' }).click();
+    await linha.getByRole('menuitem', { name: 'Editar' }).click();
+    await alheio.getByLabel('Editar comentário').fill(`Comentário editado ${id}`);
+    await alheio.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(alheio.getByText(`Comentário editado ${id}`)).toBeVisible();
+    await expect(page.getByText('Comentário editado.')).toBeVisible();
+    const comentario = alheio.getByRole('listitem').filter({ hasText: `Comentário editado ${id}` }).first();
+    await comentario.getByRole('button', { name: 'Acções do comentário' }).click();
+    await comentario.getByRole('menuitem', { name: 'Eliminar' }).click();
+    await page.getByRole('alertdialog', { name: 'Eliminar comentário?' }).getByRole('button', { name: 'Eliminar' }).click();
+    await expect(page.getByText('Comentário eliminado.')).toBeVisible();
+    await expect(alheio.getByText(`Comentário editado ${id}`)).toHaveCount(0);
+  });
+
   test('imagens do feed: aviso ao publicar sem descrição e espaço reservado antes de a imagem chegar (#524)', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -763,7 +830,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
       });
       if (!response.ok) throw new Error(`Não foi possível configurar a falha: ${response.status}`);
     }, mode);
-    const post = page.getByRole('article').filter({ hasText: 'subnetting' }).first();
+    const post = page.getByRole('article').filter({ hasText: 'Resumo rápido: o /28' }).first();
     await falha('500');
     await post.getByRole('button', { name: 'Denunciar publicação' }).click();
 

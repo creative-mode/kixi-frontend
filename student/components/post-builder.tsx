@@ -9,15 +9,16 @@ import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { UserAvatar } from '@/components/user-avatar';
-import { enviarImagemPostAction, publishBuiltPostAction, publishPostAction } from '@/lib/feed-actions';
+import { enviarImagemPostAction, publishBuiltPostAction, publishPostAction, updatePostAction } from '@/lib/feed-actions';
 import { PostPreview } from '@/components/post-parts';
 import { assetUrl } from '@/lib/assets';
 import { useMe } from '@/lib/me-context';
+import { useToast } from '@/components/ui/toast';
 import { fullName, photoUrl } from '@/lib/profile';
 import { canPublish } from '@/lib/feed-rules';
 import {
-  BLOCK_LABEL, LIMITS, TEMPLATES, TONE_LABEL, emptyBlock, imagesWithoutAlt, moved, payloadOf, problemOf, templateBlocks,
-  type BlockDraft, type BlockType, type BuiltKind, type CalloutTone, type Template,
+  BLOCK_LABEL, LIMITS, TEMPLATES, TONE_LABEL, draftsFromBlocks, emptyBlock, imagesWithoutAlt, moved, payloadOf, problemOf, templateBlocks,
+  type BlockDraft, type BlockType, type BuiltKind, type CalloutTone, type PostBlock, type Template,
 } from '@/lib/post-blocks';
 import { cn } from '@/lib/utils';
 
@@ -152,19 +153,35 @@ function BlockFields({ block, label, placeholder, onChange }: { block: BlockDraf
   }
 }
 
+/** Uma publicação que já existe, reaberta no construtor para ser editada (#753). */
+export type EditingPost = {
+  id: number;
+  kind: BuiltKind;
+  title: string | null;
+  blocks: PostBlock[] | null;
+  content: string;
+};
+
 /**
  * O construtor de publicações (#388), no desenho dos compositores que já conhecemos (X, LinkedIn): escreve-se logo, num só
  * campo; o tipo de publicação é uma escolha discreta; o que se acrescenta (imagem, fórmula, lista, destaque, desafio) está
  * numa barra de ferramentas em baixo; a pré-visualização é um botão, não um bloco permanente.
+ *
+ * Com `editing`, o mesmo construtor reabre a publicação com o conteúdo dela (#753): o tipo fica
+ * fixo (não se transforma uma pergunta num desafio) e o botão passa a «Guardar».
  */
-export function PostBuilder({ classId }: { classId: number }) {
+export function PostBuilder({ classId, editing }: { classId: number; editing?: EditingPost }) {
   const router = useRouter();
+  const toast = useToast();
   const me = useMe();
-  const [template, setTemplate] = useState<Template>(TEMPLATES[0]);
+  const firstTemplate = editing ? TEMPLATES.find((t) => t.kind === editing.kind) ?? TEMPLATES[0] : TEMPLATES[0];
+  const [template, setTemplate] = useState<Template>(firstTemplate);
   const [typeOpen, setTypeOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [showTitle, setShowTitle] = useState(false);
-  const [blocks, setBlocks] = useState<BlockDraft[]>(() => templateBlocks(TEMPLATES[0]));
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [showTitle, setShowTitle] = useState(Boolean(editing?.title));
+  const [blocks, setBlocks] = useState<BlockDraft[]>(() => (editing
+    ? draftsFromBlocks(editing.blocks, editing.content)
+    : templateBlocks(TEMPLATES[0])));
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -214,11 +231,15 @@ export function PostBuilder({ classId }: { classId: number }) {
     setError(null);
     setAltWarning(false);
     startTransition(async () => {
-      const result = plainText !== null
-        ? await publishPostAction(classId, kind as 'doubt' | 'topic', plainText.trim())
-        : await publishBuiltPostAction(classId, kind, title, blocks);
-      if (result.ok) router.push('/inicio');
-      else setError(result.message);
+      const result = editing
+        ? await updatePostAction(editing.id, kind, title, blocks)
+        : plainText !== null
+          ? await publishPostAction(classId, kind as 'doubt' | 'topic', plainText.trim())
+          : await publishBuiltPostAction(classId, kind, title, blocks);
+      if (result.ok) {
+        if (editing) toast('Publicação editada.');
+        router.push('/inicio');
+      } else setError(result.message);
     });
   };
 
@@ -270,7 +291,7 @@ export function PostBuilder({ classId }: { classId: number }) {
           <button type="button" aria-pressed={preview} disabled={filled.length === 0} onClick={() => setPreview((v) => !v)} className={cn('flex h-[42px] items-center gap-1.5 rounded-full border px-4 text-sm font-bold disabled:opacity-40', preview ? 'border-[#1f5a2c] bg-[#f1f6ee] text-[#1f5a2c]' : 'border-[#dde3da] bg-white text-[#3d4a41]')}>
             <Eye className="size-4" aria-hidden />Pré-visualizar
           </button>
-          <button type="submit" disabled={pending || !!problem} className="h-[42px] rounded-full bg-[#1f5a2c] px-5 text-sm font-bold text-white disabled:opacity-50">{pending ? 'A publicar…' : 'Publicar'}</button>
+          <button type="submit" disabled={pending || !!problem} className="h-[42px] rounded-full bg-[#1f5a2c] px-5 text-sm font-bold text-white disabled:opacity-50">{pending ? (editing ? 'A guardar…' : 'A publicar…') : (editing ? 'Guardar' : 'Publicar')}</button>
         </div>
       </header>
 
@@ -291,11 +312,17 @@ export function PostBuilder({ classId }: { classId: number }) {
         <div className="min-w-0 flex-1">
           <div className="relative flex flex-wrap items-center gap-2">
             <strong className="mr-1 text-[15px]">{name}</strong>
-            <button ref={typeButton} type="button" aria-haspopup="true" aria-expanded={typeOpen} aria-label={`Tipo de publicação: ${template.label}`} onClick={() => setTypeOpen((v) => !v)} className="flex h-8 items-center gap-1.5 rounded-full border border-[#cdd6c9] bg-[#f1f6ee] pr-2.5 pl-3 text-[13px] font-bold text-[#1f5a2c]">
-              <TypeIcon className="size-3.5" aria-hidden />{template.label}<ChevronDown className="size-3.5" aria-hidden />
-            </button>
+            {editing ? (
+              <span className="flex h-8 items-center gap-1.5 rounded-full border border-[#cdd6c9] bg-[#f1f6ee] px-3 text-[13px] font-bold text-[#1f5a2c]">
+                <TypeIcon className="size-3.5" aria-hidden />{template.label}
+              </span>
+            ) : (
+              <button ref={typeButton} type="button" aria-haspopup="true" aria-expanded={typeOpen} aria-label={`Tipo de publicação: ${template.label}`} onClick={() => setTypeOpen((v) => !v)} className="flex h-8 items-center gap-1.5 rounded-full border border-[#cdd6c9] bg-[#f1f6ee] pr-2.5 pl-3 text-[13px] font-bold text-[#1f5a2c]">
+                <TypeIcon className="size-3.5" aria-hidden />{template.label}<ChevronDown className="size-3.5" aria-hidden />
+              </button>
+            )}
             <span className="flex h-8 items-center gap-1.5 rounded-full border border-[#e4e7e1] px-3 text-[13px] font-semibold text-[#617066]"><Users className="size-3.5" aria-hidden />Para a turma</span>
-            {typeOpen && (
+            {!editing && typeOpen && (
               <fieldset ref={typeMenu} className="absolute top-10 left-0 z-40 m-0 grid w-[min(340px,100%)] gap-0.5 rounded-2xl border border-[#e4e7e1] bg-white p-2 shadow-[0_12px_32px_rgba(18,28,21,0.14)]" onKeyDown={(e) => { if (e.key === 'Escape') { setTypeOpen(false); typeButton.current?.focus(); } }}>
                 <legend className="sr-only">Que publicação queres criar?</legend>
                 {TEMPLATES.map((t) => {

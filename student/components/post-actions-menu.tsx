@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 export type ActionOutcome = { ok: true } | { ok: false; message: string };
 
 /**
- * O menu «⋯» de uma publicação ou de um comentário (#753): Editar e Eliminar, com a
+ * O menu «...» de uma publicação ou de um comentário (#753): Editar e Eliminar, com a
  * confirmação de eliminação no próprio sítio. Só é montado para o autor — quem decide
  * isso é o cartão, que compara `authorAccountId` com a conta da sessão.
  */
@@ -38,11 +38,12 @@ export function PostActionsMenu({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const of = what === 'publicação' ? 'da publicação' : 'do comentário';
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
 
-  // Um clique fora fecha o menu; Escape fecha e devolve o foco ao «⋯».
+  // Um clique fora fecha o menu; Escape fecha e devolve o foco ao «...».
   useEffect(() => {
     if (!open) return;
     const away = (event: MouseEvent) => {
@@ -117,7 +118,7 @@ export function PostActionsMenu({
         ref={trigger}
         type="button"
         className="acao ml-auto"
-        aria-label={`Acções da ${what}`}
+        aria-label={`Acções ${of}`}
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={disabled}
@@ -126,7 +127,7 @@ export function PostActionsMenu({
         <MoreHorizontal size={17} aria-hidden />
       </button>
       {open && (
-        <div role="menu" aria-label={`Acções da ${what}`} className="absolute right-0 top-full z-30 mt-1 grid min-w-[168px] gap-0.5 rounded-xl border border-[#e4e7e1] bg-white p-1.5 shadow-[0_12px_32px_rgba(18,28,21,0.14)]">
+        <div role="menu" aria-label={`Acções ${of}`} className="absolute right-0 bottom-full z-30 mb-1 grid min-w-[168px] gap-0.5 rounded-xl border border-[#e4e7e1] bg-white p-1.5 shadow-[0_12px_32px_rgba(18,28,21,0.14)]">
           {canEdit && (
             <button type="button" role="menuitem" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold hover:bg-[#f5f6f4]" onClick={edit}>
               <Pencil size={15} aria-hidden />Editar
