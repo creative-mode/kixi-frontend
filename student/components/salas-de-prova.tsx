@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Clock, DoorOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { VerResultado } from '@/components/ver-resultado';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { entrarSalaAction } from '@/lib/exam-room-actions';
@@ -149,9 +150,7 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
       {state?.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
       {action.kind === 'result' ? (
-        <Button asChild variant="outline" className="justify-self-start">
-          <Link href={`/resultado?prova=${action.simulationId}`}>Ver resultado</Link>
-        </Button>
+        <VerResultado simulationId={action.simulationId} className="justify-self-start" />
       ) : action.kind === 'continue' ? (
         <Button asChild className="justify-self-start">
           <Link href={`/sala/${action.roomId}`}>Continuar a prova</Link>
