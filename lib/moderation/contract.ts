@@ -7,6 +7,15 @@ import type { Decision, ReportStatus } from './model.ts';
 /** O máximo que o backend devolve por pedido; sem `limit` devolvia só 100. */
 export const LISTA_LIMITE = 500;
 
+/** O backend corta em {@link LISTA_LIMITE}: uma lista desse tamanho pode estar incompleta. */
+export function listaTruncada(total: number): boolean {
+  return total >= LISTA_LIMITE;
+}
+
+/** O aviso que o ecrã mostra quando a lista pode estar cortada, e que diz o que fazer. */
+export const AVISO_LISTA_TRUNCADA =
+  `Mostram-se só os ${LISTA_LIMITE} registos mais recentes; pode haver mais antigos que ainda não se veem aqui.`;
+
 export const REPORTS_PATH = '/api/v1/moderation/reports';
 export const AUDIT_PATH = '/api/v1/moderation/audit';
 

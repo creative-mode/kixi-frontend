@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activeHref, buildCrumbs, groupLinks, NAV_GROUPS } from './nav-rules.ts';
+import { activeHref, buildCrumbs, groupLinks, NAV_GROUPS, visibleLinks } from './nav-rules.ts';
 
 const link = (href: string) => ({ href });
 
@@ -65,4 +65,10 @@ test('os breadcrumbs vão do início à página atual, que não é ligação', (
 
 test('na lista de um módulo os breadcrumbs são só Início e a página atual', () => {
   assert.deepEqual(buildCrumbs(null, 'Cursos'), [{ label: 'Início', href: '/' }, { label: 'Cursos' }]);
+});
+
+test('sem a moderação no servidor, Moderação e Auditoria não aparecem a ninguém (#749)', () => {
+  const links = ['/', '/moderacao', '/moderacao/auditoria', '/manager/verification'].map(link);
+  assert.deepEqual(visibleLinks(links, { moderation: false }).map((l) => l.href), ['/', '/manager/verification']);
+  assert.deepEqual(visibleLinks(links, { moderation: true }).map((l) => l.href), links.map((l) => l.href));
 });

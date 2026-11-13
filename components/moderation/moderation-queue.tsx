@@ -24,6 +24,7 @@ import { focusQueueItem } from '@/hooks/use-queue-shortcuts';
 import { useQueryChoice, useQueryPage } from '@/hooks/use-query-state';
 import { paginate } from '@/lib/queue-state';
 import { decideReport, listReports } from '@/app/actions/moderation';
+import { AVISO_LISTA_TRUNCADA, listaTruncada } from '@/lib/moderation/contract';
 import {
   DECISION_LABEL,
   DECISION_NOTE,
@@ -169,6 +170,8 @@ export function ModerationQueue() {
           </Link>
         </Button>
       </header>
+
+      {listaTruncada(reports.length) && <p className="text-sm text-muted-foreground" role="status">{AVISO_LISTA_TRUNCADA}</p>}
 
       <FilterTabs
         group="moderacao"

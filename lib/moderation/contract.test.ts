@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   AUDIT_KEYS,
   LISTA_LIMITE,
+  listaTruncada,
   REPORT_KEYS,
   auditPath,
   decisionPath,
@@ -53,4 +54,10 @@ test('o que o ecrã deixa decidir é exactamente o que o backend aceita', () => 
   const aceites = DECISIONS.flatMap((d) => (['ACCOUNT', 'INSTITUTION'] as const).filter((t) => decisionValida(t, d)).map((t) => `${t}:${d}`));
   assert.deepEqual(aceites.sort(), ['ACCOUNT:IGNORED', 'ACCOUNT:SUSPENDED', 'INSTITUTION:HIDDEN', 'INSTITUTION:IGNORED']);
   for (const d of DECISIONS) assert.notEqual(notaDecisaoError(d, ''), null);
+});
+
+test('uma lista do tamanho do limite pode estar cortada; uma menor, não', () => {
+  assert.ok(!listaTruncada(0));
+  assert.ok(!listaTruncada(LISTA_LIMITE - 1));
+  assert.ok(listaTruncada(LISTA_LIMITE));
 });

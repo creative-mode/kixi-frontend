@@ -6,6 +6,7 @@ import { ScrollText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { listAudit } from '@/app/actions/moderation';
+import { AVISO_LISTA_TRUNCADA, listaTruncada } from '@/lib/moderation/contract';
 import { DECISION_LABEL, TARGET_LABEL, type AuditEntry } from '@/lib/moderation/model';
 import { formatLuandaDateTime } from '@/lib/format';
 
@@ -41,6 +42,8 @@ export function AuditLog() {
           Quem decidiu o quê, quando e porquê. Só de leitura.
         </p>
       </header>
+
+      {listaTruncada(entradas.length) && <p className="text-sm text-muted-foreground" role="status">{AVISO_LISTA_TRUNCADA}</p>}
 
       {entradas.length === 0 ? (
         <p className="text-sm text-muted-foreground">Ainda não há decisões registadas.</p>
