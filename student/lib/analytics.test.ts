@@ -161,7 +161,11 @@ test('comportamento consistente nas três aplicações', () => {
 test('cta_clique leva só a origem do CTA da landing (#512), como o CtaLink envia', () => {
   assert.deepEqual(sanitizeEvent('cta_clique', { origem: 'outro' }), { event: 'cta_clique', params: { origem: 'outro' } });
   assert.deepEqual(sanitizeEvent('cta_clique', { origem: 'faq', email: 'ana@example.ao' }), { event: 'cta_clique', params: { origem: 'faq' } });
-  assert.equal(sanitizeEvent('cta_clique', { origem: 'hero' }), null);
+  // #762: as entradas novas de «Doar um enunciado» contam cada uma a sua origem.
+  for (const origem of ['header', 'hero', 'provas', 'provas-empty', 'student-menu']) {
+    assert.deepEqual(sanitizeEvent('cta_clique', { origem, destino: 'doar' }), { event: 'cta_clique', params: { origem } });
+  }
+  assert.equal(sanitizeEvent('cta_clique', { origem: 'footer' }), null);
   assert.equal(sanitizeEvent('cta_click', { surface: 'hero', destination: 'signup' }), null);
 });
 

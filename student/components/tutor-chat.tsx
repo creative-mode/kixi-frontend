@@ -465,17 +465,17 @@ export function TutorChat({
                 </Button>
               </div>
             )}
-            {/* Grelha e não `flex`: a coluna `minmax(0, 1fr)` deixa o campo encolher,
-                enquanto um `textarea` a 100% numa linha flex guardava a largura mínima
-                e empurrava o «Enviar» para fora do ecrã. */}
+            {/* O botão vive dentro do campo, no canto de baixo à direita (#761): ao lado,
+                um botão de 36 px alinhado ao fundo de uma caixa de 2 a 4 linhas ficava
+                desencontrado. `pr-14` reserva-lhe o espaço para o texto não passar por baixo. */}
             <form
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2.5"
+              className="relative"
               onSubmit={(e) => { e.preventDefault(); void ask(draft); }}
             >
               <Textarea
-                // `min-w-0`: sem ele a caixa guarda a largura intrínseca do
-                // `textarea` e empurra o «Enviar» para fora do ecrã no telemóvel.
-                className="min-w-0"
+                // `text-base` em todos os tamanhos: abaixo dos 16 px o iOS amplia a
+                // página ao focar o campo (#495).
+                className="min-w-0 pr-14 text-base md:text-base"
                 value={draft}
                 rows={draft.length > 120 ? 4 : 2}
                 onChange={(e) => setDraft(e.target.value)}
@@ -493,14 +493,16 @@ export function TutorChat({
                 aria-invalid={limit}
               />
               {busy ? (
-                <Button type="button" variant="outline" onClick={stop}><Square aria-hidden />Parar</Button>
+                <Button type="button" variant="outline" size="icon" className="absolute right-1.5 bottom-1.5" onClick={stop} aria-label="Parar">
+                  <Square aria-hidden />
+                </Button>
               ) : (
-                <Button type="submit" disabled={!draft.trim() || limit}>
-                  <Send aria-hidden />Enviar
+                <Button type="submit" size="icon" className="absolute right-1.5 bottom-1.5" disabled={!draft.trim() || limit} aria-label="Enviar">
+                  <Send aria-hidden />
                 </Button>
               )}
             </form>
-            <p className="text-xs text-muted-foreground md:hidden">Enter muda de linha. Usa «Enviar» para mandar a pergunta.</p>
+            <p className="text-xs text-muted-foreground md:hidden">Enter muda de linha. Usa o botão de enviar para mandar a pergunta.</p>
             {limit && <p role="alert" className="text-[13px] text-destructive">A mensagem passa os {MAX_MESSAGE} caracteres.</p>}
             {busy && <p className="sr-only" role="status"><Loader2 aria-hidden />O tutor está a responder</p>}
           </div>

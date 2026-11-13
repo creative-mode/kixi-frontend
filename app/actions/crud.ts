@@ -115,10 +115,13 @@ export async function updateRow(key: string, id: string | number, values: Row): 
   });
 }
 
-async function simple(key: string, id: string | number, method: string, suffix: string, fallback: string): Promise<Result> {
+async function simple(key: string, id: string | number, method: string, suffix: string, fallback: string, reason?: string): Promise<Result> {
   return guard(async () => {
     const e = entity(key);
-    const res = await call(`${e.api}/${safeId(id)}${suffix}`, { method });
+    // O motivo das ações auditadas (kixi#596) vai no pedido; o backend recusa a ação sem ele.
+    if (e.audited && !(reason ?? '').trim()) return fail('Indique o motivo.');
+    const query = e.audited ? `?reason=${encodeURIComponent((reason ?? '').trim())}` : '';
+    const res = await call(`${e.api}/${safeId(id)}${suffix}${query}`, { method });
     if (!res.ok) return fail((await message(res)) || fallback);
     revalidatePath(`/${e.path}`);
     revalidatePath(`/${e.path}/trash`);
@@ -126,13 +129,13 @@ async function simple(key: string, id: string | number, method: string, suffix: 
   });
 }
 
-export async function deleteRow(key: string, id: string | number) {
-  return simple(key, id, 'DELETE', '', 'Não foi possível mover para a lixeira.');
+export async function deleteRow(key: string, id: string | number, reason?: string) {
+  return simple(key, id, 'DELETE', '', 'Não foi possível mover para a lixeira.', reason);
 }
-export async function restoreRow(key: string, id: string | number) {
+export async function restoreRow(key: string, id: string | number, reason?: string) {
   const e = entity(key);
   if (!e.restore) return fail('Esta entidade não pode ser restaurada.');
-  return simple(key, id, e.restore.method, e.restore.suffix, 'Não foi possível restaurar.');
+  return simple(key, id, e.restore.method, e.restore.suffix, 'Não foi possível restaurar.', reason);
 }
 export async function purgeRow(key: string, id: string | number) {
   const e = entity(key);

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Badge } from '@/components/ui/badge';
+import { ACTION_LABEL, VER_RESULTADO } from '@/components/ver-resultado';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,9 @@ import { listInvitations } from '@/lib/exam-room';
 import { invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 import { Calendario } from '@/components/calendario';
+import { DonateLink } from '@/components/donate-link';
+import { Ico } from '@/components/ui/ico';
+import { appOrigin } from '@/lib/origin';
 
 export const metadata = { title: 'Provas · Kixi' };
 
@@ -36,6 +40,25 @@ function num(raw: string | string[] | undefined): number | null {
   if (!value) return null;
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/** Cartão de doação (#762): a página que lista enunciados é o sítio natural para
+ *  lembrar que também se pode dar um. O link sai para a landing, noutra app. */
+function DonateCard({ href }: { href: string }) {
+  return (
+    <Card className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary text-primary">
+        <Ico name="file" size={22} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-bold text-foreground">Tens um enunciado antigo?</p>
+        <p className="text-sm text-muted-foreground">Doa-o ao Kixi e ajuda outros alunos a estudar.</p>
+      </div>
+      <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-auto">
+        <DonateLink href={href} origem="provas">Doar um enunciado</DonateLink>
+      </Button>
+    </Card>
+  );
 }
 
 function State({ item }: { item: CatalogItem }) {
@@ -68,7 +91,7 @@ function State({ item }: { item: CatalogItem }) {
  * thing telling the student what a click will do.
  */
 function actionOf(state: ExamState): string {
-  return state === 'progress' ? 'Retomar' : state === 'done' ? 'Ver resultado' : 'Ver a prova';
+  return state === 'progress' ? 'Retomar' : state === 'done' ? VER_RESULTADO : 'Ver a prova';
 }
 
 
@@ -186,6 +209,10 @@ export default async function Provas({ searchParams }: { searchParams: Params })
   const invitations = invResult.ok ? invResult.data : [];
   const invitationsError = invitationsErrorOf(invResult);
   const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas" convites={invitations.length} />;
+  // #762: a landing é outra app; `appOrigin()` é a raiz do gateway (o mesmo padrão
+  // do CookieBanner e do menu da conta). Sem origem configurada cai em `/doar`,
+  // que é o que o `npm run dev` atrás do gateway serve.
+  const donateHref = `${appOrigin() ?? ''}/doar`;
 
   if (aba === 'salas') {
     return (
@@ -194,7 +221,11 @@ export default async function Provas({ searchParams }: { searchParams: Params })
           <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
           {abas}
           {invitations.length === 0 && !invitationsError ? (
-            <EmptyState title="Ainda não tens salas de prova" message="Quando um professor te convidar para uma prova controlada, a sala aparece aqui." />
+            <EmptyState
+              title="Ainda não tens salas de prova"
+              message="Quando um professor te convidar para uma prova controlada, a sala aparece aqui."
+              action={<Button asChild variant="outline" size="sm"><DonateLink href={donateHref} origem="provas-empty">Doar um enunciado</DonateLink></Button>}
+            />
           ) : (
             <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
           )}
@@ -240,6 +271,8 @@ export default async function Provas({ searchParams }: { searchParams: Params })
 
         {abas}
 
+        <DonateCard href={donateHref} />
+
         <Calendario invitations={invitations} className="xl:hidden" />
 
         <Filters
@@ -260,17 +293,18 @@ export default async function Provas({ searchParams }: { searchParams: Params })
             // The card opens the detail (#19), not the room: the three modes live
             // there, and going straight to the room would make them unreachable from
             // the list — which is exactly what the acceptance criterion asks for.
-            <Link key={item.id} prefetch={false} href={`/prova/${item.id}/detalhe`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
+            <Link key={item.id} prefetch={false} href={`/prova/${item.id}/detalhe`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_136px]">
               <span className="sr-only">{actionOf(item.state)}: </span>
               <div className="min-w-0"><div className="leading-snug font-bold">{item.kind} · {item.title}</div><div className="mt-0.5 text-[13px] text-muted-foreground">{[item.school, item.year, item.subject].filter(Boolean).join(' · ')}</div></div>
               <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><State item={item} /></div>
-              <span className="px-btn inline-flex h-10 items-center justify-center px-4 text-sm font-semibold [--face:var(--card)] [--edge:var(--input)] [--txt:var(--foreground)]">{actionOf(item.state)}</span>
+              <span className={`${ACTION_LABEL} px-btn inline-flex h-10 items-center justify-center px-4 text-sm font-semibold [--face:var(--card)] [--edge:var(--input)] [--txt:var(--foreground)]`}>{actionOf(item.state)}</span>
             </Link>
           ))}
           {result.items.length === 0 && (
             <EmptyState
               title="Nenhum enunciado encontrado"
               message="Muda os filtros ou carrega o enunciado que procuras."
+              action={<Button asChild variant="outline" size="sm"><DonateLink href={donateHref} origem="provas-empty">Doar um enunciado</DonateLink></Button>}
             />
           )}
         </Card>

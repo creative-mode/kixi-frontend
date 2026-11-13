@@ -319,6 +319,56 @@ test.describe('menu da conta por cima do conteúdo (#752)', () => {
   });
 });
 
+/** Passe visual do aluno (#761): títulos com espaço, rótulos de acção numa linha e o botão do tutor dentro do campo. */
+test.describe('passe visual do aluno (#761)', () => {
+  /** Rótulos de acção que partiram em duas linhas: devolve os que ocupam mais do que uma. */
+  async function partidos(page: Page) {
+    return page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('main a, main button, main span.px-btn')]
+        .filter((e) => /^(Ver resultado|Continuar|Retomar|Ver a prova|Começar)$/.test((e.textContent ?? '').trim()))
+        .filter((e) => e.getBoundingClientRect().width > 0)
+        .filter((e) => {
+          const range = document.createRange();
+          range.selectNodeContents(e);
+          const linhas = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+          return linhas.size > 1;
+        })
+        .map((e) => `${(e.textContent ?? '').trim()} (${Math.round(e.getBoundingClientRect().width)} px)`),
+    );
+  }
+
+  for (const width of [360, 390, 1366]) {
+    test(`a ${width} px: sem títulos colados, sem rótulos partidos e o enviar dentro do campo`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 860 });
+      await alunoLogin(page);
+
+      await page.goto('/aluno/provas?aba=enunciados');
+      await expect(page.getByRole('link', { name: /Ver a prova|Retomar|Ver resultado/ }).first()).toBeVisible();
+      expect(await partidos(page), 'rótulos partidos em Provas').toEqual([]);
+
+      await page.goto('/aluno/prova/1/detalhe');
+      const titulo = page.getByRole('heading', { name: 'As tuas tentativas' });
+      await expect(titulo).toBeVisible();
+      const folga = await titulo.evaluate((h) => h.getBoundingClientRect().top - h.closest('[data-slot="card"]')!.getBoundingClientRect().top);
+      expect(folga, 'espaço entre o topo do cartão e o título').toBeGreaterThanOrEqual(16);
+      expect(await partidos(page), 'rótulos partidos no detalhe').toEqual([]);
+
+      await page.goto('/aluno/tutor?statementId=1');
+      const campo = page.getByLabel('Mensagem para o tutor');
+      await campo.fill('Uma dúvida');
+      const enviar = page.getByRole('button', { name: 'Enviar', exact: true });
+      const [c, b] = await Promise.all([campo.boundingBox(), enviar.boundingBox()]);
+      expect(c && b, 'campo e botão visíveis').toBeTruthy();
+      expect(b!.x).toBeGreaterThanOrEqual(c!.x);
+      expect(b!.x + b!.width).toBeLessThanOrEqual(c!.x + c!.width);
+      expect(b!.y).toBeGreaterThanOrEqual(c!.y);
+      expect(b!.y + b!.height).toBeLessThanOrEqual(c!.y + c!.height);
+      expect(b!.height, 'alvo de toque').toBeGreaterThanOrEqual(40);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), 'scroll horizontal').toBe(false);
+    });
+  }
+});
+
 /** Backend a falhar (#350): o aluno fica na aplicação com uma mensagem e uma saída, nunca no login nem em branco. */
 test.describe('backend a falhar', () => {
   for (const modo of ['500', 'timeout'] as const) {
