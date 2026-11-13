@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { EmptyState } from '@/components/states';
 import { StatementCommunity } from '@/components/statement-community';
+import { ACTION_LABEL, VerResultado } from '@/components/ver-resultado';
 import type { AttemptRow, StatementSummaryView } from '@/lib/statement-detail';
 import type { CommunityStats, SharedSolution } from '@/lib/community';
 import type { Named } from '@/lib/catalog';
@@ -47,7 +48,7 @@ export function StatementDetailView({
         />
 
         <Card>
-          <CardHeader><h2 className="leading-none font-bold tracking-tight text-base">Como é esta prova</h2></CardHeader>
+          <CardHeader><h2 className="text-[17px] leading-none font-bold tracking-tight">Como é esta prova</h2></CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <Fact icon={FileText} label="Tipo" value={summary.kind} />
             <Fact icon={Target} label="Cotação" value={summary.totalMaxScore != null ? `${summary.totalMaxScore} valores` : undefined} />
@@ -77,11 +78,13 @@ export function StatementDetailView({
               </div>
               {/* Uma tentativa corrigida não abre a sala outra vez (a sala manda-a para o
                   resultado), por isso o botão diz o que de facto faz. */}
-              <Button asChild className="w-full">
-                {current?.label === 'corrected'
-                  ? <Link href={`/resultado?prova=${current.id}`}>Ver resultado</Link>
-                  : <Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar' : 'Começar'}</Link>}
-              </Button>
+              {current?.label === 'corrected' ? (
+                <VerResultado simulationId={current.id} variant="default" className="w-full" />
+              ) : (
+                <Button asChild className={`${ACTION_LABEL} w-full`}>
+                  <Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar' : 'Começar'}</Link>
+                </Button>
+              )}
             </Card>
 
             <Card className="gap-3 p-4">
@@ -100,11 +103,18 @@ export function StatementDetailView({
 
         {community && current && <StatementCommunity statementId={id} simulationId={current.id} stats={community.stats} solutions={community.solutions} schools={community.schools} locked={community.locked} />}
 
+        {/* `py-0` no cartão para a lista encostar ao fundo; o cabeçalho é que traz o
+            espaço de cima (#761), senão o título ficava colado à borda. */}
         <Card className="gap-0 py-0">
-          <CardHeader className="flex flex-row items-center gap-2.5 pb-3">
+          <CardHeader className="flex flex-row items-center gap-2.5 px-5 pt-5 pb-3">
             <History className="size-4 text-muted-foreground" aria-hidden />
-            <h2 className="leading-none font-bold tracking-tight text-base">As tuas tentativas</h2>
-            {list.length > 0 && <span className="ml-auto text-sm text-muted-foreground">{list.length}</span>}
+            <h2 className="text-[17px] leading-none font-bold tracking-tight">As tuas tentativas</h2>
+            {list.length > 0 && (
+              <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+                <span aria-hidden>{list.length}</span>
+                <span className="sr-only">{list.length === 1 ? '1 tentativa' : `${list.length} tentativas`}</span>
+              </span>
+            )}
           </CardHeader>
           <CardContent className="p-0">
             {list.length === 0 ? (
@@ -143,10 +153,10 @@ export function StatementDetailView({
                     {/* Uma tentativa cancelada não tem nada para continuar: o botão
                         era o que a mostrava como «por terminar». */}
                     {a.label === 'corrected' && (
-                      <Button asChild variant="outline" size="sm"><Link href={`/resultado?prova=${a.id}`}>Ver resultado</Link></Button>
+                      <VerResultado simulationId={a.id} size="sm" />
                     )}
                     {a.label === 'unfinished' && (
-                      <Button asChild variant="outline" size="sm"><Link href={`/prova/${id}`}>Continuar</Link></Button>
+                      <Button asChild variant="outline" size="sm" className={ACTION_LABEL}><Link href={`/prova/${id}`}>Continuar</Link></Button>
                     )}
                   </li>
                 ))}
