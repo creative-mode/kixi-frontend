@@ -1,7 +1,18 @@
 // Testes das regras das salas da instituição:  node --test lib/coordination.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gradeStatusLabel, gradeText, roomProgress, roomPhaseLabel, roomsByUrgency } from './coordination.ts';
+import {
+  DEFAULT_ROOM_FILTER,
+  filterRooms,
+  gradeStatusLabel,
+  gradeText,
+  institutionNamesByClassCode,
+  roomCounts,
+  roomPhaseLabel,
+  roomProgress,
+  roomsByUrgency,
+} from './coordination.ts';
+import { PHASE_LABEL } from './exam-rooms/model.ts';
 import type { CoordinationRoom } from '../types/coordination.ts';
 
 const room = (over: Partial<CoordinationRoom>): CoordinationRoom => ({
@@ -61,4 +72,42 @@ test('as salas que precisam do professor vêm primeiro, depois as a decorrer, de
     room({ id: 4, status: 'DRAFT', startsAt: '2026-10-15T11:00:00', endsAt: '2026-10-15T13:00:00' }),
   ];
   assert.deepEqual(roomsByUrgency(list, AGORA).map((r) => r.id), [3, 2, 4, 1]);
+});
+
+test('os rótulos das salas da coordenação vêm da fase única das salas de prova', () => {
+  assert.equal(roomPhaseLabel(room({ status: 'CLOSED' }), AGORA), PHASE_LABEL.ENDED);
+});
+
+test('os filtros da coordenação repartem as salas e contam-nas', () => {
+  const list = [
+    room({ id: 1, status: 'DRAFT', pendingAnswers: 0 }),
+    room({ id: 2, status: 'OPEN', pendingAnswers: 0 }),
+    room({ id: 3, status: 'RUNNING', pendingAnswers: 2 }),
+    room({ id: 4, status: 'CLOSED', pendingAnswers: 0 }),
+  ];
+  assert.deepEqual(filterRooms(list, DEFAULT_ROOM_FILTER).map((r) => r.id), [1, 2, 3, 4]);
+  assert.deepEqual(filterRooms(list, 'por-rever').map((r) => r.id), [3]);
+  assert.deepEqual(filterRooms(list, 'em-curso').map((r) => r.id), [2, 3]);
+  assert.deepEqual(filterRooms(list, 'rascunhos').map((r) => r.id), [1]);
+  assert.deepEqual(filterRooms(list, 'fechadas').map((r) => r.id), [4]);
+  assert.deepEqual(roomCounts(list), { todas: 4, 'por-rever': 1, 'em-curso': 2, rascunhos: 1, fechadas: 1 });
+});
+
+test('a escola da sala sai do código da turma sem inventar quando o código é ambíguo', () => {
+  const institutions = [
+    { id: 1, name: 'ITEL' },
+    { id: 2, name: 'IMIL' },
+  ];
+  const byCode = institutionNamesByClassCode(
+    [
+      { code: '12A', institutionId: 1 },
+      { code: '10A', institutionId: 2 },
+      { code: '12A', institutionId: 2 },
+      { code: '11B', institutionId: null },
+    ],
+    institutions,
+  );
+  assert.equal(byCode.get('10A'), 'IMIL');
+  assert.equal(byCode.get('12A'), undefined);
+  assert.equal(byCode.get('11B'), undefined);
 });

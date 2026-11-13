@@ -37,3 +37,54 @@ export function roomsByUrgency(rooms: readonly CoordinationRoom[], now?: string)
   const rank = (r: CoordinationRoom) => (r.pendingAnswers > 0 ? 0 : phaseOf(r) === 'ONGOING' ? 1 : phaseOf(r) === 'SCHEDULED' ? 2 : 3);
   return [...rooms].sort((a, b) => rank(a) - rank(b) || b.id - a.id);
 }
+
+/** Os filtros da lista da coordenação, na ordem em que aparecem. */
+export const ROOM_FILTERS = [
+  { key: 'todas', label: 'Todas' },
+  { key: 'por-rever', label: 'Por rever' },
+  { key: 'em-curso', label: 'Em curso' },
+  { key: 'rascunhos', label: 'Rascunhos' },
+  { key: 'fechadas', label: 'Encerradas' },
+] as const;
+
+export type RoomFilter = (typeof ROOM_FILTERS)[number]['key'];
+
+export const DEFAULT_ROOM_FILTER: RoomFilter = 'todas';
+
+export function filterRooms(rooms: readonly CoordinationRoom[], filter: RoomFilter): CoordinationRoom[] {
+  if (filter === 'por-rever') return rooms.filter((r) => r.pendingAnswers > 0);
+  if (filter === 'em-curso') return rooms.filter((r) => r.status === 'OPEN' || r.status === 'RUNNING');
+  if (filter === 'rascunhos') return rooms.filter((r) => r.status === 'DRAFT');
+  if (filter === 'fechadas') return rooms.filter((r) => r.status === 'CLOSED');
+  return [...rooms];
+}
+
+/** Quantos itens cada filtro mostra: os separadores não fazem o utilizador adivinhar o que lá está. */
+export function roomCounts(rooms: readonly CoordinationRoom[]): Record<RoomFilter, number> {
+  return Object.fromEntries(ROOM_FILTERS.map((f) => [f.key, filterRooms(rooms, f.key).length])) as Record<RoomFilter, number>;
+}
+
+type ClassWithInstitution = { code: string; institutionId: number | null };
+type InstitutionRow = { id: number; name: string };
+
+/**
+ * O nome da instituição por código de turma, para o ADMIN ver a escola de cada sala (#759).
+ *
+ * O código da turma não é único entre escolas: quando o mesmo código aparece em
+ * instituições diferentes, a sala fica sem escola em vez de mostrar a errada.
+ */
+export function institutionNamesByClassCode(
+  classes: readonly ClassWithInstitution[],
+  institutions: readonly InstitutionRow[],
+): Map<string, string> {
+  const names = new Map(institutions.map((i) => [i.id, i.name]));
+  const byCode = new Map<string, Set<string>>();
+  for (const klass of classes) {
+    const name = klass.institutionId === null ? undefined : names.get(klass.institutionId);
+    if (!name) continue;
+    const found = byCode.get(klass.code) ?? new Set<string>();
+    found.add(name);
+    byCode.set(klass.code, found);
+  }
+  return new Map([...byCode].filter(([, found]) => found.size === 1).map(([code, found]) => [code, [...found][0]]));
+}
