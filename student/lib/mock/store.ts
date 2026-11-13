@@ -655,7 +655,7 @@ export function seed(): Store {
         ],
       },
     ],
-    nextPost: 3,
+    nextPost: 4,
     postComments: [
       {
         id: 1, postId: 1, authorAccountId: 4, content: 'Se o /29 dá 8 endereços, o /28 dá 16 - e o /30 dá só 4.',

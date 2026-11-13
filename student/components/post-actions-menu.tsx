@@ -42,6 +42,38 @@ export function PostActionsMenu({
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+
+  const items = () => Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+
+  // Abrir põe o foco no primeiro item, e as setas/Home/End percorrem o menu: um
+  // `role="menu"` sem teclado obriga quem não usa o rato a sair do padrão (#753).
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => items()[0]?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
+  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const list = items();
+    const current = list.indexOf(document.activeElement as HTMLElement);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setOpen(false);
+      trigger.current?.focus();
+      return;
+    }
+    if (!list.length) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      const next = event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? list.length - 1
+          : (current + (event.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
+      list[next]?.focus();
+    }
+  };
 
   // Um clique fora fecha o menu; Escape fecha e devolve o foco ao «...».
   useEffect(() => {
@@ -127,7 +159,7 @@ export function PostActionsMenu({
         <MoreHorizontal size={17} aria-hidden />
       </button>
       {open && (
-        <div role="menu" aria-label={`Acções ${of}`} className="absolute right-0 bottom-full z-30 mb-1 grid min-w-[168px] gap-0.5 rounded-xl border border-[#e4e7e1] bg-white p-1.5 shadow-[0_12px_32px_rgba(18,28,21,0.14)]">
+        <div ref={menu} role="menu" aria-label={`Acções ${of}`} onKeyDown={onMenuKeyDown} className="absolute right-0 bottom-full z-30 mb-1 grid min-w-[168px] gap-0.5 rounded-xl border border-[#e4e7e1] bg-white p-1.5 shadow-[0_12px_32px_rgba(18,28,21,0.14)]">
           {canEdit && (
             <button type="button" role="menuitem" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold hover:bg-[#f5f6f4]" onClick={edit}>
               <Pencil size={15} aria-hidden />Editar

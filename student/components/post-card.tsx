@@ -25,7 +25,7 @@ const BACKGROUND_READS = 6;
 let backgroundReads = 0;
 
 /** Uma publicação da turma: autor, hora, texto, cartão de simulação e as ações (aplaudir, comentar, denunciar). */
-export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null, initialComments }: { post: FeedPost; initialComments?: PostComment[]; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null }) {
+export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null, initialComments, onDeleted }: { post: FeedPost; initialComments?: PostComment[]; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null; onDeleted?: (nextId: number | null, deletedId: number) => void }) {
   const router = useRouter();
   const toast = useToast();
   const [reactionController] = useState(() => new FeedReaction(post.hasReacted, (target) => setReactionAction(post.id, target)));
@@ -177,8 +177,15 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
 
   const removePost = async () => {
     const result = await deletePostAction(post.id);
-    // O cartão não é uma lista local: recarregar o servidor tira-o do feed sem perder a posição do resto.
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      // O cartão vai desaparecer com o refresh. Antes disso, dizer ao feed qual é o vizinho
+      // que deve receber o foco, ou o teclado cai no topo do documento (#753).
+      const neighbour = card.current?.nextElementSibling ?? card.current?.previousElementSibling;
+      const next = neighbour instanceof HTMLElement ? Number(neighbour.dataset.postId) : NaN;
+      onDeleted?.(Number.isInteger(next) ? next : null, post.id);
+      // O cartão não é uma lista local: recarregar o servidor tira-o do feed sem perder a posição do resto.
+      router.refresh();
+    }
     return result;
   };
 
@@ -214,7 +221,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
 
   return (
-    <article ref={card} className="post rise">
+    <article ref={card} data-post-id={post.id} className="post rise">
       <div className="min-w-0">
         <PostHeader
           author={{ name: author.name, photo: author.photo, verified: author.verified, classmate: author.classmate, href: author.mine ? undefined : `/u/${post.authorAccountId}` }}
