@@ -94,16 +94,21 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
   if ((m = path.match(/^\/api\/v1\/donations(?:\/(\d+))?(?:\/(files\/(\d+)|review|extract|link-statement))?$/))) {
     const store = donationStore();
     const donation = m[1] ? store.find((d) => d.id === Number(m[1])) : null;
-    const summary = (d) => ({ id: d.id, reference: d.reference, status: d.status, institutionName: d.institutionName, subjectName: d.subjectName, examType: d.examType, classGrade: d.classGrade, schoolYear: d.schoolYear, fileCount: d.files.length, createdAt: d.createdAt });
+    const summary = (d) => ({ id: d.id, reference: d.reference, status: d.status, institutionId: d.institutionId ?? null, institutionName: d.institutionName, subjectName: d.subjectName, examType: d.examType, classGrade: d.classGrade, schoolYear: d.schoolYear, fileCount: d.files.length, createdAt: d.createdAt });
     const detail = (d) => ({ ...d, files: d.files.map(({ id, originalName, contentType, sizeBytes }) => ({ id, originalName, contentType, sizeBytes })) });
     if (!m[1] && method === 'GET') {
       const wanted = url.searchParams.get('status');
       if (wanted && !['pending', 'approved', 'rejected', 'converted'].includes(wanted)) return problem(400, `Unknown status: ${wanted}`);
+      const wantedInstitution = url.searchParams.get('institutionId');
+      if (wantedInstitution && !/^[1-9]\d*$/.test(wantedInstitution)) return problem(400, `Unknown institutionId: ${wantedInstitution}`);
       const page = Number(url.searchParams.get('page') ?? 1);
       const limit = Number(url.searchParams.get('limit') ?? 20);
       if (!(page >= 1) || !(limit >= 1 && limit <= 50)) return problem(400, 'page or limit out of range');
-      const rows = store.filter((d) => !wanted || d.status === wanted).sort((a, b) => b.id - a.id);
-      const counts = Object.fromEntries(['pending', 'approved', 'rejected', 'converted'].map((k) => [k, store.filter((d) => d.status === k).length]));
+      // #763: o filtro por escola olha só às doações ligadas ao catálogo.
+      const inInstitution = (d) => !wantedInstitution || d.institutionId === Number(wantedInstitution);
+      const rows = store.filter((d) => (!wanted || d.status === wanted) && inInstitution(d)).sort((a, b) => b.id - a.id);
+      const counted = store.filter(inInstitution);
+      const counts = Object.fromEntries(['pending', 'approved', 'rejected', 'converted'].map((k) => [k, counted.filter((d) => d.status === k).length]));
       return json(200, { items: rows.slice((page - 1) * limit, page * limit).map(summary), total: rows.length, page, limit, counts });
     }
     if (!donation) return problem(404, `Donation not found: ${m[1]}`);

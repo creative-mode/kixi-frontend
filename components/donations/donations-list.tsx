@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableRowsSkeleton } from '@/components/crud/loading';
+import { NativeSelect } from '@/components/ui/native-select';
 import { listDonations } from '@/app/actions/donations';
+import { myInstitutions } from '@/app/actions/crud';
 import { formatLuandaDateTime } from '@/lib/format';
 import {
   DONATION_STATUSES,
@@ -33,19 +35,41 @@ const when = (iso: string) => formatLuandaDateTime(iso);
 
 export function DonationsList() {
   const [status, setStatus] = useState<DonationStatus | null>('pending');
+  const [institutionId, setInstitutionId] = useState<number | null>(null);
+  const [institutions, setInstitutions] = useState<{ id: number; name: string }[]>([]);
+  /** #763: até haver uma doação ligada a uma escola, o filtro não serve para nada. */
+  const [linkedSeen, setLinkedSeen] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<DonationPage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let alive = true;
+    myInstitutions().then((res) => {
+      if (!alive || !res.ok) return;
+      setInstitutions(
+        res.data
+          .map((row) => ({ id: Number(row.id), name: String(row.name) }))
+          .filter((row) => Number.isInteger(row.id) && row.id > 0 && row.name),
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const load = useCallback(async () => {
     setError(null);
-    const res = await listDonations(status, page);
-    if (res.ok) setData(res.data);
-    else {
+    const res = await listDonations(status, page, institutionId);
+    if (res.ok) {
+      setData(res.data);
+      // O filtro só passa a existir quando o backend mostra que sabe ligar uma doação a uma escola.
+      if (res.data.items.some((donation) => donation.institutionId != null)) setLinkedSeen(true);
+    } else {
       setData(null);
       setError(res.error);
     }
-  }, [status, page]);
+  }, [status, page, institutionId]);
 
   useEffect(() => {
     const task = window.setTimeout(() => void load(), 0);
@@ -57,8 +81,16 @@ export function DonationsList() {
     setPage(1);
     setStatus(next);
   };
+  const pickInstitution = (next: number | null) => {
+    setData(null);
+    setPage(1);
+    setInstitutionId(next);
+  };
   const pages = data ? pageCount(data.total, data.limit) : 1;
   const total = data ? DONATION_STATUSES.reduce((sum, s) => sum + (data.counts[s] ?? 0), 0) : 0;
+  const showInstitution = institutions.length > 0 && (linkedSeen || institutionId !== null);
+  // Com o filtro por escola, os contadores por estado do backend deixam de ser os do ecrã.
+  const showCounts = data !== null && institutionId === null;
 
   return (
     <div className="mx-auto max-w-6xl p-4 md:p-8">
@@ -72,14 +104,31 @@ export function DonationsList() {
 
       <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
         <Button size="sm" variant={status === null ? 'default' : 'outline'} aria-pressed={status === null} onClick={() => pick(null)}>
-          Todas{data ? ` (${total})` : ''}
+          Todas{showCounts ? ` (${total})` : ''}
         </Button>
         {DONATION_STATUSES.map((s) => (
           <Button key={s} size="sm" variant={status === s ? 'default' : 'outline'} aria-pressed={status === s} onClick={() => pick(s)}>
-            {STATUS_LABEL[s]}{data ? ` (${data.counts[s] ?? 0})` : ''}
+            {STATUS_LABEL[s]}{showCounts ? ` (${data.counts[s] ?? 0})` : ''}
           </Button>
         ))}
       </div>
+
+      {showInstitution && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <label htmlFor="filtro-instituicao" className="text-sm font-medium text-muted-foreground">Instituição</label>
+          <NativeSelect
+            id="filtro-instituicao"
+            className="w-full sm:w-72"
+            value={institutionId === null ? '' : String(institutionId)}
+            onChange={(event) => pickInstitution(event.target.value ? Number(event.target.value) : null)}
+          >
+            <option value="">Todas as escolas</option>
+            {institutions.map((institution) => (
+              <option key={institution.id} value={institution.id}>{institution.name}</option>
+            ))}
+          </NativeSelect>
+        </div>
+      )}
 
       {error ? (
         <Card><CardContent className="py-12 text-center">
@@ -90,7 +139,9 @@ export function DonationsList() {
         <Card className="overflow-hidden"><CardContent className="p-0"><Table><TableBody><TableRowsSkeleton cols={5} rows={4} /></TableBody></Table></CardContent></Card>
       ) : data.items.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">
-          {status ? `Não há doações «${STATUS_LABEL[status].toLowerCase()}».` : 'Ainda não chegou nenhuma doação.'}
+          {institutionId !== null
+            ? 'Não há doações desta escola.'
+            : status ? `Não há doações «${STATUS_LABEL[status].toLowerCase()}».` : 'Ainda não chegou nenhuma doação.'}
         </CardContent></Card>
       ) : (
         <>

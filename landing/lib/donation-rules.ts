@@ -12,6 +12,8 @@ export const ACCEPT_ATTR = '.jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,imag
 export type DonationFields = {
   donorName: string;
   donorEmail: string;
+  /** A escola escolhida na lista (#763); vazio quando é «Outra» ou não há lista. */
+  institutionId: string;
   institutionName: string;
   subjectName: string;
   classGrade: string;
@@ -26,6 +28,12 @@ export type FieldErrors = Partial<Record<keyof DonationFields | 'files', string>
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/;
 const YEAR = /^(19|20)\d{2}(\/(19|20)\d{2})?$/;
 const NO_MARKUP = /[<>]/;
+const INSTITUTION_ID = /^[1-9]\d{0,17}$/;
+
+/** Um id de escola que se pode repassar ao backend; um `institutionName` sozinho fica sem id. */
+export function isInstitutionId(value: unknown): value is string {
+  return typeof value === 'string' && INSTITUTION_ID.test(value);
+}
 
 /** Um cabeçalho `X-Forwarded-For` aceitável para repassar: só uma lista de IPs. */
 export function forwardedFor(header: string | null | undefined): string | null {
@@ -42,6 +50,7 @@ export function readFields(get: (name: string) => unknown): DonationFields {
   return {
     donorName: text(get('donorName')),
     donorEmail: text(get('donorEmail')),
+    institutionId: text(get('institutionId')),
     institutionName: text(get('institutionName')),
     subjectName: text(get('subjectName')),
     classGrade: text(get('classGrade')),
