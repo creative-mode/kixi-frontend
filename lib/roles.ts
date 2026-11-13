@@ -17,13 +17,14 @@ export function canAccessManager(roles: readonly Role[]): boolean {
   return hasRole(roles, 'ADMIN') || hasRole(roles, 'TEACHER') || hasRole(roles, 'COORDINATOR');
 }
 
-/** O coordenador (sem ADMIN nem TEACHER) só abre o plano e as pautas da sua instituição (kixi#513). */
+/** O coordenador (sem ADMIN nem TEACHER) só abre o plano, as pautas e as tarefas de homologação da sua instituição (kixi#513, #772). */
 export function isCoordinatorOnly(roles: readonly Role[]): boolean {
   return hasRole(roles, 'COORDINATOR') && !hasRole(roles, 'ADMIN') && !hasRole(roles, 'TEACHER');
 }
 
 export function coordinatorMayOpen(pathname: string): boolean {
-  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao';
+  // As tarefas: a homologação das mini-pautas e da pauta é do coordenador (kixi-frontend#772); só vê as que lhe estão atribuídas.
+  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao' || pathname === '/tarefas' || /^\/tarefas\/\d+$/.test(pathname);
 }
 
 export function isStudentOnly(roles: readonly Role[]): boolean {

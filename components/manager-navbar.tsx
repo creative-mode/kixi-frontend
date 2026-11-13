@@ -63,7 +63,7 @@ const allNavLinks: NavLink[] = [
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
 // O coordenador só vê o plano, as pautas e as salas da instituição (o proxy fecha o resto: `coordinatorMayOpen`).
-const COORDINATOR_HREFS = ["/planos", "/pautas", "/coordenacao"];
+const COORDINATOR_HREFS = ["/planos", "/pautas", "/coordenacao", "/tarefas"];
 const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/classes"];
 
 const teacherHomeLink: NavLink = { href: "/professor", label: "Início", icon: Home };

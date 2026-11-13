@@ -45,10 +45,10 @@ async function protegido<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
   }
 }
 
-/** Só professores e administradores chegam ao gestor; a conta do professor é o assignee das suas tarefas. */
+/** Professores, coordenadores e administradores; a conta de quem faz a tarefa é o assignee dela (o motor atribui a homologação ao coordenador). */
 async function professor(): Promise<number> {
   const user = await getCurrentUser();
-  if (!user || !(user.roles.includes('TEACHER') || user.roles.includes('ADMIN'))) throw new Error('Não autenticado');
+  if (!user || !(user.roles.includes('TEACHER') || user.roles.includes('COORDINATOR') || user.roles.includes('ADMIN'))) throw new Error('Não autenticado');
   return user.accountId;
 }
 
