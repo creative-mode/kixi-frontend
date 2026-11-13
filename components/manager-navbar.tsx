@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
 import { resetTeacherScope } from "@/hooks/use-teacher-scope";
 import { activeHref, groupLinks } from "@/lib/nav-rules";
+import { seesInstitutionRooms, type Role } from "@/lib/roles";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 import { guardGlobalUnsavedChanges } from "./crud/use-unsaved-changes";
@@ -169,7 +170,7 @@ function NavList({
   );
 }
 
-export function ManagerNavbar({ roles }: { roles: string[] }) {
+export function ManagerNavbar({ roles }: { roles: readonly Role[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -182,7 +183,7 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
     ? allNavLinks.filter((l) => COORDINATOR_HREFS.includes(l.href))
     : isTeacher && !isAdmin
     ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
-    : allNavLinks;
+    : allNavLinks.filter((l) => l.href !== "/coordenacao" || seesInstitutionRooms(roles));
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)
