@@ -43,9 +43,25 @@ export function InicioFeed({
   const [end, setEnd] = useState(() => isLastFeedPage(posts.length));
   const [moreError, setMoreError] = useState<string | null>(null);
   const [loading, startLoading] = useTransition();
+  // O foco depois de eliminar: o cartão sai com o refresh, por isso o vizinho (ou o compositor,
+  // quando era o último) recebe o foco. Só se foca quando o cartão eliminado já saiu da lista:
+  // antes disso o nó do vizinho ainda vai ser trocado pelo refresh e o foco perder-se-ia.
+  const focusAfterDelete = useRef<{ deletedId: number; nextId: number | null } | null>(null);
 
   const loaded = mergeFeedPages(posts, extra);
   const shown = loaded;
+
+  useEffect(() => {
+    const pending = focusAfterDelete.current;
+    if (!pending || shown.some((p) => p.id === pending.deletedId)) return;
+    focusAfterDelete.current = null;
+    const card = pending.nextId != null ? document.querySelector<HTMLElement>(`[data-post-id="${pending.nextId}"]`) : null;
+    const cardTarget = card?.querySelector<HTMLElement>('button[aria-label^="Comentar"]') ?? card;
+    if (cardTarget) { cardTarget.focus(); return; }
+    const composers = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-composer]'));
+    const visible = composers.find((el) => el.getClientRects().length > 0);
+    (visible ?? document.getElementById('conteudo'))?.focus();
+  }, [shown]);
 
   // Depois de publicar, o servidor devolve uma página 1 nova. As páginas seguintes já não
   // encaixam nela (a mais recente empurrou as outras), por isso voltam a ser pedidas.
@@ -84,7 +100,7 @@ export function InicioFeed({
     <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-3 pb-24 md:gap-5 md:px-0 md:pt-7 md:pb-10">
       <h1 className="sr-only">Início</h1>
       {classId && (
-        <Link href="/publicar" className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
+        <Link href="/publicar" data-feed-composer className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
           <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
           <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
           <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
@@ -110,6 +126,12 @@ export function InicioFeed({
               myAccountId={myAccountId}
               myName={fullName(me)}
               myPhoto={photoUrl(me)}
+              onDeleted={(nextId, deletedId) => {
+                focusAfterDelete.current = { deletedId, nextId };
+                // Quando o cartão veio de «Ver mais», a página 1 não muda e o refresh não o tira:
+                // sai já da lista local, que é o que faz o efeito de foco correr.
+                setExtra((list) => list.filter((p) => p.id !== deletedId));
+              }}
             />
           ))}
           </section>

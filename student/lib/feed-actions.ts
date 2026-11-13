@@ -6,7 +6,7 @@ import { BACKEND } from './session';
 import { apiPost, authHeaders, problem } from './api';
 import { MOCK } from './mock/backend';
 import { payloadOf, problemOf, type BlockDraft, type BuiltKind } from './post-blocks';
-import { createBuiltPost, createPost, createSimulationPost, acceptComment, addComment, getFeed, loadAuthors, reportPost, setReaction, type FeedPost, type PostComment, type PostType } from './feed';
+import { createBuiltPost, createPost, createSimulationPost, acceptComment, addComment, getFeed, loadAuthors, reportPost, setReaction, updatePost, deletePost, updateComment, deleteComment, type FeedPost, type PostComment, type PostType } from './feed';
 import { canPublish, canPublishReflection, type FeedAuthor } from './feed-rules';
 import { FEED_PAGE_SIZE } from './feed-pagination';
 
@@ -163,8 +163,93 @@ export async function enviarImagemPostAction(form: FormData): Promise<{ url?: st
   }
 }
 
-/** O autor da pergunta aceita (ou retira) uma resposta. */
-export async function acceptCommentAction(postId: number, commentId: number): Promise<{ ok: true } | { ok: false; message: string }> {
+/**
+ * O autor edita uma publicação (#753): o texto, o título ou os blocos, com as mesmas regras do
+ * compositor. O tipo não muda — uma pergunta não se transforma num desafio ao editar. As leituras
+ * em cache da página e do feed são invalidadas para o cartão voltar já com o texto novo.
+ */
+export async function updatePostAction(
+  postId: number,
+  kind: BuiltKind,
+  title: string,
+  drafts: BlockDraft[],
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const blocks = payloadOf(drafts);
+  const plainText = (kind === 'doubt' || kind === 'topic') && !title.trim() && blocks.length === 1 && blocks[0].type === 'text'
+    ? (blocks[0].text ?? '')
+    : null;
+  if (plainText !== null && !canPublish(plainText)) {
+    return { ok: false, message: 'Escreve pelo menos 5 caracteres.' };
+  }
+  if (plainText === null) {
+    const invalid = problemOf(kind, title, blocks);
+    if (invalid) return { ok: false, message: invalid };
+  }
+  const result = await updatePost(postId, plainText !== null
+    ? { content: plainText.trim() }
+    : { title: title.trim(), blocks });
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidatePath('/inicio');
+  revalidatePath('/perfil');
+  revalidatePath('/turma');
+  revalidatePath('/ranking');
+  revalidatePath(`/discussao/${postId}`);
+  return { ok: true };
+}
+
+/** Elimina uma publicação. O servidor decide se quem pede é o autor ou um moderador (#753). */
+export async function deletePostAction(postId: number): Promise<{ ok: true } | { ok: false; message: string }> {
+  const result = await deletePost(postId);
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidatePath('/inicio');
+  revalidatePath('/perfil');
+  revalidatePath('/turma');
+  revalidatePath('/ranking');
+  revalidatePath('/discussao');
+  revalidatePath(`/discussao/${postId}`);
+  return { ok: true };
+}
+
+/** O autor corrige o texto de um comentário (#753). */
+export async function updateCommentAction(
+  postId: number,
+  commentId: number,
+  content: string,
+): Promise<{ ok: true; comment: PostComment } | { ok: false; message: string }> {
+  const text = content.trim();
+  if (!text) return { ok: false, message: 'Escreve o comentário.' };
+  if (text.length > 500) return { ok: false, message: 'O comentário tem no máximo 500 caracteres.' };
+  const result = await updateComment(postId, commentId, text);
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidatePath('/inicio');
+  revalidatePath('/perfil');
+  revalidatePath('/turma');
+  revalidatePath(`/discussao/${postId}`);
+  return { ok: true, comment: result.data };
+}
+
+/** Elimina um comentário. Uma resposta aceite recusa-se com 409: retira-se a aceitação primeiro (#753). */
+export async function deleteCommentAction(
+  postId: number,
+  commentId: number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const result = await deleteComment(postId, commentId);
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.status === 409
+        ? 'Esta resposta foi aceite: retira a aceitação antes de a eliminar.'
+        : result.message,
+    };
+  }
+  revalidatePath('/inicio');
+  revalidatePath('/perfil');
+  revalidatePath('/turma');
+  revalidatePath(`/discussao/${postId}`);
+  return { ok: true };
+}
+
+/** O autor da pergunta aceita (ou retira) uma resposta. */export async function acceptCommentAction(postId: number, commentId: number): Promise<{ ok: true } | { ok: false; message: string }> {
   const result = await acceptComment(postId, commentId);
   if (!result.ok) return { ok: false, message: result.status === 403 ? 'Só quem fez a pergunta pode aceitar uma resposta.' : result.message };
   revalidatePath(`/discussao/${postId}`);

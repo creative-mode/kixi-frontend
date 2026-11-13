@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Ico } from '@/components/ui/ico';
 import Link from 'next/link';
 import { UserAvatar } from '@/components/user-avatar';
@@ -9,9 +10,11 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { LoadingState } from '@/components/states';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/toast';
+import { PostActionsMenu } from '@/components/post-actions-menu';
 import { sinceLabel } from '@/lib/attempt-history';
 import { authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
-import { addCommentAction, getCommentsAction, reportPostAction, setReactionAction } from '@/lib/feed-actions';
+import { addCommentAction, deleteCommentAction, deletePostAction, getCommentsAction, reportPostAction, setReactionAction, updateCommentAction } from '@/lib/feed-actions';
 import type { FeedPost, PostComment } from '@/lib/feed';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';
 import { FeedReaction, type ReactionSnapshot } from '@/lib/feed-reaction';
@@ -22,7 +25,9 @@ const BACKGROUND_READS = 6;
 let backgroundReads = 0;
 
 /** Uma publicação da turma: autor, hora, texto, cartão de simulação e as ações (aplaudir, comentar, denunciar). */
-export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null, initialComments }: { post: FeedPost; initialComments?: PostComment[]; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null }) {
+export function PostCard({ post, myAccountId, myName, myPhoto, author: authorProfile, myClassId = null, initialComments, onDeleted }: { post: FeedPost; initialComments?: PostComment[]; myAccountId: number | null; myName: string; myPhoto?: string | null; author?: FeedAuthor; myClassId?: number | null; onDeleted?: (nextId: number | null, deletedId: number) => void }) {
+  const router = useRouter();
+  const toast = useToast();
   const [reactionController] = useState(() => new FeedReaction(post.hasReacted, (target) => setReactionAction(post.id, target)));
   const [reaction, setReaction] = useState<ReactionSnapshot>(reactionController.snapshot);
   const [count, setCount] = useState(post.commentCount);
@@ -135,6 +140,55 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
     });
   };
 
+  const [editingComment, setEditingComment] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [savingComment, setSavingComment] = useState(false);
+
+  /** Editar o comentário no próprio sítio (#753): guardar troca a linha pelo texto novo sem recarregar a conversa. */
+  const saveComment = (comment: PostComment) => {
+    const text = commentDraft.trim();
+    if (!text) return;
+    if (text === comment.content) { setEditingComment(null); return; }
+    setSavingComment(true);
+    setCommentError(null);
+    startTransition(async () => {
+      const result = await updateCommentAction(post.id, comment.id, text);
+      setSavingComment(false);
+      if (!result.ok) { setCommentError(result.message); return; }
+      const comments = conversationRef.current.comments?.map((c) => (c.id === comment.id
+        ? { ...c, content: result.comment.content, edited: result.comment.edited ?? true }
+        : c)) ?? null;
+      apply({ ...conversationRef.current, comments });
+      setEditingComment(null);
+      toast('Comentário editado.');
+    });
+  };
+
+  /** Eliminar o comentário: o servidor confirma e a linha sai já da conversa, com a contagem a descer. */
+  const removeComment = async (comment: PostComment) => {
+    const result = await deleteCommentAction(post.id, comment.id);
+    if (result.ok) {
+      setCount((c) => Math.max(0, c - 1));
+      const comments = conversationRef.current.comments?.filter((c) => c.id !== comment.id) ?? null;
+      apply({ ...conversationRef.current, comments });
+    }
+    return result;
+  };
+
+  const removePost = async () => {
+    const result = await deletePostAction(post.id);
+    if (result.ok) {
+      // O cartão vai desaparecer com o refresh. Antes disso, dizer ao feed qual é o vizinho
+      // que deve receber o foco, ou o teclado cai no topo do documento (#753).
+      const neighbour = card.current?.nextElementSibling ?? card.current?.previousElementSibling;
+      const next = neighbour instanceof HTMLElement ? Number(neighbour.dataset.postId) : NaN;
+      onDeleted?.(Number.isInteger(next) ? next : null, post.id);
+      // O cartão não é uma lista local: recarregar o servidor tira-o do feed sem perder a posição do resto.
+      router.refresh();
+    }
+    return result;
+  };
+
   // Abrir e fechar é uma decisão do clique, não do updater: um efeito dentro de
   // `setOpen(v => ...)` corre duas vezes em modo estrito e pediria a lista duas vezes.
   const togglePanel = () => {
@@ -167,13 +221,14 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
   const typeLabel = studyTip ? 'Dica de estudo' : postTypeLabel(post.type);
 
   return (
-    <article ref={card} className="post rise">
+    <article ref={card} data-post-id={post.id} className="post rise">
       <div className="min-w-0">
         <PostHeader
           author={{ name: author.name, photo: author.photo, verified: author.verified, classmate: author.classmate, href: author.mine ? undefined : `/u/${post.authorAccountId}` }}
           typeLabel={typeLabel}
           when={sinceLabel(post.createdAt) ?? ''}
           publishing={isPublishing}
+          edited={post.edited}
         />
         <PostBody
           post={post}
@@ -185,9 +240,22 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
         <span className="acoes">
           <button type="button" className="acao" aria-expanded={open} aria-label={`Comentar, ${count} ${count === 1 ? 'comentário' : 'comentários'}`} title="Comentar" disabled={isPublishing} onClick={togglePanel} onPointerEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 1 4 7.5L3 21l1.6-4.3A8.96 8.96 0 0 1 3 12Z" /></svg>{count}</button>
           <button type="button" className="acao" aria-pressed={reaction.reacted} aria-label={reaction.reacted ? 'Aplaudido, tocar para retirar' : 'Aplaudir'} title="Aplaudir" disabled={isPublishing || pending || reaction.pending} aria-busy={reaction.pending} onClick={toggleReaction}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 11v9H4v-9zm0 0 4-7a2 2 0 0 1 3.6 1.7L13 10h5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H9a2 2 0 0 1-2-2" /></svg>{reaction.reacted ? 1 : ''}</button>
-          <button type="button" className="acao ml-auto" aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported} onClick={() => setReporting((v) => !v)}>
-            <Ico name="flag" filled={reporting || reported} size={15} />
-          </button>
+          {/* Denunciar não aparece na própria publicação (#753), e o menu «...» só no que é do autor. */}
+          {post.authorAccountId !== myAccountId && (
+            <button type="button" className="acao ml-auto" aria-pressed={reporting || reported} aria-label="Denunciar publicação" title="Denunciar" disabled={isPublishing || reported} onClick={() => setReporting((v) => !v)}>
+              <Ico name="flag" filled={reporting || reported} size={15} />
+            </button>
+          )}
+          {post.authorAccountId === myAccountId && !isPublishing && (
+            <PostActionsMenu
+              what="publicação"
+              className="ml-auto"
+              canEdit={!post.isAutoGenerated && post.type !== 'simulation'}
+              onEdit={() => router.push(`/publicar?editar=${post.id}`)}
+              onDelete={removePost}
+              deletedMessage="Publicação eliminada."
+            />
+          )}
         </span>
 
         {reaction.pending && <p className="sr-only" role="status" aria-live="polite">A guardar o aplauso…</p>}
@@ -260,14 +328,41 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
               const who = commentAuthorLabel(c.displayName, c.mine);
               return (
                 <li key={c.id} className="flex flex-col gap-2.5">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-start gap-3">
                     <UserAvatar name={who} src={c.mine ? myPhoto : c.photo} size={38} />
-                    <span className="flex flex-col gap-0.5">
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       {c.mine ? <strong className="text-sm">{who}</strong> : <Link prefetch={false} href={`/u/${c.authorAccountId}`} className="inline-flex min-h-6 items-center text-sm font-bold hover:underline">{who}<span className="sr-only">, ver perfil</span></Link>}
-                      <span className="lbl">{sinceLabel(c.createdAt) ?? ''}</span>
+                      <span className="lbl">{sinceLabel(c.createdAt) ?? ''}{c.edited ? ' · editado' : ''}</span>
                     </span>
+                    {c.mine && editingComment !== c.id && (
+                      <PostActionsMenu
+                        what="comentário"
+                        disabled={savingComment}
+                        onEdit={() => { setEditingComment(c.id); setCommentDraft(c.content); setCommentError(null); }}
+                        onDelete={() => removeComment(c)}
+                        deletedMessage="Comentário eliminado."
+                      />
+                    )}
                   </div>
-                  <p className="ttl">{c.content}</p>
+                  {editingComment === c.id ? (
+                    <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); saveComment(c); }}>
+                      <Input
+                        value={commentDraft}
+                        onChange={(e) => setCommentDraft(e.target.value)}
+                        aria-label="Editar comentário"
+                        maxLength={500}
+                        autoFocus
+                        disabled={savingComment}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" size="sm" disabled={savingComment} onClick={() => { setEditingComment(null); setCommentError(null); }}>Cancelar</Button>
+                        <Button type="submit" size="sm" disabled={savingComment || !commentDraft.trim()}>{savingComment ? 'A guardar…' : 'Guardar'}</Button>
+                      </div>
+                      {commentError && <Alert variant="destructive">{commentError}</Alert>}
+                    </form>
+                  ) : (
+                    <p className="ttl">{c.content}</p>
+                  )}
                 </li>
               );
             })}

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getProfile } from '@/lib/me';
 import { entrarUrl, requireStudent } from '@/lib/guard';
 import { MeProvider } from '@/lib/me-context';
+import { ToastProvider } from '@/components/ui/toast';
 import { Shell } from '@/components/Shell';
 import { RightRail } from '@/components/right-rail';
 import { RightRailSkeleton } from '@/components/right-rail-skeleton';
@@ -34,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <MeProvider me={profile.me}>
+      <ToastProvider>
       <Shell
         unread={unread}
         landingOrigin={appOrigin()}
@@ -41,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ? <Suspense fallback={<RightRailSkeleton />}><Rail me={profile.me} /></Suspense>
           : undefined}
       >{children}</Shell>
+      </ToastProvider>
     </MeProvider>
   );
 }

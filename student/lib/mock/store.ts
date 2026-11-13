@@ -238,6 +238,8 @@ export type MockPost = {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou a publicação (#753). */
+  edited?: boolean;
   /** Posts construídos (kixi#347): a lista de blocos; ausente nos simples. */
   blocks?: PostBlock[];
   /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend.
@@ -653,7 +655,7 @@ export function seed(): Store {
         ],
       },
     ],
-    nextPost: 3,
+    nextPost: 4,
     postComments: [
       {
         id: 1, postId: 1, authorAccountId: 4, content: 'Se o /29 dá 8 endereços, o /28 dá 16 - e o /30 dá só 4.',

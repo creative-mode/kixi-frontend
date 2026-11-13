@@ -87,6 +87,17 @@ export function emptyBlock(type: BlockType): BlockDraft {
 
 export const templateBlocks = (template: Template): BlockDraft[] => template.blocks.map(emptyBlock);
 
+/**
+ * Os blocos de uma publicação guardada, de volta ao construtor (#753). Cada bloco ganha um `key` novo —
+ * o do construtor é só da lista do React — e uma publicação sem blocos (simples) abre com um bloco de
+ * texto com o conteúdo, para o aluno poder editá-la como as outras.
+ */
+export function draftsFromBlocks(blocks: readonly PostBlock[] | null | undefined, content = ''): BlockDraft[] {
+  const list = (blocks ?? []).map((b) => ({ ...b, key: nextKey() }) as BlockDraft);
+  if (list.length > 0) return list;
+  return [{ ...emptyBlock('text'), text: content }];
+}
+
 const IMAGE_URL = /^\/uploads\/images\/post\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(png|jpe?g|webp)$/i;
 export const isPostImage = (url: string | undefined): boolean => !!url && IMAGE_URL.test(url) && !url.includes('..');
 
