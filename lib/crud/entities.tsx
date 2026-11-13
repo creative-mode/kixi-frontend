@@ -636,9 +636,10 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     titleOf: (r) => `#${r.id} · ${r.account?.username ?? 'aluno'} · ${r.statement?.title ?? 'prova'}`,
     canCreate: false,
     canEdit: false,
-    // simulations use PUT /{id}/restore and DELETE /{id}/permanent
+    // Como as respostas (kixi#596): apagar e restaurar só o ADMIN, com motivo e auditoria, e sem purge na interface.
+    audited: true,
+    // simulations use PUT /{id}/restore
     restore: { method: 'PUT', suffix: '/restore' },
-    purge: { suffix: '/permanent' },
   },
 };
 
