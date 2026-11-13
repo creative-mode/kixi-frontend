@@ -2,17 +2,11 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, DoorOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { STATUS_LABEL, type RoomStatus } from '@/lib/exam-rooms/model';
+import { roomPhase, PHASE_LABEL, PHASE_VARIANT, type ExamRoom } from '@/lib/exam-rooms/model';
 
-export const STATUS_VARIANT: Record<RoomStatus, 'secondary' | 'info' | 'success' | 'outline'> = {
-  DRAFT: 'secondary',
-  OPEN: 'info',
-  RUNNING: 'success',
-  CLOSED: 'outline',
-};
-
-export function RoomStatusBadge({ status }: { status: RoomStatus }) {
-  return <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>;
+export function RoomStatusBadge({ room }: { room: Pick<ExamRoom, 'status' | 'startsAt' | 'endsAt' | 'phase'> }) {
+  const phase = roomPhase(room);
+  return <Badge variant={PHASE_VARIANT[phase]}>{PHASE_LABEL[phase]}</Badge>;
 }
 
 /** O cabeçalho das páginas das salas, no mesmo desenho do `PageHead` das listas. */

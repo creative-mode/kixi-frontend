@@ -22,8 +22,14 @@ export async function coordinationRoutes({ method, path }: MockContext): Promise
       const roomSims = sims.filter((s: any) => s.examRoomId === r.id);
       const statement = db.statements?.find((s: any) => s.id === r.statementId);
       const klass = db.classes.find((c: any) => c.id === r.classId);
+      // A fase como no backend (kixi#592): terminada se fechada ou se já passou a janela.
+      const wallMin = (iso: string) => Date.UTC(+iso.slice(0, 4), Number(iso.slice(5, 7)) - 1, +iso.slice(8, 10), +iso.slice(11, 13), +iso.slice(14, 16)) / 60_000;
+      const now = wallMin(new Date(Date.now() + 3_600_000).toISOString());
+      const phase = r.status === 'CLOSED' || now >= wallMin(r.endsAt) ? 'ENDED'
+        : now < wallMin(r.startsAt) ? 'SCHEDULED'
+        : 'ONGOING';
       return {
-        id: r.id, status: r.status, startsAt: r.startsAt, endsAt: r.endsAt, className: klass?.code ?? String(r.classId),
+        id: r.id, status: r.status, phase, startsAt: r.startsAt, endsAt: r.endsAt, className: klass?.code ?? String(r.classId),
         statementTitle: statement?.title ?? `Enunciado ${r.statementId}`, teacherAccountId: r.teacherAccountId, teacherName: nameOf(r.teacherAccountId),
         participants: (r.participants ?? roomSims).length, finished: roomSims.filter((s: any) => s.status === 'FINISHED').length,
         pendingAnswers: roomSims.reduce((n: number, s: any) => n + pending(s.id), 0),

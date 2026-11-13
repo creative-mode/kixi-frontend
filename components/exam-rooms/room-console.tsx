@@ -149,7 +149,7 @@ export function RoomConsole({ id }: { id: number }) {
         title={title}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
-            <RoomStatusBadge status={room.status} />
+            <RoomStatusBadge room={room} />
             <span>{classLabel ?? (room.classId != null ? `Turma ${room.classId}` : '')}</span>
             <span aria-hidden>·</span>
             <span className="tabular-nums">{formatWall(room.startsAt, year)} → {formatWall(room.endsAt, year)} · {room.durationMinutes} min</span>
