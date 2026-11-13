@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Ico } from '@/components/ui/ico';
+import { DonateLink } from '@/components/donate-link';
 import { UserAvatar } from '@/components/user-avatar';
 import { sairAction } from '@/lib/auth-actions';
 import { cn } from '@/lib/utils';
@@ -89,6 +90,12 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
           <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
             <Ico name="user" size={22} />O meu perfil
           </Link>
+          {/* #762: a doação fica a um toque em qualquer ecrã. Um 5.º separador partia
+              a barra inferior (ver lib/shell-nav.ts), e o menu já é o sítio dos destinos
+              que não cabem lá. */}
+          <DonateLink role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/doar`} origem="student-menu" className={item} onClick={() => setOpen(false)}>
+            <Ico name="file" size={22} />Doar um enunciado
+          </DonateLink>
           <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/privacidade`} className={item} onClick={() => setOpen(false)}>
             Privacidade
           </a>

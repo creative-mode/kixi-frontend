@@ -49,7 +49,7 @@ const UTM_ALLOWLIST = {
 const SIGNUP_FIELDS = ['first_name', 'last_name', 'username', 'email', 'password', 'confirm', 'form'] as const;
 const DONATION_FIELDS = ['files', 'institution', 'subject', 'exam_type', 'class_grade', 'school_year', 'donor_name', 'donor_email', 'notes', 'consent', 'form'] as const;
 /** De onde veio o clique num CTA da landing (`CtaOrigem`, #512). */
-const CTA_ORIGENS = ['header', 'outro', 'faq'] as const;
+const CTA_ORIGENS = ['header', 'outro', 'faq', 'hero', 'provas', 'provas-empty', 'student-menu'] as const;
 const DONATION_STEPS = ['statement', 'origin', 'contact'] as const;
 
 function oneOf<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
