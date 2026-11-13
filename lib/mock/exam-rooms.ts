@@ -29,7 +29,13 @@ export interface RoomWorld {
   isStudent: (accountId: number) => boolean;
 }
 
-const roomResponse = (r: any) => ({
+const roomResponse = (r: any) => {
+  const wallMin = (iso: string) => Date.UTC(+iso.slice(0, 4), Number(iso.slice(5, 7)) - 1, +iso.slice(8, 10), +iso.slice(11, 13), +iso.slice(14, 16)) / 60_000;
+  const now = wallMin(luandaClock());
+  const phase = r.status === 'CLOSED' || now >= wallMin(r.endsAt) ? 'ENDED'
+    : now < wallMin(r.startsAt) ? 'SCHEDULED'
+    : 'ONGOING';
+  return {
   id: r.id,
   statementId: r.statementId,
   classId: r.classId,
@@ -38,7 +44,9 @@ const roomResponse = (r: any) => ({
   endsAt: r.endsAt,
   durationMinutes: r.durationMinutes,
   status: r.status,
-});
+  phase,
+  };
+};
 
 const participantResponse = (p: any) => ({
   roomId: p.examRoomId,

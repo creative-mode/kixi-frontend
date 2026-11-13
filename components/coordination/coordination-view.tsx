@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SectionState } from '@/components/dashboard/section-state';
-import { gradeStatusLabel, gradeText, roomProgress, roomsByUrgency, ROOM_STATUS_LABEL } from '@/lib/coordination';
+import { gradeStatusLabel, gradeText, roomProgress, roomsByUrgency, roomPhaseLabel } from '@/lib/coordination';
+import { PHASE_VARIANT, roomPhase } from '@/lib/exam-rooms/model';
 import { formatDate } from '@/lib/term-plans';
 import type { Section } from '@/types/analytics';
 import type { CoordinationGrade, CoordinationRoom } from '@/types/coordination';
@@ -58,7 +59,7 @@ export function CoordinationView() {
                   <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <CardTitle>{room.statementTitle}</CardTitle>
-                      <Badge variant={room.pendingAnswers > 0 ? 'destructive' : room.status === 'CLOSED' ? 'outline' : 'secondary'}>{ROOM_STATUS_LABEL[room.status]}</Badge>
+                      <Badge variant={room.pendingAnswers > 0 ? 'destructive' : PHASE_VARIANT[roomPhase(room)]}>{roomPhaseLabel(room)}</Badge>
                     </div>
                     <CardDescription>
                       {room.className} · {room.teacherName || `Professor ${room.teacherAccountId}`} · {formatDate(room.startsAt)} a {formatDate(room.endsAt)}
