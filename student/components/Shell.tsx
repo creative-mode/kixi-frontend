@@ -39,7 +39,6 @@ export function Shell({ children, rail, landingOrigin, unread = 0 }: { children:
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
   const name = fullName(me) || 'Aluno';
   const showRail = !!rail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/'));
-  const profileActive = path === '/perfil' || path.startsWith('/perfil/');
 
   return (
     <div className="mx-auto flex above-banner-min-h w-full max-w-[1440px] flex-wrap items-start bg-white">
@@ -77,7 +76,7 @@ export function Shell({ children, rail, landingOrigin, unread = 0 }: { children:
           ))}
         </nav>
         <div className="mt-auto">
-          <AccountMenu name={name} photo={photoUrl(me)} subtitle={contextLine(me)} active={profileActive} placement="side" landingOrigin={landingOrigin} />
+          <AccountMenu name={name} photo={photoUrl(me)} subtitle={contextLine(me)} placement="side" landingOrigin={landingOrigin} />
         </div>
       </header>
 
@@ -91,7 +90,7 @@ export function Shell({ children, rail, landingOrigin, unread = 0 }: { children:
             <NavIcon name="notificacoes" size={22} />
             {unread > 0 && <span className="absolute top-3 right-3 size-[7px] rounded-full bg-[#c2383e]" />}
           </Link>
-          <AccountMenu name={name} photo={photoUrl(me)} active={profileActive} placement="top" landingOrigin={landingOrigin} />
+          <AccountMenu name={name} photo={photoUrl(me)} placement="top" landingOrigin={landingOrigin} />
         </header>
 
         <div className="flex min-w-0 flex-1">

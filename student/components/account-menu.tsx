@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { Ico } from '@/components/ui/ico';
 import { DonateLink } from '@/components/donate-link';
 import { UserAvatar } from '@/components/user-avatar';
@@ -11,24 +13,60 @@ import { cn } from '@/lib/utils';
 /**
  * O menu da conta, no avatar da barra: abre o perfil e termina a sessão. É a única porta para o
  * perfil na barra (não há separador "Perfil" a duplicar), e o sítio onde se espera encontrar «Sair».
+ *
+ * O menu é desenhado num portal em `document.body` e posicionado a partir do botão (#752). Dentro
+ * da barra lateral `sticky` o `z-50` ficava preso no contexto de empilhamento dela, e o feed e as
+ * caixas de comentários, que vêm depois no DOM, pintavam por cima do menu.
  */
-export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }: { name: string; photo: string | null; active: boolean; placement: 'side' | 'top'; landingOrigin: string | null; subtitle?: string }) {
+export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }: { name: string; photo: string | null; placement: 'side' | 'top'; landingOrigin: string | null; subtitle?: string }) {
   const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<CSSProperties | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   const items = () => Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
 
-  useEffect(() => {
+  const close = useCallback((returnFocus: boolean) => {
+    setOpen(false);
+    if (returnFocus) trigger.current?.focus();
+  }, []);
+
+  // Mudar de página fecha o menu, venha a navegação de um clique, do teclado ou do botão Voltar.
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  // O menu vive fora da barra, por isso a posição é calculada a partir do botão: por cima dele na
+  // barra lateral (o avatar está no fundo), por baixo dele na barra do telemóvel.
+  useLayoutEffect(() => {
     if (!open) return;
+    const place = () => {
+      const rect = trigger.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPosition(placement === 'side'
+        ? { left: rect.left, bottom: window.innerHeight - rect.top + 8 }
+        : { right: window.innerWidth - rect.right, top: rect.bottom + 4 });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, placement]);
+
+  useEffect(() => {
+    if (!open || !position) return;
     const frame = window.requestAnimationFrame(() => menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
     return () => window.cancelAnimationFrame(frame);
-  }, [open]);
+  }, [open, position]);
 
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const away = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!trigger.current?.contains(target) && !menu.current?.contains(target)) setOpen(false);
+    };
     document.addEventListener('pointerdown', away);
     return () => { document.removeEventListener('pointerdown', away); };
   }, [open]);
@@ -38,8 +76,14 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
     const current = menuItems.indexOf(document.activeElement as HTMLElement);
     if (event.key === 'Escape') {
       event.preventDefault();
-      setOpen(false);
-      trigger.current?.focus();
+      close(true);
+      return;
+    }
+    // Tab sai do menu: fecha-o e devolve o foco ao botão. No portal, o Tab seguinte ia parar ao
+    // fim do documento, longe do sítio de onde o menu abriu.
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      close(true);
       return;
     }
     if (!menuItems.length) return;
@@ -55,8 +99,32 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
   };
 
   const item = 'flex min-h-12 w-full items-center gap-3 px-4 text-left text-[15px] font-semibold outline-none hover:bg-secondary focus-visible:bg-secondary';
+  const entries = (
+    <>
+      <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
+        <Ico name="user" size={22} />O meu perfil
+      </Link>
+      {/* #762: a doação fica a um toque em qualquer ecrã. Um 5.º separador partia
+          a barra inferior (ver lib/shell-nav.ts), e o menu já é o sítio dos destinos
+          que não cabem lá. */}
+      <DonateLink role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/doar`} origem="student-menu" className={item} onClick={() => setOpen(false)}>
+        <Ico name="file" size={22} />Doar um enunciado
+      </DonateLink>
+      <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/privacidade`} className={item} onClick={() => setOpen(false)}>
+        Privacidade
+      </a>
+      <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/cookies`} className={item} onClick={() => setOpen(false)}>
+        Cookies
+      </a>
+      <form action={sairAction} role="none" className="border-t">
+        <button role="menuitem" tabIndex={-1} type="submit" className={cn(item, 'text-destructive')}>
+          <Ico name="logout" size={22} />Terminar sessão
+        </button>
+      </form>
+    </>
+  );
   return (
-    <div ref={box} className="relative">
+    <div className="relative">
       <button
         ref={trigger}
         type="button"
@@ -75,39 +143,30 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
           </span>
         )}
       </button>
-      {(
+      {open && position ? createPortal(
         <div
           ref={menu}
-          hidden={!open}
           role="menu"
           aria-label="Conta"
+          data-testid="menu-conta"
           onKeyDown={onMenuKeyDown}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+            const next = event.relatedTarget as Node | null;
+            if (!event.currentTarget.contains(next) && !trigger.current?.contains(next)) setOpen(false);
           }}
-          className={cn('rise absolute z-50 w-60 overflow-hidden rounded-2xl border bg-background shadow-lg', placement === 'side' ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-1')}
+          style={position}
+          // `z-50`: por cima do conteúdo, das barras (z-20/z-30) e dos menus do compositor (z-40),
+          // abaixo da barra de progresso da navegação (z-[60]).
+          className="rise fixed z-50 w-60 overflow-hidden rounded-2xl border bg-background shadow-lg"
         >
-          <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
-            <Ico name="user" size={22} />O meu perfil
-          </Link>
-          {/* #762: a doação fica a um toque em qualquer ecrã. Um 5.º separador partia
-              a barra inferior (ver lib/shell-nav.ts), e o menu já é o sítio dos destinos
-              que não cabem lá. */}
-          <DonateLink role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/doar`} origem="student-menu" className={item} onClick={() => setOpen(false)}>
-            <Ico name="file" size={22} />Doar um enunciado
-          </DonateLink>
-          <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/privacidade`} className={item} onClick={() => setOpen(false)}>
-            Privacidade
-          </a>
-          <a role="menuitem" tabIndex={-1} href={`${landingOrigin ?? ''}/cookies`} className={item} onClick={() => setOpen(false)}>
-            Cookies
-          </a>
-          <form action={sairAction} role="none" className="border-t">
-            <button role="menuitem" tabIndex={-1} type="submit" className={cn(item, 'text-destructive')}>
-              <Ico name="logout" size={22} />Terminar sessão
-            </button>
-          </form>
-        </div>
+          {entries}
+        </div>,
+        document.body,
+      ) : (
+        // Fechado, o menu continua no HTML do servidor, escondido, como sempre esteve: o
+        // formulário de «Terminar sessão» é o que o fluxo HTTP (`scripts/flow.mjs`) submete,
+        // e é o logout que funciona antes de o JavaScript carregar. Só vai para o portal ao abrir.
+        <div hidden role="menu" aria-label="Conta">{entries}</div>
       )}
     </div>
   );

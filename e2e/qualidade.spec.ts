@@ -282,6 +282,43 @@ test.describe('alvos de toque no telemóvel', () => {
   });
 });
 
+/** Menu da conta por cima do conteúdo (#752): dentro da barra lateral `sticky` ficava por baixo do feed e dos comentários. */
+test.describe('menu da conta por cima do conteúdo (#752)', () => {
+  test('com o feed e os comentários abertos, o menu fica visível e clicável', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await alunoLogin(page);
+    await page.goto('/aluno/inicio');
+    await expect(page.getByRole('article').first()).toBeVisible();
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+    await expect(page.getByLabel('Escrever um comentário').first()).toBeVisible();
+
+    const conta = page.locator('button[aria-haspopup="menu"]:visible').first();
+    await conta.click();
+    const menu = page.getByRole('menu', { name: 'Conta' });
+    await expect(menu).toBeVisible();
+
+    // Cada opção é o elemento de cima no seu próprio centro: nada do conteúdo lhe pinta por cima.
+    for (const nome of ['O meu perfil', 'Privacidade', 'Cookies', 'Terminar sessão']) {
+      const tapada = await page.getByRole('menuitem', { name: nome }).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const topo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !topo || !el.contains(topo);
+      });
+      expect(tapada, `«${nome}» tapada por outro elemento`).toBe(false);
+    }
+
+    // Tab sai do menu: fecha-o e o foco volta ao botão da conta.
+    await page.keyboard.press('Tab');
+    await expect(menu).toHaveCount(0);
+    await expect(conta).toBeFocused();
+
+    await conta.click();
+    await page.getByRole('menuitem', { name: 'O meu perfil' }).click();
+    await expect(page).toHaveURL(/\/aluno\/perfil/);
+    await expect(page.getByRole('menu', { name: 'Conta' })).toHaveCount(0);
+  });
+});
+
 /** Passe visual do aluno (#761): títulos com espaço, rótulos de acção numa linha e o botão do tutor dentro do campo. */
 test.describe('passe visual do aluno (#761)', () => {
   /** Rótulos de acção que partiram em duas linhas: devolve os que ocupam mais do que uma. */
