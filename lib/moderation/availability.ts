@@ -11,6 +11,8 @@
  * lida em execução, não no build: ligar a funcionalidade não pede uma imagem nova.
  */
 
+import { friendlyMessage } from '../crud/messages.ts';
+
 type Env = Record<string, string | undefined>;
 
 export function moderationAvailable(env: Env = process.env): boolean {
@@ -27,4 +29,27 @@ export const MODERATION_UNAVAILABLE =
  */
 export function routeClosed(status: number): boolean {
   return status === 403 || status === 404 || status === 405 || status === 501;
+}
+
+/** O `detail` do problem+json, quando o corpo o traz e não está vazio. */
+function detailOf(body: string): string | null {
+  try {
+    const detail = JSON.parse(body)?.detail;
+    return typeof detail === 'string' && detail.trim() ? detail.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * O texto de uma resposta recusada pela moderação. Se o servidor diz porquê (`detail`), é isso que
+ * se mostra: «Denúncia não encontrada.» é uma denúncia que já não existe, e «Só o administrador gere a
+ * moderação» é um papel em falta, e nenhum dos dois é «rota fechada». Só um 403/404/405/501 sem corpo
+ * (o `denyAll` do backend que ainda não tem a moderação) diz que a moderação não está ativa.
+ */
+export function moderationRefusal(status: number, body: string): string {
+  if (status === 401) return friendlyMessage(status, body);
+  const detail = detailOf(body);
+  if (detail) return detail;
+  return routeClosed(status) ? MODERATION_UNAVAILABLE : friendlyMessage(status, body);
 }

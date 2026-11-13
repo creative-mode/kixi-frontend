@@ -12,8 +12,8 @@
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentUser } from '@/lib/auth.server';
-import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
-import { MODERATION_UNAVAILABLE, moderationAvailable, routeClosed } from '@/lib/moderation/availability';
+import { call, fail, guard, ok, type Result } from '@/lib/crud/http';
+import { MODERATION_UNAVAILABLE, moderationAvailable, moderationRefusal } from '@/lib/moderation/availability';
 import { auditPath, decisionPath, reportsPath } from '@/lib/moderation/contract';
 import {
   decisionValida,
@@ -38,7 +38,7 @@ async function admin(): Promise<Result<undefined>> {
  * uma rota só de ADMIN depois de o guard ter passado é uma rota fechada, não um papel em falta.
  */
 async function refused(res: Response): Promise<Result<never>> {
-  return fail(routeClosed(res.status) ? MODERATION_UNAVAILABLE : await message(res));
+  return fail(moderationRefusal(res.status, await res.text().catch(() => '')));
 }
 
 /** O `isId`/`isReportStatus` ficam aqui para o ecrã poder validar sem importar o backend. */
