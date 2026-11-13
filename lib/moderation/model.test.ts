@@ -59,7 +59,10 @@ test('escola oculta-se mas nao se suspende', () => {
   assert.ok(decisionValida('INSTITUTION', 'IGNORED'));
   assert.ok(decisionValida('INSTITUTION', 'HIDDEN'));
   assert.ok(!decisionValida('INSTITUTION', 'SUSPENDED'));
-  for (const d of DECISIONS) assert.ok(decisionValida('ACCOUNT', d), `${d} devia valer para uma conta`);
+  // Uma pessoa suspende-se mas não se oculta: é a regra do backend (kixi#591), o resto dá 400.
+  assert.ok(decisionValida('ACCOUNT', 'IGNORED'));
+  assert.ok(decisionValida('ACCOUNT', 'SUSPENDED'));
+  assert.ok(!decisionValida('ACCOUNT', 'HIDDEN'));
   assert.ok(!decisionValida('ACCOUNT', 'NOPE'));
 });
 
@@ -81,20 +84,18 @@ test('a nota tem limite e o erro diz qual e', () => {
   assert.match(noteError('x'.repeat(501)) ?? '', /500 caracteres/);
 });
 
-test('ocultar e suspender pedem nota escrita, ignorar nao', () => {
-  assert.ok(decisionExigeNota('HIDDEN'));
-  assert.ok(decisionExigeNota('SUSPENDED'));
-  assert.ok(!decisionExigeNota('IGNORED'));
-  assert.equal(notaDecisaoError('IGNORED', ''), null);
-  assert.equal(notaDecisaoError('IGNORED', '   '), null);
-  // Falta ou curta: sem nota a decisão não confirma.
-  assert.match(notaDecisaoError('HIDDEN', '') ?? '', new RegExp(`${NOTA_MINIMA} caracteres`));
-  assert.match(notaDecisaoError('SUSPENDED', 'curta') ?? '', new RegExp(`${NOTA_MINIMA} caracteres`));
-  assert.equal(notaDecisaoError('HIDDEN', 'x'.repeat(NOTA_MINIMA)), null);
-  assert.equal(notaDecisaoError('SUSPENDED', 'motivo suficiente e claro'), null);
-  // O máximo continua a valer para as três.
-  assert.match(notaDecisaoError('HIDDEN', 'x'.repeat(501)) ?? '', /500 caracteres/);
-  assert.match(notaDecisaoError('IGNORED', 'x'.repeat(501)) ?? '', /500 caracteres/);
+test('toda a decisão pede nota escrita, ignorar incluído (kixi#591)', () => {
+  for (const d of DECISIONS) assert.ok(decisionExigeNota(d), `${d} devia exigir nota`);
+  // Falta ou curta: sem nota a decisão não confirma, e o backend devolveria 400.
+  for (const d of DECISIONS) {
+    assert.match(notaDecisaoError(d, '') ?? '', new RegExp(`${NOTA_MINIMA} caracteres`));
+    assert.match(notaDecisaoError(d, '   ') ?? '', new RegExp(`${NOTA_MINIMA} caracteres`));
+    assert.match(notaDecisaoError(d, 'curta') ?? '', new RegExp(`${NOTA_MINIMA} caracteres`));
+    assert.equal(notaDecisaoError(d, 'x'.repeat(NOTA_MINIMA)), null);
+    assert.equal(notaDecisaoError(d, 'motivo suficiente e claro'), null);
+    assert.match(notaDecisaoError(d, 'x'.repeat(501)) ?? '', /500 caracteres/);
+  }
+  assert.match(notaDecisaoError('IGNORED', '') ?? '', /ignorar/);
 });
 
 test('as contagens por motivo Consideram so o que esta por decidir', () => {

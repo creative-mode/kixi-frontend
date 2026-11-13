@@ -13,6 +13,8 @@ import { revalidatePath } from 'next/cache';
 
 import { getCurrentUser } from '@/lib/auth.server';
 import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
+import { MODERATION_UNAVAILABLE, moderationAvailable, routeClosed } from '@/lib/moderation/availability';
+import { auditPath, decisionPath, reportsPath } from '@/lib/moderation/contract';
 import {
   decisionValida,
   isId,
@@ -31,6 +33,14 @@ async function admin(): Promise<Result<undefined>> {
   return ok(undefined);
 }
 
+/**
+ * Sem a moderação no servidor (#749) não se gasta um pedido para ouvir 403, e um 403 vindo de
+ * uma rota só de ADMIN depois de o guard ter passado é uma rota fechada, não um papel em falta.
+ */
+async function refused(res: Response): Promise<Result<never>> {
+  return fail(routeClosed(res.status) ? MODERATION_UNAVAILABLE : await message(res));
+}
+
 /** O `isId`/`isReportStatus` ficam aqui para o ecrã poder validar sem importar o backend. */
 export { decisionValida, notaDecisaoError };
 
@@ -38,9 +48,10 @@ export async function listReports(status: ReportStatus | null): Promise<Result<R
   return guard(async () => {
     const allowed = await admin();
     if (!allowed.ok) return allowed;
+    if (!moderationAvailable()) return fail(MODERATION_UNAVAILABLE);
     if (status !== null && !isReportStatus(status)) return fail('Estado inválido.');
-    const res = await call(`/api/v1/moderation/reports${status ? `?status=${status}` : ''}`);
-    if (!res.ok) return fail(await message(res));
+    const res = await call(reportsPath(status));
+    if (!res.ok) return refused(res);
     return ok((await res.json()) as Report[]);
   });
 }
@@ -50,8 +61,9 @@ export async function listAudit(): Promise<Result<AuditEntry[]>> {
   return guard(async () => {
     const allowed = await admin();
     if (!allowed.ok) return allowed;
-    const res = await call('/api/v1/moderation/audit');
-    if (!res.ok) return fail(await message(res));
+    if (!moderationAvailable()) return fail(MODERATION_UNAVAILABLE);
+    const res = await call(auditPath());
+    if (!res.ok) return refused(res);
     return ok((await res.json()) as AuditEntry[]);
   });
 }
@@ -65,6 +77,7 @@ export async function decideReport(
   return guard(async () => {
     const allowed = await admin();
     if (!allowed.ok) return allowed;
+    if (!moderationAvailable()) return fail(MODERATION_UNAVAILABLE);
     if (!isId(reportId)) return fail('Denúncia inválida.');
     // A validação do par decisão/alvo é a mesma que a do ecrã: o botão já não
     // oferece «suspender» a uma escola, mas uma action é um endpoint e repete-se.
@@ -78,11 +91,11 @@ export async function decideReport(
     const erroNota = notaDecisaoError(decision, note);
     if (erroNota) return fail(erroNota);
 
-    const caminho = `/api/v1/moderation/reports/${reportId}/${decision === 'IGNORED' ? 'ignore' : decision === 'HIDDEN' ? 'hide' : 'suspend'}`;
+    const caminho = decisionPath(reportId, decision);
     const res = await call(caminho, { method: 'POST', body: JSON.stringify({ note: note.trim() }) });
-    if (!res.ok) return fail(await message(res));
+    if (!res.ok) return refused(res);
     revalidatePath('/moderacao');
     revalidatePath('/moderacao/auditoria');
     return ok((await res.json()) as Report);
   });
-}
+}

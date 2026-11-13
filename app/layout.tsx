@@ -48,6 +48,7 @@ import { Providers } from "@/components/providers"
 import { AuthLayout } from "@/components/auth-layout"
 import { SessionAccountProvider } from "@/components/session-account"
 import { getCurrentUser } from "@/lib/auth.server"
+import { moderationAvailable } from "@/lib/moderation/availability"
 
 export default async function RootLayout({
   children,
@@ -62,7 +63,7 @@ export default async function RootLayout({
       >
         <Providers>
           <SessionAccountProvider accountId={user?.accountId ?? null}>
-            <ManagerNavbar roles={user?.roles ?? []} />
+            <ManagerNavbar roles={user?.roles ?? []} moderation={moderationAvailable()} />
             <AuthLayout>
               {children}
             </AuthLayout>

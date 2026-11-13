@@ -151,7 +151,16 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
         // Uma escola não tem sessão: suspender não tem sentido e o modelo recusa.
         return problem(400, 'Uma escola pode ser ocultada, não suspensa.');
       }
+      // As mesmas regras do backend (kixi#591): a nota é obrigatória (10 a 500) em todas as decisões.
+      if (report.target === 'ACCOUNT' && status === 'HIDDEN') {
+        return problem(400, 'Uma pessoa pode ser suspensa, não ocultada.');
+      }
       const note = String(readBody()?.note ?? '').trim();
+      if (note.length > 500) return problem(400, 'A nota tem de ter no máximo 500 caracteres.');
+      if (note.length < 10) {
+        const verbo = status === 'HIDDEN' ? 'ocultar' : status === 'SUSPENDED' ? 'suspender' : 'ignorar';
+        return problem(400, `Para ${verbo} escreva uma nota com pelo menos 10 caracteres: é ela que explica a decisão.`);
+      }
       // O token traz `sub` e `roles`, nao o email. A auditoria precisa de dizer QUEM
       // decidiu, e o id serve: e o que o servidor consegue saber sem outro pedido.
       // O nome nao esta em `accounts`, esta em `users`: `seedAccount` põe o primeiro e
@@ -181,9 +190,12 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
       });
       return json(200, report);
     }
-    if (m[1] === 'audit') return json(200, [...store.audit].sort((a, b) => b.id - a.id));
+    // O backend limita as listas: `limit` (por omissão 100, máximo 500) e `offset`.
+    const limit = Math.max(1, Math.min(Number(url.searchParams.get('limit') ?? 100) || 100, 500));
+    const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0);
+    if (m[1] === 'audit') return json(200, [...store.audit].sort((a, b) => b.id - a.id).slice(offset, offset + limit));
     const wanted = url.searchParams.get('status')?.toUpperCase();
-    return json(200, store.reports.filter((r) => !wanted || r.status === wanted).sort((a, b) => b.id - a.id));
+    return json(200, store.reports.filter((r) => !wanted || r.status === wanted).sort((a, b) => b.id - a.id).slice(offset, offset + limit));
   }
 
   if ((m = path.match(/^\/api\/v1\/(verification-requests(?:\/(\d+)\/(approve|reject))?|institutions\/(\d+)\/verification\/revoke)$/))) {

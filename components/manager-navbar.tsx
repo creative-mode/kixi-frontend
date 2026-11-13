@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
 import { resetTeacherScope } from "@/hooks/use-teacher-scope";
-import { activeHref, groupLinks } from "@/lib/nav-rules";
+import { activeHref, groupLinks, visibleLinks } from "@/lib/nav-rules";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 import { guardGlobalUnsavedChanges } from "./crud/use-unsaved-changes";
@@ -169,7 +169,7 @@ function NavList({
   );
 }
 
-export function ManagerNavbar({ roles }: { roles: string[] }) {
+export function ManagerNavbar({ roles, moderation }: { roles: string[]; moderation: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -178,11 +178,14 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
   const isAdmin = roles.includes("ADMIN");
   const isTeacher = roles.includes("TEACHER");
   const coordinatorOnly = roles.includes("COORDINATOR") && !isAdmin && !isTeacher;
-  const navLinks = coordinatorOnly
-    ? allNavLinks.filter((l) => COORDINATOR_HREFS.includes(l.href))
-    : isTeacher && !isAdmin
-    ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
-    : allNavLinks;
+  const navLinks = visibleLinks(
+    coordinatorOnly
+      ? allNavLinks.filter((l) => COORDINATOR_HREFS.includes(l.href))
+      : isTeacher && !isAdmin
+      ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
+      : allNavLinks,
+    { moderation },
+  );
   const pathname = usePathname();
 
   // Don't render navbar on public pages (login)
