@@ -3,6 +3,9 @@ import { test } from 'node:test';
 import {
   MAX_STUDENT_ANSWER,
   answerTo,
+  canSendMessage,
+  preselectQuestion,
+  questionOptions,
   applyEvent,
   buildMessagePayload,
   buildSessionPayload,
@@ -255,4 +258,33 @@ test('a resposta de uma questão que o aluno não errou não é inventada', () =
   assert.equal(answerTo(answers, 2), 'A');
   assert.equal(answerTo(answers, 5), undefined);
   assert.equal(answerTo(answers, null), undefined);
+});
+
+test('o select de questão não oferece «A prova toda» nem em modo a listar', () => {
+  const questions = [{ id: 11, number: 1, text: 'Como funciona o TCP?' }, { id: 12, number: 2, text: 'Porque se fez este circuito?' }];
+  for (const mode of ['EXPLAIN_QUESTION', 'SIMILAR_EXERCISES'] as const) {
+    const options = questionOptions(mode, questions);
+    assert.deepEqual(options[0], { value: '', label: 'Escolha uma questão…', disabled: true });
+    assert.equal(options.length, questions.length + 1);
+    assert.ok(!options.some((option) => !/\d/.test(option.value) && option.label.includes('prova toda')));
+    assert.ok(options.every((option, index) => index === 0 || option.value !== ''));
+  }
+  assert.deepEqual(questionOptions('CONCEPT', questions), []);
+});
+
+test('a questão proposta por defeito é a da última resposta, senão a primeira', () => {
+  const questions = [{ id: 11, number: 1, text: 'a' }, { id: 12, number: 2, text: 'b' }];
+  assert.equal(preselectQuestion('EXPLAIN_QUESTION', questions, 12), 12);
+  assert.equal(preselectQuestion('EXPLAIN_QUESTION', questions, 999), 11);
+  assert.equal(preselectQuestion('SIMILAR_EXERCISES', questions, null), 11);
+  assert.equal(preselectQuestion('EXPLAIN_QUESTION', [], null), null);
+  assert.equal(preselectQuestion('CONCEPT', questions, 12), null);
+});
+
+test('o botão de enviar só funciona com o que o modo pede', () => {
+  assert.equal(canSendMessage('O que é TCP?', 'CONCEPT', null, false), true);
+  assert.equal(canSendMessage('O que é TCP?', 'EXPLAIN_QUESTION', null, false), false);
+  assert.equal(canSendMessage('O que é TCP?', 'EXPLAIN_QUESTION', 11, false), true);
+  assert.equal(canSendMessage('', 'CONCEPT', null, false), false);
+  assert.equal(canSendMessage('x'.repeat(MAX_STUDENT_ANSWER + 1), 'CONCEPT', null, true), false);
 });

@@ -356,3 +356,56 @@ export const SUGGESTIONS = [
 ] as const;
 
 export const MAX_MESSAGE = 4000;
+
+// ── o select de questão, por modo (#751) ──────────────────────────────────────
+
+/** Uma opção do select de questão. O placeholder é `disabled`: mostra-se, mas não é uma escolha. */
+export interface QuestionOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+/**
+ * As opções do select de questão para um modo, sem «A prova toda»: numa prova, nenhuma das
+ * perguntas do tutor vive no vacío, e a prova toda continua disponível no modo «Conceito»,
+ * que é para isso que existe. O placeholder mostra onde começa a lista e nunca é enviável.
+ */
+export function questionOptions(mode: ChatMode, questions: readonly PaperQuestion[]): QuestionOption[] {
+  if (!modeNeedsQuestion(mode)) return [];
+  return [
+    { value: '', label: 'Escolha uma questão…', disabled: true },
+    ...questions.map((q) => ({ value: String(q.id), label: `Questão ${q.number}: ${q.text.slice(0, 60)}` })),
+  ];
+}
+
+/**
+ * A questão a propor por defeito quando o aluno ainda não escolheu: a que estávamos a
+ * explicar (a da última resposta) se ela existir na prova; senão a primeira. Nunca uma
+ * escolha «vazia»: `null` só quando estamos fora de um modo de questão ou a prova não
+ * tem questões, e nesses casos o ecrã diz-o a ele, não fingindo uma opção inexistente.
+ */
+export function preselectQuestion(
+  mode: ChatMode,
+  questions: readonly PaperQuestion[],
+  lastQuestionId: number | null | undefined,
+): number | null {
+  if (!modeNeedsQuestion(mode) || questions.length === 0) return null;
+  if (lastQuestionId != null && questions.some((q) => q.id === lastQuestionId)) return lastQuestionId;
+  return questions[0].id;
+}
+
+/**
+ * Se o aluno pode enviar agora. Desativar o botão antes de o tocar é mais honesto do que
+ * receber «Escolhe uma questão para esse modo.» depois: o erro não acontece.
+ */
+export function canSendMessage(
+  draft: string,
+  mode: ChatMode,
+  questionId: number | null,
+  limit: boolean,
+): boolean {
+  if (limit) return false;
+  if (!draft.trim()) return false;
+  return !(modeNeedsQuestion(mode) && questionId == null);
+}
