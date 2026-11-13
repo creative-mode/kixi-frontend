@@ -23,7 +23,17 @@ export function isCoordinatorOnly(roles: readonly Role[]): boolean {
 }
 
 export function coordinatorMayOpen(pathname: string): boolean {
-  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao';
+  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao' || pathname.startsWith('/coordenacao/');
+}
+
+/** `coordenacao` é do coordenador (a sua instituição) e do ADMIN (todas), como o `CoordinationController` do backend (#759). */
+export function mayOpenCoordination(roles: readonly Role[]): boolean {
+  return hasRole(roles, 'ADMIN') || isCoordinatorOnly(roles);
+}
+
+/** O menu dá «Salas da instituição» só ao coordenador; o ADMIN e o professor usam «Salas de prova» (#759). */
+export function seesInstitutionRooms(roles: readonly Role[]): boolean {
+  return isCoordinatorOnly(roles);
 }
 
 export function isStudentOnly(roles: readonly Role[]): boolean {
