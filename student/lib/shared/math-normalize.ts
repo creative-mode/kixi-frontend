@@ -34,6 +34,18 @@ function normalizeExplicitDelimiters(value: string): string {
     .replace(/(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)/g, (_match, body: string) => `$${body.trim().replace(/\s*\n\s*/g, ' ')}$`);
 }
 
+/**
+ * Um `$$…$$` com o corpo em várias linhas ganha os delimitadores nas suas próprias linhas.
+ * O parser só reconhece um bloco de destaque nessa forma; sem isto, um `\[…\]` cujo corpo
+ * ocupa várias linhas voltava a partir-se em parágrafo + lista (#754).
+ */
+function normalizeDisplayBlocks(value: string): string {
+  return value.replace(/(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$/g, (match, body: string) => {
+    if (!body.includes('\n')) return match;
+    return `\n$$\n${body.trim()}\n$$\n`;
+  });
+}
+
 /** Junta os `$…$` que vieram partidos e aspa os espaços encostados aos delimitadores. */
 function normalizeDollarSpans(value: string): string {
   let out = '';
@@ -80,7 +92,7 @@ function normalizeBullets(value: string): string {
 
 function normalizeProse(value: string): string {
   if (!value) return value;
-  return normalizeBullets(normalizeDollarSpans(normalizeExplicitDelimiters(value)));
+  return normalizeBullets(normalizeDollarSpans(normalizeDisplayBlocks(normalizeExplicitDelimiters(value))));
 }
 
 /** Normaliza só o que está fora de código; o interior de ``` ``` e de `código` fica byte a byte. */

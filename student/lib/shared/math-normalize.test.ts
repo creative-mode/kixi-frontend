@@ -20,6 +20,22 @@ test('o bloco \\[ \\] multilinha deixa de ficar em bruto', () => {
   );
 });
 
+test('um corpo de fórmula com várias linhas ganha os $$ nas suas próprias linhas', () => {
+  // Reprodução do defeito real (#754): o `+ c` era lido como item de lista e o `$$` ficava solto.
+  const input = 'Fórmula:\n\\[\nB = \\frac{u}{d}\n+ c\n\\]\nfim.';
+  assert.equal(
+    normalizeMathMarkdown(input),
+    'Fórmula:\n\n$$\nB = \\frac{u}{d}\n+ c\n$$\n\nfim.',
+  );
+});
+
+test('um $$ multilinha escrito pelo modelo também é fechado em bloco', () => {
+  assert.equal(
+    normalizeMathMarkdown('Antes $$a\n+ b$$ depois'),
+    'Antes \n$$\na\n+ b\n$$\n depois',
+  );
+});
+
 test('junta um $…$ partido por linhas e aspa os espaços encostados', () => {
   assert.equal(
     normalizeMathMarkdown('Campo $B =\n(u*i)/(2*pi*d)$ no fim'),

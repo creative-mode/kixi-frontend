@@ -75,6 +75,12 @@ test('o modelo pode escrever \\(…\\), \\[…\\] ou listas com asteriscos (#754
   ]);
 });
 
+test('um \\[…\\] com corpo em várias linhas é um bloco, não parágrafo + lista (#754)', () => {
+  const blocks = parseMarkdown('Fórmula:\n\\[\nB = \\frac{u}{d}\n+ c\n\\]\nfim.');
+  assert.deepEqual(blocks.map((block) => block.type), ['p', 'math', 'p']);
+  assert.deepEqual(blocks[1], { type: 'math', latex: 'B = \\frac{u}{d}\n+ c' });
+});
+
 test('o typewriter avança ao ritmo da leitura e acelera quando fica para trás', () => {
   assert.equal(advance(0, 1000, 0), 1);
   assert.ok(advance(0, 50, 100) <= 50);

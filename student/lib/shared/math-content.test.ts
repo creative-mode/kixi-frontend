@@ -100,6 +100,13 @@ test('o compositor aceita a fórmula com ou sem delimitadores', () => {
   assert.equal(renderStandaloneMathHtml('\\[x^2\\]', false), renderStandaloneMathHtml('x^2', false));
 });
 
+test('uma fórmula de várias linhas é desenhada como bloco (#754)', () => {
+  const html = renderStandaloneMathHtml('B = \\frac{u}{d}\n+ c', true);
+  assert.match(html, /katex-display/);
+  assert.match(html, /<math/);
+  assert.doesNotMatch(html, /kixi-math-literal/);
+});
+
 test('publicação antiga que não compila fica como texto, sem aviso de revisão', () => {
   const html = renderStandaloneMathHtml('\\notacommand{x}', false);
   assert.equal(html, '<span class="kixi-math-literal">\\notacommand{x}</span>');
