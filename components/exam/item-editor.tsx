@@ -3,7 +3,6 @@
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { convertItemKind, invalidateReviewOnContentChange, kindOf, type DraftItem, type LeafKind } from '@/lib/exam/draft';
@@ -12,6 +11,7 @@ import { TruthChoice } from './truth-choice';
 import { hasMathContent } from '@/student/lib/shared/math-content';
 import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-types';
 import { FormulaInput } from './formula-input';
+import { CotaçãoInput } from './cotacao-input';
 
 export const LEAF_LABELS: Record<LeafKind, string> = {
   open: 'Dissertativa',
@@ -104,12 +104,9 @@ export function ItemEditor({
           }}
           placeholder={`Alínea ${label})`}
         />
-        <Input
-          type="number"
-          min={0}
-          step="0.5"
+        <CotaçãoInput
           value={item.points}
-          onChange={(e) => onChange({ ...item, points: e.target.value === '' ? '' : Number(e.target.value) })}
+          onChange={(points) => onChange({ ...item, points })}
           placeholder="Val."
           aria-label={`Cotação da questão ${where}`}
           className="w-20 shrink-0"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { Sigma } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { hasMathContent, splitMathText, type MathSegment } from '@/student/lib/shared/math-content';
@@ -129,10 +130,9 @@ export function FormulaInput({
             {showRenderedMath ? 'Ajustar enunciado' : 'Ver fórmula renderizada'}
           </Button>
         )}
-        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" aria-label={`Inserir fórmula: ${label}`} onClick={openBuilder}>
-          Inserir fórmula
+        <Button type="button" variant="outline" size="icon" className="size-7" aria-label={`Inserir fórmula: ${label}`} title="Inserir fórmula" onClick={openBuilder}>
+          <Sigma aria-hidden />
         </Button>
-        <span className="ml-auto text-xs text-muted-foreground">Construa visualmente; confira no enunciado</span>
       </div>
       <FormulaBuilderModal
         key={`${builderOpen}-${builderInitial.latex}-${builderInitial.display}`}

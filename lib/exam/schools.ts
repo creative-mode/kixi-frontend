@@ -1,4 +1,4 @@
-import { kindOf, labelsFor, normalizeSourceItemLabel, trueFalseOptions, withoutImages, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
+import { kindOf, labelsFor, newUid, normalizeSourceItemLabel, trueFalseOptions, withoutImages, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
 import { mathContentFields } from '../../student/lib/shared/math-types.ts';
 
 export interface School {
@@ -39,6 +39,11 @@ export interface ExamDraft {
 
 export const KINDS = ['Trabalho prático', 'Teste', 'Prova', 'Exame'] as const;
 
+/** Uma pergunta vazia, com a identidade local nova: usar sempre esta, nunca um literal. */
+export function emptyQuestion(): ExamItem {
+  return { text: '', points: '', options: [], uid: newUid() };
+}
+
 export const EMPTY_DRAFT: ExamDraft = {
   // a escola vem do backend (as afiliadas ao professor); vazio escolhe a primeira
   schoolId: '',
@@ -46,7 +51,7 @@ export const EMPTY_DRAFT: ExamDraft = {
   kind: 'Trabalho prático',
   grade: '12ª Classe',
   phase: '1ª Fase',
-  items: [{ text: '', points: '', options: [] }],
+  items: [{ text: '', points: '', options: [], uid: newUid() }],
   title: '',
   duration: '',
   variant: '',
@@ -100,10 +105,11 @@ const KIND_VALUES: readonly QuestionKind[] = ['open', 'multiple_choice', 'true_f
 
 /** Uma alínea como o app a guarda; um tipo desconhecido volta a derivar-se das opções. */
 function normalizeSubItem(raw: Partial<DraftItem> | undefined): DraftItem {
-  const options = normalizeOptions(raw?.options);
+  const options = normalizeOptions(raw?.options ?? []);
   const kind = LEAF_KINDS.includes(raw?.kind as LeafKind) ? (raw?.kind as LeafKind) : (kindOf({ options }) as LeafKind);
   const label = normalizeSourceItemLabel(raw?.label);
   return {
+    uid: typeof raw?.uid === 'string' && raw.uid ? raw.uid : newUid(),
     ...(label ? { label } : {}),
     ...(Number.isInteger(raw?.serverId) && Number(raw?.serverId) > 0 ? { serverId: Number(raw?.serverId) } : {}),
     text: typeof raw?.text === 'string' ? raw.text : '',
@@ -124,6 +130,7 @@ function normalizeItem(raw: Partial<ExamItem> | undefined): ExamItem {
   // Um grupo sem alíneas guardadas não é um grupo: o rascunho antigo nunca as teve.
   const kind = wanted === 'group' && !items?.length ? undefined : wanted;
   return {
+    uid: typeof raw?.uid === 'string' && raw.uid ? raw.uid : newUid(),
     ...(Number.isInteger(raw?.serverId) && Number(raw?.serverId) > 0 ? { serverId: Number(raw?.serverId) } : {}),
     text: typeof raw?.text === 'string' ? raw.text : '',
     points: typeof raw?.points === 'number' ? raw.points : '',

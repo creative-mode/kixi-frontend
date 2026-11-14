@@ -9,7 +9,7 @@
  * para o do construtor; as alíneas vêm em `subitems_content`. O gabarito nunca vem do OCR: um
  * verdadeiro/falso fica com as duas opções e nenhuma marcada, para o professor decidir.
  */
-import { labelAt, normalizeSourceItemLabel, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
+import { labelAt, newUid, normalizeSourceItemLabel, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
 import { KINDS, type ExamDraft } from './schools.ts';
 import { mathContentFields, mathNeedsReview, type MathContentBlock, type MathFormula } from '../../student/lib/shared/math-types.ts';
 
@@ -211,7 +211,8 @@ function questionFrom(q: ExtractionQuestion, warningReview = false, globalReview
 
   if (subs.length > 0 && (type === 'verdadeiro_falso' || type === 'composta' || type === 'dissertativa' || type === '')) {
     const fallback: LeafKind = type === 'verdadeiro_falso' ? 'true_false' : 'open';
-    const items = subs.map((s) => itemFrom(s, fallback, review));
+    const items = subs.map((s) => ({ ...itemFrom(s, fallback, review), uid: newUid() }));
+    // alguns subs podem ser undefined? itemFrom devolve DraftItem sempre
     return { question: { text, points: '', options: [], kind: 'group', items, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: items.filter((item) => item.review).length };
   }
   if (type === 'verdadeiro_falso') {
@@ -307,9 +308,10 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   // do original, por isso o índice dela acompanha as questões — é o que identifica as
   // questões desta página quando a leitura voltar a ser repetida.
   const items = built.map((b, i) => {
+    const withUid: DraftQuestion = { uid: newUid(), ...b.question };
     const question: DraftQuestion = typeof origin.sourcePageIndex === 'number' && origin.sourcePageIndex >= 0
-      ? { ...b.question, sourcePageIndex: origin.sourcePageIndex }
-      : b.question;
+      ? { ...withUid, sourcePageIndex: origin.sourcePageIndex }
+      : withUid;
     const images = imagesOf(kept[i].number, extraction.images_to_upload);
     return images.length > 0 ? { ...question, images } : question;
   });
