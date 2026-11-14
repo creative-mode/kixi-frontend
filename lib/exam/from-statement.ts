@@ -82,7 +82,8 @@ export function draftFromStatement(statement: Row, ctx: StatementContext = {}): 
     variant: String(statement.variant ?? ''),
     schoolYear: ctx.schoolYear ?? '',
     // A cotação não entra por aqui: é calculada a partir das questões (`exam-sheet.tsx`).
-    rules: String(statement.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter((r) => r && !/^\s*cot/i.test(r)),
+    // O filtro é mesmo «começa por cotação» (c e ç, a e ã), não qualquer linha que comece por «cot».
+    rules: String(statement.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter((r) => r && !/^\s*cota[cç][aã]o\b/i.test(r)),
     note: '',
     place: '',
     date: '',

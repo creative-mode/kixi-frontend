@@ -273,7 +273,8 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   if (variant) patch.variant = variant;
   if (extraction.school_year_start && extraction.school_year_end) patch.schoolYear = `${extraction.school_year_start}/${extraction.school_year_end}`;
   // «Cotação: de 0 a 20 valores.» do enunciado original não entra: a cotação é calculada a partir das questões.
-  const rules = (extraction.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter((r) => r && !/^\s*cot/i.test(r));
+  // O filtro é mesmo «começa por cotação» (c e ç, a e ã), não qualquer linha que comece por «cot».
+  const rules = (extraction.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter((r) => r && !/^\s*cota[cç][aã]o\b/i.test(r));
   if (rules.length > 0) patch.rules = rules;
 
   const name = (extraction.subject_name ?? '').trim();
