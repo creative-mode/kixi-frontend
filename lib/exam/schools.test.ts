@@ -139,3 +139,21 @@ test('a marca de revisão do OCR conta como trabalho (#362)', () => {
   assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], kind: 'group', items: [{ text: '', points: '', options: [], review: true }] }] }), true);
   assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], review: false }] }), false);
 });
+
+test('o uid que vem no rascunho mantém-se; quem não vem, ganha um', () => {
+  const d = normalizeDraft({
+    items: [
+      { text: 'Com uid', points: '', options: [], uid: 'muid-existente' },
+      { text: 'Sem uid', points: '', options: [] },
+      { text: 'Grupo', points: '', options: [], kind: 'group', items: [
+        { text: 'a alínea com uid', points: '', options: [], uid: 'muid-alinea' },
+        { text: 'a alínea sem uid', points: '', options: [] },
+      ] },
+    ],
+  } as never);
+  assert.equal(d.items[0].uid, 'muid-existente');
+  assert.ok(d.items[1].uid);
+  assert.notEqual(d.items[1].uid, 'muid-existente');
+  assert.equal(d.items[2].items?.[0].uid, 'muid-alinea');
+  assert.ok(d.items[2].items?.[1].uid);
+});
