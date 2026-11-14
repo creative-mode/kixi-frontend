@@ -45,7 +45,7 @@ export interface ParticipantProgress {
   status: string;
   answeredQuestions: number;
   totalQuestions: number;
-  /** Ainda não vem do backend; ver `participantName`. */
+  /** Nome do aluno resolvido pelo backend (kixi#595); ver `participantName`. */
   displayName?: string | null;
 }
 
@@ -137,7 +137,7 @@ export interface ParticipantIntegrity {
   accountId: number;
   simulationId: number | null;
   events: IntegrityEvent[];
-  /** Ainda não vem do backend; ver `participantName`. */
+  /** Nome do aluno resolvido pelo backend (kixi#595); ver `participantName`. */
   displayName?: string | null;
 }
 
@@ -205,8 +205,8 @@ export function summarizeIntegrity(events: IntegrityEvent[]): IntegritySummary {
   };
 }
 
-/** O backend ainda não devolve o nome do aluno (pedido no kixi#181). Até lá,
- *  o número da conta é a única identificação que o professor pode ler. */
+/** O nome que o backend já resolve (kixi#595). O fallback só serve respostas
+ *  antigas ou parciais — nunca deve ser a identificação normal do aluno. */
 export function participantName(p: { accountId: number; displayName?: string | null }): string {
   return p.displayName?.trim() || `Aluno n.º ${p.accountId}`;
 }

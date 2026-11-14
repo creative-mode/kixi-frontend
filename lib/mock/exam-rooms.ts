@@ -64,6 +64,23 @@ export function examRooms(w: RoomWorld) {
   db['exam-room-participants'] ??= [];
   db['integrity-events'] ??= [];
 
+  /**
+   * O nome que o backend resolve para a conta (kixi#595): o perfil e, sem ele,
+   * o username. Sem conta nenhuma, `null` — o frontend decide o fallback.
+   */
+  const displayNameOf = (accountId: number): string | null => {
+    const profile = (db.users ?? []).find((u: any) => u.accountId === accountId && !u.deletedAt);
+    if (profile) {
+      const name = [profile.firstName, profile.lastName]
+        .filter((value: any) => typeof value === 'string' && value.trim())
+        .join(' ')
+        .trim();
+      if (name) return name;
+    }
+    const account = (db.accounts ?? []).find((a: any) => a.id === accountId && !a.deletedAt);
+    return account?.username ?? null;
+  };
+
   const room = (id: number) => db['exam-rooms'].find((r: any) => r.id === id);
   const managed = (id: number, caller: number, admin: boolean): Outcome<any> => {
     const r = room(id);
@@ -202,6 +219,7 @@ export function examRooms(w: RoomWorld) {
         : 0;
       return {
         accountId: p.accountId,
+        displayName: displayNameOf(p.accountId),
         simulationId: p.simulationId ?? null,
         joinedAt: p.joinedAt ?? null,
         status: sim ? sim.status : 'NOT_STARTED',
@@ -244,6 +262,7 @@ export function examRooms(w: RoomWorld) {
       serverTime: w.clock(),
       participants: participantsOf(id).map((p: any) => ({
         accountId: p.accountId,
+        displayName: displayNameOf(p.accountId),
         simulationId: p.simulationId ?? null,
         events: p.simulationId
           ? events
@@ -265,6 +284,7 @@ export function examRooms(w: RoomWorld) {
         const answers = sim ? db['simulation-answers'].filter((a: any) => a.simulationId === sim.id && !a.deletedAt) : [];
         return {
           accountId: p.accountId,
+          displayName: displayNameOf(p.accountId),
           simulationId: p.simulationId ?? null,
           status: sim?.status ?? null,
           finalScore: sim?.finalScore ?? null,
@@ -303,7 +323,7 @@ export function examRooms(w: RoomWorld) {
         questionId: q.id, number: q.number ?? null, label: q.label ?? null, parentId: q.parentId ?? null, text: q.text,
         maxScore: q.maxScore ?? null, modelAnswer: q.modelAnswer ?? null,
         answers: rows.map((a: any) => ({
-          answerId: a.id, accountId: sims.get(a.simulationId).accountId, displayName: null, answerText: a.answerText ?? null,
+          answerId: a.id, accountId: sims.get(a.simulationId).accountId, displayName: displayNameOf(sims.get(a.simulationId).accountId), answerText: a.answerText ?? null,
           status: a.reviewStatus, scoreObtained: a.reviewStatus === 'PENDING_REVIEW' ? null : (a.scoreObtained ?? null),
           aiFeedback: a.aiFeedback ?? null, aiLevel: a.aiLevel ?? null, aiConfidence: a.aiConfidence ?? null,
         })),
