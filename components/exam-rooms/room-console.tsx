@@ -204,7 +204,7 @@ export function RoomConsole({ id }: { id: number }) {
           os tem, e mostrá-los ali seria uma coluna sempre vazia. */}
       {room.status === 'RUNNING' || room.status === 'CLOSED' ? (
         <div className="mt-8">
-          <RoomIntegrity roomId={id} />
+          <RoomIntegrity roomId={id} status={room.status} />
         </div>
       ) : null}
 

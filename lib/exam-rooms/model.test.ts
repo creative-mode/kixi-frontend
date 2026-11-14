@@ -198,9 +198,10 @@ test('sem notas, o resumo não inventa zeros', () => {
   assert.equal(s.passRate, null);
 });
 
-test('o nome cai para o número da conta enquanto o backend não o devolve', () => {
-  assert.equal(participantName({ accountId: 42 }), 'Aluno n.º 42');
+test('o nome vem do backend; sem ele, fica o número da conta como último recurso', () => {
   assert.equal(participantName({ accountId: 42, displayName: ' Ana ' }), 'Ana');
+  assert.equal(participantName({ accountId: 42, displayName: '   ' }), 'Aluno n.º 42');
+  assert.equal(participantName({ accountId: 42 }), 'Aluno n.º 42');
 });
 
 test('CSV para o Excel em português', () => {
