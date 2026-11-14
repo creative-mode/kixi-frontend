@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  exactInstitution,
   filterInstitutions,
   institutionLabel,
   normalizeSearch,
@@ -44,6 +45,10 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
 
   const closeTimer = useRef<number | null>(null);
   const touched = useRef(false);
+  /** Alguém escreveu no texto livre enquanto a lista ainda vinha. */
+  const typedBeforeList = useRef(false);
+  /** A transição loading → ready só transporta o texto uma vez. */
+  const carried = useRef(false);
   const lastReset = useRef(resetKey);
   const comboInput = useRef<HTMLInputElement>(null);
   const freeInput = useRef<HTMLInputElement>(null);
@@ -96,6 +101,35 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
     setFreeName((current) => (current.trim() ? current : session.name));
   }, [load, session]);
 
+  // #763: quem começa a escrever enquanto a lista carrega não perde o texto
+  // quando o combobox aparece. Se o texto for uma escola da lista, passa a ser a
+  // escolha canónica; se não for, o modo «Outra» conserva-o integralmente — só o
+  // transformar em pesquisa faria a doação seguir sem nome.
+  useEffect(() => {
+    if (load !== 'ready' || carried.current) return;
+    carried.current = true;
+    if (!typedBeforeList.current) return;
+    const typed = freeName.trim();
+    if (!typed) return;
+    const exact = exactInstitution(institutions, typed);
+    if (exact) {
+      setSelected(exact);
+      setQuery(institutionLabel(exact));
+      setOther(false);
+      window.requestAnimationFrame(() => {
+        const input = comboInput.current;
+        if (!input) return;
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      });
+      return;
+    }
+    setSelected(null);
+    setQuery('');
+    setOther(true);
+    window.requestAnimationFrame(() => freeInput.current?.focus());
+  }, [load, freeName, institutions]);
+
   // Depois de uma doação, «Doar outro enunciado» limpa também esta escolha.
   useEffect(() => {
     // Comparar com o valor anterior, e não «primeira vez»: em desenvolvimento o
@@ -109,6 +143,7 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
     setOpen(false);
     setActive(-1);
     touched.current = true;
+    typedBeforeList.current = false;
   }, [resetKey]);
 
   useEffect(() => () => {
@@ -123,18 +158,6 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
   useEffect(() => {
     setActive((current) => (current > otherIndex ? otherIndex : current));
   }, [otherIndex]);
-
-  /** A lista de escolas onde o nome ou a sigla coincidem por inteiro. */
-  function exactMatch(value: string): InstitutionOption | null {
-    const search = normalizeSearch(value);
-    if (!search) return null;
-    const hits = institutions.filter(
-      (option) =>
-        normalizeSearch(option.name) === search ||
-        (option.shortName !== null && normalizeSearch(option.shortName) === search),
-    );
-    return hits.length === 1 ? hits[0] : null;
-  }
 
   function choose(option: InstitutionOption) {
     touched.current = true;
@@ -204,7 +227,7 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
         selectAt(active);
         return;
       }
-      const exact = exactMatch(query);
+      const exact = exactInstitution(institutions, query);
       if (exact) choose(exact);
       else if (filtered.length === 0) chooseOther();
     } else if (event.key === 'Escape') {
@@ -227,7 +250,7 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
   }
 
-  const chosenOffice = exactMatch(freeName);
+  const chosenOffice = exactInstitution(institutions, freeName);
   const fallbackId =
     chosenOffice?.id ?? (session && normalizeSearch(session.name) === normalizeSearch(freeName) ? session.id : null);
   const readyChoice = load === 'ready' && !other;
@@ -302,7 +325,7 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
               <li
                 id={optionId(otherIndex)}
                 role="option"
-                aria-selected={false}
+                aria-selected={other}
                 className={otherIndex === active ? 'dn-combo__option dn-combo__other is-active' : 'dn-combo__option dn-combo__other'}
                 onMouseDown={(event) => event.preventDefault()}
                 onMouseEnter={keepOpen}
@@ -326,7 +349,11 @@ export function InstitutionPicker({ inputId, errorId, error, resetKey = 0 }: Pro
             aria-describedby={describedBy}
             aria-invalid={message ? true : undefined}
             value={freeName}
-            onChange={(event) => setFreeName(event.target.value)}
+            onChange={(event) => {
+              typedBeforeList.current = true;
+              touched.current = true;
+              setFreeName(event.target.value);
+            }}
           />
           {other && (
             <button type="button" className="dn-combo__back" onClick={backToList}>

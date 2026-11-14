@@ -10,6 +10,13 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
   let m: RegExpMatchArray | null = null;
   void [m, url, auth, isStaff, readBody, loginResponse, isAdmin, activeInst, writeWorld, denyWrite];
   // ── institutions: affiliations and teacher access ──
+  // #763: o catálogo público da doação, sem sessão. `code` é a sigla que o
+  // combobox mostra e procura; o `id` é o que liga a doação à escola.
+  if (path === '/api/v1/institutions/public' && method === 'GET') {
+    return json(200, db.institutions
+      .filter((i) => !i.deletedAt)
+      .map((i) => ({ id: i.id, code: i.code, name: i.name })));
+  }
   if (path === '/api/v1/institutions/mine' && method === 'GET') {
     if (isAdmin) return json(200, db.institutions.filter((i) => !i.deletedAt));
     const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);

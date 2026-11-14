@@ -89,6 +89,8 @@ export function DonationsList() {
   const pages = data ? pageCount(data.total, data.limit) : 1;
   const total = data ? DONATION_STATUSES.reduce((sum, s) => sum + (data.counts[s] ?? 0), 0) : 0;
   const showInstitution = institutions.length > 0 && (linkedSeen || institutionId !== null);
+  /** #763: sem doações ligadas, o filtro por escola não teria o que filtrar. */
+  const explainNoInstitutionFilter = data !== null && institutions.length > 0 && !linkedSeen;
   // Com o filtro por escola, os contadores por estado do backend deixam de ser os do ecrã.
   const showCounts = data !== null && institutionId === null;
 
@@ -112,6 +114,12 @@ export function DonationsList() {
           </Button>
         ))}
       </div>
+
+      {explainNoInstitutionFilter && (
+        <p className="mb-4 text-xs text-muted-foreground">
+          O filtro por instituição aparece quando chegar uma doação de uma escola do catálogo.
+        </p>
+      )}
 
       {showInstitution && (
         <div className="mb-4 flex flex-wrap items-center gap-2">

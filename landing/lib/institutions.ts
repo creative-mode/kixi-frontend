@@ -82,6 +82,26 @@ export function filterInstitutions(list: readonly InstitutionOption[], query: st
   );
 }
 
+/**
+ * A escola que corresponde por inteiro ao texto (nome ou sigla), se for uma só.
+ *
+ * `null` quando não há correspondência ou quando o texto é ambíguo: só se troca
+ * para uma escolha canónica quando não há dúvida sobre qual é a escola.
+ */
+export function exactInstitution(
+  list: readonly InstitutionOption[],
+  value: string,
+): InstitutionOption | null {
+  const search = normalizeSearch(value);
+  if (!search) return null;
+  const hits = list.filter(
+    (option) =>
+      normalizeSearch(option.name) === search ||
+      (option.shortName !== null && normalizeSearch(option.shortName) === search),
+  );
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /** O nome a mostrar no combobox: «Instituto de Telecomunicações (ITEL)». */
 export function institutionLabel(option: InstitutionOption): string {
   return option.shortName && option.shortName !== option.name ? `${option.name} (${option.shortName})` : option.name;

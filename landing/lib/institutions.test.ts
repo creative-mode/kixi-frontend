@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  exactInstitution,
   filterInstitutions,
   institutionLabel,
   normalizeSearch,
@@ -69,6 +70,26 @@ test('a escola da sessão só conta com um id e um nome válidos', () => {
   assert.equal(parseSessionInstitution({ institution: { id: 1, name: '' } }), null);
   assert.equal(parseSessionInstitution({}), null);
   assert.equal(parseSessionInstitution(null), null);
+});
+
+test('só uma correspondência por inteiro troca o texto por uma escola', () => {
+  const list = parseInstitutions([
+    { id: 1, name: 'Instituto de Telecomunicações', shortName: 'ITEL' },
+    { id: 2, name: 'Instituto Médio Industrial de Luanda', shortName: 'IMIL' },
+    { id: 3, name: 'Escola 5 de Abril', acronym: 'E5A' },
+  ]);
+  assert.equal(exactInstitution(list, 'itel')?.id, 1);
+  assert.equal(exactInstitution(list, '  INSTITUTO DE TELECOMUNICAÇÕES ')?.id, 1);
+  assert.equal(exactInstitution(list, 'Escola 5 de Abril')?.id, 3);
+  // Uma pesquisa parcial não é uma escolha.
+  assert.equal(exactInstitution(list, 'instituto'), null);
+  assert.equal(exactInstitution(list, ''), null);
+  // Texto ambíguo (duas escolas com a mesma sigla) também não escolhe nenhuma.
+  const repetidas = parseInstitutions([
+    { id: 4, name: 'Um', shortName: 'X' },
+    { id: 5, name: 'Dois', shortName: 'X' },
+  ]);
+  assert.equal(exactInstitution(repetidas, 'x'), null);
 });
 
 test('o rótulo mostra a sigla quando acrescenta informação', () => {

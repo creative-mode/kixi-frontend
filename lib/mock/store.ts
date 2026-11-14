@@ -273,6 +273,8 @@ export function authorize(auth: any, method: string, path: string) {
   const roles = auth?.roles ?? [];
   const has = (...r) => r.some((x) => roles.includes(x));
   if (path.startsWith('/api/v1/auth/')) return 200;
+  // #763: o catálogo que a doação da landing lê é público, como no backend do #597.
+  if (method === 'GET' && path === '/api/v1/institutions/public') return 200;
   if (!auth) return 401;
   if (/^\/api\/v1\/(accounts|users|roles|sessions)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   if (method === 'GET' && path === '/api/v1/teachers/me/overview') return has('TEACHER') ? 200 : 403;
