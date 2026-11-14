@@ -1132,7 +1132,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Publicar é bloqueado enquanto a prova tiver problemas, e o construtor diz
     // quais: o OCR não traz cotação nem adivinha o gabarito. Resolve-se o que a
     // própria página complains, em vez de fixar números que o mock pode mudar.
-    await page.getByRole('button', { name: 'Distribuir 20 valores' }).click();
+    await page.getByRole('button', { name: 'Distribuir por igual' }).click();
     for (const grupo of await page.getByRole('radiogroup').all()) {
       const nome = (await grupo.getAttribute('aria-label')) ?? '';
       if (!nome.includes('Resposta da questão')) continue;
