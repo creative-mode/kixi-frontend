@@ -44,6 +44,13 @@ export function emptyQuestion(): ExamItem {
   return { text: '', points: '', options: [], uid: newUid() };
 }
 
+/**
+ * As regras por omissão por tipo de prova. «O trabalho deve ser realizado em grupo.» faz sentido
+ * para um trabalho prático; num teste ou num exame é falso. A cotação nunca entra nas regras:
+ * é calculada a partir das questões (ver `components/exam/exam-sheet.tsx`).
+ */
+export const defaultRules = (kind: string): string[] => (kind === 'Trabalho prático' ? ['O trabalho deve ser realizado em grupo.'] : []);
+
 export const EMPTY_DRAFT: ExamDraft = {
   // a escola vem do backend (as afiliadas ao professor); vazio escolhe a primeira
   schoolId: '',
@@ -56,7 +63,7 @@ export const EMPTY_DRAFT: ExamDraft = {
   duration: '',
   variant: '',
   schoolYear: '',
-  rules: ['O trabalho deve ser realizado em grupo.', 'Cotação: de 0 a 20 valores.'],
+  rules: defaultRules('Trabalho prático'),
   note: '',
   place: 'Luanda',
   date: '',
@@ -159,7 +166,7 @@ export function normalizeDraft(saved: Partial<ExamDraft>): ExamDraft {
     duration: typeof saved.duration === 'number' ? saved.duration : '',
     variant: typeof saved.variant === 'string' ? saved.variant : '',
     schoolYear: typeof saved.schoolYear === 'string' ? saved.schoolYear : '',
-    rules: Array.isArray(saved.rules) ? saved.rules.map((r) => (typeof r === 'string' ? r : '')) : EMPTY_DRAFT.rules,
+    rules: Array.isArray(saved.rules) ? saved.rules.map((r) => (typeof r === 'string' ? r : '')) : defaultRules(typeof saved.kind === 'string' ? saved.kind : EMPTY_DRAFT.kind),
   };
 }
 
@@ -220,10 +227,12 @@ function headerHasContent(d: ExamDraft): boolean {
   if (d.grade.trim() !== EMPTY_DRAFT.grade.trim()) return true;
   if (d.phase.trim() !== EMPTY_DRAFT.phase.trim()) return true;
   if (d.place.trim() !== EMPTY_DRAFT.place.trim()) return true;
-  // As regras por omissão são duas e não vazias: apagar uma, escrever outra ou
+  // As regras por omissão dependem do tipo da prova: apagar uma, escrever outra ou
   // acrescentar uma é trabalho. Comparam-se pelo comprimento e pelo texto limpo.
-  if (d.rules.length !== EMPTY_DRAFT.rules.length) return true;
-  return d.rules.some((rule, i) => rule.trim() !== EMPTY_DRAFT.rules[i].trim());
+  const omissoes = defaultRules(d.kind).map((r) => r.trim());
+  const regras = d.rules.map((r) => r.trim());
+  if (regras.length !== omissoes.length) return true;
+  return regras.some((rule, i) => rule !== omissoes[i]);
 }
 
 /** Lê uma imagem e reduz-a (máx. 320px) para caber no armazenamento local. */

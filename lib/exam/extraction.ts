@@ -272,7 +272,8 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   const variant = (extraction.variant ?? '').trim();
   if (variant) patch.variant = variant;
   if (extraction.school_year_start && extraction.school_year_end) patch.schoolYear = `${extraction.school_year_start}/${extraction.school_year_end}`;
-  const rules = (extraction.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+  // «Cotação: de 0 a 20 valores.» do enunciado original não entra: a cotação é calculada a partir das questões.
+  const rules = (extraction.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter((r) => r && !/^\s*cot/i.test(r));
   if (rules.length > 0) patch.rules = rules;
 
   const name = (extraction.subject_name ?? '').trim();
@@ -348,7 +349,7 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   const codes = new Set(warnings.map((w) => (w.code ?? '').toUpperCase()));
   const allUnscored = items.length > 0 && items.every((q) => (q.kind === 'group' ? (q.items ?? []).every((i) => i.points === '') : q.points === ''));
   if (codes.has('NO_COTACAO') || allUnscored) {
-    nota('A prova não traz cotação. Use «Distribuir 20 valores» ou preencha a cotação de cada questão.');
+    nota('A prova não traz cotação. Use «Distribuir por igual» ou preencha a cotação de cada questão.');
   }
   for (const w of warnings) {
     if ((w.code ?? '').toUpperCase() !== 'LOW_CONFIDENCE' || !w.field) continue;

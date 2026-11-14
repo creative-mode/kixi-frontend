@@ -86,8 +86,9 @@ test('mexer só no cabeçalho também é trabalho por guardar (#362)', () => {
     { duration: 90 },
     { variant: 'B' },
     { schoolYear: '2024/2025' },
-    { rules: ['O trabalho deve ser realizado em grupo.'] }, // apagou uma regra
-    { rules: ['O trabalho deve ser realizado em grupo.', 'Cotação: de 0 a 20 valores.', 'Sem calculadora.'] }, // acrescentou
+    { rules: [] }, // apagou a regra por omissão
+    { rules: ['O trabalho deve ser realizado em grupo.', 'Sem calculadora.'] }, // acrescentou uma
+    { rules: ['O trabalho deve ser realizado em grupo.'], kind: 'Teste' }, // mudou de kind — as regras por omissão mudam com ele
     { note: 'Revisão de véspera.' },
     { place: 'Benguela' },
     { date: '2026-10-20' },
