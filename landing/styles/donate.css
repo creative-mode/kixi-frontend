@@ -45,6 +45,19 @@
 .dn-field textarea { resize: none; min-height: 56px; }
 .dn-field :focus-visible, .dn-drop:focus-within, .dn-consent__row input:focus-visible { outline: 3px solid var(--lcd-3); outline-offset: 2px; }
 .dn-field [aria-invalid="true"] { background: #c9d98a; border-color: #5c0d0a; }
+
+/* Combobox da instituição (#763): a lista entra no fluxo, dentro do ecrã que já
+   rola, em vez de flutuar e ficar cortada pela moldura. */
+.dn-combo { display: grid; gap: 4px; min-width: 0; }
+.dn-combo__list { margin: 0; padding: 0; list-style: none; max-height: 190px; overflow-y: auto; background: var(--lcd-1); border: 2px solid var(--lcd-3); scrollbar-width: thin; scrollbar-color: var(--lcd-3) var(--lcd-1); }
+.dn-combo__option { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 10px; font-size: 14px; line-height: 1.3; cursor: pointer; border-top: 1px solid var(--lcd-3); }
+.dn-combo__option:first-child { border-top: 0; }
+.dn-combo__option.is-active, .dn-combo__option:hover { background: var(--lcd-3); color: var(--lcd-0); }
+.dn-combo__option[aria-selected="true"] { font-weight: 800; }
+.dn-combo__short { flex: none; font: 400 11px/1 var(--font-pixel); white-space: nowrap; }
+.dn-combo__empty { padding: 9px 10px; font-size: 13px; opacity: .75; }
+.dn-combo__other { font-weight: 700; }
+.dn-combo__back { justify-self: start; min-height: 32px; padding: 0; font: 700 13px/1 var(--font-sans); color: var(--lcd-3); background: transparent; border: 0; text-decoration: underline; cursor: pointer; }
 .dn-step-hint { margin: 0 0 12px; padding: 10px 12px; background: var(--lcd-1); border: 1px solid var(--lcd-3); border-radius: 0; }
 .dn-step-hint__title { margin: 0 0 4px; font: 800 12px/1.2 var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; color: var(--lp-ink); }
 .dn-step-hint__list { margin: 0; padding-left: 16px; line-height: 1.5; color: var(--lcd-3); }

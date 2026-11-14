@@ -273,6 +273,8 @@ export function authorize(auth: any, method: string, path: string) {
   const roles = auth?.roles ?? [];
   const has = (...r) => r.some((x) => roles.includes(x));
   if (path.startsWith('/api/v1/auth/')) return 200;
+  // #763: o catálogo que a doação da landing lê é público, como no backend do #597.
+  if (method === 'GET' && path === '/api/v1/institutions/public') return 200;
   if (!auth) return 401;
   if (/^\/api\/v1\/(accounts|users|roles|sessions)(\/|$)/.test(path)) return has('ADMIN') ? 200 : 403;
   if (method === 'GET' && path === '/api/v1/teachers/me/overview') return has('TEACHER') ? 200 : 403;
@@ -443,12 +445,16 @@ export function moderationStore() {
 // Doações do mock: três, para a lista, o filtro e a revisão terem com que trabalhar.
 export const PIXEL = ['iVBORw0KGgoAAA', 'ANSUhEUgAAAAE', 'AAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ', 'AA', 'AABJRU5ErkJg', 'g=='].join('');
 export function donationStore() {
+  // #763: a primeira doação vem de uma escola do catálogo; as outras duas são
+  // «Outra», para a lista, o filtro e a conversão terem os dois casos.
+  const itelId = db.institutions.find((i) => i.code === 'ITEL' && !i.deletedAt)?.id ?? null;
   G.__kixiDonations ??= [
     ['KD-7F3K-92QX', 'pending', 'ITEL', 'Matemática', 'Exame'],
     ['KD-ABCD-2345', 'pending', 'Escola 5 de Abril', 'OGI', 'Prova'],
     ['KD-HJ4K-MN56', 'approved', 'Liceu do Kilamba', 'Física', 'Teste'],
   ].map(([reference, status, institutionName, subjectName, examType], i) => ({
     id: i + 1, reference, status, donorName: i === 0 ? 'Ana Silva' : null, donorEmail: i === 0 ? 'ana@example.com' : null,
+    institutionId: institutionName === 'ITEL' ? itelId : null,
     institutionName, subjectName, classGrade: '12ª Classe', schoolYear: '2024/2025', examType, notes: i === 0 ? 'Prova do 1º trimestre' : null,
     consentAt: '2026-10-15T10:00:00', consentVersion: '2026-10-v1', reviewNote: null, reviewedAt: null, statementId: null, createdAt: `2026-10-1${i + 1}T09:30:00`,
     files: [{ id: i * 10 + 1, originalName: `prova-${i + 1}.png`, contentType: 'image/png', sizeBytes: 70, base64: PIXEL }],

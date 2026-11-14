@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { forwardedFor, messageForStatus, readFields, validateFields, validateFiles } from './donation-rules.ts';
+import { forwardedFor, isInstitutionId, messageForStatus, readFields, validateFields, validateFiles } from './donation-rules.ts';
 
 const base = {
   institutionName: 'ITEL', subjectName: 'Matemática', examType: 'Exame', consent: 'true',
@@ -30,6 +30,18 @@ test('marcação, e-mail e ano letivo mal formados são recusados', () => {
 test('valores que não são texto não passam por texto', () => {
   const f = readFields(() => ({ evil: true }));
   assert.equal(f.institutionName, '');
+  assert.equal(f.institutionId, '');
+});
+
+test('o id da escola só segue quando é um inteiro positivo', () => {
+  assert.equal(fields({ institutionId: ' 12 ' }).institutionId, '12');
+  assert.equal(isInstitutionId('12'), true);
+  for (const bad of ['', '0', '-1', '1.5', 'abc', '1e3', ' ', '999999999999999999999']) {
+    assert.equal(isInstitutionId(bad), false, bad);
+  }
+  assert.equal(isInstitutionId(12), false);
+  // Um id torto não é um erro do formulário: a doação segue só pelo nome.
+  assert.deepEqual(validateFields(fields({ institutionId: 'abc' })), {});
 });
 
 test('os ficheiros: pelo menos um, o tipo, o tamanho e o total', () => {

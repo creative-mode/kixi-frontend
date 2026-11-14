@@ -26,14 +26,21 @@ async function admin(): Promise<Result<undefined>> {
   return ok(undefined);
 }
 
-export async function listDonations(status: DonationStatus | null, page: number): Promise<Result<DonationPage>> {
+export async function listDonations(
+  status: DonationStatus | null,
+  page: number,
+  institutionId: number | null = null,
+): Promise<Result<DonationPage>> {
   return guard(async () => {
     const allowed = await admin();
     if (!allowed.ok) return allowed;
     if (status !== null && !isDonationStatus(status)) return fail('Estado inválido.');
+    if (institutionId !== null && !isId(institutionId)) return fail('Instituição inválida.');
     const safePage = Number.isInteger(page) && page >= 1 ? page : 1;
     const query = new URLSearchParams({ page: String(safePage), limit: String(PAGE_SIZE) });
     if (status) query.set('status', status);
+    // #763: o filtro por escola é do catálogo que o #597 acrescenta ao backend.
+    if (institutionId !== null) query.set('institutionId', String(institutionId));
     const res = await call(`${BASE}?${query}`);
     if (!res.ok) return fail(await message(res));
     return ok((await res.json()) as DonationPage);

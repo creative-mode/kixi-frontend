@@ -17,6 +17,7 @@ import { inspectImage, messageFor, prepareFileForUpload, type Assessment } from 
 import { imagesFrom } from '@/lib/clipboard-images';
 import { attributionFromSearch, donationField, donationStep, track } from '@/lib/analytics';
 import { CONTACT_EMAIL } from '@/lib/content';
+import { InstitutionPicker } from './InstitutionPicker';
 
 type Phase = 'editing' | 'sending' | 'done';
 
@@ -61,6 +62,8 @@ export function DonationForm() {
   const [reference, setReference] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [step, setStep] = useState(0);
+  /** Muda quando a doação recomeça, para o combobox largar a escola anterior. */
+  const [generation, setGeneration] = useState(0);
 
   const [resized, setResized] = useState<Record<string, File>>({});
   const resizedRef = useRef<Record<string, File>>({});
@@ -359,6 +362,7 @@ export function DonationForm() {
               if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
               setPhase('editing');
               setStep(0);
+              setGeneration((current) => current + 1);
               startedAt.current = Date.now();
               tracked.current = false;
               formRef.current?.reset();
@@ -469,10 +473,12 @@ export function DonationForm() {
           <legend className="dn-legend" tabIndex={-1} ref={step === 1 ? heading : undefined}>De onde vem?</legend>
           <div className="dn-grid">
             <div className="dn-field dn-field--wide">
-              <label htmlFor={id('institutionName')}>Instituição *</label>
-              <input id={id('institutionName')} data-field="institutionName" name="institutionName" maxLength={150} autoComplete="organization"
-                aria-describedby={describe('institutionName')} aria-invalid={errors.institutionName ? true : undefined} />
-              {fieldError('institutionName')}
+              <InstitutionPicker
+                inputId={id('institutionName')}
+                errorId={`${id('institutionName')}-err`}
+                error={errors.institutionName}
+                resetKey={generation}
+              />
             </div>
             <div className="dn-field">
               <label htmlFor={id('subjectName')}>Disciplina *</label>

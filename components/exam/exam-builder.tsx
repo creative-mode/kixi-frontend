@@ -219,6 +219,18 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     if (donationId === null) return;
     getDonation(donationId).then((res) => (res.ok ? setDonation(res.data) : reportActionError(res.error)));
   }, [donationId]);
+  // #763: quando a doação já está ligada a uma escola, o construtor abre nessa
+  // escola — desde que esteja entre as que este administrador pode usar. Uma
+  // escolha já feita no rascunho não é substituída.
+  useEffect(() => {
+    const linked = donation?.institutionId;
+    if (linked == null || !ready) return;
+    setDraft((current) => {
+      if (current.schoolId) return current;
+      if (!schools.some((option) => option.id === String(linked))) return current;
+      return { ...current, schoolId: String(linked) };
+    });
+  }, [donation, ready, schools]);
   useEffect(() => { fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN'))); }, []);
 
   const school = useMemo(() => schools.find((s) => s.id === draft.schoolId) ?? schools[0], [schools, draft.schoolId]);
