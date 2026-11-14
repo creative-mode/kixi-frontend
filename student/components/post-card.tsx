@@ -16,6 +16,7 @@ import { sinceLabel } from '@/lib/attempt-history';
 import { authorView, commentAuthorLabel, postTypeLabel, type FeedAuthor } from '@/lib/feed-rules';
 import { addCommentAction, deleteCommentAction, deletePostAction, getCommentsAction, reportPostAction, setReactionAction, updateCommentAction } from '@/lib/feed-actions';
 import type { FeedPost, PostComment } from '@/lib/feed';
+import { MathText } from '@/lib/shared/math-text';
 import { IDLE, requestRead, settled, withComment, type Conversation } from '@/lib/feed-conversation';
 import { FeedReaction, type ReactionSnapshot } from '@/lib/feed-reaction';
 
@@ -361,7 +362,7 @@ export function PostCard({ post, myAccountId, myName, myPhoto, author: authorPro
                       {commentError && <Alert variant="destructive">{commentError}</Alert>}
                     </form>
                   ) : (
-                    <p className="ttl">{c.content}</p>
+                    <p className="ttl"><MathText text={c.content} normalize /></p>
                   )}
                 </li>
               );

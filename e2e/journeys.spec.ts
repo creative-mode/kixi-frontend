@@ -386,7 +386,11 @@ test.describe('jornadas críticas do Kixi', () => {
 
     await page.keyboard.press('Control+Enter');
     await expect(page).toHaveURL(/\/aluno\/inicio/);
-    await expect(page.getByRole('article').filter({ hasText: id }).first()).toBeVisible();
+    const cartao = page.getByRole('article').filter({ hasText: id }).first();
+    await expect(cartao).toBeVisible();
+    // O bloco Fórmula guarda LaTeX e o feed desenha-o com o KaTeX, não como texto em `<code>` (#754).
+    await expect(cartao.locator('.kixi-math .katex').first()).toBeVisible();
+    await expect(cartao.locator('.kixi-math-literal')).toHaveCount(0);
   });
 
   test('aluno edita e elimina as suas publicações e comentários, com confirmação e sem recarregar (#753)', async ({ page }) => {

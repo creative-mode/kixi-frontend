@@ -56,6 +56,25 @@ test('asteriscos de lista não aparecem como texto', () => {
   assert.equal(blocks[0].type, 'ul');
 });
 
+test('o modelo pode escrever \\(…\\), \\[…\\] ou listas com asteriscos (#754)', () => {
+  const inline = parseMarkdown('v = \\(\\frac{d}{t}\\)')[0];
+  assert.deepEqual(inline, {
+    type: 'p',
+    children: [
+      { type: 'text', text: 'v = ' },
+      { type: 'math', latex: '\\frac{d}{t}', display: false },
+    ],
+  });
+  assert.deepEqual(parseMarkdown('\\[\nx^2\n\\]')[0], { type: 'math', latex: 'x^2' });
+
+  const steps = parseMarkdown('Passos: * isolar u * substituir');
+  assert.deepEqual(steps.map((b) => b.type), ['p', 'ul']);
+  assert.deepEqual((steps[1] as { items: unknown[] }).items, [
+    [{ type: 'text', text: 'isolar u' }],
+    [{ type: 'text', text: 'substituir' }],
+  ]);
+});
+
 test('o typewriter avança ao ritmo da leitura e acelera quando fica para trás', () => {
   assert.equal(advance(0, 1000, 0), 1);
   assert.ok(advance(0, 50, 100) <= 50);

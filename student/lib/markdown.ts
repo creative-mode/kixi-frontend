@@ -8,6 +8,8 @@
  * É tolerante com texto a meio (a resposta chega por partes): um marcador que ainda não fechou fica como texto.
  */
 
+import { normalizeMathMarkdown } from './shared/math-normalize.ts';
+
 export type Inline =
   | { type: 'text'; text: string }
   | { type: 'strong'; children: Inline[] }
@@ -128,7 +130,8 @@ const RULE = /^\s{0,3}([-*_])(\s*\1){2,}\s*$/;
 
 /** O texto da resposta → blocos. Linhas seguidas do mesmo parágrafo juntam-se; uma linha em branco separa. */
 export function parseMarkdown(source: string): Block[] {
-  const lines = source.replace(/\r\n?/g, '\n').split('\n');
+  // O modelo alterna `\(…\)`, `\[…\]` e `* item`; a passagem comum deixa tudo no dialeto do parser (#754).
+  const lines = normalizeMathMarkdown(source).replace(/\r\n?/g, '\n').split('\n');
   const blocks: Block[] = [];
   let paragraph: string[] = [];
   const endParagraph = () => {
@@ -159,6 +162,12 @@ export function parseMarkdown(source: string): Block[] {
         i += 1;
       }
       blocks.push({ type: 'math', latex: body.join('\n').trim() });
+      continue;
+    }
+    const displayInline = /^\s*\$\$(.+)\$\$\s*$/.exec(line);
+    if (displayInline) {
+      endParagraph();
+      blocks.push({ type: 'math', latex: displayInline[1].trim() });
       continue;
     }
     if (!line.trim()) {
