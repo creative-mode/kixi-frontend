@@ -4,6 +4,7 @@ import { PostBlocksView } from '@/components/post-blocks-view';
 import { SimulationCard, type SimulationCardData } from '@/components/simulation-card';
 import { UserAvatar } from '@/components/user-avatar';
 import { VerifiedBadge } from '@/components/verified-badge';
+import { MathText } from '@/lib/shared/math-text';
 import { CLASSMATE_LABEL, REFLECTION_LABEL } from '@/lib/feed-rules';
 import type { PostBlock } from '@/lib/post-blocks';
 
@@ -61,7 +62,7 @@ export function PostBody({ post, correctionHref = null }: { post: PostContent; c
       )}
       {post.blocks && post.blocks.length > 0
         ? <PostBlocksView blocks={post.blocks} />
-        : post.content && <p className="text-[15px] leading-normal break-words">{post.content}</p>}
+        : post.content && <p className="text-[15px] leading-normal break-words"><MathText text={post.content} normalize /></p>}
     </div>
   );
 }

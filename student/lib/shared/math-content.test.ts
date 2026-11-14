@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hasMathContent, renderMathHtml, renderMathMarkup, serializeMathText } from './math-content.ts';
+import { hasMathContent, renderMathHtml, renderMathMarkup, renderStandaloneMathHtml, serializeMathText } from './math-content.ts';
 
 test('renderiza delimitadores inline, display e parênteses LaTeX', () => {
   const html = renderMathHtml('Força $F=ma$, energia $$E=mc^2$$ e vetor \\(\\vec{x}\\).');
@@ -85,4 +85,30 @@ test('fórmula inválida preserva o delimitador e recebe marca de revisão', () 
   assert.match(html, /Valor <span class="kixi-math-literal kixi-math-review"/);
   assert.ok(html.includes('$\\notacommand{x}$'));
   assert.match(html, /Fórmula inválida — rever/);
+});
+
+test('um valor inteiro é uma fórmula, com MathML para quem não vê (#754)', () => {
+  const html = renderStandaloneMathHtml('B = \\frac{u \\cdot i}{2\\pi d}', true);
+  assert.match(html, /^<span class="kixi-math kixi-math-display"/);
+  assert.match(html, /katex-display/);
+  assert.match(html, /<math/);
+  assert.match(html, /<annotation encoding="application\/x-tex">/);
+});
+
+test('o compositor aceita a fórmula com ou sem delimitadores', () => {
+  assert.equal(renderStandaloneMathHtml('$x^2$', false), renderStandaloneMathHtml('x^2', false));
+  assert.equal(renderStandaloneMathHtml('\\[x^2\\]', false), renderStandaloneMathHtml('x^2', false));
+});
+
+test('uma fórmula de várias linhas é desenhada como bloco (#754)', () => {
+  const html = renderStandaloneMathHtml('B = \\frac{u}{d}\n+ c', true);
+  assert.match(html, /katex-display/);
+  assert.match(html, /<math/);
+  assert.doesNotMatch(html, /kixi-math-literal/);
+});
+
+test('publicação antiga que não compila fica como texto, sem aviso de revisão', () => {
+  const html = renderStandaloneMathHtml('\\notacommand{x}', false);
+  assert.equal(html, '<span class="kixi-math-literal">\\notacommand{x}</span>');
+  assert.doesNotMatch(html, /Fórmula inválida/);
 });
