@@ -5,6 +5,9 @@ import {
   draftProblem,
   formatCountdown,
   formatWall,
+  isRoomPhase,
+  PHASE_LABEL,
+  roomPhase,
   gradesCsv,
   gradesToSend,
   hasFutureRoomStart,
@@ -43,6 +46,33 @@ test('a hora de parede não passa pelo fuso do browser', () => {
 
 test('agora em Luanda é UTC+1', () => {
   assert.equal(luandaNowInput(new Date('2026-10-12T23:30:00Z')), '2026-10-13T00:30');
+});
+
+test('a fase da sala: agendada antes de começar, a decorrer na janela, terminada depois', () => {
+  const sala = { status: 'OPEN' as const, startsAt: '2026-10-15T09:00:00', endsAt: '2026-10-15T12:00:00' };
+  assert.equal(roomPhase(sala, '2026-10-15T08:59:00'), 'SCHEDULED');
+  assert.equal(roomPhase(sala, '2026-10-15T09:00:00'), 'ONGOING');
+  assert.equal(roomPhase(sala, '2026-10-15T11:59:59'), 'ONGOING');
+  assert.equal(roomPhase(sala, '2026-10-15T12:00:00'), 'ENDED');
+  assert.equal(roomPhase(sala, '2026-10-15T12:01:00'), 'ENDED');
+  assert.equal(roomPhase({ status: 'CLOSED' as const, startsAt: '2026-10-15T09:00:00', endsAt: '2026-10-15T12:00:00' }, '2026-10-15T10:00:00'), 'ENDED');
+  assert.equal(PHASE_LABEL[isRoomPhase('X') ? 'ENDED' : 'SCHEDULED'], 'Agendada');
+});
+
+test('a fase vinda do backend vence a conta local; uma fase inválida cai na conta', () => {
+  const sala = { status: 'RUNNING' as const, startsAt: '2026-10-15T09:00:00', endsAt: '2026-10-15T12:00:00' };
+  assert.equal(roomPhase({ ...sala, phase: 'SCHEDULED' }, '2026-10-15T10:00:00'), 'SCHEDULED');
+  assert.equal(roomPhase({ ...sala, phase: 'ENDED' }, '2026-10-15T10:00:00'), 'ENDED');
+  assert.equal(roomPhase({ ...sala, phase: 'ACABOU' as never }, '2026-10-15T10:00:00'), 'ONGOING');
+  assert.equal(isRoomPhase('SCHEDULED'), true);
+  assert.equal(isRoomPhase('ABERTA'), false);
+});
+
+test('formatWall mostra o ano sempre que muda (e no original por omissão)', () => {
+  assert.equal(formatWall('2026-12-31T23:59:00', 2027), '31/12/2026 23:59');
+  assert.equal(formatWall('2027-01-02T00:30:00', 2026), '02/01/2027 00:30');
+  assert.equal(formatWall('2026-12-31T23:59:00'), '31/12 23:59');
+  assert.equal(formatWall('2027-06-15T10:00:00'), '15/06/2027 10:00');
 });
 
 test('não restaura um rascunho de sala com hora de abertura passada ou inválida', () => {
