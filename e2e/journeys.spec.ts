@@ -1110,7 +1110,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('ocr-sample.pdf')).toBeVisible();
     await expect(page.locator('#exam-sheet .katex')).toBeVisible();
     await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
-    const mathQuestion = page.getByRole('textbox', { name: 'Questão 1' });
+    const mathQuestion = page.getByRole('textbox', { name: 'Questão 1', exact: true });
     await expect(mathQuestion).toBeEditable();
     await mathQuestion.fill('Questão sintética editada: determine $v = v_0 + at$.');
     await expect(page.locator('#exam-sheet')).toContainText('Questão sintética editada: determine');
@@ -1516,8 +1516,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(originais.getByRole('button', { name: 'Ver prova-dois-paginas.pdf em tamanho real' }).locator('img'))
       .toHaveAttribute('src', /^data:image\/jpeg;base64,/);
 
-    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
-    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia.');
+    await expect(page.getByRole('textbox', { name: 'Questão 1', exact: true })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2', exact: true })).toHaveValue('Explica a inércia.');
 
     expect(posts).toHaveLength(1);
     expect(posts[0].match(/name="files"/g)).toHaveLength(1);
@@ -1525,8 +1525,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' }).click();
     await expect(page.getByText('Página 2 relida: 1 questão(ões) no lugar de 1.')).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
-    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia com a correção pedida.');
+    await expect(page.getByRole('textbox', { name: 'Questão 1', exact: true })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2', exact: true })).toHaveValue('Explica a inércia com a correção pedida.');
 
     // Só a página 2 foi relida: um segundo POST, com uma única imagem — não a prova toda.
     expect(posts).toHaveLength(2);
@@ -1537,11 +1537,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
   test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     await page.goto('/manager/exam-builder');
-    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Sendo $x^{2}$ e $y$, calcule.');
+    await page.getByRole('textbox', { name: 'Questão 1', exact: true }).fill('Sendo $x^{2}$ e $y$, calcule.');
     await page.getByRole('button', { name: 'Ver fórmula renderizada' }).first().click();
 
     // Cada fórmula é alcançável por Tab e tem um nome próprio.
-    const group = page.getByRole('group', { name: 'Questão 1' });
+    const group = page.getByRole('group', { name: 'Questão 1', exact: true });
     const second = group.getByRole('button', { name: 'Editar fórmula 2' });
     await expect(group.getByRole('button', { name: /^Editar fórmula/ })).toHaveCount(2);
     await group.getByRole('button', { name: 'Editar fórmula 1' }).focus();
@@ -1578,7 +1578,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await dialog.getByRole('button', { name: 'Substituir fórmula' }).click();
     await expect(dialog).toHaveCount(0);
     await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
-    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Sendo $x^{2}$ e $z^{3}$, calcule.');
+    await expect(page.getByRole('textbox', { name: 'Questão 1', exact: true })).toHaveValue('Sendo $x^{2}$ e $z^{3}$, calcule.');
   });
 
   test('construtor: falha do MathLive mantém edição de fórmula em LaTeX', async ({ page }, testInfo) => {
@@ -1880,8 +1880,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Com a prova pronta o resumo desaparece e o botão deixa de ter descrição.
     await escolherOpcao(page.getByLabel('Disciplina'));
     await escolherOpcao(page.getByLabel(/^Turma/));
-    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
-    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    await page.getByRole('textbox', { name: 'Questão 1', exact: true }).fill('Quanto é 2 + 2?');
+    await page.getByRole('textbox', { name: 'Cotação da questão 1', exact: true }).fill('20');
     await expect(resumo).toHaveCount(0);
     await expect(guardar).toBeEnabled();
   });
@@ -1894,7 +1894,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const publicar = page.getByRole('button', { name: 'Publicar', exact: true });
     await escolherOpcao(page.getByLabel('Disciplina'));
     await escolherOpcao(page.getByLabel(/^Turma/));
-    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+    await page.getByRole('textbox', { name: 'Questão 1', exact: true }).fill('Quanto é 2 + 2?');
 
     // Falta a cotação: dá para guardar, e «Guardar» não lê o problema que só trava «Publicar».
     await expect(guardar).toBeEnabled();
@@ -1919,8 +1919,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Duas edições seguidas têm de atualizar o mesmo enunciado, sem criar outro.
     const statementId = await page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId as number);
     await vista.getByRole('button', { name: 'Editar' }).click();
-    const question = page.getByRole('textbox', { name: 'Questão 1' });
-    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    const question = page.getByRole('textbox', { name: 'Questão 1', exact: true });
+    await page.getByRole('textbox', { name: 'Cotação da questão 1', exact: true }).fill('20');
     for (const text of ['Quanto é 3 + 3?', 'Quanto é 4 + 4?']) {
       await question.fill(text);
       await expect(page.getByRole('status').filter({ hasText: 'Alterações por guardar' })).toBeVisible();
