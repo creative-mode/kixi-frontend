@@ -84,7 +84,7 @@ test.describe('rotas do gestor no gateway (#541)', () => {
 
 /** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
  *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
- *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
+ *  1200 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
  *  `getByRole` nem a via ("element(s) not found"). */
 async function irAoFim(page: Page) {
   await expect
@@ -1129,7 +1129,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
 
 /** Foco, setas e movimento reduzido na apresentação (#513): o CTA do fim era
  *  focável invisível, as setas estavam sequestradas e o modo parado chegava
- *  depois da hidratação, com a página a saltar de 1800 ecrãs para uma lista. */
+ *  depois da hidratação, com a página a saltar de 1200 ecrãs para uma lista. */
 test.describe('foco e movimento da apresentação (#513)', () => {
   /** Visitante da primeira vez: sem escolha guardada o banner aparece. */
   async function primeiraVisita(page: Page) {
@@ -1187,7 +1187,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
     test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-    test('sem salto de layout e sem os 1800 ecrãs', async ({ page }) => {
+    test('sem salto de layout e sem os 1200 ecrãs', async ({ page }) => {
       await page.addInitScript(() => {
         (window as unknown as { __cls?: number }).__cls = 0;
         new PerformanceObserver((list) => {
@@ -1211,9 +1211,9 @@ test.describe('foco e movimento da apresentação (#513)', () => {
       // A apresentação nasce compacta: herói, cenas empilhadas e cartucho parado.
       const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
       const ecra = await page.evaluate(() => window.innerHeight);
-      expect(altura, 'sem os 1800 ecrãs').toBeLessThan(8 * ecra);
+      expect(altura, 'sem os 1200 ecrãs').toBeLessThan(8 * ecra);
       await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible();
-      // O colapso de 1800 ecrãs para lista pontuava muito acima de 1; a troca
+      // O colapso de 1200 ecrãs para lista pontuava muito acima de 1; a troca
       // de webfont (`font-display: swap`, decisão de produto) mexe ~0.1 e não
       // é o salto que este teste vigia.
       const cls = await page.evaluate(() => (window as unknown as { __cls?: number }).__cls ?? 0);
@@ -1348,7 +1348,7 @@ test.describe('CTA de registo da landing (#512)', () => {
     // scroll de baixo perdia-se (ainda sem ouvintes) e o CTA do fim nunca nascia.
     // Em runner carregado a hidratação demora: os 15 s são os dos testes irmãos.
     await expect(page.locator('#solucao')).toBeAttached({ timeout: 15000 });
-    // O outro só fica clicável no fim da apresentação de 1800 ecrãs, e o layout
+    // O outro só fica clicável no fim da apresentação de 1200 ecrãs, e o layout
     // pode crescer depois de lá chegar: desce-se a cada ronda até o CTA entrar
     // na árvore de acessibilidade.
     await irAoFim(page);
