@@ -99,17 +99,18 @@ export function InicioFeed({
   return (
     <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-3 pb-24 md:gap-5 md:px-0 md:pt-7 md:pb-10">
       <h1 className="sr-only">Início</h1>
-      {classId && (
-        <Link href="/tutor" className="flex items-center gap-3 rounded-2xl border border-[#e9ebe7] bg-white px-4 py-3 no-underline transition-colors hover:border-[#1f5a2c]/30">
-          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-[#1f5a2c] text-white">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4a8 8 0 1 0 0 16c.6 0 1.2-.1 1.8-.3 1 .3 2.7.7 2.7.7l.5-2.2c1.5-1.4 2.4-3.2 2.4-5.2 0-5.2-3.9-9.4-8.8-9.4"/></svg>
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-semibold text-[#121c15]">Perguntar ao tutor</span>
-            <span className="block truncate text-[13px] text-[#617066]">Escolhe uma prova e o tutor explica-a contigo</span>
-          </span>
-        </Link>
+      {/* O atalho ao tutor existe para todos — com ou sem turma. */}
+      <Link href="/tutor" className="flex items-center gap-3 rounded-2xl border border-[#e9ebe7] bg-white px-4 py-3 no-underline transition-colors hover:border-[#1f5a2c]/30">
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-[#1f5a2c] text-white">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4a8 8 0 1 0 0 16c.6 0 1.2-.1 1.8-.3 1 .3 2.7.7 2.7.7l.5-2.2c1.5-1.4 2.4-3.2 2.4-5.2 0-5.2-3.9-9.4-8.8-9.4"/></svg>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-semibold text-[#121c15]">Perguntar ao tutor</span>
+          <span className="block truncate text-[13px] text-[#617066]">Escolhe uma prova e o tutor explica-a contigo</span>
+        </span>
+      </Link>
 
+      {classId && (
         <Link href="/publicar" data-feed-composer className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
           <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
           <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
