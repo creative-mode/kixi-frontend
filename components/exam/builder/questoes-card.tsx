@@ -52,11 +52,19 @@ export function QuestoesCard({
           <span className="text-muted-foreground">
             {questionCount} questão(s), <b className="text-foreground">{total} valores</b>
           </span>
+          {total > 0 && total !== 20 && (
+            // O construtor manual não tem um campo de total declarado — a soma É o total —,
+            // ao contrário de `statement-review.tsx` (que valida contra a declaração do professor
+            // com `answerKeyIssues`, em `lib/crud/answer-key.ts`). Por isso este aviso não bloqueia
+            // e não reaproveita a mensagem de lá: só sinaliza que a soma difere da escala por
+            // omissão de 20.
+            <span className="text-warning" role="status">Total: {total} valores — a escala por omissão é 20. Se a prova não é de 20, está tudo bem.</span>
+          )}
           {unscoredCount > 0 && (
             // A soma do servidor **filtra** as perguntas sem cotação em vez de as contar como zero.
             <span className="flex flex-wrap items-center gap-2 text-muted-foreground">
               {unscoredCount} sem cotação, e sem cotação não conta para o total
-              <Button type="button" variant="outline" size="sm" onClick={distribute}>Distribuir 20 valores</Button>
+              <Button type="button" variant="outline" size="sm" onClick={distribute}>Distribuir por igual</Button>
             </span>
           )}
         </div>
