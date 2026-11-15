@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEvent, type AnalyticsApp, attributionFromSearch, donationField, donationStep, scrollDepthsReached, signupField } from './analytics.ts';
+import { createAnalyticsQueue, deviceType, safePageLocation, sanitizeAttribution, sanitizeEvent, vitalValue, type AnalyticsApp, attributionFromSearch, donationField, donationStep, scrollDepthsReached, signupField } from './analytics.ts';
 
 test('fila: envia eventos quando gtag está disponível e mantém o schema privado', () => {
   const calls: unknown[][] = [];
@@ -211,4 +211,36 @@ test('donation_error separa o 429 (rate_limit) de um erro do servidor', () => {
   assert.deepEqual(sanitizeEvent('donation_error', { step: 'contact', category: 'rate_limit' }), { event: 'donation_error', params: { step: 'contact', category: 'rate_limit' } });
   assert.deepEqual(sanitizeEvent('donation_error', { step: 'contact', category: 'server' }), { event: 'donation_error', params: { step: 'contact', category: 'server' } });
   assert.equal(sanitizeEvent('donation_error', { step: 'contact', category: 'timeout' }), null);
+});
+
+test('web_vitals: métricas e aparelhos permitidos, valores normalizados (#799)', () => {
+  assert.deepEqual(
+    sanitizeEvent('web_vitals', { app: 'student', page: 'result', metric: 'LCP', value: 2345.6, device: 'mobile' }),
+    { event: 'web_vitals', params: { app: 'student', page: 'result', metric: 'LCP', value: 2346, device: 'mobile' } },
+  );
+  assert.deepEqual(
+    sanitizeEvent('web_vitals', { app: 'student', page: 'exam', metric: 'CLS', value: 0.1234, device: 'tablet' }),
+    { event: 'web_vitals', params: { app: 'student', page: 'exam', metric: 'CLS', value: 0.123, device: 'tablet' } },
+  );
+  // Nada fora do catálogo, nem aparelho inventado, nem página de outra app.
+  assert.equal(sanitizeEvent('web_vitals', { app: 'student', page: 'result', metric: 'XP', value: 10, device: 'mobile' }), null);
+  assert.equal(sanitizeEvent('web_vitals', { app: 'student', page: 'result', metric: 'LCP', value: 10, device: 'watch' }), null);
+  assert.equal(sanitizeEvent('web_vitals', { app: 'student', page: 'donation', metric: 'LCP', value: 10, device: 'mobile' }), null);
+  assert.equal(sanitizeEvent('web_vitals', { app: 'student', page: 'result', metric: 'LCP', value: -1, device: 'mobile' }), null);
+  assert.equal(sanitizeEvent('web_vitals', { app: 'student', page: 'result', metric: 'LCP', value: 10, device: 'mobile', email: 'ana@example.ao' })?.params.email, undefined);
+});
+
+test('deviceType separa telemóvel, tablet e computador sem guardar identificadores', () => {
+  assert.equal(deviceType(390, true, 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Mobile Safari/537.36'), 'mobile');
+  assert.equal(deviceType(820, true, 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15'), 'tablet');
+  assert.equal(deviceType(1280, false, 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'), 'desktop');
+  assert.equal(deviceType(820, true, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15'), 'tablet');
+  assert.equal(deviceType(700, true, 'Mozilla/5.0 (Linux; Android 14; SM-X110) AppleWebKit/537.36 Safari/537.36'), 'tablet');
+});
+
+test('vitalValue arredonda: CLS com três casas, tempos em milissegundos', () => {
+  assert.equal(vitalValue('LCP', 2499.6), 2500);
+  assert.equal(vitalValue('INP', 199.4), 199);
+  assert.equal(vitalValue('CLS', 0.1049), 0.105);
+  assert.equal(vitalValue('TTFB', Number.NaN), 0);
 });
