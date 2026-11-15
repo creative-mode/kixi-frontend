@@ -104,6 +104,10 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
       <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
         <Ico name="user" size={22} />O meu perfil
       </Link>
+      {/* #797: o tutor precisa de entrada própria — chegava-se lá pelos resultados ou pela prova, nunca daqui. */}
+      <Link role="menuitem" tabIndex={-1} href="/tutor" className={item} onClick={() => setOpen(false)}>
+        <Ico name="chat" size={22} />Perguntar ao tutor
+      </Link>
       {/* #762: a doação fica a um toque em qualquer ecrã. Um 5.º separador partia
           a barra inferior (ver lib/shell-nav.ts), e o menu já é o sítio dos destinos
           que não cabem lá. */}
