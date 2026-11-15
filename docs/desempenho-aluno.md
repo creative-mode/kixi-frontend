@@ -69,3 +69,32 @@ Nada é obrigatório. Duas melhorias possíveis, ambas no Caddyfile do servidor:
 2. `encode zstd gzip` já existe; as imagens já saem com `Cache-Control: public, max-age=31536000, immutable`.
 
 As cópias reduzidas ficam em `/data/uploads/variants/`, no mesmo volume dos originais.
+
+## Medição de campo no telemóvel (#799)
+
+O orçamento de laboratório acima (`e2e/desempenho.spec.ts`) mede uma build local com Slow 4G e
+CPU 4×. Não vê o aparelho, a rede nem o comportamento reais. Para isso existe agora o
+`web_vitals` do aluno (LCP, INP, TTFB, FCP, CLS), por página canónica e tipo de aparelho, com
+as metas INP <= 200 ms e LCP <= 2,5 s. O evento vai para o GA4 (ver `docs/analytics-events.md`) e,
+numa máquina local, também para um painel.
+
+Para testar no telemóvel, com as três apps construídas:
+
+```bash
+# uma vez, se ainda não houver builds
+npm run build && npm --prefix student run build
+NEXT_PUBLIC_MANAGER_URL=https://manager.e2e.invalid npm --prefix landing run build
+
+# arranca a stack na rede local e diz o endereço do telemóvel
+node scripts/serve-phone.mjs
+```
+
+O script imprime o URL (`https://<ip-da-máquina>:3100/aluno/entrar`), as credenciais de
+demonstração e o painel `/aluno/metricas`. No telemóvel: aceitar os cookies, navegar pelo
+Início, Provas e Resultado, e voltar ao painel — cada linha mostra o p75 por rota, métrica e
+aparelho, comparado com a meta. O coletor vive só em memória e só existe com
+`KIXI_VITALS_LOG=true`; não guarda ids nem URLs.
+
+O gateway acrescenta `Server-Timing: upstream;desc="primeiro byte";dur=…` a essas três rotas;
+em DevTools → Network → Timing dá para separar a espera do servidor do trabalho do browser.
+
