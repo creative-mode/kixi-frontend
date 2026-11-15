@@ -1,5 +1,6 @@
 import 'server-only';
 import type { Componente, TarefaCamunda } from './tarefas';
+import { NOMES_DAS_VARIAVEIS_DO_CARTAO, valoresDasVariaveis } from './tarefas';
 import { FonteDeToken, configuracaoDoAmbiente } from './token';
 
 // Acesso do gestor ao Camunda (API REST v2) para as tarefas do SchoolOps. Só corre no servidor: o browser nunca fala com o
@@ -114,3 +115,45 @@ export async function variaveisDaTarefa(key: string): Promise<{ name: string; va
 
 export const concluirTarefa = (key: string, variables: Record<string, unknown>) =>
   pedir<void>(`/user-tasks/${encodeURIComponent(key)}/completion`, { method: 'POST', body: JSON.stringify({ variables }) });
+
+/**
+ * As variáveis que descrevem cada tarefa (prova, avaliação contínua, pauta), para todas as instâncias de uma vez
+ * (kixi-frontend#774): uma pesquisa global ao Camunda (`/v2/variables/search`, não `/user-tasks/{key}/variables/search`),
+ * filtrada pelas instâncias da lista e só pelos nomes que o cartão usa, em vez de uma pesquisa por tarefa.
+ * Devolve as variáveis já decodificadas, indexadas pela instância do processo a que pertencem.
+ */
+export async function variaveisDasTarefas(processInstanceKeys: string[]): Promise<Record<string, Record<string, unknown>>> {
+  const chaves = [...new Set(processInstanceKeys)];
+  if (chaves.length === 0) return {};
+  const porInstancia: Record<string, VariavelCamunda[]> = {};
+  let depois: string | undefined;
+  for (let pagina = 0; pagina < 20; pagina++) {
+    const r = await pedir<{ items: (VariavelCamunda & { processInstanceKey: string })[]; page: { endCursor?: string } }>(
+      '/variables/search',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          filter: { processInstanceKey: { $in: chaves }, name: { $in: NOMES_DAS_VARIAVEIS_DO_CARTAO } },
+          page: { limit: 200, ...(depois ? { after: depois } : {}) },
+        }),
+      },
+    );
+    for (const v of r.items) (porInstancia[v.processInstanceKey] ??= []).push(v);
+    if (r.items.length < 200 || !r.page?.endCursor) break;
+    depois = r.page.endCursor;
+  }
+  // Raro (a pauta e a prova são objectos pequenos), mas uma variável truncada ganha o valor completo à parte, como em `variaveisDaTarefa`.
+  const resolvidas = await Promise.all(
+    Object.entries(porInstancia).map(async ([chave, vars]) => {
+      const completas = await Promise.all(
+        vars.map(async (v) => {
+          if (!v.isTruncated || !v.variableKey) return { name: v.name, value: v.value };
+          const inteira = await pedir<{ value: string }>(`/variables/${encodeURIComponent(v.variableKey)}`);
+          return { name: v.name, value: inteira.value };
+        }),
+      );
+      return [chave, valoresDasVariaveis(completas)] as const;
+    }),
+  );
+  return Object.fromEntries(resolvidas);
+}

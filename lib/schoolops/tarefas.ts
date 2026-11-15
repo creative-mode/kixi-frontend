@@ -8,6 +8,9 @@ export type Tarefa = {
   processo: string;
   criadaEm: string;
   prazo: string | null;
+  /** A que prova (P1/P2), avaliação contínua ou turma/disciplina a tarefa se refere (kixi-frontend#774); `null` quando
+   *  as variáveis ainda não chegaram ou o processo não é dos que o ecrã sabe descrever. */
+  detalhe: string | null;
 };
 
 /** Como o Camunda devolve uma tarefa na pesquisa (`POST /v2/user-tasks/search`); só os campos que o ecrã usa. */
@@ -16,6 +19,8 @@ export type TarefaCamunda = {
   name?: string;
   elementId: string;
   processDefinitionId: string;
+  /** A instância do processo a que a tarefa pertence; é por aqui que se juntam as variáveis (kixi-frontend#774). */
+  processInstanceKey: string;
   assignee?: string | null;
   state: string;
   creationDate: string;
@@ -34,7 +39,52 @@ const PROCESSOS: Record<string, string> = {
 
 export const nomeDoProcesso = (id: string) => PROCESSOS[id] ?? id;
 
-export function paraTarefa(t: TarefaCamunda): Tarefa {
+/** Os nomes das variáveis que o ecrã lê para descrever a tarefa (kixi-frontend#774): a prova, a avaliação contínua e a
+ *  turma/disciplina da pauta. Usado para pedir só estas ao Camunda, numa só pesquisa para todas as tarefas da lista. */
+export const NOMES_DAS_VARIAVEIS_DO_CARTAO = ['provaId', 'prova', 'avaliacaoContinua', 'pauta'];
+
+const texto = (v: unknown): string | undefined => {
+  if (typeof v === 'string') return v.trim() || undefined;
+  if (typeof v === 'number') return String(v);
+  return undefined;
+};
+
+/**
+ * A turma e a disciplina da pauta a que a tarefa pertence (kixi-frontend#774), quando a variável `pauta` as tiver.
+ * Comum a toda a família de tarefas da pauta (prova, MAC, correcção, reclamação), por isso não depende do processo.
+ */
+function turmaEDisciplina(variaveis: Record<string, unknown>): string | undefined {
+  const pauta = variaveis.pauta as { turma?: unknown; disciplina?: unknown } | undefined;
+  const turma = texto(pauta?.turma);
+  const disciplina = texto(pauta?.disciplina);
+  if (disciplina && turma) return `${disciplina} · ${turma}`;
+  return disciplina ?? turma;
+}
+
+/**
+ * A que prova ou avaliação contínua a tarefa se refere (kixi-frontend#774): o título quando o motor o tiver, ou
+ * "Prova P1"/"Prova P2" a partir do componente (é o que `SchoolOpsPautaOpener`, no backend, sempre manda; o motor não
+ * recebe um título de texto para a prova), seguido da turma/disciplina. `null` quando nada identifica a tarefa.
+ */
+export function tituloDaTarefa(processDefinitionId: string, variaveis: Record<string, unknown>): string | null {
+  const contexto = turmaEDisciplina(variaveis);
+  if (processDefinitionId === 'minipauta-prova') {
+    const prova = variaveis.prova as { componente?: unknown; titulo?: unknown } | string | undefined;
+    const titulo = typeof prova === 'string' ? texto(prova) : texto(prova?.titulo);
+    const componente = typeof prova === 'object' ? texto(prova?.componente) : undefined;
+    const idSolto = texto(variaveis.provaId);
+    const referencia = titulo ?? (componente ? `Prova ${componente}` : idSolto ? `Prova ${idSolto}` : undefined);
+    return [referencia, contexto].filter(Boolean).join(' · ') || null;
+  }
+  if (processDefinitionId === 'minipauta-mac') {
+    const avaliacao = variaveis.avaliacaoContinua as { titulo?: unknown } | string | undefined;
+    const titulo = typeof avaliacao === 'string' ? texto(avaliacao) : texto(avaliacao?.titulo);
+    return [titulo, contexto].filter(Boolean).join(' · ') || null;
+  }
+  return contexto ?? null;
+}
+
+export function paraTarefa(t: TarefaCamunda, variaveis: Record<string, unknown> = {}): Tarefa {
   return {
     key: t.userTaskKey,
     nome: t.name?.trim() || t.elementId,
@@ -42,6 +92,7 @@ export function paraTarefa(t: TarefaCamunda): Tarefa {
     processo: nomeDoProcesso(t.processDefinitionId),
     criadaEm: t.creationDate,
     prazo: t.dueDate ?? null,
+    detalhe: tituloDaTarefa(t.processDefinitionId, variaveis),
   };
 }
 
