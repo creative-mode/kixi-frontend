@@ -59,7 +59,14 @@ export async function listarTarefas(): Promise<Result<ListaDeTarefas>> {
   return protegido(async () => {
     const { items, total } = await tarefasDoProfessor(await professor());
     // Uma só pesquisa de variáveis para todas as tarefas da lista (kixi-frontend#774), não uma por tarefa.
-    const variaveis = await variaveisDasTarefas(items.map((t) => t.processInstanceKey));
+    // O detalhe é cosmético: se o motor rejeitar o filtro, devolver um formato inesperado ou estiver em
+    // baixo, a lista continua a existir sem ele, em vez de a tarefa inteira falhar por isso.
+    let variaveis: Record<string, Record<string, unknown>> = {};
+    try {
+      variaveis = await variaveisDasTarefas(items.map((t) => t.processInstanceKey));
+    } catch (e) {
+      console.warn('[schoolops] variáveis das tarefas indisponíveis; a lista segue sem detalhe:', (e as Error)?.message);
+    }
     return ok({ tarefas: items.map((t) => paraTarefa(t, variaveis[t.processInstanceKey])), total });
   });
 }
