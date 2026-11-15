@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nomeDoCampo, camposEscreviveis, dadosParaConcluir, primeiroErro, pertenceA, paraTarefa, temEnvioDeFicheiros, valoresDasVariaveis } from './tarefas.ts';
+import { nomeDoCampo, camposEscreviveis, dadosParaConcluir, primeiroErro, pertenceA, paraTarefa, temEnvioDeFicheiros, tituloDaTarefa, valoresDasVariaveis } from './tarefas.ts';
 
 const schema = {
   components: [
@@ -58,10 +58,50 @@ test('detecta o envio de ficheiros em qualquer nível', () => {
 });
 
 test('a tarefa mostra o processo em linguagem do professor', () => {
-  const t = paraTarefa({ userTaskKey: '1', name: 'Validar a pauta', elementId: 'UT_ValidarPauta', processDefinitionId: 'pauta-trimestral', state: 'CREATED', creationDate: '2026-10-27T09:00:00Z', dueDate: null });
+  const t = paraTarefa({ userTaskKey: '1', name: 'Validar a pauta', elementId: 'UT_ValidarPauta', processDefinitionId: 'pauta-trimestral', processInstanceKey: '100', state: 'CREATED', creationDate: '2026-10-27T09:00:00Z', dueDate: null });
   assert.equal(t.processo, 'Pauta do trimestre');
   assert.equal(t.nome, 'Validar a pauta');
-  assert.equal(paraTarefa({ userTaskKey: '2', elementId: 'UT_X', processDefinitionId: 'novo', state: 'CREATED', creationDate: 'x' }).nome, 'UT_X');
+  assert.equal(paraTarefa({ userTaskKey: '2', elementId: 'UT_X', processDefinitionId: 'novo', processInstanceKey: '101', state: 'CREATED', creationDate: 'x' }).nome, 'UT_X');
+});
+
+// kixi-frontend#774: a lista não dizia a que prova (P1/P2) ou avaliação (MAC) cada tarefa se referia.
+test('uma tarefa de prova mostra o componente, ou o título quando o motor o tiver, com a turma/disciplina', () => {
+  assert.equal(
+    tituloDaTarefa('minipauta-prova', { prova: { componente: 'P1' }, pauta: { turma: '11ª B', disciplina: 'Matemática' } }),
+    'Prova P1 · Matemática · 11ª B',
+  );
+  assert.equal(
+    tituloDaTarefa('minipauta-prova', { prova: { componente: 'P2', titulo: 'Exame de recurso' }, pauta: { turma: '11ª B', disciplina: 'Matemática' } }),
+    'Exame de recurso · Matemática · 11ª B',
+  );
+  // Sem `prova`, cai para o `provaId` solto.
+  assert.equal(tituloDaTarefa('minipauta-prova', { provaId: 42, pauta: { disciplina: 'Física' } }), 'Prova 42 · Física');
+});
+
+test('uma tarefa da MAC mostra o título da avaliação com a turma/disciplina', () => {
+  assert.equal(
+    tituloDaTarefa('minipauta-mac', { avaliacaoContinua: { titulo: 'Trabalho 1' }, pauta: { turma: '10ª A', disciplina: 'Português' } }),
+    'Trabalho 1 · Português · 10ª A',
+  );
+  assert.equal(tituloDaTarefa('minipauta-mac', { avaliacaoContinua: 'Ficha 2' }), 'Ficha 2');
+});
+
+test('sem dados suficientes, nada se inventa', () => {
+  assert.equal(tituloDaTarefa('minipauta-prova', {}), null);
+  assert.equal(tituloDaTarefa('minipauta-mac', {}), null);
+  assert.equal(tituloDaTarefa('correcao-prova', {}), null);
+  // A correcção e a reclamação não são destas duas famílias, mas partilham a turma/disciplina da pauta.
+  assert.equal(tituloDaTarefa('correcao-prova', { pauta: { turma: '12ª C' } }), '12ª C');
+});
+
+test('paraTarefa junta o detalhe da tarefa a partir das variáveis do processo', () => {
+  const t = paraTarefa(
+    { userTaskKey: '3', name: 'Rever e confirmar a mini-pauta', elementId: 'UT_RevisaoMini', processDefinitionId: 'minipauta-prova', processInstanceKey: '200', state: 'CREATED', creationDate: '2026-10-27T09:00:00Z', dueDate: null },
+    { prova: { componente: 'P1' }, pauta: { turma: '11ª B', disciplina: 'Matemática' } },
+  );
+  assert.equal(t.detalhe, 'Prova P1 · Matemática · 11ª B');
+  // Sem o segundo argumento (variaveis ainda por chegar), o detalhe fica null em vez de rebentar.
+  assert.equal(paraTarefa({ userTaskKey: '4', elementId: 'UT_X', processDefinitionId: 'minipauta-mac', processInstanceKey: '201', state: 'CREATED', creationDate: 'x' }).detalhe, null);
 });
 
 // A forma real dos forms do SchoolOps (definir-avaliacoes-continuas.form): a lista dinâmica liga-se por `path`, não por `key`.

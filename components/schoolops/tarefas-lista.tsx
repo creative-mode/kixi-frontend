@@ -83,6 +83,7 @@ export function TarefasLista() {
                     {atrasada(t) && <Badge variant="warning">Prazo ultrapassado</Badge>}
                   </div>
                   <p className="truncate font-medium">{t.nome}</p>
+                  {t.detalhe && <p className="truncate text-sm text-muted-foreground">{t.detalhe}</p>}
                   <p className="text-xs text-muted-foreground">
                     Aberta a {data(t.criadaEm)}
                     {t.prazo && ` · prazo ${data(t.prazo)}`}

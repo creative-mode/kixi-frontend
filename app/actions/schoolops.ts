@@ -11,6 +11,7 @@ import {
   obterTarefa,
   tarefasDoProfessor,
   variaveisDaTarefa,
+  variaveisDasTarefas,
 } from '@/lib/schoolops/camunda';
 import {
   dadosParaConcluir,
@@ -57,7 +58,9 @@ export type ListaDeTarefas = { tarefas: Tarefa[]; total: number };
 export async function listarTarefas(): Promise<Result<ListaDeTarefas>> {
   return protegido(async () => {
     const { items, total } = await tarefasDoProfessor(await professor());
-    return ok({ tarefas: items.map(paraTarefa), total });
+    // Uma só pesquisa de variáveis para todas as tarefas da lista (kixi-frontend#774), não uma por tarefa.
+    const variaveis = await variaveisDasTarefas(items.map((t) => t.processInstanceKey));
+    return ok({ tarefas: items.map((t) => paraTarefa(t, variaveis[t.processInstanceKey])), total });
   });
 }
 
