@@ -12,8 +12,12 @@ const TITLE = 'Kixi · Estuda. Dispara. Domina.';
 const DESCRIPTION =
   'O Kixi transforma cada prova num gémeo digital: simulações, um tutor de IA que conhece cada questão e uma rede de estudo entre escolas. Feito por alunos do ITEL, para alunos.';
 
-/** Sem cache partilhada (#522): varia com o cookie de sessão (redirecionamento) e o
- *  `Vary` que o diria não sobrevive à renderização — por isso renderiza sempre. */
+/** #764: reavaliado e mantido dinâmico. A raiz varia com o cookie de sessão (o
+ *  proxy redireciona quem tem sessão) e o `Vary: Cookie` que o diria não sobrevive
+ *  à renderização — uma página estática/ISR com `s-maxage` deixaria uma cache
+ *  partilhada servir a landing a quem já tem sessão. Enquanto o Caddy da frente
+ *  não fizer cache, o custo é um render por pedido; o peso do primeiro ecrã
+ *  resolve-se no cliente (ver `Presentation.tsx`). */
 export const dynamic = 'force-dynamic';
 
 /** `twitter` repetir-se aqui é o que impede que o layout o ponha de fora: o Next

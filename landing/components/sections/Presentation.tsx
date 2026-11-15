@@ -1,13 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { SIGNUP_URL } from '@/lib/content';
 
 import { Cartridge } from './Cartridge';
 import { Cta, TrackedLink } from './CtaLink';
-import { GameDemo } from './GameDemo';
 import { Gameboy } from './Gameboy';
-import { Prologue } from './Prologue';
+
+// #764: a demo e o prólogo são o grosso do JS do primeiro ecrã; separados em
+// chunks, o bundle inicial fica mais leve e o TBT desce. Não precisam de SSR:
+// o palco tem altura fixa e o que se vê primeiro é o herói (texto).
+const GameDemo = dynamic(() => import('./GameDemo').then((m) => m.GameDemo), { ssr: false });
+const Prologue = dynamic(() => import('./Prologue').then((m) => m.Prologue), { ssr: false });
 
 /** Everything the landing has to say, one scene per layer of the cartridge. */
 const SCENES = [
@@ -62,8 +67,10 @@ function Scene({ i }: { i: number }) {
 /** Frase de valor do herói (#512): quem chega percebe o que é o Kixi sem descer. */
 const HERO_SUB = 'Estuda o que vai mesmo sair: simulações, tutor de IA e a rede de estudo entre escolas.';
 
-/** Saltar a apresentação (#512): uma âncora chega a rato, teclado e toque. Vive no
- *  fluxo do herói — em cima, longe do banner de cookies fixo — e some com ele.
+/** Saltar a apresentação (#512): uma âncora chega a rato, teclado e toque. Vive
+ *  no fluxo do herói, em cima e longe do banner de cookies fixo. Fica fora da
+ *  camada que desvanece (#764): o herói some ao rolar, o salto não — quem quer
+ *  sair da apresentação encontra-o em qualquer ponto do percurso.
  *  O clique leva o foco para o título de destino, para quem vai pelo teclado
  *  sentir a chegada (#608 re-revisão: a âncora sozinha não movia o foco). */
 function SkipShow() {
@@ -88,7 +95,7 @@ export function Presentation() {
   const [p, setP] = useState(0);
   // Movimento reduzido (#513): só decide atributos de acessibilidade (o que o
   // leitor de ecrã ouve, o que o teclado alcança). O desenho — compacto ou
-  // 1800 ecrãs — é decidido pelo CSS com `@media (prefers-reduced-motion)`,
+  // 1200 ecrãs — é decidido pelo CSS com `@media (prefers-reduced-motion)`,
   // que já vale na primeira tinta; por JS chegava tarde e a página saltava.
   const [reduced, setReduced] = useState(false);
   // Espelho para o `onScroll` (efeito de montagem, sem `reduced` nas deps): em
@@ -177,15 +184,26 @@ export function Presentation() {
   return (
     <section ref={ref} className="pres" id="solucao" aria-labelledby="hero-title">
       <div className="pres__stick">
-        <div className="pres__hero" style={{ opacity: reduced ? 1 : hero, transform: reduced ? 'none' : `translateY(${(1 - hero) * -24}px)`, visibility: reduced || hero > 0.01 ? 'visible' : 'hidden' }}>
-          <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
-          <p className="pres__hero-sub">{HERO_SUB}</p>
-          {/* #762: a doação tem de estar à vista no primeiro ecrã, sobretudo no telemóvel,
-              onde a navegação do cabeçalho está escondida. */}
-          <TrackedLink href="/doar" origem="hero" className="pres__donate">Doar um enunciado</TrackedLink>
-          {/* Fora do herói não há salto focável: apagado não entra no Tab. */}
-          {hero > 0.5 && <SkipShow />}
+        <div className="pres__hero">
+          {/* Só esta camada desvanece com o herói (#764): o salto fica de fora e
+              continua visível/focável durante toda a apresentação. */}
+          <div className="pres__hero-copy" style={{ opacity: reduced ? 1 : hero, transform: reduced ? 'none' : `translateY(${(1 - hero) * -24}px)`, visibility: reduced || hero > 0.01 ? 'visible' : 'hidden' }}>
+            <h1 id="hero-title" className="pres__hero-title">E se estudar fosse... divertido?</h1>
+            <p className="pres__hero-sub">{HERO_SUB}</p>
+            {/* #762: a doação tem de estar à vista no primeiro ecrã, sobretudo no telemóvel,
+                onde a navegação do cabeçalho está escondida. */}
+            <TrackedLink href="/doar" origem="hero" className="pres__donate">Doar um enunciado</TrackedLink>
+          </div>
+          <SkipShow />
         </div>
+        {/* #764: a apresentação continua longa; a barra diz quanto falta sem
+            obrigar a adivinhar. Só existe no palco animado (em movimento
+            reduzido o CSS esconde-a). */}
+        {!reduced && (
+          <div className="pres__rail" aria-hidden="true">
+            <span style={{ transform: `scaleY(${p})` }} />
+          </div>
+        )}
         <div className="pres__text">
           <div className="pres__scene" {...sceneAttrs(vis.bridge)}><Bridge /></div>
           <div className="pres__scene" {...sceneAttrs(vis.inside)}><Inside /></div>
@@ -199,7 +217,7 @@ export function Presentation() {
         <div className="pres__art">
           {eject < 1 ? (
             <Gameboy eject={eject} off={off} hero={hero} center={1} label="Ecrã de uma Game Boy: a história de uma prova que correu mal e do Kixi a chegar">
-              {p < 0.004 ? <GameDemo /> : <Prologue q={Math.min(1, q / 0.84)} />}
+              {q < 0.07 ? <GameDemo /> : <Prologue q={Math.min(1, q / 0.84)} />}
             </Gameboy>
           ) : null}
           <div className="pres__block" style={{ opacity: reveal }} aria-hidden="true" />

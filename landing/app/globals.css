@@ -76,7 +76,7 @@ a { color: inherit; }
 }
 
 /* presentation: one sticky stage, driven by scroll */
-.pres { position: relative; height: 1800svh; margin-top: -73px; } /* the stage starts under the sticky header, so the first screen is exactly one stage */
+.pres { position: relative; height: 1200svh; margin-top: -73px; } /* #764: 18 ecrãs → 12; o palco começa sob o cabeçalho fixo, por isso o primeiro ecrã é exatamente um palco */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .pres__prolog { position: absolute; inset: 72px var(--gutter) 0; z-index: 2; pointer-events: none; transform: translateX(calc(var(--px, 0) * var(--shift, 0%))); }
 .pres__prolog .prologue { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -135,12 +135,13 @@ a { color: inherit; }
    com movimento reduzido, no lugar da consola animada */
 .pres__cart--flat { display: none; }
 /* movimento reduzido (#513): o desenho decide-se aqui e vale na primeira tinta.
-   Por JS chegava depois da hidratação e a página saltava de 1800 ecrãs para
+   Por JS chegava depois da hidratação e a página saltava de 1200 ecrãs para
    uma lista. O palco vira secção normal: herói, cenas empilhadas e cartucho
    parado. Vem depois das regras de ecrã para ganhar os empates. */
 @media (prefers-reduced-motion: reduce) {
   .pres { height: auto; margin-top: 0; }
   .pres__stick { position: static; height: auto; display: block; padding: calc(72px + clamp(24px, 6svh, 72px)) var(--gutter) clamp(24px, 6svh, 72px); text-align: center; }
+  .pres__rail { display: none; }
   .pres__hero { position: static; opacity: 1 !important; visibility: visible !important; transform: none !important; }
   .pres__text { display: block; }
   .pres__scene { align-items: center; margin-top: clamp(28px, 7svh, 72px); }
