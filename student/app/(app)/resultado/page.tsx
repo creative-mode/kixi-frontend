@@ -18,6 +18,7 @@ import { getCommunityStats } from '@/lib/community';
 import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
+import { CorrecaoRetry } from '@/components/correcao-retry';
 import { listInvitations } from '@/lib/exam-room';
 import { comCorrecao, eSimulacaoLivre } from '@/lib/schoolops/correcao-rules';
 import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
@@ -138,11 +139,24 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   let totalMax = view.totalMaxScore;
   let result = resultadoDoBackend;
+  let correcaoState: { kind: string; notaProvisoria?: { pontos: number; maximo: number }; correcaoId?: string; motivo?: string } | null = null;
   if (correcaoLigada() && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
       const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId, statementTitle: view.title });
       if (correcao && correcao.kind !== 'corrigida') {
+        // Extrai dados para o componente CorrecaoEmCurso
+        if (correcao.kind === 'falhou') {
+          correcaoState = { kind: 'falhou', notaProvisoria: correcao.notaProvisoria ?? undefined };
+        } else if (correcao.kind === 'recusada') {
+          correcaoState = { kind: 'recusada', motivo: correcao.motivo };
+        } else if (correcao.kind === 'conflito') {
+          correcaoState = { kind: 'conflito', correcaoId: correcao.correcaoId };
+        } else if (correcao.kind === 'incompleta') {
+          correcaoState = { kind: 'incompleta' };
+        } else {
+          correcaoState = { kind: 'a-corrigir' };
+        }
         return (
           <Page>
             <FireEventOnce param="submetida" event="exam_submitted" />
@@ -150,16 +164,30 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <Column className="gap-5">
               <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
-                {correcao.kind === 'a-corrigir' && <CorrecaoEmCurso />}
-                {correcao.kind === 'incompleta' && (
+                <CorrecaoEmCurso
+                  desdeMs={correcaoState.kind === 'falhou' ? 3 * 60_000 : 0}
+                  podeTentarDeNovo={correcaoState.kind === 'falhou' || correcaoState.kind === 'recusada' || correcaoState.kind === 'conflito'}
+                  aoTentarDeNovo={() => {}}
+                  notaProvisoria={correcaoState.notaProvisoria ?? null}
+                  erro={correcaoState.kind === 'falhou' || correcaoState.kind === 'recusada' ? correcaoState.kind : null}
+                  mensagemErro={correcaoState.motivo}
+                />
+                {correcaoState.kind === 'incompleta' && (
                   <p role="status" className="text-sm">
                     {correcao.semGabarito
                       ? 'Esta prova ainda não tem gabarito nas questões abertas, por isso não conseguimos dar-te nota. Fala com o teu professor.'
                       : 'Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.'}
                   </p>
                 )}
-                {/* O motor atrasou-se: para o aluno é só mais tempo, com a prova guardada. Nunca um erro. */}
-                {correcao.kind === 'falhou' && <CorrecaoEmCurso desdeMs={3 * 60_000} />}
+                {correcaoState.kind === 'conflito' && (
+                  <CorrecaoRetry
+                    aoTentarDeNovo={() => {
+                      // Force refresh by navigating to same URL with a timestamp
+                      window.location.href = `${window.location.pathname}?prova=${id}&retry=${Date.now()}`;
+                    }}
+                    label="Consultar estado da correcção"
+                  />
+                )}
               </Card>
               <div className="flex flex-wrap items-start gap-2.5">
                 {statementId != null && <RefazerSimulacao statementId={statementId} />}

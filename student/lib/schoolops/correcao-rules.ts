@@ -28,7 +28,12 @@ export type VistaCorrecao =
   | { kind: 'a-corrigir' }
   /** `semGabarito`: há questões abertas que o motor não pôde corrigir por não terem gabarito no Kixi. */
   | { kind: 'incompleta'; semGabarito: boolean }
-  | { kind: 'falhou' };
+  /** `recusada`: o motor recusou o pedido (ex: 422), não há nota provisória. */
+  | { kind: 'recusada'; motivo: string }
+  /** `falhou`: erro definitivo (ex: cancelada, incidente), mas pode haver nota provisória. */
+  | { kind: 'falhou'; notaProvisoria?: { pontos: number; maximo: number } }
+  /** `conflito`: 409 do motor — a correcção pode já existir, deve-se consultar o estado. */
+  | { kind: 'conflito'; correcaoId: string };
 
 /** Estados do motor em que não vale a pena esperar mais. */
 const FALHADOS = new Set(['CANCELADA', 'FALHADA', 'INCIDENTE']); // FALHADA: o motor tem um incidente e não avança sozinho
@@ -42,7 +47,11 @@ export function vistaDaCorrecao(c: CorrecaoEstado): VistaCorrecao {
     }
     return { kind: 'corrigida', resultado: c.resultado };
   }
-  return FALHADOS.has(c.estado) ? { kind: 'falhou' } : { kind: 'a-corrigir' };
+  if (FALHADOS.has(c.estado)) {
+    const notaProvisoria = c.resultado?.objectivas ? { pontos: c.resultado.objectivas.pontos, maximo: c.resultado.objectivas.maximo } : undefined;
+    return { kind: 'falhou', notaProvisoria };
+  }
+  return { kind: 'a-corrigir' };
 }
 
 type Pessoa = { accountId: number; first_name?: string | null; last_name?: string | null; username: string; school?: { id: number; name: string; code: string } | null };

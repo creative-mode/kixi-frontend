@@ -2,11 +2,26 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Check, Clock, ShieldCheck } from 'lucide-react';
+import { Check, Clock, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { faseDaEspera, passosDaEspera } from '@/lib/correcao-espera';
+import { CorrecaoRetry } from '@/components/correcao-retry';
+
+type CorrecaoEmCursoProps = {
+  /** Tempo que já passou quando o ecrã abre. */
+  desdeMs?: number;
+  /** Se true, mostra o botão "Tentar de novo". */
+  podeTentarDeNovo?: boolean;
+  /** Callback quando o aluno clica em "Tentar de novo". */
+  aoTentarDeNovo?: () => void;
+  /** Nota provisória (apenas questões objectivas) quando disponível. */
+  notaProvisoria?: { pontos: number; maximo: number } | null;
+  /** Estado de erro específico. */
+  erro?: 'recusada' | 'conflito' | 'falhou' | null;
+  /** Mensagem de erro para mostrar ao aluno. */
+  mensagemErro?: string;
+};
 
 /**
  * A prova entregue ainda está a ser corrigida (kixi#542). Não há erro nem desistência: o ecrã tranquiliza, mostra em que
@@ -15,10 +30,25 @@ import { faseDaEspera, passosDaEspera } from '@/lib/correcao-espera';
  *
  * `desdeMs`: o tempo que já passou quando o ecrã abre (uma correção que o motor atrasou abre já na fase calma e longa).
  */
-export function CorrecaoEmCurso({ desdeMs = 0 }: { desdeMs?: number }) {
-  const router = useRouter();
-  const inicio = useRef(Date.now() - desdeMs);
+export function CorrecaoEmCurso({
+  desdeMs = 0,
+  podeTentarDeNovo = false,
+  aoTentarDeNovo,
+  notaProvisoria = null,
+  erro = null,
+  mensagemErro,
+}: CorrecaoEmCursoProps) {
+  const inicio = useRef<number>(0);
   const [decorrido, setDecorrido] = useState(desdeMs);
+  const inicializado = useRef(false);
+
+  // Inicializa o ref no primeiro efeito para evitar chamada impura durante render.
+  useEffect(() => {
+    if (!inicializado.current) {
+      inicio.current = Date.now() - desdeMs;
+      inicializado.current = true;
+    }
+  }, [desdeMs]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -28,7 +58,15 @@ export function CorrecaoEmCurso({ desdeMs = 0 }: { desdeMs?: number }) {
       const agora = Date.now() - inicio.current;
       setDecorrido(agora);
       // Escondido (outro separador): não gasta leituras; volta a ler quando o aluno regressa.
-      if (!document.hidden) router.refresh();
+      if (!document.hidden) {
+        // Força refresh via router se estiver disponível no contexto
+        try {
+          const router = (window as unknown as { __NEXT_ROUTER__?: { refresh: () => void } }).__NEXT_ROUTER__;
+          router?.refresh?.();
+        } catch {
+          // Ignora se router não estiver disponível
+        }
+      }
       timer = setTimeout(passo, faseDaEspera(agora).intervaloMs);
     };
     const aoVoltar = () => {
@@ -44,21 +82,38 @@ export function CorrecaoEmCurso({ desdeMs = 0 }: { desdeMs?: number }) {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', aoVoltar);
     };
-  }, [router]);
+  }, []);
 
   const fase = faseDaEspera(decorrido);
   const passos = passosDaEspera();
 
+  // Quando há erro definitivo, ajustamos a fase para não enganar o aluno.
+  const ehErroDefinitivo = erro === 'recusada' || erro === 'falhou';
+  const titulo = ehErroDefinitivo && !podeTentarDeNovo
+    ? 'Não foi possível corrigir'
+    : fase.titulo;
+  const mensagem = ehErroDefinitivo && !podeTentarDeNovo && mensagemErro
+    ? mensagemErro
+    : fase.mensagem;
+  const conselho = ehErroDefinitivo ? null : fase.conselho;
+
   return (
     <div role="status" aria-live="polite" data-testid="correcao-em-curso" data-fase={fase.id} className="grid justify-items-center gap-5 px-2 py-4 text-center">
       <span className="grid size-14 place-items-center rounded-full bg-primary/10 text-primary motion-safe:animate-pulse" aria-hidden>
-        <Clock className="size-7" />
+        {ehErroDefinitivo && !podeTentarDeNovo ? <AlertTriangle className="size-7 text-destructive" /> : <Clock className="size-7" />}
       </span>
 
       <div className="grid max-w-md gap-2">
-        <h2 className="text-lg font-bold leading-snug">{fase.titulo}</h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">{fase.mensagem}</p>
+        <h2 className="text-lg font-bold leading-snug">{titulo}</h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">{mensagem}</p>
       </div>
+
+      {notaProvisoria && (
+        <div className="flex items-center justify-center gap-2 rounded-lg bg-secondary/50 px-4 py-3 text-sm" role="status" aria-live="polite">
+          <span className="font-semibold text-primary">{notaProvisoria.pontos} de {notaProvisoria.maximo}</span>
+          <span className="text-muted-foreground">(nota provisória — apenas questões objectivas)</span>
+        </div>
+      )}
 
       <ol className="flex w-full max-w-sm items-start justify-between gap-2" aria-label="Em que ponto está a correção">
         {passos.map((p) => (
@@ -91,11 +146,16 @@ export function CorrecaoEmCurso({ desdeMs = 0 }: { desdeMs?: number }) {
         </span>
       </p>
 
-      {fase.conselho ? <p className="max-w-md text-sm text-muted-foreground">{fase.conselho}</p> : null}
+      {conselho ? <p className="max-w-md text-sm text-muted-foreground">{conselho}</p> : null}
 
-      <Button asChild variant="outline">
-        <Link href="/provas">Ver as minhas provas</Link>
-      </Button>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <Button asChild variant="outline">
+          <Link href="/provas">Ver as minhas provas</Link>
+        </Button>
+        {podeTentarDeNovo && aoTentarDeNovo && (
+          <CorrecaoRetry aoTentarDeNovo={aoTentarDeNovo} />
+        )}
+      </div>
     </div>
   );
 }

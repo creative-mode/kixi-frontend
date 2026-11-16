@@ -105,3 +105,24 @@ test('sem gabarito numa questão aberta diz-se, em vez de culpar a leitura das r
 test('uma correcção FALHADA (incidente no motor) é uma falha, não uma espera', () => {
   assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'FALHADA' }).kind, 'falhou');
 });
+
+test('falhou inclui nota provisória das objectivas quando disponível', () => {
+  const v = vistaDaCorrecao({
+    correcaoId: 'c',
+    estado: 'FALHADA',
+    resultado: { objectivas: { pontos: 12, maximo: 20 } },
+  });
+  assert.equal(v.kind, 'falhou');
+  assert.deepEqual(v.notaProvisoria, { pontos: 12, maximo: 20 });
+});
+
+test('falhou sem objectivas não tem nota provisória', () => {
+  const v = vistaDaCorrecao({ correcaoId: 'c', estado: 'FALHADA', resultado: {} });
+  assert.equal(v.kind, 'falhou');
+  assert.equal(v.notaProvisoria, undefined);
+});
+
+test('estados desconhecidos mantêm a-corrigir', () => {
+  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'QUEUED' }).kind, 'a-corrigir');
+  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'PROCESSING' }).kind, 'a-corrigir');
+});
