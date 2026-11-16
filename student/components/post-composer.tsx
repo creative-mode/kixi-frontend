@@ -1,26 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { BookOpen, LayoutTemplate, MessageCircle } from 'lucide-react';
-import Link from 'next/link';
-import { UserAvatar } from '@/components/user-avatar';
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { UserAvatar } from '@/components/user-avatar';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { canPublish } from '@/lib/feed-rules';
 import { publishPostAction } from '@/lib/feed-actions';
 import { useMe } from '@/lib/me-context';
 import { fullName, photoUrl } from '@/lib/profile';
 import type { FeedPost } from '@/lib/feed';
 
-const SHORTCUTS = [
-  { label: 'Fazer uma pergunta', short: 'Pergunta', icon: MessageCircle },
-  { label: 'Dica de estudo', short: 'Dica', icon: BookOpen },
-];
-
-/** O compositor inline da turma, igual no Início e no Perfil. Só recebe a `classId`: tudo o
- *  resto é lido do contexto da sessão. `onOptimistic` mostra a linha no feed antes de o
- *  servidor responder (X, Instagram), para que um clique não espere 10 leituras. */
+/** O compositor inline do Início e do Perfil, igual à pílula da coluna da direita no md+:
+ *  avatar à esquerda, «Partilha uma dúvida ou uma dica…» ao meio, «+» verde a publicar.
+ *  Só recebe a `classId`: tudo o resto é lido do contexto da sessão. `onOptimistic` mostra
+ *  a linha no feed antes de o servidor responder, para que um clique não espere 10 leituras. */
 export function PostComposer({ classId, onOptimistic }: { classId: number; onOptimistic?: (post: FeedPost) => void }) {
   const me = useMe();
   const [text, setText] = useState('');
@@ -54,7 +48,7 @@ export function PostComposer({ classId, onOptimistic }: { classId: number; onOpt
     });
   };
 
-  // `#publicar` (o atalho de outras vistas) leva o foco para aqui.
+  // `#publicar` leva o foco para aqui.
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const focusIfHash = () => { if (window.location.hash === '#publicar') field.current?.focus(); };
@@ -63,24 +57,25 @@ export function PostComposer({ classId, onOptimistic }: { classId: number; onOpt
     return () => window.removeEventListener('hashchange', focusIfHash);
   }, []);
 
+  const ready = canPublish(text) && !publishing;
+
   return (
-    <form id="publicar" className="flex gap-3 border-b border-[#e9ebe7] px-1 pb-3 sm:px-2" onSubmit={publish}>
-      <UserAvatar name={fullName(me)} src={photoUrl(me)} size={44} />
-      <div className="grid min-w-0 flex-1 gap-2">
-        <Input ref={field} className="h-11 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha uma dúvida ou uma dica" aria-label="Nova publicação" />
-        <div className="flex items-center justify-between gap-2 border-t border-[#e9ebe7] pt-2">
-          <div className="-ml-3 flex flex-wrap gap-0.5">
-            {SHORTCUTS.map((a) => (
-              <Button key={a.label} type="button" aria-label={a.label} variant="ghost" size="sm" className="shrink-0 text-[#1f5a2c]" onClick={() => setText((t) => t || `${a.label}: `)}><a.icon /><span className="hidden sm:inline">{a.label}</span><span className="sm:hidden">{a.short}</span></Button>
-            ))}
-            <Button asChild variant="ghost" size="sm" className="shrink-0 text-[#1f5a2c]">
-              <Link href="/publicar" aria-label="Criar publicação com imagens e blocos"><LayoutTemplate /><span className="hidden sm:inline">Criar publicação</span><span className="sm:hidden">Criar</span></Link>
-            </Button>
-          </div>
-          <Button type="submit" size="sm" disabled={!canPublish(text) || publishing}>Publicar</Button>
-        </div>
-        {publishError && <Alert variant="destructive">{publishError}</Alert>}
-      </div>
-    </form>
+    <>
+      <form id="publicar" className="flex items-center gap-2 rounded-full border border-[#e9ebe7] bg-white px-2.5 py-2.5" onSubmit={publish}>
+        <UserAvatar name={fullName(me)} src={photoUrl(me)} size={44} />
+        <Input ref={field} className="h-11 min-w-0 flex-1 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0 placeholder:text-[#617066]" value={text} onChange={(e) => setText(e.target.value)} placeholder="Partilha uma dúvida ou uma dica…" aria-label="Nova publicação" />
+        <button
+          type="submit"
+          disabled={!ready}
+          aria-label="Publicar"
+          title={publishing ? 'A publicar…' : 'Publicar'}
+          className={cn('grid size-11 shrink-0 place-items-center rounded-full text-white transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40',
+            ready ? 'bg-[#1f5a2c] hover:bg-[#1a4e26]' : 'bg-[#1f5a2c]/35')}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+      </form>
+      {publishError && <Alert variant="destructive" className="mt-2">{publishError}</Alert>}
+    </>
   );
 }

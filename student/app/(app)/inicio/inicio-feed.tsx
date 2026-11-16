@@ -125,7 +125,7 @@ export function InicioFeed({
             <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
           </Link>
           {/* #796 no telemóvel: o compositor inline está na mesma página, acima do feed. */}
-          <div className="md:hidden rounded-[20px] border border-[#e9ebe7] bg-white px-3 py-3" data-feed-composer>
+          <div className="md:hidden" data-feed-composer>
             <PostComposer classId={classId} onOptimistic={(post) => setOptimistic((current) => [post, ...current])} />
           </div>
         </>
