@@ -174,7 +174,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                 />
                 {correcaoState.kind === 'incompleta' && (
                   <p role="status" className="text-sm">
-                    {correcao.semGabarito
+                    {correcaoState.semGabarito
                       ? 'Esta prova ainda não tem gabarito nas questões abertas, por isso não conseguimos dar-te nota. Fala com o teu professor.'
                       : 'Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.'}
                   </p>
