@@ -227,6 +227,31 @@ test.describe('ranking acessível (#498)', () => {
   });
 });
 
+test.describe('aparecer no ranking (#800)', () => {
+  test('o interruptor da Liga sai do ranking e o Perfil mostra a mesma escolha', async ({ page }) => {
+    await alunoLogin(page);
+
+    await page.goto('/aluno/ranking');
+    const naLiga = page.getByRole('switch', { name: /Aparecer no ranking/ });
+    await expect(naLiga).toBeChecked();
+    await expect(page.getByText(/Os colegas veem o teu nome abreviado/)).toBeVisible();
+
+    await naLiga.click();
+    await expect(page.getByText(/Os colegas não te veem no ranking/)).toBeVisible();
+    await expect(naLiga).not.toBeChecked();
+
+    await page.goto(`/aluno/perfil?tab=${encodeURIComponent('Definições')}`);
+    const noPerfil = page.getByRole('switch', { name: /Aparecer no ranking/ });
+    await expect(noPerfil).not.toBeChecked();
+    await expect(page.getByText(/Os colegas não te veem no ranking/)).toBeVisible();
+
+    // Repõe o estado visível para os testes seguintes, que contam com os colegas.
+    await noPerfil.click();
+    await expect(page.getByText(/Os colegas veem o teu nome abreviado/)).toBeVisible();
+    await expect(noPerfil).toBeChecked();
+  });
+});
+
 test.describe('títulos', () => {
   test('cada página do aluno e do gestor tem o seu título', async ({ page }) => {
     const titulos = new Map<string, string>();

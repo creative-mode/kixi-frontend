@@ -8,6 +8,7 @@ import { Experience } from '@/components/experience';
 import type { ExperienceEntry } from '@/lib/experience-rules';
 import { sairAction } from '@/lib/auth-actions';
 import { PostCard } from '@/components/post-card';
+import { RankingVisibility } from '@/components/ranking-visibility';
 import { VisibilityPicker } from '@/components/visibility-picker';
 import type { Visibility } from '@/lib/profiles';
 import { ProfileEditor } from '@/components/profile-editor';
@@ -19,6 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setReduceMotion, useReduceMotion } from '@/lib/motion';
 import { formatAverage } from '@/lib/ranking-rules';
+import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { shortTitle, type ProfileTab } from '@/lib/social-rules';
 import type { Performance } from '@/lib/performance-rules';
 import type { CatalogItem } from '@/lib/catalog';
@@ -40,12 +42,14 @@ export function PerfilView({
   initialTab = 'Publicações',
   startEditing = false,
   visibility = 'school',
+  rankingVisibility = null,
   experience = [],
 }: {
   landingOrigin: string | null;
   experience?: ExperienceEntry[];
   me: Me;
   visibility?: Visibility;
+  rankingVisibility?: VisibilityPreferences | null;
   stats: Stats | null;
   badges: Badge[];
   history: CatalogItem[];
@@ -193,6 +197,8 @@ export function PerfilView({
               <div className="grid gap-0.5 leading-snug"><span className="text-base">+25% de tempo nas provas</span><span className={mut}>Definido pela escola, não por ti.</span></div>
               <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c]">{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</span>
             </div>
+            {/* #800: um interruptor só, mas o #611 guarda a resposta por âmbito. */}
+            <RankingVisibility initial={rankingVisibility} className="border-t border-[#eef0ec]" />
             <VisibilityPicker initial={visibility} />
             <Link href="/pautas" className="flex min-h-[58px] items-center gap-3 border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]"><span className="flex-1">As minhas pautas</span><Ico name="chevron" size={18} className="text-[#7a857d]" aria-hidden /></Link>
             <a href={`${landingOrigin ?? ''}/privacidade`} className="flex min-h-[58px] items-center border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]">Privacidade</a>

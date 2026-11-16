@@ -1,6 +1,8 @@
 import 'server-only';
 
+import { cache } from 'react';
 import { apiGet, apiPut, type Result } from './api';
+import { VISIBILITY_SCOPES, type RankingVisibility, type RankingVisibilityScope, type VisibilityPreferences } from './ranking-rules';
 
 /** As abas de GET /leaderboard. "global" cruza escolas e só existe com o consentimento do
  *  aluno (ADR-0013): sem ele o backend responde 403, e a página oferece o interruptor. */
@@ -56,3 +58,36 @@ export async function getLeaderboard(
 export async function setCrossInstitutionConsent(crossInstitution: boolean): Promise<Result<{ crossInstitution: boolean }>> {
   return apiPut<{ crossInstitution: boolean }>('/leaderboard/consent', { crossInstitution });
 }
+
+/** Como o aluno aparece num âmbito (kixi#611, contrato do PR #621). */
+export interface RankingVisibilityPreference {
+  scope: RankingVisibilityScope;
+  preference: RankingVisibility;
+}
+
+/** GET /leaderboard/visibility: a resposta guardada para um âmbito. Sem linha, o
+ *  backend responde `visible` — o comportamento que a tabela sempre teve. */
+export async function getRankingVisibility(scope: RankingVisibilityScope): Promise<Result<RankingVisibilityPreference>> {
+  return apiGet<RankingVisibilityPreference>('/leaderboard/visibility', { scope });
+}
+
+/** PUT /leaderboard/visibility: escreve só o âmbito pedido, sempre na conta da sessão. */
+export async function setRankingVisibility(
+  scope: RankingVisibilityScope,
+  preference: RankingVisibility,
+): Promise<Result<RankingVisibilityPreference>> {
+  return apiPut<RankingVisibilityPreference>('/leaderboard/visibility', { scope, preference });
+}
+
+/** As três respostas do interruptor, numa leitura por pedido (#611). O global não
+ *  entra: é o consentimento entre escolas, que tem o seu próprio endpoint. */
+export const loadRankingVisibility = cache(async (): Promise<Result<VisibilityPreferences>> => {
+  const results = await Promise.all(VISIBILITY_SCOPES.map((scope) => getRankingVisibility(scope)));
+  const preferences = {} as VisibilityPreferences;
+  for (let i = 0; i < VISIBILITY_SCOPES.length; i++) {
+    const result = results[i];
+    if (!result.ok) return result;
+    preferences[VISIBILITY_SCOPES[i]] = result.data.preference;
+  }
+  return { ok: true, data: preferences };
+});

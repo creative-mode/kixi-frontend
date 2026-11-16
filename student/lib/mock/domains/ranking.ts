@@ -84,48 +84,92 @@ export async function rankingRoutes({ method, pathname, search, filter, body, te
       averages = averages.map((r) => { last = r.position || last; return { ...r, position: last }; });
     }
 
+    // Visibilidade por âmbito (#611): quem escolheu `hidden` sai da tabela dos
+    // colegas mas continua a ver a sua posição; `anonymous` mantém a posição e
+    // perde o nome. As posições dos restantes não são renumeradas.
+    const visibilityOf = (id: number) => db.rankingVisibility[`${id}:${scope}`] ?? 'visible';
+    const rankable = averages.filter((row) => visibilityOf(row.accountId) !== 'hidden');
     const totalStudents = scope === 'global' ? averages.length : members.length;
-    const rankedStudents = averages.length;
-    const smallGroup = Math.min(totalStudents, rankedStudents) < 10;
-    const myRow = averages.find((r) => r.accountId === account.id) ?? null;
+    const rankedStudents = rankable.length;
+    const smallGroup = scope !== 'friends' && Math.min(totalStudents, rankedStudents) < 10;
+    const myIndex = averages.findIndex((r) => r.accountId === account.id);
+    const myRow = myIndex >= 0 ? averages[myIndex] : null;
 
     // Pódio (top 5, só em grupos grandes) + 2 vizinhos de cada lado da própria
     // posição - nunca a tabela toda, e os últimos lugares de um grupo pequeno não
-    // entram mesmo que caiam na janela de vizinhos.
+    // entram mesmo que caiam na janela de vizinhos. O pódio sai das linhas que
+    // continuam no ranking: um aluno escondido não vira «1.º» por cima.
     const NEIGHBOURS = 2;
     const PODIUM = 5;
     const visible = new Set<number>();
-    if (!smallGroup) for (let i = 0; i < Math.min(PODIUM, averages.length); i++) visible.add(i);
-    if (myRow) {
-      const idx = myRow.position - 1;
-      for (let i = Math.max(0, idx - NEIGHBOURS); i <= Math.min(averages.length - 1, idx + NEIGHBOURS); i++) {
+    if (!smallGroup) {
+      for (const row of rankable.slice(0, PODIUM)) {
+        const index = averages.indexOf(row);
+        if (index >= 0) visible.add(index);
+      }
+    }
+    if (myIndex >= 0) {
+      for (let i = Math.max(0, myIndex - NEIGHBOURS); i <= Math.min(averages.length - 1, myIndex + NEIGHBOURS); i++) {
         // Em grupo pequeno, os últimos lugares não entram só por caírem na janela
-        // de vizinhos - a não ser que seja a própria posição do aluno.
-        const tail = smallGroup && i >= averages.length - NEIGHBOURS;
-        if (tail && i !== idx) continue;
+        // de vizinhos - a não ser que seja a própria posição do aluno. O piso é o
+        // mesmo do backend (#621): posição acima de `rankable - NEIGHBOURS`.
+        const tail = smallGroup && averages[i].position > rankable.length - NEIGHBOURS;
+        if (tail && i !== myIndex) continue;
         visible.add(i);
       }
     }
 
-    const entries = [...visible].sort((a, b) => a - b).map((i) => {
-      const row = averages[i];
-      return {
-        position: row.position,
-        accountId: row.accountId === account.id ? account.id : null,
-        // No global o nome sai por inteiro: nem o nome abreviado, junto da escola, se esconde (ADR-0013).
-        displayName: scope === 'global' && row.accountId !== account.id ? 'Aluno de outra escola' : (maskedName(db, row.accountId) ?? 'Aluno'),
-        average: row.average,
-        percentile: scope === 'global' ? (row.percentile ?? null) : null,
-        xp: metric === 'xp' ? (row.xp ?? null) : null,
-        me: row.accountId === account.id,
-      };
-    });
+    const entries = [...visible]
+      .sort((a, b) => a - b)
+      .filter((i) => averages[i].accountId === account.id || visibilityOf(averages[i].accountId) !== 'hidden')
+      .map((i) => {
+        const row = averages[i];
+        const preference = visibilityOf(row.accountId);
+        const displayName = row.accountId === account.id
+          ? maskedName(db, row.accountId) ?? 'Aluno'
+          : scope === 'global'
+            ? 'Aluno de outra escola'
+            : preference === 'anonymous'
+              ? 'Um colega'
+              : maskedName(db, row.accountId) ?? 'Aluno';
+        return {
+          position: row.position,
+          accountId: row.accountId === account.id ? account.id : null,
+          displayName,
+          average: row.average,
+          percentile: scope === 'global' ? (row.percentile ?? null) : null,
+          xp: metric === 'xp' ? (row.xp ?? null) : null,
+          me: row.accountId === account.id,
+        };
+      });
 
     return json({
       scope, groupId, statementId: statementId ?? null, period, metric, institutionsCounted, totalStudents, rankedStudents,
       smallGroup, myPosition: myRow?.position ?? null, myAverage: myRow?.average ?? null,
       myPercentile: scope === 'global' ? (myRow?.percentile ?? null) : null, entries,
     });
+  }
+
+  // ── visibilidade do ranking (#611) ─────────────────────────────────────────
+  // Espelha GET/PUT /leaderboard/visibility do PR #621: o âmbito vem do pedido,
+  // mas a conta vem sempre da sessão. Sem linha guardada, o backend responde
+  // `visible`.
+  if (pathname === '/leaderboard/visibility' && method === 'GET') {
+    const scope = search.get('scope') ?? 'class';
+    if (!['class', 'school', 'friends', 'global'].includes(scope)) {
+      return problem(400, 'scope must be class, school, friends or global');
+    }
+    return json({ scope, preference: db.rankingVisibility[`${account.id}:${scope}`] ?? 'visible' });
+  }
+
+  if (pathname === '/leaderboard/visibility' && method === 'PUT') {
+    const scope = text('scope');
+    const preference = text('preference');
+    if (!['class', 'school', 'friends', 'global'].includes(scope) || !['visible', 'anonymous', 'hidden'].includes(preference)) {
+      return problem(400, 'scope and preference are required: visible, anonymous or hidden');
+    }
+    db.rankingVisibility[`${account.id}:${scope}`] = preference;
+    return json({ scope, preference });
   }
 
   if (pathname === '/leaderboard/consent' && method === 'PUT') {

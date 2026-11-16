@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatAverage, globalNote, myPositionLabel, podiumGap, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from './ranking-rules.ts';
+import { formatAverage, globalNote, myPositionLabel, podiumGap, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, appearsInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
 
 test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
@@ -52,4 +52,40 @@ test('a nota do ranking global diz de quantas escolas vem e explica o percentil'
   assert.doesNotMatch(globalNote(3, 'xp'), /percentil/);
   assert.match(globalNote(0, 'average'), /Ainda não há escolas/);
   assert.match(globalNote(undefined, 'average'), /Ainda não há escolas/);
+});
+
+test('a faixa relativa fala do topo e do meio, mas nunca nomeia o fundo', () => {
+  assert.equal(relativeBandLabel(1, 10), 'Estás entre os 30% melhores.');
+  assert.equal(relativeBandLabel(3, 10), 'Estás entre os 30% melhores.');
+  assert.equal(relativeBandLabel(5, 10), 'Estás entre os 40% do meio.');
+  assert.equal(relativeBandLabel(7, 10), 'Estás entre os 40% do meio.');
+  // O fundo não leva etiqueta: o aluno continua a ver a posição, sem o ecrã lhe
+  // dizer que é dos últimos.
+  assert.equal(relativeBandLabel(8, 10), null);
+  assert.equal(relativeBandLabel(10, 10), null);
+  assert.equal(relativeBandLabel(null, 10), null);
+  assert.equal(relativeBandLabel(3, 0), null);
+});
+
+test('o interruptor liga-se enquanto o aluno aparecer em pelo menos um âmbito', () => {
+  const visible: VisibilityPreferences = { class: 'visible', school: 'visible', friends: 'visible' };
+  const anonymous: VisibilityPreferences = { class: 'anonymous', school: 'anonymous', friends: 'anonymous' };
+  const mixed: VisibilityPreferences = { class: 'hidden', school: 'visible', friends: 'hidden' };
+  const hidden: VisibilityPreferences = { class: 'hidden', school: 'hidden', friends: 'hidden' };
+  assert.equal(appearsInRanking(visible), true);
+  assert.equal(appearsInRanking(anonymous), true);
+  assert.equal(appearsInRanking(mixed), true);
+  assert.equal(appearsInRanking(hidden), false);
+});
+
+test('o texto do interruptor diz o que os colegas veem, em cada estado', () => {
+  const visible: VisibilityPreferences = { class: 'visible', school: 'visible', friends: 'visible' };
+  const anonymous: VisibilityPreferences = { class: 'anonymous', school: 'anonymous', friends: 'anonymous' };
+  const mixed: VisibilityPreferences = { class: 'hidden', school: 'visible', friends: 'hidden' };
+  const hidden: VisibilityPreferences = { class: 'hidden', school: 'hidden', friends: 'hidden' };
+  assert.match(visibilityNote(visible), /nome abreviado/);
+  assert.match(visibilityNote(anonymous), /Um colega/);
+  assert.match(visibilityNote(mixed), /alguns rankings/);
+  assert.match(visibilityNote(hidden), /não te veem no ranking/);
+  assert.match(visibilityNote(hidden), /Continuas a ver a tua posição/);
 });

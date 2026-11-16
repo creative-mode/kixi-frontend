@@ -10,6 +10,51 @@ export const SCOPE_LABEL: Record<RankingScope, string> = {
   global: 'Global',
 };
 
+/** Os âmbitos em que o aluno escolhe como aparece (#611). O global fica de fora:
+ *  esse é o consentimento entre escolas (ADR-0013), não uma preferência de nome. */
+export type RankingVisibilityScope = Exclude<RankingScope, 'global'>;
+export type RankingVisibility = 'visible' | 'anonymous' | 'hidden';
+export type VisibilityPreferences = Record<RankingVisibilityScope, RankingVisibility>;
+
+export const VISIBILITY_SCOPES: readonly RankingVisibilityScope[] = ['class', 'school', 'friends'];
+
+/** O interruptor responde a «apareço?»: fica ligado enquanto o aluno não estiver
+ *  fora de todos os âmbitos. Um estado anónimo ainda conta como aparecer. */
+export function appearsInRanking(preferences: VisibilityPreferences): boolean {
+  return VISIBILITY_SCOPES.some((scope) => preferences[scope] !== 'hidden');
+}
+
+/** O que os colegas veem, por palavras (#800). O interruptor é um só, mas o
+ *  backend guarda três respostas: a frase tem de ser honesta quando divergem. */
+export function visibilityNote(preferences: VisibilityPreferences): string {
+  const hidden = VISIBILITY_SCOPES.filter((scope) => preferences[scope] === 'hidden');
+  const anonymous = VISIBILITY_SCOPES.filter((scope) => preferences[scope] === 'anonymous');
+
+  if (hidden.length === VISIBILITY_SCOPES.length) {
+    return 'Os colegas não te veem no ranking. Continuas a ver a tua posição e a tua média.';
+  }
+  if (hidden.length > 0) {
+    return 'Apareces em alguns rankings e não em outros. Liga para apareceres com o teu nome em todos, ou desliga para saíres de todos.';
+  }
+  if (anonymous.length === VISIBILITY_SCOPES.length) {
+    return 'Os colegas veem «Um colega» no teu lugar. A posição mantém-se; só o nome desaparece.';
+  }
+  if (anonymous.length > 0) {
+    return 'Num dos rankings apareces como «Um colega»; nos restantes, com o nome abreviado.';
+  }
+  return 'Os colegas veem o teu nome abreviado — primeiro nome e inicial do apelido — na turma, na escola e entre amigos.';
+}
+
+/** Onde o aluno está na tabela, dito sem nomear o fundo (#800): topo, meio, ou
+ *  nada. A posição já é do backend; isto só a traduz numa faixa. */
+export function relativeBandLabel(myPosition: number | null, totalStudents: number): string | null {
+  if (myPosition == null || myPosition <= 0 || totalStudents <= 0) return null;
+  const ratio = myPosition / totalStudents;
+  if (ratio <= 0.3) return 'Estás entre os 30% melhores.';
+  if (ratio <= 0.7) return 'Estás entre os 40% do meio.';
+  return null;
+}
+
 export function formatAverage(value: number | null): string {
   return value == null ? '—' : value.toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }

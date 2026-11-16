@@ -11,9 +11,11 @@ import { EmptyState, ErrorState } from '@/components/states';
 import { UserAvatar } from '@/components/user-avatar';
 import { fetchLeaderboardAction, setConsentAction } from '@/lib/ranking-actions';
 import { FriendsPanel } from '@/components/friends-panel';
+import { RankingVisibility } from '@/components/ranking-visibility';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
-import { formatAverage, globalNote, myPositionLabel, podiumGap, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import { formatAverage, globalNote, myPositionLabel, podiumGap, relativeBandLabel, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { useMe } from '@/lib/me-context';
 import { photoUrl } from '@/lib/profile';
 import type { Leaderboard, RankingMetric, RankingPeriod, RankingScope } from '@/lib/ranking';
@@ -25,9 +27,11 @@ const SCOPES: RankingScope[] = ['class', 'school', 'friends', 'global'];
 export function RankingView({
   initial,
   error,
+  initialVisibility = null,
 }: {
   initial: Leaderboard | null;
   error: string | null;
+  initialVisibility?: VisibilityPreferences | null;
 }) {
   const me = useMe();
   const [scope, setScope] = useState<RankingScope>('class');
@@ -83,6 +87,7 @@ export function RankingView({
     load(scope, period, next);
   };
   const progress = board ? podiumGap(board, metric) : null;
+  const band = board ? relativeBandLabel(board.myPosition, board.totalStudents) : null;
 
   return (
     <Page variant="wide">
@@ -91,6 +96,9 @@ export function RankingView({
           title={pending ? `A carregar ${SCOPE_LABEL[scope]}…` : `Ranking · ${SCOPE_LABEL[scope]}`}
           description="Média das simulações deste período. Vês o topo e quem está perto de ti."
         />
+        <Card className="px-5 py-1">
+          <RankingVisibility initial={initialVisibility} />
+        </Card>
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
         <Tabs value={scope} onValueChange={(v) => changeScope(v as RankingScope)}>
           <TabsList aria-label="Comparar com">
@@ -157,6 +165,7 @@ export function RankingView({
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <Users className="size-4" aria-hidden />
                   {myPositionLabel(board.myPosition, board.totalStudents) ?? 'Ainda sem nota para te posicionar'}
+                  {band && <span>· {band}</span>}
                   {progress && <span>· {progress}</span>}
                   {board.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
                   {scope === 'global' && board.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}

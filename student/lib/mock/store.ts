@@ -130,6 +130,10 @@ export type Store = {
   crossConsent: number[];
   /** Quem pode ver o perfil de cada conta (#336); sem entrada vale 'school'. */
   visibility: Record<number, string>;
+  /** Como cada aluno aparece no ranking, por âmbito (kixi#611): chave
+   *  `${accountId}:${scope}`, valor `visible`, `anonymous` ou `hidden`. Sem
+   *  entrada vale `visible`, como no backend. */
+  rankingVisibility: Record<string, string>;
   institutions: Institution[];
   courses: Course[];
   schoolYears: SchoolYear[];
@@ -403,6 +407,7 @@ export function seed(): Store {
     nextFriendship: 3,
     crossConsent: [],
     visibility: { 5: 'private' },
+    rankingVisibility: {},
     institutions,
     courses,
     schoolYears,
