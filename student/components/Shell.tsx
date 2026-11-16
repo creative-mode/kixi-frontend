@@ -37,10 +37,17 @@ export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0
   const path = usePathname();
   const me = useMe();
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
-  // #795: o contador das salas abertas vive na entrada «Provas», igual nos dois tamanhos.
-  const labelOf = (it: (typeof ITEMS)[number]) => it.href === '/provas' && roomsOpen > 0
+  // #795 (code review): o contador fala por `aria-label`, mas só o do computador tinha esse
+  // atributo antes desta PR — o do telemóvel confiava só no texto visível. Reaproveitar aqui
+  // o `it.ariaLabel` do computador (ex.: «Pesquisar escolas, professores e alunos» do Explorar)
+  // também no telemóvel apagava o nome acessível «Explorar» que a navegação e os testes usam
+  // para encontrar o item (#704); por isso o telemóvel só ganha `aria-label` quando precisa de
+  // falar o contador, e fica sem o atributo nos outros itens, exactamente como antes.
+  const roomsLabel = (it: (typeof ITEMS)[number]) => it.href === '/provas' && roomsOpen > 0
     ? `Provas, ${roomsOpen} ${roomsOpen === 1 ? 'sala aberta' : 'salas abertas'}`
-    : it.ariaLabel ?? it.label;
+    : null;
+  const desktopLabelOf = (it: (typeof ITEMS)[number]) => roomsLabel(it) ?? it.ariaLabel ?? it.label;
+  const mobileLabelOf = (it: (typeof ITEMS)[number]) => roomsLabel(it) ?? undefined;
   const name = fullName(me) || 'Aluno';
   const showRail = !!rail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/'));
 
@@ -70,7 +77,7 @@ export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0
               data-press
               href={it.href}
               aria-current={on(it) ? 'page' : undefined}
-              aria-label={labelOf(it)}
+              aria-label={desktopLabelOf(it)}
               className="flex h-[46px] items-center gap-3.5 rounded-xl px-3.5 text-[15px] font-semibold text-[#3d4a41] outline-none transition-colors hover:bg-[#f5f6f4] hover:text-[#121c15] focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-[#f1f6ee] aria-[current=page]:font-bold aria-[current=page]:text-[#1f5a2c]"
             >
               <NavIcon name={it.icon} active={on(it)} size={22} desktop />
@@ -122,7 +129,7 @@ export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0
             data-press
             href={it.href}
             aria-current={on(it) ? 'page' : undefined}
-            aria-label={labelOf(it)}
+            aria-label={mobileLabelOf(it)}
             className="group flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] text-[11.5px] font-semibold text-[#5f6b63] aria-[current=page]:font-bold aria-[current=page]:text-[#1f5a2c]"
           >
             <span className="relative">
