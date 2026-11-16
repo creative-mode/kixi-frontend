@@ -528,7 +528,7 @@ test.describe('início sem blocos acima das publicações', () => {
     await alunoLogin(page);
     await page.goto('/aluno/inicio');
     await expect(page.getByTestId('mobile-progresso')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Criar publicação' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Criar publicação', exact: true })).toBeVisible();
     await expect(page.getByRole('article').first()).toBeVisible();
     // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a
     // decorrer, caso em que /provas abriria nas Salas — e o Calendário só vive na aba dos

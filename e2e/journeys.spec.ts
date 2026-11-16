@@ -323,7 +323,9 @@ test.describe('jornadas críticas do Kixi', () => {
 
     const novo = page.getByRole('article').filter({ hasText: 'Publicação do telemóvel no início' }).first();
     await expect(novo).toBeVisible();
-    await expect(page.getByRole('article').first()).toBe(novo);
+    // O cartão novo é a primeira entrada do feed — comparar pelo texto e não pela identidade do nó:
+    // o refresh devolve uma lista nova e o antigo nth=0 já não existe.
+    await expect(page.getByRole('article').first()).toContainText('Publicação do telemóvel no início');
   });
 
   test('construtor de publicações: cartão de estudo com imagem e desafio respondido no feed', async ({ page }) => {
