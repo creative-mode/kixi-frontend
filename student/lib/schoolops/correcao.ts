@@ -58,23 +58,25 @@ export async function correcaoDaSimulacao(args: {
     method: 'POST',
     body: JSON.stringify(pedido),
   });
-  if (aberta.ok) {
-    const estado = await chamar<CorrecaoEstado>(cfg, `/v1/correcoes/${encodeURIComponent(aberta.corpo.correcaoId)}`);
-    return vistaDaCorrecao(estado.ok ? estado.corpo : { correcaoId: aberta.corpo.correcaoId, estado: 'ACTIVE' });
+  if (!aberta.ok) {
+    const status = aberta.status;
+    // 409: o motor indica conflito — a correcção pode já existir. Consultamos o estado real.
+    // O body do erro pode conter correcaoId mesmo em caso de erro.
+    const correcaoId = (aberta as { corpo?: { correcaoId: string } }).corpo?.correcaoId;
+    if (status === 409 && correcaoId) {
+      const existente = await consultarCorrecao(cfg, correcaoId);
+      if (existente) return existente;
+      return { kind: 'conflito', correcaoId };
+    }
+    // 429/408: erro transitório, vale a pena esperar.
+    // 4xx (exceto 408, 409, 429): o motor recusa o pedido — não adianta repetir.
+    if (status >= 400 && status < 500 && status !== 408 && status !== 429 && status !== 409) {
+      // Registo técnico para diagnóstico (sem dados pessoais).
+      console.error('[SchoolOps] Pedido de correcção recusado', { status, simulationId: args.simulationId, statementId: args.statementId });
+      return { kind: 'recusada', motivo: 'O motor de correcção não aceitou o pedido. Verifica se a prova tem gabarito e tenta de novo.' };
+    }
+    return { kind: 'a-corrigir' };
   }
-  const status = aberta.status;
-  // 409: o motor indica conflito — a correcção pode já existir. Consultamos o estado real.
-  if (status === 409 && aberta.corpo?.correcaoId) {
-    const existente = await consultarCorrecao(cfg, aberta.corpo.correcaoId);
-    if (existente) return existente;
-    return { kind: 'conflito', correcaoId: aberta.corpo.correcaoId };
-  }
-  // 429/408: erro transitório, vale a pena esperar.
-  // 4xx (exceto 408, 409, 429): o motor recusa o pedido — não adianta repetir.
-  if (status >= 400 && status < 500 && status !== 408 && status !== 429 && status !== 409) {
-    // Registo técnico para diagnóstico (sem dados pessoais).
-    console.error('[SchoolOps] Pedido de correcção recusado', { status, simulationId: args.simulationId, statementId: args.statementId });
-    return { kind: 'recusada', motivo: 'O motor de correcção não aceitou o pedido. Verifica se a prova tem gabarito e tenta de novo.' };
-  }
-  return { kind: 'a-corrigir' };
+  const estado = await chamar<CorrecaoEstado>(cfg, `/v1/correcoes/${encodeURIComponent(aberta.corpo.correcaoId)}`);
+  return vistaDaCorrecao(estado.ok ? estado.corpo : { correcaoId: aberta.corpo.correcaoId, estado: 'ACTIVE' });
 }

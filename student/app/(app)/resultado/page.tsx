@@ -139,7 +139,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   let totalMax = view.totalMaxScore;
   let result = resultadoDoBackend;
-  let correcaoState: { kind: string; notaProvisoria?: { pontos: number; maximo: number }; correcaoId?: string; motivo?: string } | null = null;
+  let correcaoState: { kind: string; notaProvisoria?: { pontos: number; maximo: number }; correcaoId?: string; motivo?: string; semGabarito?: boolean } | null = null;
   if (correcaoLigada() && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
@@ -153,7 +153,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         } else if (correcao.kind === 'conflito') {
           correcaoState = { kind: 'conflito', correcaoId: correcao.correcaoId };
         } else if (correcao.kind === 'incompleta') {
-          correcaoState = { kind: 'incompleta' };
+          correcaoState = { kind: 'incompleta', semGabarito: correcao.semGabarito };
         } else {
           correcaoState = { kind: 'a-corrigir' };
         }

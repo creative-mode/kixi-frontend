@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Spinner, RotateCcw } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
+import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 
 interface CorrecaoRetryProps {
