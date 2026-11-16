@@ -67,6 +67,41 @@ export async function abrirCorrecao(args: {
   return vistaLida(estado.ok ? estado.corpo : { correcaoId: aberta.corpo.correcaoId, estado: 'ACTIVE' }, simulationId, registar);
 }
 
+/** Inicia a correcção (POST /v1/correcoes?aguardar=0) e devolve o correcaoId, sem ler o estado.
+ *  Usado na entrega (#794): o aluno segue para o ecrã de espera e a espera lê o estado pela rota leve. */
+export async function iniciarAbertura(args: {
+  cfg: ConfigDoMotor;
+  pedido: Pedido;
+  simulationId: number;
+  fetcher?: typeof fetch;
+  registar?: Registo;
+}): Promise<{ correcaoId: string } | null> {
+  const { cfg, pedido, simulationId } = args;
+  const fetcher = args.fetcher ?? fetch;
+  const registar = args.registar ?? ((m, c) => console.error(m, c));
+
+  const aberta = await chamar<{ correcaoId: string }>(cfg, '/v1/correcoes?aguardar=0', { method: 'POST', body: JSON.stringify(pedido) }, fetcher);
+  if (!aberta.ok) {
+    if (aberta.status === 409) {
+      const correcaoId = correcaoIdDoConflito(aberta.texto);
+      if (correcaoId) return { correcaoId };
+      registar('[SchoolOps] 409 sem identificador da correcção (na entrega)', { status: 409, simulationId });
+    } else if (aberta.status >= 400 && aberta.status < 500 && aberta.status !== 408 && aberta.status !== 429) {
+      registar('[SchoolOps] pedido de correcção recusado (na entrega)', { status: aberta.status, simulationId });
+    }
+    return null;
+  }
+  return { correcaoId: aberta.corpo.correcaoId };
+}
+
+/** Lê o estado de uma correcção existente pelo ID (para polling leve na espera). */
+export async function consultarEstado(cfg: ConfigDoMotor, correcaoId: string, fetcher?: typeof fetch): Promise<VistaCorrecao | null> {
+  const f = fetcher ?? fetch;
+  const estado = await lerEstado(cfg, correcaoId, f);
+  if (!estado.ok) return null;
+  return vistaDaCorrecao(estado.corpo);
+}
+
 function vistaLida(estado: CorrecaoEstado, simulationId: number, registar: Registo): VistaCorrecao {
   const vista = vistaDaCorrecao(estado);
   if (vista.kind === 'falhou') registar('[SchoolOps] correcção falhada no motor', { estado: estado.estado, correcaoId: estado.correcaoId, simulationId });

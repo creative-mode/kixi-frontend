@@ -3,11 +3,14 @@
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
-import { checkQuestion, getStatementFull, myAccountId, startPractice, startMatrixPractice, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
+import { checkQuestion, getStatementFull, myAccountId, startPractice, startMatrixPractice, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation, listSimulationsResult } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 import { isIntegrityKind, type IntegrityKind } from './integrity';
 import { redirectFromAction } from './action-redirect';
+import { apiGet } from './api';
+import { eSimulacaoLivre } from './schoolops/correcao-rules';
+import { iniciarCorrecao } from './schoolops/correcao';
 import type { MatrixPick } from './training';
 
 /** What the room sends to save one answer. Plain values, not a FormData: the save
@@ -140,10 +143,42 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   // por acidentalmente carregar em Entregar duas vezes.
   if (!result.ok && result.status !== 409) return { error: translateError(result.message) };
 
+  // Se a entrega foi bem sucedida (ou já entregue), iniciar a correcção no SchoolOps
+  // para simulações livres (não salas de prova). Isto corre em segundo plano: a
+  // entrega já está guardada e o aluno não pode ficar preso à espera do motor (até
+  // 8 s). Se falhar, nada quebra — o ecrã de resultado volta a pedir a correcção
+  // (idempotente no motor) quando o aluno lá chegar (#794).
+  let correcaoId: string | null = null;
+  if (result.ok) {
+    try {
+      const me = await getMe();
+      const simResult = await listSimulationsResult();
+      const simulacao = simResult.ok
+        ? simResult.data.find((s) => Number(s.id) === simulationId)
+        : undefined;
+      if (me && simulacao?.statement?.id) {
+        const salasResult = await apiGet<Array<{ simulationId: number | null }>>('/exam-rooms/mine');
+        if (salasResult.ok && eSimulacaoLivre(simulationId, salasResult.data)) {
+          const iniciada = await iniciarCorrecao({
+            me,
+            simulationId,
+            statementId: simulacao.statement.id,
+          });
+          if (iniciada) correcaoId = iniciada.correcaoId;
+        }
+      }
+    } catch {
+      // Falha ao iniciar a correcção na entrega: segue para o resultado sem
+      // correcaoId; o ecrã de resultado pede a correcção ao abrir (idempotente).
+      correcaoId = null;
+    }
+  }
+
   // `submetida=1` é o sinal de uso único do kixi-frontend#219 ("prova submetida"): o
   // resultado é revisitado depois, para o aluno ver a nota de novo.
   forgetVisitedPages();
-  await redirectFromAction(`/resultado?prova=${simulationId}&submetida=1`);
+  const url = `/resultado?prova=${simulationId}&submetida=1${correcaoId ? `&correcaoId=${correcaoId}` : ''}`;
+  await redirectFromAction(url);
 }
 
 /** O que o modo de avaliação regista. Vem do cliente, por isso o tipo é validado

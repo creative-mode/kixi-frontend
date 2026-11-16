@@ -258,9 +258,26 @@ export async function saveIntegrityEvent(
 /** GET /question-images/question/{questionId} — the images of one question. A
  *  question carries no image field of its own, so each one is a separate request;
  *  losing it costs an illustration, not the room, so this degrades to an empty list. */
+const IMAGES_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const IMAGES_MAX = 500;
+const imagesCache = new TtlCache<QuestionImage[]>(IMAGES_TTL_MS, IMAGES_MAX);
+
 export async function getQuestionImages(questionId: number): Promise<QuestionImage[]> {
-  const result = await apiGet<QuestionImage[]>(`/question-images/question/${questionId}`);
-  return result.ok && Array.isArray(result.data) ? result.data : [];
+  const ler = async () => {
+    const result = await apiGet<QuestionImage[]>(`/question-images/question/${questionId}`);
+    const value = result.ok && Array.isArray(result.data) ? result.data : [];
+    return { value, keep: result.ok };
+  };
+  return imagesCache.remember(String(questionId), ler);
+}
+
+/** Carrega as imagens de várias questões em paralelo, usando cache para evitar pedidos repetidos. */
+export async function getQuestionImagesBatch(questionIds: number[]): Promise<Record<number, QuestionImage[]>> {
+  const uniqueIds = [...new Set(questionIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const results = await Promise.all(
+    uniqueIds.map(async (id) => [id, await getQuestionImages(id)] as const)
+  );
+  return Object.fromEntries(results);
 }
 
 /** What the room needs to paint itself, in one pass.
@@ -346,12 +363,7 @@ export async function getRoom(statementId: number): Promise<Room> {
   const all = statement.data.questions;
   const parents = new Set(all.filter((q) => chosen?.has(q.id) && q.parentId != null).map((q) => q.parentId));
   const questions = chosen ? all.filter((q) => chosen.has(q.id) || parents.has(q.id)) : all;
-  const images: RoomData['images'] = {};
-  await Promise.all(
-    questions.map(async (question) => {
-      images[question.id] = await getQuestionImages(question.id);
-    }),
-  );
+  const images = await getQuestionImagesBatch(questions.map((q) => q.id));
 
   return {
     kind: 'open',
