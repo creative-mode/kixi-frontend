@@ -233,7 +233,13 @@ test.describe('aparecer no ranking (#800)', () => {
 
     await page.goto('/aluno/ranking');
     const naLiga = page.getByRole('switch', { name: /Aparecer no ranking/ });
-    await expect(naLiga).toBeChecked();
+    await expect(naLiga).toBeVisible();
+    // Se um teste anterior não repôs a escolha, normaliza para «a aparecer»
+    // antes de exercer o interruptor (o mock guarda o estado entre pedidos).
+    if (!(await naLiga.isChecked())) {
+      await naLiga.click();
+      await expect(naLiga).toBeChecked();
+    }
     await expect(page.getByText(/Os colegas veem o teu nome abreviado/)).toBeVisible();
 
     await naLiga.click();
