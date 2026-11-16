@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert } from '@/components/ui/alert';
+import { PostComposer } from '@/components/post-composer';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { RefreshError } from '@/components/refresh-error';
@@ -42,6 +43,8 @@ export function InicioFeed({
   // página 1, e o «Ver mais» só acrescenta o que ainda não está no ecrã.
   const [extra, setExtra] = useState<FeedPost[]>([]);
   const [moreAuthors, setMoreAuthors] = useState<Record<number, FeedAuthor>>({});
+  // Otimistas do compositor do telemóvel: entram no topo na mesma sessão (#796).
+  const [optimistic, setOptimistic] = useState<FeedPost[]>([]);
   const [page, setPage] = useState(1);
   const [end, setEnd] = useState(() => isLastFeedPage(posts.length));
   const [moreError, setMoreError] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function InicioFeed({
   const focusAfterDelete = useRef<{ deletedId: number; nextId: number | null } | null>(null);
 
   const loaded = mergeFeedPages(posts, extra);
-  const shown = loaded;
+  const shown = [...optimistic, ...loaded];
 
   useEffect(() => {
     const pending = focusAfterDelete.current;
@@ -74,6 +77,7 @@ export function InicioFeed({
     if (seenFirstPage.current === firstPageIds) return;
     seenFirstPage.current = firstPageIds;
     setExtra([]);
+    setOptimistic([]);
     setPage(1);
     setEnd(isLastFeedPage(posts.length));
     setMoreError(null);
@@ -114,11 +118,17 @@ export function InicioFeed({
         </span>
       </Link>
       {classId && (
-        <Link href="/publicar" data-feed-composer className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
-          <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
-          <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
-          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
-        </Link>
+        <>
+          <Link href="/publicar" data-feed-composer className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
+            <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
+            <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
+            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
+          </Link>
+          {/* #796 no telemóvel: o compositor inline está na mesma página, acima do feed. */}
+          <div className="md:hidden rounded-[20px] border border-[#e9ebe7] bg-white px-3 py-3" data-feed-composer>
+            <PostComposer classId={classId} onOptimistic={(post) => setOptimistic((current) => [post, ...current])} />
+          </div>
+        </>
       )}
 
       {feedError ? (
