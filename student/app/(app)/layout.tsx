@@ -8,6 +8,8 @@ import { RightRail } from '@/components/right-rail';
 import { RightRailSkeleton } from '@/components/right-rail-skeleton';
 import { loadSocial } from '@/lib/social';
 import { loadNotifications } from '@/lib/notifications';
+import { listInvitations } from '@/lib/exam-room';
+import { openRooms } from '@/lib/exam-room-rules';
 import type { Me } from '@/lib/types';
 import { Suspense } from 'react';
 import { appOrigin } from '@/lib/origin';
@@ -31,13 +33,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Chega depois, em streaming, e o conteúdo aparece primeiro.
 
   // O ponto da barra: só as fontes baratas (medalhas e resultados), para não custar leituras de conversas em cada página.
-  const unread = profile.kind === 'ok' ? (await loadNotifications(profile.me, false).catch(() => ({ unreadCount: 0 }))).unreadCount : 0;
+  // O contador das salas (#795) viaja na mesma vaga: são duas leituras em paralelo, uma vez por página.
+  const [notifications, roomsOpen]: [{ unreadCount: number }, number] = profile.kind === 'ok'
+    ? await Promise.all([
+        loadNotifications(profile.me, false).catch(() => ({ unreadCount: 0 })),
+        roomsForNav(),
+      ])
+    : [{ unreadCount: 0 }, 0];
+  const unread = notifications.unreadCount;
 
   return (
     <MeProvider me={profile.me}>
       <ToastProvider>
       <Shell
         unread={unread}
+        roomsOpen={roomsOpen}
         landingOrigin={appOrigin()}
         rail={profile.kind === 'ok'
           ? <Suspense fallback={<RightRailSkeleton />}><Rail me={profile.me} /></Suspense>
@@ -51,4 +61,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 async function Rail({ me }: { me: Me }) {
   const social = await loadSocial(me);
   return <RightRail me={me} data={social} />;
+}
+
+/** As salas que já se podem abrir, para o contador da navegação (#795). Uma falha não é um número. */
+async function roomsForNav(): Promise<number> {
+  const rooms = await listInvitations().catch(() => null);
+  return rooms?.ok ? openRooms(rooms.data).length : 0;
 }

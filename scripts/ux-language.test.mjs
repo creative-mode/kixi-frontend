@@ -145,7 +145,9 @@ test('o menu do aluno chama «Turma» ao destino do ranking e a navegação móv
   // 4 colunas (#704) e o rótulo inteiro, visível, sem `truncate`.
   assert.match(shell, /grid-cols-4/);
   assert.doesNotMatch(shell, /truncate/);
-  assert.match(shell, /<NavIcon name=\{it\.icon\} active=\{on\(it\)\} size=\{24\} \/>\s*\{it\.label\}/);
+  // O ícone pode viver num <span> para ancorar o contador das salas (#795); o rótulo
+  // visível continua logo a seguir, inteiro e sem `truncate`.
+  assert.match(shell, /<span className="relative">\s*<NavIcon name=\{it\.icon\} active=\{on\(it\)\} size=\{24\} \/>[\s\S]*?<\/span>\s*\{it\.label\}/);
   assert.match(shell, /aria-current=\{on\(it\) \? 'page' : undefined\}/);
   assert.match(shell, /aria-\[current=page\]:font-bold/);
 });

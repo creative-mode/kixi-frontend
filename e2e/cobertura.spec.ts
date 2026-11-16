@@ -204,7 +204,10 @@ test('aluno: «Doar um enunciado» no cartão de /provas e no menu da conta (#76
   await page.getByTestId('aluno-entrar-submeter').click();
   await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-  await page.goto('/aluno/provas');
+  // `aba=enunciados` (#795/#806): a conta «12345» é partilhada por toda a suite e, consoante
+  // a ordem, pode já ter uma sala a decorrer — e nesse caso /provas abre nas Salas, não aqui.
+  // O cartão de doação só vive na aba dos enunciados, por isso o teste pede-a de propósito.
+  await page.goto('/aluno/provas?aba=enunciados');
   const cartao = page.getByRole('link', { name: 'Doar um enunciado' }).first();
   await expect(cartao).toBeVisible();
   await expect(cartao).toHaveAttribute('href', /\/doar$/);

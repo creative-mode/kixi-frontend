@@ -25,6 +25,7 @@ export function InicioFeed({
   authors = {},
   conversations = {},
   feedError,
+  salas,
 }: {
   myAccountId: number | null;
   classId: number | null;
@@ -33,6 +34,8 @@ export function InicioFeed({
   /** As conversas das primeiras publicações, já lidas no servidor: o painel abre sem ir à rede. */
   conversations?: Record<number, PostComment[]>;
   feedError?: string | null;
+  /** As salas de prova, lidas no servidor (#795): ficam no topo, antes do compositor. */
+  salas?: React.ReactNode;
 }) {
   const me = useMe();
   // As páginas seguintes ficam ao lado da primeira: a lista do servidor continua a ser a
@@ -99,6 +102,7 @@ export function InicioFeed({
   return (
     <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-3 pb-24 md:gap-5 md:px-0 md:pt-7 md:pb-10">
       <h1 className="sr-only">Início</h1>
+      {salas}
       {/* O atalho ao tutor existe para todos — com ou sem turma. */}
       <Link href="/tutor" className="flex items-center gap-3 rounded-2xl border border-[#e9ebe7] bg-white px-4 py-3 no-underline transition-colors hover:border-[#1f5a2c]/30">
         <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-[#1f5a2c] text-white">
@@ -109,7 +113,6 @@ export function InicioFeed({
           <span className="block truncate text-[13px] text-[#617066]">Escolhe uma prova e o tutor explica-a contigo</span>
         </span>
       </Link>
-
       {classId && (
         <Link href="/publicar" data-feed-composer className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
           <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />

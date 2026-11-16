@@ -791,7 +791,10 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.keyboard.press('Escape');
     await expect(trigger).toBeFocused();
 
-    await page.goto('/aluno/provas');
+    // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a
+    // decorrer, caso em que /provas abriria nas Salas; o que este troço verifica é a semântica
+    // de `aria-current` ao mudar de aba, por isso começa de propósito nos Enunciados.
+    await page.goto('/aluno/provas?aba=enunciados');
     const nav = page.getByRole('navigation', { name: 'Provas' });
     await expect(nav.getByRole('link', { name: 'Enunciados' })).toHaveAttribute('aria-current', 'page');
     await expect(nav.getByRole('tab')).toHaveCount(0);

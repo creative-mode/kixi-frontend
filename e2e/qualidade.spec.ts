@@ -482,7 +482,10 @@ test.describe('ranking global e métrica', () => {
     await page.locator('#password').fill(process.env.E2E_PASSWORD ?? 'Kixi1234!');
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
-    await page.goto('/aluno/provas');
+    // `aba=enunciados` (#795/#806): a conta «12345» é partilhada pela suite e pode já ter uma
+    // sala a decorrer, caso em que /provas abriria nas Salas — e os filtros só existem na aba
+    // dos enunciados, que é a que este teste quer mesmo exercitar.
+    await page.goto('/aluno/provas?aba=enunciados');
     const filtros = page.getByRole('button', { name: /^Filtros/ });
     await expect(filtros).toBeVisible();
     await expect(page.getByLabel('Tipo de prova')).toBeHidden();
@@ -527,7 +530,10 @@ test.describe('início sem blocos acima das publicações', () => {
     await expect(page.getByTestId('mobile-progresso')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Criar publicação' })).toBeVisible();
     await expect(page.getByRole('article').first()).toBeVisible();
-    await page.goto('/aluno/provas');
+    // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a
+    // decorrer, caso em que /provas abriria nas Salas — e o Calendário só vive na aba dos
+    // enunciados no telemóvel, que é o que este teste verifica.
+    await page.goto('/aluno/provas?aba=enunciados');
     await expect(page.getByRole('region', { name: 'Calendário' })).toBeVisible();
   });
 
