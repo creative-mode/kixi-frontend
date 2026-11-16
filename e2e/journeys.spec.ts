@@ -307,6 +307,25 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByText('Resumo rápido: o /28')).toBeVisible();
   });
 
+  test('publicar no Início no telemóvel: o cartão novo aparece no topo', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // #796: o compositor inline está no Início no telemóvel — sem navegar para /publicar.
+    const compositor = page.getByRole('textbox', { name: 'Nova publicação' });
+    await expect(compositor).toBeVisible();
+    await compositor.fill('Publicação do telemóvel no início');
+    await page.getByRole('button', { name: 'Publicar' }).click();
+
+    const novo = page.getByRole('article').filter({ hasText: 'Publicação do telemóvel no início' }).first();
+    await expect(novo).toBeVisible();
+    await expect(page.getByRole('article').first()).toBe(novo);
+  });
+
   test('construtor de publicações: cartão de estudo com imagem e desafio respondido no feed', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');

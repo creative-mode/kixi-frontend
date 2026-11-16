@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { forgetVisitedPages } from './refresh';
 import { readConversation } from './comments';
 import { BACKEND } from './session';
 import { apiPost, authHeaders, problem } from './api';
@@ -46,7 +47,7 @@ export async function publishPostAction(
   }
   const result = await createPost(classId, type, content.trim());
   if (!result.ok) return { ok: false, message: result.message };
-  revalidatePath('/inicio');
+  forgetVisitedPages();
   return { ok: true };
 }
 
@@ -71,7 +72,7 @@ export async function publishSimulationAction(
         : result.message,
     };
   }
-  revalidatePath('/inicio');
+  forgetVisitedPages();
   return { ok: true };
 }
 
@@ -141,7 +142,7 @@ export async function publishBuiltPostAction(
   if (!result.ok) {
     return { ok: false, message: result.status === 429 ? 'Estás a publicar depressa demais. Espera um minuto e tenta de novo.' : result.message };
   }
-  revalidatePath('/inicio');
+  forgetVisitedPages();
   return { ok: true };
 }
 
