@@ -35,7 +35,7 @@ export default async function SalaControladaPage({ params }: { params: Params })
     const me = await getMe();
     return (
       <>
-        <FireEventOnce param="entrada" event="exam_room_joined" />
+        <FireEventOnce param="entrada" event="exam_room_joined" fromUrl={['origem']} />
         <SalaProva data={room.data} extraTime={me?.accessibility_extra_time === true} />
       </>
     );

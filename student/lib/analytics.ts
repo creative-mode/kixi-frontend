@@ -58,6 +58,8 @@ const DONATION_FIELDS = ['files', 'institution', 'subject', 'exam_type', 'class_
 /** De onde veio o clique num CTA da landing (`CtaOrigem`, #512). */
 const CTA_ORIGENS = ['header', 'outro', 'faq', 'hero', 'provas', 'provas-empty', 'student-menu'] as const;
 const DONATION_STEPS = ['statement', 'origin', 'contact'] as const;
+/** De onde se entrou numa sala de prova (#795): o bloco do Início ou a aba das salas. */
+const ROOM_ORIGENS = ['inicio', 'provas'] as const;
 
 function oneOf<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
   return typeof value === 'string' && (allowed as readonly string[]).includes(value);
@@ -180,9 +182,11 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
     case 'onboarding_completed':
     case 'exam_started':
     case 'exam_submitted':
-    case 'exam_room_joined':
     case 'tutor_used':
       return { event, params: {} };
+    case 'exam_room_joined':
+      // A entrada conta sempre; `origem` só existe quando se sabe de onde veio (#795).
+      return { event, params: oneOf(params.origem, ROOM_ORIGENS) ? { origem: params.origem } : {} };
     case 'donation_step':
       return oneOf(params.step, DONATION_STEPS) ? { event, params: { step: params.step } } : null;
     case 'donation_error':

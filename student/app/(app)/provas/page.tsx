@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/states';
 import { RefreshError } from '@/components/refresh-error';
 import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@/lib/catalog';
 import { listInvitations } from '@/lib/exam-room';
-import { invitationsErrorOf } from '@/lib/exam-room-rules';
+import { hasLiveRoom, invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 import { Calendario } from '@/components/calendario';
 import { DonateLink } from '@/components/donate-link';
@@ -203,11 +203,16 @@ export default async function Provas({ searchParams }: { searchParams: Params })
     institutionId: num(params.escola),
   };
   const page = Math.max(0, (Number(one(params.pagina)) || 1) - 1);
-  const aba: Aba = one(params.aba) === 'salas' ? 'salas' : 'enunciados';
 
   const [names, invResult] = await Promise.all([getCatalogNames(), listInvitations()]);
   const invitations = invResult.ok ? invResult.data : [];
   const invitationsError = invitationsErrorOf(invResult);
+  // #795: quem tem uma prova a decorrer cai na aba das salas, que é por onde se entra.
+  // O parâmetro manda sempre — quem pediu «Enunciados» não é levado para outra aba.
+  const pedida = one(params.aba);
+  const aba: Aba = pedida === 'salas' || pedida === 'enunciados'
+    ? pedida
+    : hasLiveRoom(invitations) ? 'salas' : 'enunciados';
   const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas" convites={invitations.length} />;
   // #762: a landing é outra app; `appOrigin()` é a raiz do gateway (o mesmo padrão
   // do CookieBanner e do menu da conta). Sem origem configurada cai em `/doar`,
@@ -227,7 +232,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
               action={<Button asChild variant="outline" size="sm"><DonateLink href={donateHref} origem="provas-empty">Doar um enunciado</DonateLink></Button>}
             />
           ) : (
-            <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
+            <SalasDeProva invitations={invitations} invitationsError={invitationsError} origem="provas" />
           )}
         </Column>
       </Page>

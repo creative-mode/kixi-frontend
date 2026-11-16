@@ -98,7 +98,7 @@ desligada.
 | `exam_abandoned` | Aluno, somente após confirmar explicitamente “Sair” no diálogo de saída | `app`: `student` |
 | `exam_started` | Aluno, confirmação de início | Sem parâmetros |
 | `exam_submitted` | Aluno, entrega confirmada | Sem parâmetros |
-| `exam_room_joined` | Aluno, entrada confirmada numa sala | Sem parâmetros |
+| `exam_room_joined` | Aluno, entrada confirmada numa sala | `origem`: `inicio\|provas` (ausente quando a entrada não veio de nenhum dos dois ecrãs) |
 | `onboarding_completed` | Aluno, matrícula concluída | Sem parâmetros |
 | `tutor_used` | Aluno, primeira utilização do tutor na sessão | Sem parâmetros |
 

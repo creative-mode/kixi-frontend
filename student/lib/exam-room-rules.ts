@@ -109,6 +109,30 @@ export function sortInvitations(list: Invitation[]): Invitation[] {
 }
 
 /**
+ * As salas que o aluno pode abrir agora: a decorrer (`live`) ou na sala de espera
+ * (`lobby`). É o que conta no contador da navegação (#795): as `scheduled` ainda
+ * não abrem e as `submitted`/`over` já passaram.
+ */
+export function openRooms(list: Invitation[]): Invitation[] {
+  return list.filter((inv) => {
+    const phase = phaseOf(inv);
+    return phase === 'live' || phase === 'lobby';
+  });
+}
+
+/** Há uma prova a decorrer? É o que abre as Provas na aba das salas (#795). */
+export function hasLiveRoom(list: Invitation[]): boolean {
+  return list.some((inv) => phaseOf(inv) === 'live');
+}
+
+/** De onde o aluno entrou numa sala: o bloco do Início ou a aba das salas (#795). */
+export type RoomOrigin = 'inicio' | 'provas';
+
+export function roomOriginOf(raw: unknown): RoomOrigin | null {
+  return raw === 'inicio' || raw === 'provas' ? raw : null;
+}
+
+/**
  * O que o cartão oferece, decidido sem rede: entrar, continuar, esperar ou nada.
  *
  * `joinedAt` distingue "ainda não entrei" de "já estou na sala de espera": com

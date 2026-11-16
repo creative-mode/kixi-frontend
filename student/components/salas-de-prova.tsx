@@ -20,6 +20,7 @@ import {
   sortInvitations,
   type Invitation,
   type Phase,
+  type RoomOrigin,
 } from '@/lib/exam-room-rules';
 
 const BADGE: Record<Phase, { label: string; variant: 'success' | 'warning' | 'secondary' | 'outline' }> = {
@@ -31,11 +32,15 @@ const BADGE: Record<Phase, { label: string; variant: 'success' | 'warning' | 'se
 };
 
 /** A secção "Salas de prova": as provas controladas para que o professor convidou o
- *  aluno. Só aparece quando há convites; com erro, aparece o aviso em vez de nada. */
-export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0 }: {
+ *  aluno. Sem convites não desenha cartões (o Início mostra a linha discreta, #795);
+ *  com erro, aparece o aviso em vez de nada.
+ *  `origem` (#795) diz de que ecrã veio a entrada — Início ou aba das salas — e segue
+ *  no formulário até ao evento de analítica. */
+export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0, origem }: {
   invitations: Invitation[];
   invitationsError?: { message: string; status: number | null } | null;
   hiddenCount?: number;
+  origem?: RoomOrigin;
 }) {
   // O relógio só arranca depois de montar: `Date.now()` no render diferia entre o
   // servidor e o browser, e o React acusava a divergência na hidratação.
@@ -78,7 +83,7 @@ export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0 }:
       <ul className="grid gap-3">
         {list.map((inv) => (
           <li key={inv.roomId}>
-            <SalaCard inv={inv} now={now} offset={receivedAt === null ? 0 : clockOffset(inv.serverTime, receivedAt)} />
+            <SalaCard inv={inv} now={now} offset={receivedAt === null ? 0 : clockOffset(inv.serverTime, receivedAt)} origem={origem} />
           </li>
         ))}
       </ul>
@@ -98,7 +103,7 @@ function RefreshRoomsButton() {
   );
 }
 
-function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; offset: number }) {
+function SalaCard({ inv, now, offset, origem }: { inv: Invitation; now: number | null; offset: number; origem?: RoomOrigin }) {
   const [state, enter, pending] = useActionState(entrarSalaAction, undefined);
   const router = useRouter();
   // A fase segue o relógio vivo depois de montar: com o snapshot do servidor, a
@@ -160,6 +165,7 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
       ) : action.kind === 'enter-live' || action.kind === 'enter-lobby' ? (
         <form action={enter} className="justify-self-start">
           <input type="hidden" name="roomId" value={inv.roomId} />
+          {origem && <input type="hidden" name="origem" value={origem} />}
           <Button type="submit" disabled={pending}>
             {pending ? 'A entrar…' : action.kind === 'enter-live' ? 'Entrar na prova' : 'Entrar na sala de espera'}
           </Button>

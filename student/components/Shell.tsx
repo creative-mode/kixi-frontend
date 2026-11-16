@@ -33,10 +33,14 @@ const WORD =
  * Computador: barra lateral de 232 px, coluna central de 680 px e coluna da direita (`rail`, vinda do servidor).
  * Telemóvel: cabeçalho com a nave, o sino e o avatar, e barra de 4 separadores em baixo.
  */
-export function Shell({ children, rail, landingOrigin, unread = 0 }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null; unread?: number }) {
+export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0 }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null; unread?: number; roomsOpen?: number }) {
   const path = usePathname();
   const me = useMe();
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
+  // #795: o contador das salas abertas vive na entrada «Provas», igual nos dois tamanhos.
+  const labelOf = (it: (typeof ITEMS)[number]) => it.href === '/provas' && roomsOpen > 0
+    ? `Provas, ${roomsOpen} ${roomsOpen === 1 ? 'sala aberta' : 'salas abertas'}`
+    : it.ariaLabel ?? it.label;
   const name = fullName(me) || 'Aluno';
   const showRail = !!rail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/'));
 
@@ -66,11 +70,14 @@ export function Shell({ children, rail, landingOrigin, unread = 0 }: { children:
               data-press
               href={it.href}
               aria-current={on(it) ? 'page' : undefined}
-              aria-label={it.ariaLabel ?? it.label}
+              aria-label={labelOf(it)}
               className="flex h-[46px] items-center gap-3.5 rounded-xl px-3.5 text-[15px] font-semibold text-[#3d4a41] outline-none transition-colors hover:bg-[#f5f6f4] hover:text-[#121c15] focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-[#f1f6ee] aria-[current=page]:font-bold aria-[current=page]:text-[#1f5a2c]"
             >
               <NavIcon name={it.icon} active={on(it)} size={22} desktop />
               {it.label}
+              {it.href === '/provas' && roomsOpen > 0 && (
+                <span aria-hidden="true" className="ml-auto min-w-[20px] rounded-full bg-[#1f5a2c] px-1.5 py-0.5 text-center text-[11px] font-bold text-white">{roomsOpen}</span>
+              )}
               {it.icon === 'notificacoes' && unread > 0 && <span className="ml-auto size-[7px] shrink-0 rounded-full bg-[#c2383e]" aria-label={`${unread} novas`} />}
             </Link>
           ))}
@@ -115,9 +122,15 @@ export function Shell({ children, rail, landingOrigin, unread = 0 }: { children:
             data-press
             href={it.href}
             aria-current={on(it) ? 'page' : undefined}
+            aria-label={labelOf(it)}
             className="group flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-1 rounded-[10px] text-[11.5px] font-semibold text-[#5f6b63] aria-[current=page]:font-bold aria-[current=page]:text-[#1f5a2c]"
           >
-            <NavIcon name={it.icon} active={on(it)} size={24} />
+            <span className="relative">
+              <NavIcon name={it.icon} active={on(it)} size={24} />
+              {it.href === '/provas' && roomsOpen > 0 && (
+                <span aria-hidden="true" className="absolute -top-1.5 -right-2.5 grid min-w-[17px] place-items-center rounded-full bg-[#1f5a2c] px-1 text-[10px] font-bold leading-[17px] text-white">{roomsOpen}</span>
+              )}
+            </span>
             {it.label}
           </Link>
         ))}
