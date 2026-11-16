@@ -2384,6 +2384,35 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 /** O cartão de prova no feed (#602): cabeçalho da folha em miniatura e nota em
  *  carimbo, com link para a prova corrigida — sem fetch extra por cartão. */
 test.describe('cartão de prova no feed (#602)', () => {
+  test('dizer quem vê e esconder a nota na pré-visualização (#801)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/resultado?prova=1');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    // A turma do mock é a 12B: a linha diz quem vê e quantos colegas há.
+    await expect(previa.getByText(/Visível para a turma 12\.ª B \(\d+ colegas\)/)).toBeVisible();
+
+    const mostrarNota = previa.getByRole('switch', { name: 'Mostrar a nota' });
+    await expect(mostrarNota).toBeChecked();
+    await expect(previa.getByText('Positiva')).toBeVisible();
+
+    await mostrarNota.click();
+    await expect(mostrarNota).not.toBeChecked();
+    // A pré-visualização é a publicação como a turma a vê: os números saem do cartão.
+    await expect(previa.getByText('Nota escondida')).toBeVisible();
+    await expect(previa.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
+    await expect(previa.getByText('Positiva')).toBeHidden();
+    await expect(previa.getByText('16,4')).toBeHidden();
+
+    await mostrarNota.click();
+    await expect(previa.getByText('Positiva')).toBeVisible();
+  });
+
   test('publicar o resultado mostra o cabeçalho e o carimbo no início', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -2406,7 +2435,9 @@ test.describe('cartão de prova no feed (#602)', () => {
 
     // No feed, o cartão traz o mesmo cabeçalho, o carimbo e o link para a corrigida.
     await page.goto('/aluno/inicio');
-    const cartao = page.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    const artigo = page.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+    await expect(artigo).toBeVisible();
+    const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
     await expect(cartao).toBeVisible();
     await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
     await expect(cartao.getByText(/Ano letivo/)).toBeVisible();
@@ -2440,10 +2471,43 @@ test.describe('cartão de prova no feed (#602)', () => {
     await colega.locator('#password').fill(PASSWORD);
     await colega.getByTestId('aluno-entrar-submeter').click();
     await expect(colega).toHaveURL(/\/aluno\/inicio/);
-    const cartao = colega.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    const artigo = colega.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+    await expect(artigo).toBeVisible();
+    const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
     await expect(cartao).toBeVisible();
     await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
     await expect(cartao.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
+    await colegaContext.close();
+  });
+
+  test('desligar «Mostrar a nota» esconde-a dos colegas no feed (#801)', async ({ browser, page }) => {
+    // O Nuno tem a simulação 5 terminada e ainda não a publicou.
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('nuno.dias');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/resultado?prova=5');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await previa.getByRole('switch', { name: 'Mostrar a nota' }).click();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    // Idem: um run anterior pode já ter publicado; o cartão escondido mantém-se.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // Outro colega da turma vê o cartão, mas sem a nota nem as respostas certas.
+    const colegaContext = await browser.newContext();
+    const colega = await colegaContext.newPage();
+    await colega.goto('/aluno/entrar');
+    await colega.getByLabel('Utilizador ou email').fill('12345');
+    await colega.locator('#password').fill(PASSWORD);
+    await colega.getByTestId('aluno-entrar-submeter').click();
+    await expect(colega).toHaveURL(/\/aluno\/inicio/);
+    const artigo = colega.locator('article').filter({ hasText: 'Nuno Dias' }).filter({ hasText: 'Redes de Computadores' });
+    await expect(artigo).toBeVisible();
+    await expect(artigo.getByText('Nota escondida')).toBeVisible();
+    await expect(artigo.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
+    await expect(artigo.getByText('Positiva')).toBeHidden();
     await colegaContext.close();
   });
 });
