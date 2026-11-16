@@ -19,7 +19,7 @@ import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
 import { listInvitations } from '@/lib/exam-room';
-import { comCorrecao, eSimulacaoLivre } from '@/lib/schoolops/correcao-rules';
+import { comCorrecao, eSimulacaoLivre, escalaDaNota } from '@/lib/schoolops/correcao-rules';
 import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
@@ -171,7 +171,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
       }
       if (correcao?.kind === 'corrigida') {
         result = comCorrecao(resultadoDoBackend, correcao.resultado);
-        totalMax = correcao.resultado.maximo ?? 20;
+        // A nota do motor é 0–20: o denominador é a escala, não a cotação em pontos da prova (#60).
+        totalMax = escalaDaNota(correcao.resultado);
       }
     }
   }

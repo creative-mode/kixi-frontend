@@ -11,8 +11,9 @@ justifica). Até lá o ecrã diz "A corrigir a tua prova…", sem nota, sem cert
    `POST {SCHOOLOPS_URL}/v1/correcoes?aguardar=0`. O pedido é idempotente no motor (cliente, instituição, prova, simulação), por isso
    abrir o resultado outra vez não cria outra correcção e também recupera uma abertura que tenha falhado.
 3. `GET /v1/correcoes/{id}` dá o estado. `ACorrigir` volta a ler a cada 3 s, até 5 minutos.
-4. Corrigida, a nota é a do motor (0 a 20) e as dissertativas levam os pontos e a justificação. Sem respostas legíveis a correcção
-   termina sem nota ("INCOMPLETE") e o ecrã diz isso em vez de mostrar zero.
+4. Corrigida, a nota é a do motor (0 a 20, com uma casa decimal) e as dissertativas levam os pontos e a justificação. O anel usa a
+   `escala` do resultado (20) como denominador, nunca o `maximo`, que é a cotação em pontos da prova e pode não somar 20. Sem respostas
+   legíveis a correcção termina sem nota ("INCOMPLETE") e o ecrã diz isso em vez de mostrar zero.
 
 Uma prova de sala não é simulação: o professor valida e a nota vem da pauta. Se `/exam-rooms/mine` falhar, a tentativa não vai ao motor.
 
