@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   correctionDone,
+  correctionFailed,
   correcting,
   currentAttempt,
   formatScore,
@@ -144,6 +145,14 @@ test('só DONE (ou um backend sem o campo) é uma prova corrigida', () => {
   assert.equal(correctionDone({ id: 1, correctionStatus: 'done' }), true);
   assert.equal(correctionDone({ id: 1 }), true); // backend anterior ao #609
   assert.equal(labelOf({ id: 1, status: 'FINISHED', correctionStatus: 'DONE' }), 'corrected');
+});
+
+test('FAILED é por corrigir, mas não promete nota nenhuma', () => {
+  const prova: Attempt = { id: 1, status: 'FINISHED', correctionStatus: 'FAILED' };
+  assert.equal(correctionFailed(prova), true);
+  assert.equal(correcting(prova), true);
+  assert.equal(correctionFailed({ id: 1, correctionStatus: 'PENDING' }), false);
+  assert.equal(correctionFailed({ id: 1, correctionStatus: 'DONE' }), false);
 });
 
 test('um campo de correção não inventa estado numa prova por terminar', () => {

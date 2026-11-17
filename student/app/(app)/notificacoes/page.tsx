@@ -34,7 +34,9 @@ export default async function NotificacoesPage() {
   if (profile.kind !== 'ok') {
     return <div className="px-4 pt-7"><RefreshError title="Não foi possível carregar as notificações" message="O servidor não respondeu a tempo. Tenta de novo." /></div>;
   }
-  const { items, unreadCount } = await loadNotifications(profile.me);
+  // Só esta página mostra o texto das notificações: pedir a nota ao SchoolOps aqui
+  // evita duas chamadas por correção em todas as páginas que desenham o sino (#793/#817).
+  const { items, unreadCount } = await loadNotifications(profile.me, true, true);
   const novas = items.filter((i) => i.unread);
   const antigas = items.filter((i) => !i.unread);
 

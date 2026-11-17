@@ -90,7 +90,7 @@ export function Shell({ children, rail, landingOrigin, unread = 0, unreadCorrect
               {it.label}
               {it.href === '/provas' && (unreadCorrections > 0 || roomsOpen > 0) && (
                 <span aria-hidden="true" className="ml-auto flex shrink-0 items-center gap-1.5">
-                  {unreadCorrections > 0 && <span className="size-[7px] rounded-full bg-[#c2383e]" />}
+                  {unreadCorrections > 0 && <span data-testid="provas-correcao-nova-desktop" className="size-[7px] rounded-full bg-[#c2383e]" />}
                   {roomsOpen > 0 && <span className="grid min-w-[20px] rounded-full bg-[#1f5a2c] px-1.5 py-0.5 text-center text-[11px] font-bold text-white">{roomsOpen}</span>}
                 </span>
               )}
@@ -149,7 +149,7 @@ export function Shell({ children, rail, landingOrigin, unread = 0, unreadCorrect
               {/* #793: quando há também uma sala aberta, o ponto da nota vai para o
                   lado oposto do ícone para não tapar o contador verde. */}
               {it.href === '/provas' && unreadCorrections > 0 && (
-                <span aria-hidden="true" className={`absolute size-[7px] rounded-full bg-[#c2383e] ${roomsOpen > 0 ? '-bottom-0.5 -left-1' : '-top-0.5 -right-1'}`} />
+                <span aria-hidden="true" data-testid="provas-correcao-nova-mobile" className={`absolute size-[7px] rounded-full bg-[#c2383e] ${roomsOpen > 0 ? '-bottom-0.5 -left-1' : '-top-0.5 -right-1'}`} />
               )}
             </span>
             {it.label}

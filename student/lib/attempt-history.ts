@@ -72,7 +72,7 @@ export function formatScore(score: number | null | undefined): string | undefine
 /**
  * kixi#609/#793: a correção acabou quando o backend diz `DONE`. Um campo ausente é
  * a resposta de um backend anterior ao #609, que só mandava tentativas corrigidas:
- * continuar a dizer «corrigida» é o que preserve o comportamento antigo. `FAILED`
+ * continuar a dizer «corrigida» é o que preserva o comportamento antigo. `FAILED`
  * não conta como acabada — a correção pode ainda ser feita por uma pessoa, e o
  * aluno não deve ficar à espera de uma nota que não chega sozinha.
  */
@@ -83,6 +83,11 @@ export function correctionDone(a: Attempt): boolean {
 
 /** Uma prova entregue cuja correção ainda não acabou. */
 export const correcting = (a: Attempt) => isFinished(a) && !correctionDone(a);
+
+/** kixi#609: o motor avisou que não consegue corrigir as abertas e não volta a tentar
+ *  sozinho. Não acende o ponto nem promete uma nota no sino — o aluno tem de saber
+ *  que aqui não há nada a chegar. */
+export const correctionFailed = (a: Attempt) => (a.correctionStatus ?? '').toUpperCase() === 'FAILED';
 
 /** What the screen calls an attempt. Kept here so the card and the detail cannot
  *  disagree about it — which is how the same paper ends up "done" in one place and

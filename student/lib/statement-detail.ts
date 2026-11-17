@@ -2,7 +2,7 @@ import 'server-only';
 
 import { apiGet } from './api';
 import { getCatalogNames, type Named } from './catalog';
-import { currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
+import { correctionFailed, currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
 import { getStatementFull } from './exam';
 import { isItem } from './question-number';
 import type { PaperQuestion } from './tutor-rules';
@@ -45,6 +45,8 @@ export interface AttemptRow {
   label: AttemptLabel;
   score?: string;
   since?: string;
+  /** A correção falhou: não há nota a chegar pelo sino (#793). */
+  failed?: boolean;
 }
 
 export type StatementDetailResult =
@@ -73,6 +75,7 @@ function toRow(attempt: Attempt): AttemptRow {
     // nunca tem nota, porque nunca foi corrigida.
     score: label === 'corrected' ? formatScore(attempt.finalScore) : undefined,
     since: sinceLabel(attempt.startedAt),
+    failed: correctionFailed(attempt),
   };
 }
 

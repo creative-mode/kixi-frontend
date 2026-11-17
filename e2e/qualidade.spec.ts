@@ -242,6 +242,7 @@ test.describe('aviso de correção (#793)', () => {
       const barra = page.locator('nav[aria-label="Principal"]:visible');
       const provas = barra.getByRole('link', { name: /^Provas/ });
       await expect(provas).toHaveAttribute('aria-label', /^Provas, 1 correção nova/);
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toBeVisible();
       const sino = barra.getByRole('link', { name: 'Notificações' });
       await expect(sino.locator('span[aria-label*="nova"]')).toHaveCount(1);
 
@@ -250,7 +251,7 @@ test.describe('aviso de correção (#793)', () => {
       await page.setViewportSize({ width: 390, height: 844 });
       const provasMobile = page.getByTestId('nav-mobile').getByRole('link', { name: /^Provas, 1 correção nova/ });
       await expect(provasMobile).toBeVisible();
-      await expect(provasMobile.locator('span[class*="c2383e"]')).toBeVisible();
+      await expect(page.getByTestId('provas-correcao-nova-mobile')).toBeVisible();
       await expect(page.getByRole('link', { name: /^Notificações, \d+ novas/ })).toHaveCount(1);
       await page.setViewportSize({ width: 1366, height: 860 });
 
@@ -266,9 +267,10 @@ test.describe('aviso de correção (#793)', () => {
       await page.goto('/aluno/inicio');
       await expect(barra.getByRole('link', { name: /^Provas/ })).not.toHaveAttribute('aria-label', /correção/);
       await expect(sino.locator('span[aria-label*="nova"]')).toHaveCount(0);
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toHaveCount(0);
       await page.setViewportSize({ width: 390, height: 844 });
       await expect(page.getByTestId('nav-mobile').getByRole('link', { name: 'Provas' })).toBeVisible();
-      await expect(page.getByTestId('nav-mobile').getByRole('link', { name: /^Provas/ }).locator('span[class*="c2383e"]')).toHaveCount(0);
+      await expect(page.getByTestId('provas-correcao-nova-mobile')).toHaveCount(0);
       await expect(page.getByRole('link', { name: 'Notificações' })).toHaveCount(1);
     } finally {
       await forcar('');
@@ -288,6 +290,17 @@ test.describe('aviso de correção (#793)', () => {
       // Sem correção nova, o ponto das Provas apaga-se; o sino continua a ter a entrega.
       await page.goto('/aluno/inicio');
       await expect(page.locator('nav[aria-label="Principal"]:visible').getByRole('link', { name: /^Provas/ })).not.toHaveAttribute('aria-label', /correção/);
+
+      // FAILED quer dizer que o motor não vai corrigir sozinho: a lista diz isso
+      // em vez de prometer uma nota pelo sino, e nenhum ponto se acende.
+      expect((await forcar('FAILED')).ok()).toBe(true);
+      await page.goto('/aluno/prova/1/detalhe');
+      const falhada = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
+      await expect(falhada).toContainText('A corrigir');
+      await expect(falhada).toContainText('a correção falhou, fala com o professor');
+      await expect(falhada).not.toContainText('a nota chega pelo sino');
+      await page.goto('/aluno/inicio');
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toHaveCount(0);
 
       expect((await forcar('DONE')).ok()).toBe(true);
       await page.goto('/aluno/prova/1/detalhe');

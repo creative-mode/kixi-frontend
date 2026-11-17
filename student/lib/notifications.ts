@@ -6,6 +6,9 @@ import { getBadges } from './stats';
 import { parseServerTime } from './exam-rules';
 import { getFeed, getComments } from './feed';
 import { correctionNoticeOf } from './correction-notice';
+import { listInvitations } from './exam-room';
+import { correcaoDaSimulacao, correcaoLigada } from './schoolops/correcao';
+import { eSimulacaoLivre, escalaDaNota } from './schoolops/correcao-rules';
 import type { RawSimulation } from './performance-rules';
 import type { Me } from './types';
 
@@ -34,17 +37,63 @@ async function readAtOf(): Promise<number> {
   return at ? parseServerTime(at) || 0 : 0;
 }
 
+type NotaMotor = { score: number; scale: number };
+type NotasDoMotor = { grades: Map<number, NotaMotor>; livres: Set<number> } | null;
+
+/** Só as cinco correções mais recentes: cada uma custa duas chamadas ao motor e isto
+ *  corre no servidor, por página. As mais antigas ficam sem número antes de ficarem
+ *  com um número da escala errada. */
+const MAX_NOTAS_MOTOR = 5;
+
+/**
+ * A nota do resultado vem do SchoolOps (0–20); a lista `/simulations` só traz os pontos
+ * da prova, que podem não somar 20 (#817). O sino tem de dizer o mesmo que o resultado,
+ * por isso a nota é pedida ao motor para as simulações livres já corrigidas.
+ *
+ * Só se pede na página de notificações — a barra lê `loadNotifications` em todas as
+ * páginas, mas apenas para as contagens, e não deve pagar estas chamadas. Se o motor
+ * estiver desligado ou as salas não se lerem, devolve null e o texto mantém a regra
+ * antiga dos pontos do Kixi, que é a correcta nesse caso.
+ */
+async function notasDoMotor(me: Me, sims: RawSimulation[]): Promise<NotasDoMotor> {
+  if (!correcaoLigada()) return null;
+  const corrigidas = sims.filter((s) => s.statement?.id != null && correctionNoticeOf(s));
+  if (corrigidas.length === 0) return null;
+  const salas = await listInvitations().catch(() => null);
+  if (!salas?.ok) return null;
+
+  const candidatas = corrigidas.filter((s) => eSimulacaoLivre(s.id, salas.data));
+    .sort((a, b) =>
+      (parseServerTime(b.correctedAt || b.finishedAt || '') || 0) - (parseServerTime(a.correctedAt || a.finishedAt || '') || 0));
+
+  const grades = new Map<number, NotaMotor>();
+  const livres = new Set(candidatas.map((s) => s.id));
+  await Promise.all(candidatas.slice(0, MAX_NOTAS_MOTOR).map(async (s) => {
+    const vista = await correcaoDaSimulacao({
+      me,
+      simulationId: s.id,
+      statementId: Number(s.statement?.id),
+      statementTitle: s.statement?.title ?? null,
+    });
+    if (vista?.kind === 'corrigida' && vista.resultado.nota != null) {
+      grades.set(s.id, { score: vista.resultado.nota, scale: escalaDaNota(vista.resultado) });
+    }
+  }));
+  return { grades, livres };
+}
+
 /**
  * As notificações do aluno, derivadas do que o backend já guarda: respostas às suas perguntas, medalhas, resultados e
  * correções prontas (kixi#793), cada uma com a sua data. Está por ler quando a data é posterior ao «marcar tudo como
  * lido». Uma fonte que falha fica de fora em vez de levar as outras.
  */
-export const loadNotifications = cache(async (me: Me, withReplies = true): Promise<Notifications> => {
+export const loadNotifications = cache(async (me: Me, withReplies = true, comNotasDoMotor = false): Promise<Notifications> => {
   const [readAt, badges, sims] = await Promise.all([
     readAtOf(),
     getBadges().catch(() => []),
     apiGet<RawSimulation[]>('/simulations').then((r) => (r.ok && Array.isArray(r.data) ? r.data : [])),
   ]);
+  const notas = comNotasDoMotor ? await notasDoMotor(me, sims) : null;
   const items: Omit<Notification, 'unread'>[] = [];
 
   for (const b of badges) {
@@ -54,7 +103,10 @@ export const loadNotifications = cache(async (me: Me, withReplies = true): Promi
     // #793: quando a correção fica pronta, a notificação da entrega dá lugar à da
     // nota. A data passa a ser a da correção, por isso a mesma prova volta a contar
     // como nova para quem já tinha lido «Terminaste…».
-    const corrigida = correctionNoticeOf(s);
+    // `undefined`: sem motor, valem os pontos do Kixi. `null`: é uma simulação livre
+    // com o motor ligado mas sem nota disponível — não se inventa um denominador.
+    const grade = notas && notas.livres.has(s.id) ? (notas.grades.get(s.id) ?? null) : undefined;
+    const corrigida = correctionNoticeOf({ ...s, grade });
     if (corrigida) {
       items.push({ ...corrigida, kind: 'correction', who: null });
       continue;

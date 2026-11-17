@@ -15,6 +15,9 @@ export interface CorrectionNoticeInput {
   correctionStatus?: string | null;
   correctedAt?: string | null;
   statement?: { title?: string | null; totalMaxScore?: number | null } | null;
+  /** Nota do SchoolOps (0–20), quando a correção veio do motor. A lista do Kixi traz
+   *  os pontos da prova, com outra escala: o sino tem de dizer o mesmo que o resultado. */
+  grade?: { score: number; scale: number } | null;
 }
 
 export interface CorrectionNotice {
@@ -25,11 +28,15 @@ export interface CorrectionNotice {
 }
 
 /** «A tua prova de Matemática foi corrigida: 14/20». Sem nota ou sem escala não se
- *  inventa o denominador: dizer só que ficou corrigida é verdade, «/0» não é. */
+ *  inventa o denominador: dizer só que ficou corrigida é verdade, «/0» não é. A nota do
+ *  motor (quando há) ganha à cotação em pontos do Kixi, para o sino e o resultado
+ *  concordarem mesmo numa prova de 25 pontos (#817). */
 export function correctionText(s: CorrectionNoticeInput): string {
   const title = s.statement?.title?.trim();
-  const nota = formatScore(s.finalScore);
-  const total = s.statement?.totalMaxScore;
+  // `grade: null` quer dizer que o motor devia ter a nota mas não a deu: fica-se
+  // pelo texto sem número em vez de mostrar a cotação em pontos do Kixi.
+  const nota = formatScore(s.grade === undefined ? s.finalScore : s.grade?.score);
+  const total = s.grade === undefined ? s.statement?.totalMaxScore : s.grade?.scale;
   const fim = nota != null && total != null && total > 0 ? `: ${nota}/${formatScore(total)}` : '.';
   return `${title ? `A tua prova de ${title}` : 'A tua prova'} foi corrigida${fim}`;
 }

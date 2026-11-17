@@ -149,7 +149,10 @@ export function StatementDetailView({
                         {a.since ?? 'sem data'}
                         {a.label === 'corrected' && a.score != null ? ` · ${a.score} valores` : ''}
                         {a.label === 'cancelled' ? ' · não foi corrigida' : ''}
-                        {a.label === 'correcting' ? ' · a nota chega pelo sino' : ''}
+                        {/* #793: FAILED quer dizer que o motor não vai corrigir sozinho;
+                            prometer a nota pelo sino aqui seria uma mentira. */}
+                        {a.label === 'correcting' && a.failed ? ' · a correção falhou, fala com o professor' : ''}
+                        {a.label === 'correcting' && !a.failed ? ' · a nota chega pelo sino' : ''}
                       </span>
                     </div>
                     {/* Uma tentativa cancelada não tem nada para continuar; uma por corrigir
