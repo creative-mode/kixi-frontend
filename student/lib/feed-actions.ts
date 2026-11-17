@@ -51,16 +51,18 @@ export async function publishPostAction(
 }
 
 /** Publica o resultado de uma simulação como cartão da escola, com uma reflexão opcional.
- *  Os números vêm do servidor: o cliente só diz que tentativa e o que pensa dela. */
+ *  Os números vêm do servidor: o cliente só diz que tentativa e o que pensa dela.
+ *  `showScore=false` esconde a nota e as respostas certas de quem não é o autor (kixi#612). */
 export async function publishSimulationAction(
   classId: number,
   simulationId: number,
   reflection: string,
+  showScore: boolean,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!canPublishReflection(reflection)) {
     return { ok: false, message: 'A reflexão tem no máximo 2000 caracteres.' };
   }
-  const result = await createSimulationPost(classId, simulationId, reflection.trim());
+  const result = await createSimulationPost(classId, simulationId, reflection.trim(), showScore);
   if (!result.ok) {
     return {
       ok: false,

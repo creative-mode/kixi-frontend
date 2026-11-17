@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Clock, GraduationCap } from 'lucide-react';
+import { Clock, EyeOff, GraduationCap } from 'lucide-react';
 import { scorePassed, scorePercent, simulationHeadline } from '@/lib/feed-rules';
 import { formatDuration, formatScore } from '@/lib/result-rules';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,23 @@ export interface SimulationCardData {
   correctAnswers: number | null;
   totalQuestions: number | null;
   timeSpentSeconds: number | null;
+  /** A nota e as respostas certas estão escondidas de quem não é o autor (kixi#612).
+   *  Ausente num backend antigo; com os dois números nulos também se lê como escondida. */
+  scoreHidden?: boolean;
+}
+
+/** O lugar da nota quando o autor escolheu escondê-la (kixi#612): diz o que está
+ *  escondido e de quem, sem deixar um carimbo vazio a parecer uma nota em falta. */
+function HiddenScore() {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-dashed px-4 py-3 text-muted-foreground">
+      <EyeOff className="size-5 shrink-0" aria-hidden />
+      <span className="grid gap-0.5 leading-tight">
+        <span className="text-sm font-bold text-foreground">Nota escondida</span>
+        <span className="text-[13px]">Só o autor vê a nota e as respostas certas.</span>
+      </span>
+    </div>
+  );
 }
 
 /** O cartão do resultado de uma prova simulada: com o cabeçalho do instantâneo,
@@ -36,6 +53,7 @@ export interface SimulationCardData {
  *  simulação de quem está a ver, por isso só o dono o recebe (`correctionHref`);
  *  na pré-visualização do próprio resultado também não há link, porque já lá se está. */
 export function SimulationCard({ card, correctionHref }: { card: SimulationCardData; correctionHref?: string | null }) {
+  const hidden = card.scoreHidden ?? (card.finalScore == null && card.maxScore == null);
   const percent = scorePercent(card.finalScore, card.maxScore);
   const passed = scorePassed(card.finalScore, card.maxScore);
   const score = formatScore(card.finalScore);
@@ -68,17 +86,21 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
         </figcaption>
         <div className="grid gap-3 px-4 py-4">
           <p className="text-sm leading-snug font-semibold">{card.statementTitle ?? 'Prova'}</p>
-          <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-            <span className="text-[44px] leading-[.95] font-bold tracking-tighter tabular-nums">{score ?? '—'}</span>
-            {card.maxScore != null && (
-              <span className="pb-1 text-base font-semibold text-muted-foreground">de {formatScore(card.maxScore)} valores</span>
-            )}
-            {percent != null && <span className="ml-auto pb-1 text-base font-bold text-primary tabular-nums">{percent}%</span>}
-          </div>
-          {percent != null && (
-            <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
-              <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
-            </span>
+          {hidden ? <HiddenScore /> : (
+            <>
+              <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+                <span className="text-[44px] leading-[.95] font-bold tracking-tighter tabular-nums">{score ?? '—'}</span>
+                {card.maxScore != null && (
+                  <span className="pb-1 text-base font-semibold text-muted-foreground">de {formatScore(card.maxScore)} valores</span>
+                )}
+                {percent != null && <span className="ml-auto pb-1 text-base font-bold text-primary tabular-nums">{percent}%</span>}
+              </div>
+              {percent != null && (
+                <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
+                  <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                </span>
+              )}
+            </>
           )}
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
             {card.correctAnswers != null && card.totalQuestions != null && (
@@ -108,24 +130,28 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
           <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">{headline}</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div
-            role="img"
-            aria-label={`Nota: ${score ?? 'sem nota'}${card.maxScore != null ? ` de ${formatScore(card.maxScore)} valores` : ''}, ${stampWord.toLowerCase()}`}
-            className={cn('grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double px-4 py-1 text-center', stampTone)}
-          >
-            <span className="text-[34px] leading-none font-black tabular-nums" aria-hidden="true">{score ?? '—'}</span>
-            <span className="text-[10px] font-bold tracking-wider uppercase" aria-hidden="true">
-              {card.maxScore != null ? `de ${formatScore(card.maxScore)} valores` : 'valores'}
-            </span>
-            <span className="mt-0.5 text-[11px] font-black tracking-[0.2em] uppercase" aria-hidden="true">{stampWord}</span>
-          </div>
-          {percent != null && (
-            <div className="grid min-w-28 flex-1 gap-1">
-              <span className="text-base font-bold text-primary tabular-nums">{percent}%</span>
-              <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
-                <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
-              </span>
-            </div>
+          {hidden ? <div className="min-w-0 flex-1"><HiddenScore /></div> : (
+            <>
+              <div
+                role="img"
+                aria-label={`Nota: ${score ?? 'sem nota'}${card.maxScore != null ? ` de ${formatScore(card.maxScore)} valores` : ''}, ${stampWord.toLowerCase()}`}
+                className={cn('grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double px-4 py-1 text-center', stampTone)}
+              >
+                <span className="text-[34px] leading-none font-black tabular-nums" aria-hidden="true">{score ?? '—'}</span>
+                <span className="text-[10px] font-bold tracking-wider uppercase" aria-hidden="true">
+                  {card.maxScore != null ? `de ${formatScore(card.maxScore)} valores` : 'valores'}
+                </span>
+                <span className="mt-0.5 text-[11px] font-black tracking-[0.2em] uppercase" aria-hidden="true">{stampWord}</span>
+              </div>
+              {percent != null && (
+                <div className="grid min-w-28 flex-1 gap-1">
+                  <span className="text-base font-bold text-primary tabular-nums">{percent}%</span>
+                  <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
+                    <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
