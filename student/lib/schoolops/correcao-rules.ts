@@ -7,9 +7,13 @@ export type CorrecaoEstado = { correcaoId: string; estado: string; resultado?: R
 
 export type ResultadoCorrecao = {
   estado?: string;
+  /** A nota do motor, na escala 0 a 20 (uma casa decimal). */
   nota?: number | null;
   pontos?: number | null;
+  /** A cotação da prova em pontos: pode não somar 20, por isso não serve de denominador da nota. */
   maximo?: number | null;
+  /** A escala da nota (20), separada de `maximo` em pontos (#60). */
+  escala?: number | null;
   objectivas?: { pontos: number; maximo: number } | null;
   questoes?: Array<{
     questaoId: string;
@@ -21,6 +25,11 @@ export type ResultadoCorrecao = {
     corrigida?: boolean;
   }>;
 };
+
+/** O denominador do anel da nota: a escala do motor (20), nunca o `maximo`, que é a cotação em pontos da prova (#60). */
+export function escalaDaNota(r: ResultadoCorrecao): number {
+  return r.escala != null && r.escala > 0 ? r.escala : 20;
+}
 
 /** O que o ecrã mostra: nunca uma nota antes de a correcção estar feita. */
 export type VistaCorrecao =

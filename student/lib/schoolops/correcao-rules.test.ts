@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { test } from 'node:test';
-import { assinaturaValida, eSimulacaoLivre, pedidoDeCorrecao, vistaDaCorrecao } from './correcao-rules.ts';
+import { assinaturaValida, eSimulacaoLivre, escalaDaNota, pedidoDeCorrecao, vistaDaCorrecao } from './correcao-rules.ts';
 
 const me = { accountId: 3, first_name: 'Ana', last_name: 'Domingos', username: 'ana.domingos', school: { id: 1, name: 'Instituto', code: 'ITEL' } };
 
@@ -80,6 +80,15 @@ test('com a correcção feita, a nota é a do motor e as dissertativas levam pon
   assert.deepEqual([r.questions?.[1].scoreObtained, r.questions?.[1].isCorrect, r.questions?.[1].feedback], [4, true, 'Faltou o exemplo.']);
   assert.deepEqual([r.questions?.[2].scoreObtained, r.questions?.[2].isCorrect], [0.8, false]);
   assert.notEqual(r.questions?.[1].reviewStatus, 'PENDING_REVIEW');
+});
+
+test('o anel usa a escala da nota (20), nunca a cotação em pontos da prova', () => {
+  // Uma prova de 25 pontos: a nota do motor é 11,6 de 20, não 11,6 de 25.
+  assert.equal(escalaDaNota({ nota: 11.6, pontos: 14.5, maximo: 25, escala: 20 }), 20);
+  // Motor anterior ao #60, sem escala no resultado: a nota continua a ser 0–20.
+  assert.equal(escalaDaNota({ nota: 11.6, pontos: 14.5, maximo: 25 }), 20);
+  assert.equal(escalaDaNota({ escala: 0 }), 20);
+  assert.equal(escalaDaNota({ escala: -5 }), 20);
 });
 
 import { semNotaDasSimulacoes } from './correcao-rules.ts';

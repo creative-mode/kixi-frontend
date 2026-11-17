@@ -265,6 +265,9 @@ export type MockPost = {
   updatedAt: string;
   /** O autor já editou a publicação (#753). */
   edited?: boolean;
+  /** O autor escondeu a nota e as respostas certas de quem não é ele (kixi#612).
+   *  Ausente vale `true`, como no backend antigo. */
+  showScore?: boolean;
   /** Posts construídos (kixi#347): a lista de blocos; ausente nos simples. */
   blocks?: PostBlock[];
   /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend.

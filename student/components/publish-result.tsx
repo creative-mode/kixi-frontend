@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { useId, useState, useTransition } from 'react';
-import { Check, Loader2, Share2 } from 'lucide-react';
+import { Check, Loader2, Share2, Users } from 'lucide-react';
 import type { SimulationCardData } from '@/components/simulation-card';
 import { PostPreview } from '@/components/post-parts';
 import { useMe } from '@/lib/me-context';
 import { fullName, photoUrl } from '@/lib/profile';
-import { postTypeLabel } from '@/lib/feed-rules';
+import { cardWithoutScore, classAudienceLabel, postTypeLabel } from '@/lib/feed-rules';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { MAX_POST_LENGTH, REFLECTION_LABEL, canPublishReflection } from '@/lib/feed-rules';
 import { publishSimulationAction } from '@/lib/feed-actions';
@@ -22,14 +23,25 @@ export function PublishResult({
   classId,
   simulationId,
   card,
+  classGrade = null,
+  classCode = null,
+  classmateCount = null,
 }: {
   classId: number;
   simulationId: number;
   card: SimulationCardData;
+  /** A turma do aluno, do /me, para a linha «Visível para a turma …». */
+  classGrade?: number | null;
+  classCode?: string | null;
+  /** Quantos colegas há na turma (sem contar o próprio). Sem este dado a linha fica sem número. */
+  classmateCount?: number | null;
 }) {
   const me = useMe();
   const fieldId = useId();
+  const toggleId = useId();
+  const toggleHintId = useId();
   const [reflection, setReflection] = useState('');
+  const [showScore, setShowScore] = useState(true);
   const [published, setPublished] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -39,7 +51,7 @@ export function PublishResult({
     if (!canPublishReflection(reflection)) return;
     setError(null);
     startTransition(async () => {
-      const result = await publishSimulationAction(classId, simulationId, reflection);
+      const result = await publishSimulationAction(classId, simulationId, reflection, showScore);
       if (result.ok) setPublished(true);
       else setError(result.message);
     });
@@ -49,11 +61,34 @@ export function PublishResult({
     <Card className="gap-0 py-0" aria-label="Publicar o resultado no feed">
       <CardHeader className="pt-5 pb-3"><CardTitle>Partilhar com a turma</CardTitle></CardHeader>
       <div className="grid gap-4 border-t px-5 py-4">
+        <div className="grid gap-2.5 rounded-xl border bg-secondary/40 px-4 py-3">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <Users className="size-4 shrink-0 text-primary" aria-hidden />
+            {classAudienceLabel(classGrade, classCode, classmateCount)}
+          </p>
+          <div className="flex items-start justify-between gap-4 border-t pt-2.5">
+            <div className="grid gap-0.5">
+              <label htmlFor={toggleId} className="text-sm font-semibold">Mostrar a nota</label>
+              <p id={toggleHintId} className="text-[13px] leading-snug text-muted-foreground">
+                {showScore
+                  ? 'A turma vê a nota e as respostas certas.'
+                  : 'A turma vê o cartão, mas sem a nota nem as respostas certas. Só tu continuas a vê-las.'}
+              </p>
+            </div>
+            <Switch
+              id={toggleId}
+              checked={showScore}
+              onCheckedChange={setShowScore}
+              aria-describedby={toggleHintId}
+              disabled={published || pending}
+            />
+          </div>
+        </div>
         {/* A pré-visualização é a publicação inteira, como a turma a vai ver: cabeçalho, cartão e reflexão. */}
         <PostPreview
           author={{ name: fullName(me) || 'Tu', photo: photoUrl(me) }}
           typeLabel={postTypeLabel('simulation')}
-          post={{ title: null, content: reflection.trim(), simulation: card, blocks: null }}
+          post={{ title: null, content: reflection.trim(), simulation: showScore ? card : cardWithoutScore(card), blocks: null }}
         />
         {published ? (
           <div className="flex flex-wrap items-center gap-3" role="status">
