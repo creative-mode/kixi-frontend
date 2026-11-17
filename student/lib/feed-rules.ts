@@ -145,6 +145,15 @@ export function cardWithoutScore<T extends {
   return { ...card, finalScore: null, maxScore: null, correctAnswers: null, totalQuestions: null, scoreHidden: true };
 }
 
+/** Quantas respostas abertas ainda faltam corrigir (kixi#788). Zero, ausente ou um
+ *  número inválido valem «sem correcção pendente»; um valor negativo nunca é uma
+ *  contagem. Enquanto for maior do que zero, o cartão não mostra a nota parcial
+ *  como final: diz «A corrigir» até a nota definitiva chegar. */
+export function pendingReviews(card: { pendingReviewCount?: number | null }): number {
+  const count = card.pendingReviewCount;
+  return typeof count === 'number' && Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
+}
+
 /** Nota em percentagem da cotação total, ou null quando falta um dos números (ou a cotação é 0). */
 export function scorePercent(score: number | null | undefined, max: number | null | undefined): number | null {
   if (score == null || max == null || max <= 0) return null;

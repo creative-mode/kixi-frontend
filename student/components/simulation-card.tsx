@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Clock, EyeOff, GraduationCap } from 'lucide-react';
-import { scorePassed, scorePercent, simulationHeadline } from '@/lib/feed-rules';
+import { pendingReviews, scorePassed, scorePercent, simulationHeadline } from '@/lib/feed-rules';
 import { formatDuration, formatScore } from '@/lib/result-rules';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +21,9 @@ export interface SimulationCardData {
   correctAnswers: number | null;
   totalQuestions: number | null;
   timeSpentSeconds: number | null;
+  /** Respostas abertas ainda por corrigir (kixi#788). Acima de zero, a nota é
+   *  provisória e o cartão diz «A corrigir» em vez de a mostrar como final. */
+  pendingReviewCount?: number | null;
   /** A nota e as respostas certas estão escondidas de quem não é o autor (kixi#612).
    *  Ausente num backend antigo; com os dois números nulos também se lê como escondida. */
   scoreHidden?: boolean;
@@ -40,6 +43,26 @@ function HiddenScore() {
   );
 }
 
+/** O lugar da nota enquanto há respostas abertas por corrigir (kixi#788): o cartão
+ *  mantém o cabeçalho e o carimbo, mas o carimbo diz «A corrigir» em vez de
+ *  estampar a nota parcial como se fosse a final — a mesma do ecrã de resultado. */
+function ProvisionalScore({ count }: { count: number }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double border-warning px-4 py-1.5 text-center text-warning">
+        <span className="text-[24px] leading-none font-black tracking-[0.06em] uppercase">A corrigir</span>
+        <span className="mt-1 text-[10px] font-bold tracking-wider uppercase">Nota provisória</span>
+      </div>
+      <div className="grid min-w-40 flex-1 gap-0.5">
+        <span className="text-sm font-semibold">
+          {count === 1 ? '1 resposta aberta por corrigir' : `${count} respostas abertas por corrigir`}
+        </span>
+        <span className="text-[13px] leading-snug text-muted-foreground">A nota aparece aqui quando a correção terminar.</span>
+      </div>
+    </div>
+  );
+}
+
 /** O cartão do resultado de uma prova simulada: com o cabeçalho do instantâneo,
  *  o cabeçalho da folha em miniatura e a nota em carimbo, como no ecrã de
  *  resultado. É o mesmo desenho na pré-visualização do resultado e no feed: o
@@ -54,6 +77,8 @@ function HiddenScore() {
  *  na pré-visualização do próprio resultado também não há link, porque já lá se está. */
 export function SimulationCard({ card, correctionHref }: { card: SimulationCardData; correctionHref?: string | null }) {
   const hidden = card.scoreHidden ?? (card.finalScore == null && card.maxScore == null);
+  const pending = pendingReviews(card);
+  const provisional = !hidden && pending > 0;
   const percent = scorePercent(card.finalScore, card.maxScore);
   const passed = scorePassed(card.finalScore, card.maxScore);
   const score = formatScore(card.finalScore);
@@ -86,7 +111,7 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
         </figcaption>
         <div className="grid gap-3 px-4 py-4">
           <p className="text-sm leading-snug font-semibold">{card.statementTitle ?? 'Prova'}</p>
-          {hidden ? <HiddenScore /> : (
+          {hidden ? <HiddenScore /> : provisional ? <ProvisionalScore count={pending} /> : (
             <>
               <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
                 <span className="text-[44px] leading-[.95] font-bold tracking-tighter tabular-nums">{score ?? '—'}</span>
@@ -103,7 +128,7 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
             </>
           )}
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
-            {card.correctAnswers != null && card.totalQuestions != null && (
+            {!provisional && card.correctAnswers != null && card.totalQuestions != null && (
               <span><b className="text-foreground tabular-nums">{card.correctAnswers} de {card.totalQuestions}</b> respostas certas</span>
             )}
             {time && <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" aria-hidden />{time}</span>}
@@ -130,7 +155,9 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
           <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">{headline}</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {hidden ? <div className="min-w-0 flex-1"><HiddenScore /></div> : (
+          {hidden ? <div className="min-w-0 flex-1"><HiddenScore /></div> : provisional ? (
+            <ProvisionalScore count={pending} />
+          ) : (
             <>
               <div
                 role="img"
@@ -155,7 +182,7 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
           )}
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
-          {card.correctAnswers != null && card.totalQuestions != null && (
+          {!provisional && card.correctAnswers != null && card.totalQuestions != null && (
             <span><b className="text-foreground tabular-nums">{card.correctAnswers} de {card.totalQuestions}</b> respostas certas</span>
           )}
           {time && <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" aria-hidden />{time}</span>}
