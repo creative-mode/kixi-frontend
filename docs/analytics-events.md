@@ -49,11 +49,40 @@ A seguinte configuração da propriedade GA4 é obrigatória para a proteção c
 - **Admin → Data streams → Web stream → Enhanced measurement → Page views → configurações**: desativar a opção “Page changes based on browser history events” (impedir page views automáticos em `pushState`, `replaceState`, `popstate`).
 - Verificar se não há integrações GTM/Google tag externas que carreguem outros destinos de medição.
 
+## Métricas de campo (#799)
+
+O `WebVitalsTracker` (`student/components/analytics/`), montado no layout do aluno, usa o
+`useReportWebVitals` do Next — que já traz o `web-vitals` compilado, sem dependência nova — e
+envia um `web_vitals` por métrica, página canónica e carregamento:
+
+- **O que sai:** LCP e INP (atualizados; envia-se o último valor fechado), TTFB, FCP e CLS.
+- **O que não sai:** URL completa, ids, user-agent ou qualquer identificador. O aparelho é
+  classificado em `mobile`/`tablet`/`desktop` a partir do ponteiro, da largura e de um teste
+  grosseiro ao user-agent; nada disso é guardado.
+- **Consentimento:** sem `all` a métrica fica em memória e só é enviada quando a pessoa aceita
+  (`CONSENT_EVENT`), como o `page_view`. Sem `NEXT_PUBLIC_GA_ID`, fica na fila como os restantes.
+- **Server-Timing:** o gateway acrescenta `Server-Timing: upstream;desc="primeiro byte";dur=…`
+  a `/aluno/inicio`, `/aluno/provas` e `/aluno/resultado`, para separar a espera do servidor do
+  trabalho do browser.
+
+**Ler o p75 em produção.** O evento já vai para o GA4. Para o ver:
+
+1. Admin → Custom definitions → criar dimensões de evento `metric`, `page` e `device` (âmbito
+   evento) e uma métrica personalizada `value` (âmbito evento, unidade ms).
+2. Explore → Free form: linhas `page` e `device`, colunas `metric`, valor `value` com agregação
+   **p75**. As metas são INP <= 200 ms, LCP <= 2,5 s, TTFB <= 800 ms, FCP <= 1,8 s e CLS <= 0,1.
+
+**Ler o p75 na máquina de quem testa.** Com `KIXI_VITALS_LOG=true` num host local/rede privada,
+o mesmo evento é também enviado para `/aluno/api/vitals`, que agrega em memória (sem disco, sem
+ids) e serve o painel `/aluno/metricas`. O endpoint responde 404 em produção ou com a flag
+desligada.
+
 ## Catálogo de eventos
 
 | Evento | Aplicação e quando | Parâmetros permitidos |
 |---|---|---|
 | `page_view` | Landing e aluno, uma vez por rota com consentimento | `app`: `manager\|student\|landing`; `page`: categoria controlada por app (`home`, `donation`, `privacy`, `cookies`, `login`, `signup`, `onboarding`, `student_home`, `exam`, `result`, `room`, `dashboard`, `forbidden`, `not_found`, `other`); UTMs permitidas acima |
+| `web_vitals` | Aluno, uma vez por métrica e navegação; LCP/INP levam o último valor (#799) | `app`: `student`; `page`: categoria controlada; `metric`: `LCP\|INP\|TTFB\|FCP\|CLS`; `value`: ms (CLS adimensional, três casas); `device`: `mobile\|tablet\|desktop` |
 | `cta_clique` | Landing, clique num CTA de criar conta (`CtaLink`, #512) | `origem`: `header\|outro\|faq` |
 | `signup_started` | Aluno, primeira interação no formulário de cadastro | `surface`: `signup_form` |
 | `signup_error` | Aluno, validação local ou falha do servidor | `field`: `first_name\|last_name\|username\|email\|password\|confirm\|form`; `category`: `validation\|server` |
@@ -69,7 +98,7 @@ A seguinte configuração da propriedade GA4 é obrigatória para a proteção c
 | `exam_abandoned` | Aluno, somente após confirmar explicitamente “Sair” no diálogo de saída | `app`: `student` |
 | `exam_started` | Aluno, confirmação de início | Sem parâmetros |
 | `exam_submitted` | Aluno, entrega confirmada | Sem parâmetros |
-| `exam_room_joined` | Aluno, entrada confirmada numa sala | Sem parâmetros |
+| `exam_room_joined` | Aluno, entrada confirmada numa sala | `origem`: `inicio\|provas` (ausente quando a entrada não veio de nenhum dos dois ecrãs) |
 | `onboarding_completed` | Aluno, matrícula concluída | Sem parâmetros |
 | `tutor_used` | Aluno, primeira utilização do tutor na sessão | Sem parâmetros |
 

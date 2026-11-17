@@ -3,7 +3,7 @@
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { joinRoom } from './exam-room';
-import { translateRoomError } from './exam-room-rules';
+import { roomOriginOf, translateRoomError } from './exam-room-rules';
 import { redirectFromAction } from './action-redirect';
 
 export type EnterState = { error?: string; waiting?: string } | undefined;
@@ -22,7 +22,10 @@ export async function entrarSalaAction(_: EnterState, form: FormData): Promise<E
   }
   // Caminho cru: o Next acrescenta o basePath ao redirect de uma server action.
   // `entrada=1` é o sinal de uso único do kixi-frontend#219 ("sala entrada"): a sala
-  // é revisitada enquanto a prova controlada continua em curso.
+  // é revisitada enquanto a prova controlada continua em curso. `origem` (#795) diz
+  // de que ecrã veio o aluno e segue para o evento de analítica; sem ela, a entrada
+  // continua a contar, só não se sabe de onde veio.
+  const origem = roomOriginOf(form.get('origem'));
   forgetVisitedPages();
-  await redirectFromAction(`/sala/${roomId}?entrada=1`);
+  await redirectFromAction(`/sala/${roomId}?entrada=1${origem ? `&origem=${origem}` : ''}`);
 }

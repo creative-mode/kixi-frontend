@@ -1,7 +1,7 @@
 // Testes das rotas do professor no gestor:  node --test lib/roles.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coordinatorMayOpen, isCoordinatorOnly, normalizeRoles, canAccessManager, teacherRoute } from './roles.ts';
+import { coordinatorMayOpen, isCoordinatorOnly, mayOpenCoordination, normalizeRoles, canAccessManager, seesInstitutionRooms, teacherRoute } from './roles.ts';
 
 test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enunciado', () => {
   for (const p of [
@@ -80,6 +80,21 @@ test('o coordenador entra no gestor e só abre o plano e as pautas', () => {
   assert.equal(coordinatorMayOpen('/tarefas/abc'), false);
   assert.equal(coordinatorMayOpen('/pautas'), true);
   assert.equal(coordinatorMayOpen('/coordenacao'), true);
+  assert.equal(coordinatorMayOpen('/coordenacao/12'), true);
   assert.equal(coordinatorMayOpen('/exam-rooms'), false);
   assert.equal(coordinatorMayOpen('/accounts'), false);
+});
+
+test('a coordenação é do coordenador e do ADMIN, mas o menu só a mostra ao coordenador', () => {
+  const admin = normalizeRoles(['ADMIN']);
+  const coordinator = normalizeRoles(['COORDINATOR']);
+  const teacher = normalizeRoles(['TEACHER']);
+
+  assert.equal(mayOpenCoordination(admin), true);
+  assert.equal(mayOpenCoordination(coordinator), true);
+  assert.equal(mayOpenCoordination(teacher), false);
+
+  assert.equal(seesInstitutionRooms(admin), false);
+  assert.equal(seesInstitutionRooms(coordinator), true);
+  assert.equal(seesInstitutionRooms(teacher), false);
 });

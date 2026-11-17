@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import './globals.css';
 import { CookieBanner } from '@/components/consent/Consent';
 import { PageViewTracker } from '@/components/analytics/trackers';
+import { WebVitalsTracker } from '@/components/analytics/web-vitals';
 import { FireEventOnce } from '@/components/analytics/fire-event-once';
 import { appOrigin } from '@/lib/origin';
 
@@ -48,6 +49,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         {/* #714: page_view por rota; `?entrou` é o marcador que o login deixa no destino (lib/auth-actions.ts). */}
         <PageViewTracker app="student" />
+        {/* #799: LCP/INP/TTFB por rota e aparelho, pelo mesmo contrato de analítica. */}
+        <WebVitalsTracker />
         <FireEventOnce param="entrou" event="login_success" params={{ app: 'student' }} />
         {/* #219: analítica mínima, só depois deste banner ser aceite. */}
         <CookieBanner landingOrigin={appOrigin()} />

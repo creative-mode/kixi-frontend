@@ -21,6 +21,7 @@ import {
   type BlockDraft, type BlockType, type BuiltKind, type CalloutTone, type PostBlock, type Template,
 } from '@/lib/post-blocks';
 import { cn } from '@/lib/utils';
+import { MathText } from '@/lib/shared/math-text';
 
 const ICON: Record<BlockType, typeof Type> = {
   heading: Heading, text: Type, list: List, callout: Lightbulb, formula: Sigma, image: ImageIcon, choice: ListChecks,
@@ -92,12 +93,39 @@ function ImageField({ block, label, onChange }: { block: BlockDraft; label: stri
   );
 }
 
+function FormulaField({ block, label, onChange }: { block: BlockDraft; label: string; onChange: (patch: Partial<BlockDraft>) => void }) {
+  const latex = block.text ?? '';
+  const hint = `${block.key}-latex-hint`;
+  return (
+    <div className="grid gap-2">
+      <textarea
+        aria-label={label}
+        aria-describedby={hint}
+        className="min-h-20 w-full resize-y rounded-lg border border-[#e4e7e1] bg-white p-3 font-mono text-[14px] leading-snug text-[#121c15] outline-none placeholder:text-[#a5aea7] focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        placeholder={'\\frac{u \\cdot i}{2\\pi d}'}
+        maxLength={LIMITS.formula}
+        value={latex}
+        spellCheck={false}
+        onChange={(e) => onChange({ text: e.target.value })}
+      />
+      <p id={hint} className="text-[12px] text-[#617066]">
+        Escreve a fórmula em LaTeX, por exemplo <code>{'B = \\frac{u \\cdot i}{2\\pi d}'}</code>. Em publicações antigas, o texto que não compile fica como foi escrito.
+      </p>
+      <div className="rounded-xl border border-[#e4e7e1] bg-white px-3 py-2 text-center" aria-live="polite">
+        {latex.trim()
+          ? <MathText mode="formula" display text={latex} className="text-[17px]" />
+          : <span className="text-[13px] text-[#8a958d]">A pré-visualização aparece aqui.</span>}
+      </div>
+    </div>
+  );
+}
+
 function BlockFields({ block, label, placeholder, onChange }: { block: BlockDraft; label: string; placeholder?: string; onChange: (patch: Partial<BlockDraft>) => void }) {
   switch (block.type) {
     case 'heading':
       return <input aria-label={label} placeholder="Um título curto" maxLength={LIMITS.heading} value={block.text ?? ''} onChange={(e) => onChange({ text: e.target.value })} className="w-full border-0 bg-transparent p-0 text-[21px] leading-tight font-extrabold tracking-[-0.02em] text-[#121c15] outline-none placeholder:text-[#a5aea7]" />;
     case 'formula':
-      return <Input aria-label={label} className="font-mono" placeholder="Por exemplo: M = C × (1 + i × t)" maxLength={LIMITS.formula} value={block.text ?? ''} onChange={(e) => onChange({ text: e.target.value })} />;
+      return <FormulaField block={block} label={label} onChange={onChange} />;
     case 'text':
       return <textarea aria-label={label} placeholder={placeholder ?? 'Escreve aqui'} maxLength={LIMITS.text} rows={placeholder ? 4 : 2} value={block.text ?? ''} onChange={(e) => onChange({ text: e.target.value })} className="field-sizing-content min-h-12 w-full resize-none border-0 bg-transparent p-0 text-[17px] leading-relaxed text-[#121c15] outline-none placeholder:text-[#8a958d]" />;
     case 'callout':

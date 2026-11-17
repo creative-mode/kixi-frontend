@@ -10,6 +10,9 @@ import { ENTITIES, type Row } from '@/lib/crud/entities';
 import { assignmentsFrom, teacherCanWrite } from '@/lib/crud/teacher-scope';
 import type { BulkGradeResult, ExamRoom, Grade, RoomAction, RoomDraft, RoomIntegrity, RoomReview } from '@/lib/exam-rooms/model';
 import { draftProblem, toLocalDateTime } from '@/lib/exam-rooms/model';
+import { institutionNamesByClassCode } from '@/lib/coordination';
+import type { CoordinationRoom } from '@/types/coordination';
+import { coordinationRooms } from './coordination';
 import { fold, keywordsOf, problemsOf, type MatrixDraft, type MatrixPayload, type MatrixView } from '@/lib/exam-rooms/matrix';
 
 const BASE = '/api/v1/exam-rooms';
@@ -124,6 +127,35 @@ export async function listRooms(): Promise<Result<RoomListing>> {
         (classes.ok ? classes.data : []).map((c) => [Number(c.id), { code: ENTITIES.classes.titleOf(c), label: classLabel(c) }]),
       ),
     });
+  });
+}
+
+export type InstitutionRoom = {
+  room: CoordinationRoom;
+  /** O nome da escola da turma; `null` quando o código da turma é ambíguo ou falta. Nunca um nome inventado. */
+  institutionName: string | null;
+};
+
+/**
+ * As salas de todas as instituições, para o ADMIN (#759): o `/owned` só devolve as
+ * do próprio professor, por isso a lista vem da coordenação. A escola de cada sala
+ * sai da turma; se o código não identificar uma escola só, fica `null`.
+ */
+export async function listInstitutionRooms(): Promise<Result<InstitutionRoom[]>> {
+  return guard(async () => {
+    const [rooms, classes, institutions] = await Promise.all([
+      coordinationRooms(),
+      json<Row[]>(ENTITIES.classes.api),
+      json<Row[]>(ENTITIES.institutions.api),
+    ]);
+    if (!rooms.ok) return rooms;
+    const byClassCode = classes.ok && institutions.ok
+      ? institutionNamesByClassCode(
+          classes.data.map((c) => ({ code: String(c.code ?? ''), institutionId: c.institutionId == null ? null : Number(c.institutionId) })),
+          institutions.data.map((i) => ({ id: Number(i.id), name: String(i.name ?? '') })),
+        )
+      : new Map<string, string>();
+    return ok(rooms.data.map((room) => ({ room, institutionName: byClassCode.get(room.className) ?? null })));
   });
 }
 

@@ -1,7 +1,7 @@
 // node --test lib/exam-room-rules.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockOffset, formatWait, formatWhen, invitationsErrorOf, joinActionOf, phaseOf, secondsUntil, sortInvitations, translateRoomError, type Invitation } from './exam-room-rules.ts';
+import { clockOffset, formatWait, formatWhen, hasLiveRoom, invitationsErrorOf, joinActionOf, openRooms, phaseOf, roomOriginOf, secondsUntil, sortInvitations, translateRoomError, type Invitation } from './exam-room-rules.ts';
 
 const base: Invitation = {
   roomId: 1,
@@ -125,4 +125,26 @@ test('a vista da sala guarda-se por aluno e por sala: dois alunos na mesma sala 
   assert.notEqual(viewCacheKey('aluno-a', 7), viewCacheKey('aluno-b', 7));
   assert.notEqual(viewCacheKey('aluno-a', 7), viewCacheKey('aluno-a', 8));
   assert.equal(viewCacheKey('aluno-a', 7), viewCacheKey('aluno-a', 7));
+});
+
+test('o contador da navegação conta as salas que já se podem abrir (#795)', () => {
+  const list: Invitation[] = [
+    { ...base, roomId: 1 },                                  // a decorrer
+    { ...base, roomId: 2, status: 'OPEN' },                   // sala de espera
+    { ...base, roomId: 3, status: 'DRAFT' },                  // por abrir
+    { ...base, roomId: 4, status: 'CLOSED' },                 // terminou
+    { ...base, roomId: 5, simulationId: 9, simulationStatus: 'FINISHED' }, // entregue
+  ];
+  assert.deepEqual(openRooms(list).map((i) => i.roomId), [1, 2]);
+  assert.equal(openRooms([]).length, 0);
+  assert.equal(hasLiveRoom(list), true);
+  assert.equal(hasLiveRoom([{ ...base, status: 'OPEN' }]), false);
+});
+
+test('a origem da entrada numa sala só aceita os dois sítios que a oferecem (#795)', () => {
+  assert.equal(roomOriginOf('inicio'), 'inicio');
+  assert.equal(roomOriginOf('provas'), 'provas');
+  assert.equal(roomOriginOf('outro'), null);
+  assert.equal(roomOriginOf(null), null);
+  assert.equal(roomOriginOf(undefined), null);
 });

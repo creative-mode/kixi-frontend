@@ -14,7 +14,7 @@ import { track, type AnalyticsEvent, type AnalyticsParams } from '@/lib/analytic
  * O parâmetro é de uso único: dispara-se o evento e limpa-se a URL com `history.replaceState`
  * (sem nova entrada no histórico nem novo pedido ao servidor), para um refresh à mão não o repetir.
  */
-export function FireEventOnce(props: { param: string; event: AnalyticsEvent; params?: AnalyticsParams }) {
+export function FireEventOnce(props: { param: string; event: AnalyticsEvent; params?: AnalyticsParams; fromUrl?: readonly string[] }) {
   // `useSearchParams` opta a página fora da pré-renderização estática sem isto (o
   // Next exige um limite de Suspense); embrulhar aqui poupa cada ponto de chamada
   // de lembrar-se disso.
@@ -25,16 +25,25 @@ export function FireEventOnce(props: { param: string; event: AnalyticsEvent; par
   );
 }
 
-function FireEventOnceInner({ param, event, params }: { param: string; event: AnalyticsEvent; params?: AnalyticsParams }) {
+function FireEventOnceInner({ param, event, params, fromUrl }: { param: string; event: AnalyticsEvent; params?: AnalyticsParams; fromUrl?: readonly string[] }) {
   const searchParams = useSearchParams();
   const present = searchParams.has(param);
 
   useEffect(() => {
     if (!present) return;
-    track(event, params);
+    // Os parâmetros de `fromUrl` viajam na URL até aqui (é por onde passam de um
+    // `redirect()` de server action); o `track` valida-os contra o contrato e
+    // descarta o que não conhece.
+    const carried: AnalyticsParams = {};
+    for (const name of fromUrl ?? []) {
+      const value = searchParams.get(name);
+      if (value !== null) carried[name] = value;
+    }
+    track(event, { ...carried, ...params });
     // Do endereço atual e não do `searchParams` do render: dois marcadores na mesma página não se repõem.
     const rest = new URLSearchParams(window.location.search);
     rest.delete(param);
+    for (const name of fromUrl ?? []) rest.delete(name);
     const query = rest.toString();
     // `history.replaceState` e não `router.replace`: o Next sincroniza o router com ele sem voltar a pedir a
     // página ao servidor. O `router.replace` refazia o pedido logo a seguir a chegar (um segundo render do

@@ -212,3 +212,15 @@ test('donation_error separa o 429 (rate_limit) de um erro do servidor', () => {
   assert.deepEqual(sanitizeEvent('donation_error', { step: 'contact', category: 'server' }), { event: 'donation_error', params: { step: 'contact', category: 'server' } });
   assert.equal(sanitizeEvent('donation_error', { step: 'contact', category: 'timeout' }), null);
 });
+
+test('a entrada numa sala leva a origem quando se sabe de onde veio (#795)', () => {
+  assert.deepEqual(sanitizeEvent('exam_room_joined'), { event: 'exam_room_joined', params: {} });
+  assert.deepEqual(sanitizeEvent('exam_room_joined', { origem: 'inicio' }), { event: 'exam_room_joined', params: { origem: 'inicio' } });
+  assert.deepEqual(sanitizeEvent('exam_room_joined', { origem: 'provas' }), { event: 'exam_room_joined', params: { origem: 'provas' } });
+  // Só a origem passa: o resto do que vier na URL fica de fora.
+  assert.deepEqual(
+    sanitizeEvent('exam_room_joined', { origem: 'inicio', statementId: 4, email: 'ana@example.ao' }),
+    { event: 'exam_room_joined', params: { origem: 'inicio' } },
+  );
+  assert.deepEqual(sanitizeEvent('exam_room_joined', { origem: 'outro' }), { event: 'exam_room_joined', params: {} });
+});

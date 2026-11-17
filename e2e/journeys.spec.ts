@@ -386,7 +386,11 @@ test.describe('jornadas críticas do Kixi', () => {
 
     await page.keyboard.press('Control+Enter');
     await expect(page).toHaveURL(/\/aluno\/inicio/);
-    await expect(page.getByRole('article').filter({ hasText: id }).first()).toBeVisible();
+    const cartao = page.getByRole('article').filter({ hasText: id }).first();
+    await expect(cartao).toBeVisible();
+    // O bloco Fórmula guarda LaTeX e o feed desenha-o com o KaTeX, não como texto em `<code>` (#754).
+    await expect(cartao.locator('.kixi-math .katex').first()).toBeVisible();
+    await expect(cartao.locator('.kixi-math-literal')).toHaveCount(0);
   });
 
   test('aluno edita e elimina as suas publicações e comentários, com confirmação e sem recarregar (#753)', async ({ page }) => {
@@ -758,6 +762,11 @@ test.describe('jornadas críticas do Kixi', () => {
     const perfil = page.getByRole('menuitem', { name: 'O meu perfil' });
     const terminar = page.getByRole('menuitem', { name: 'Terminar sessão' });
     await expect(perfil).toBeFocused();
+    // #797: o tutor ganhou entrada própria — a seguir ao perfil.
+    await page.keyboard.press('ArrowDown');
+    const tutor = page.getByRole('menuitem', { name: 'Perguntar ao tutor' });
+    await expect(tutor).toBeFocused();
+    await expect(tutor).toHaveAttribute('href', /\/tutor$/);
     await page.keyboard.press('ArrowDown');
     // #762: a doação entra depois do perfil, para estar a um toque em qualquer ecrã.
     const doar = page.getByRole('menuitem', { name: 'Doar um enunciado' });
@@ -776,11 +785,16 @@ test.describe('jornadas críticas do Kixi', () => {
     await page.keyboard.press('ArrowUp');
     await expect(doar).toBeFocused();
     await page.keyboard.press('ArrowUp');
+    await expect(tutor).toBeFocused();
+    await page.keyboard.press('ArrowUp');
     await expect(perfil).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(trigger).toBeFocused();
 
-    await page.goto('/aluno/provas');
+    // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a
+    // decorrer, caso em que /provas abriria nas Salas; o que este troço verifica é a semântica
+    // de `aria-current` ao mudar de aba, por isso começa de propósito nos Enunciados.
+    await page.goto('/aluno/provas?aba=enunciados');
     const nav = page.getByRole('navigation', { name: 'Provas' });
     await expect(nav.getByRole('link', { name: 'Enunciados' })).toHaveAttribute('aria-current', 'page');
     await expect(nav.getByRole('tab')).toHaveCount(0);
@@ -1110,7 +1124,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('ocr-sample.pdf')).toBeVisible();
     await expect(page.locator('#exam-sheet .katex')).toBeVisible();
     await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
-    const mathQuestion = page.getByRole('textbox', { name: 'Questão 1' });
+    const mathQuestion = page.getByRole('textbox', { name: 'Questão 1', exact: true });
     await expect(mathQuestion).toBeEditable();
     await mathQuestion.fill('Questão sintética editada: determine $v = v_0 + at$.');
     await expect(page.locator('#exam-sheet')).toContainText('Questão sintética editada: determine');
@@ -1132,7 +1146,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Publicar é bloqueado enquanto a prova tiver problemas, e o construtor diz
     // quais: o OCR não traz cotação nem adivinha o gabarito. Resolve-se o que a
     // própria página complains, em vez de fixar números que o mock pode mudar.
-    await page.getByRole('button', { name: 'Distribuir 20 valores' }).click();
+    await page.getByRole('button', { name: 'Distribuir por igual' }).click();
     for (const grupo of await page.getByRole('radiogroup').all()) {
       const nome = (await grupo.getAttribute('aria-label')) ?? '';
       if (!nome.includes('Resposta da questão')) continue;
@@ -1516,8 +1530,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(originais.getByRole('button', { name: 'Ver prova-dois-paginas.pdf em tamanho real' }).locator('img'))
       .toHaveAttribute('src', /^data:image\/jpeg;base64,/);
 
-    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
-    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia.');
+    await expect(page.getByRole('textbox', { name: 'Questão 1', exact: true })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2', exact: true })).toHaveValue('Explica a inércia.');
 
     expect(posts).toHaveLength(1);
     expect(posts[0].match(/name="files"/g)).toHaveLength(1);
@@ -1525,8 +1539,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.getByRole('button', { name: 'Repetir a leitura da página 2 de prova-dois-paginas.pdf' }).click();
     await expect(page.getByText('Página 2 relida: 1 questão(ões) no lugar de 1.')).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Define velocidade média.');
-    await expect(page.getByRole('textbox', { name: 'Questão 2' })).toHaveValue('Explica a inércia com a correção pedida.');
+    await expect(page.getByRole('textbox', { name: 'Questão 1', exact: true })).toHaveValue('Define velocidade média.');
+    await expect(page.getByRole('textbox', { name: 'Questão 2', exact: true })).toHaveValue('Explica a inércia com a correção pedida.');
 
     // Só a página 2 foi relida: um segundo POST, com uma única imagem — não a prova toda.
     expect(posts).toHaveLength(2);
@@ -1537,11 +1551,11 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
   test('construtor: a fórmula desenhada edita-se pelo teclado e Esc não a descarta sem aviso (#531)', async ({ page }) => {
     await managerLogin(page, TEACHER_USERNAME, TEACHER_LANDING.landing, TEACHER_LANDING.heading);
     await page.goto('/manager/exam-builder');
-    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Sendo $x^{2}$ e $y$, calcule.');
+    await page.getByRole('textbox', { name: 'Questão 1', exact: true }).fill('Sendo $x^{2}$ e $y$, calcule.');
     await page.getByRole('button', { name: 'Ver fórmula renderizada' }).first().click();
 
     // Cada fórmula é alcançável por Tab e tem um nome próprio.
-    const group = page.getByRole('group', { name: 'Questão 1' });
+    const group = page.getByRole('group', { name: 'Questão 1', exact: true });
     const second = group.getByRole('button', { name: 'Editar fórmula 2' });
     await expect(group.getByRole('button', { name: /^Editar fórmula/ })).toHaveCount(2);
     await group.getByRole('button', { name: 'Editar fórmula 1' }).focus();
@@ -1578,7 +1592,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await dialog.getByRole('button', { name: 'Substituir fórmula' }).click();
     await expect(dialog).toHaveCount(0);
     await page.getByRole('button', { name: 'Ajustar enunciado' }).first().click();
-    await expect(page.getByRole('textbox', { name: 'Questão 1' })).toHaveValue('Sendo $x^{2}$ e $z^{3}$, calcule.');
+    await expect(page.getByRole('textbox', { name: 'Questão 1', exact: true })).toHaveValue('Sendo $x^{2}$ e $z^{3}$, calcule.');
   });
 
   test('construtor: falha do MathLive mantém edição de fórmula em LaTeX', async ({ page }, testInfo) => {
@@ -1880,8 +1894,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Com a prova pronta o resumo desaparece e o botão deixa de ter descrição.
     await escolherOpcao(page.getByLabel('Disciplina'));
     await escolherOpcao(page.getByLabel(/^Turma/));
-    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
-    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    await page.getByRole('textbox', { name: 'Questão 1', exact: true }).fill('Quanto é 2 + 2?');
+    await page.getByRole('textbox', { name: 'Cotação da questão 1', exact: true }).fill('20');
     await expect(resumo).toHaveCount(0);
     await expect(guardar).toBeEnabled();
   });
@@ -1894,7 +1908,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     const publicar = page.getByRole('button', { name: 'Publicar', exact: true });
     await escolherOpcao(page.getByLabel('Disciplina'));
     await escolherOpcao(page.getByLabel(/^Turma/));
-    await page.getByRole('textbox', { name: 'Questão 1' }).fill('Quanto é 2 + 2?');
+    await page.getByRole('textbox', { name: 'Questão 1', exact: true }).fill('Quanto é 2 + 2?');
 
     // Falta a cotação: dá para guardar, e «Guardar» não lê o problema que só trava «Publicar».
     await expect(guardar).toBeEnabled();
@@ -1919,8 +1933,8 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     // Duas edições seguidas têm de atualizar o mesmo enunciado, sem criar outro.
     const statementId = await page.evaluate(() => JSON.parse(localStorage.getItem('kixi-exam-draft') ?? '{}').savedStatementId as number);
     await vista.getByRole('button', { name: 'Editar' }).click();
-    const question = page.getByRole('textbox', { name: 'Questão 1' });
-    await page.getByRole('spinbutton', { name: 'Cotação da questão 1' }).fill('20');
+    const question = page.getByRole('textbox', { name: 'Questão 1', exact: true });
+    await page.getByRole('textbox', { name: 'Cotação da questão 1', exact: true }).fill('20');
     for (const text of ['Quanto é 3 + 3?', 'Quanto é 4 + 4?']) {
       await question.fill(text);
       await expect(page.getByRole('status').filter({ hasText: 'Alterações por guardar' })).toBeVisible();
@@ -2370,6 +2384,35 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 /** O cartão de prova no feed (#602): cabeçalho da folha em miniatura e nota em
  *  carimbo, com link para a prova corrigida — sem fetch extra por cartão. */
 test.describe('cartão de prova no feed (#602)', () => {
+  test('dizer quem vê e esconder a nota na pré-visualização (#801)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/resultado?prova=1');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    // A turma do mock é a 12B: a linha diz quem vê e quantos colegas há.
+    await expect(previa.getByText(/Visível para a turma 12\.ª B \(\d+ colegas\)/)).toBeVisible();
+
+    const mostrarNota = previa.getByRole('switch', { name: 'Mostrar a nota' });
+    await expect(mostrarNota).toBeChecked();
+    await expect(previa.getByText('Positiva')).toBeVisible();
+
+    await mostrarNota.click();
+    await expect(mostrarNota).not.toBeChecked();
+    // A pré-visualização é a publicação como a turma a vê: os números saem do cartão.
+    await expect(previa.getByText('Nota escondida')).toBeVisible();
+    await expect(previa.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
+    await expect(previa.getByText('Positiva')).toBeHidden();
+    await expect(previa.getByText('16,4')).toBeHidden();
+
+    await mostrarNota.click();
+    await expect(previa.getByText('Positiva')).toBeVisible();
+  });
+
   test('publicar o resultado mostra o cabeçalho e o carimbo no início', async ({ page }) => {
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -2392,7 +2435,9 @@ test.describe('cartão de prova no feed (#602)', () => {
 
     // No feed, o cartão traz o mesmo cabeçalho, o carimbo e o link para a corrigida.
     await page.goto('/aluno/inicio');
-    const cartao = page.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    const artigo = page.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+    await expect(artigo).toBeVisible();
+    const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
     await expect(cartao).toBeVisible();
     await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
     await expect(cartao.getByText(/Ano letivo/)).toBeVisible();
@@ -2426,10 +2471,43 @@ test.describe('cartão de prova no feed (#602)', () => {
     await colega.locator('#password').fill(PASSWORD);
     await colega.getByTestId('aluno-entrar-submeter').click();
     await expect(colega).toHaveURL(/\/aluno\/inicio/);
-    const cartao = colega.getByRole('figure', { name: 'Resultado de prova simulada' }).first();
+    const artigo = colega.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+    await expect(artigo).toBeVisible();
+    const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
     await expect(cartao).toBeVisible();
     await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
     await expect(cartao.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
+    await colegaContext.close();
+  });
+
+  test('desligar «Mostrar a nota» esconde-a dos colegas no feed (#801)', async ({ browser, page }) => {
+    // O Nuno tem a simulação 5 terminada e ainda não a publicou.
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('nuno.dias');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await page.goto('/aluno/resultado?prova=5');
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await previa.getByRole('switch', { name: 'Mostrar a nota' }).click();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    // Idem: um run anterior pode já ter publicado; o cartão escondido mantém-se.
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // Outro colega da turma vê o cartão, mas sem a nota nem as respostas certas.
+    const colegaContext = await browser.newContext();
+    const colega = await colegaContext.newPage();
+    await colega.goto('/aluno/entrar');
+    await colega.getByLabel('Utilizador ou email').fill('12345');
+    await colega.locator('#password').fill(PASSWORD);
+    await colega.getByTestId('aluno-entrar-submeter').click();
+    await expect(colega).toHaveURL(/\/aluno\/inicio/);
+    const artigo = colega.locator('article').filter({ hasText: 'Nuno Dias' }).filter({ hasText: 'Redes de Computadores' });
+    await expect(artigo).toBeVisible();
+    await expect(artigo.getByText('Nota escondida')).toBeVisible();
+    await expect(artigo.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
+    await expect(artigo.getByText('Positiva')).toBeHidden();
     await colegaContext.close();
   });
 });

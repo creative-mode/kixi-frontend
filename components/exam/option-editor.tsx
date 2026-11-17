@@ -34,45 +34,51 @@ export function OptionEditor({
       {options.map((option, i) => (
         // O rótulo é único dentro da pergunta e atribuído uma vez — `normalizeItem`
         // garante que nenhum vem vazio — por isso serve de key.
-        <div key={option.label || i} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-          <span className="grid size-7 shrink-0 place-items-center rounded-md border text-[12px] font-bold text-muted-foreground">{option.label || labelAt(i)}</span>
-          <FormulaInput
-            value={option.text}
-            onChange={(value) => setOption(i, { text: value })}
-            label={`Opção ${option.label || labelAt(i)} da questão ${where}`}
-            rows={1}
-            placeholder={`Opção ${option.label || labelAt(i)}`}
-            className="min-w-0 flex-1"
-          />
-          <Button
-            type="button"
-            variant={option.correct ? 'default' : 'outline'}
-            size="icon"
-            className="size-9 shrink-0"
-            aria-pressed={option.correct}
-            aria-label={option.correct ? `Opção ${option.label} é a resposta correcta` : `Marcar a opção ${option.label} como resposta correcta`}
-            title={option.correct ? 'É a resposta correcta' : 'Marcar como resposta correcta'}
-            onClick={() => markCorrect(i)}
-          >
-            <Check />
-          </Button>
-          <Button type="button" variant="ghost" size="icon" className="size-9 shrink-0" aria-label={`Mover a opção ${option.label} para cima`} disabled={i === 0} onClick={() => onChange(move(options, i, -1))}>
-            <ArrowUp />
-          </Button>
-          <Button type="button" variant="ghost" size="icon" className="size-9 shrink-0" aria-label={`Mover a opção ${option.label} para baixo`} disabled={i === options.length - 1} onClick={() => onChange(move(options, i, 1))}>
-            <ArrowDown />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-9 shrink-0 hover:bg-danger-soft hover:text-destructive"
-            aria-label={`Remover a opção ${option.label}`}
-            disabled={options.length === 1}
-            onClick={() => onChange(options.filter((_, j) => j !== i))}
-          >
-            <Trash2 />
-          </Button>
+        <div key={option.label || i} className="grid min-w-0 gap-1.5 rounded-md border bg-card p-2">
+          {/* O texto da opção ocupa a largura toda; as acções ficam em linha própria,
+              com o mesmo alinhamento à direita em todas as linhas. */}
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2">
+            <span className="grid size-7 shrink-0 place-items-center rounded-md border text-[12px] font-bold text-muted-foreground">{option.label || labelAt(i)}</span>
+            <FormulaInput
+              value={option.text}
+              onChange={(value) => setOption(i, { text: value })}
+              label={`Opção ${option.label || labelAt(i)} da questão ${where}`}
+              rows={1}
+              placeholder={`Opção ${option.label || labelAt(i)}`}
+              className="min-w-0 flex-1"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-1 border-t pt-1.5">
+            <Button
+              type="button"
+              variant={option.correct ? 'default' : 'outline'}
+              size="icon"
+              className="size-8 shrink-0"
+              aria-pressed={option.correct}
+              aria-label={option.correct ? `Opção ${option.label} é a resposta correcta` : `Marcar a opção ${option.label} como resposta correcta`}
+              title={option.correct ? 'É a resposta correcta' : 'Marcar como resposta correcta'}
+              onClick={() => markCorrect(i)}
+            >
+              <Check size={17} aria-hidden />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`Mover a opção ${option.label} para cima`} disabled={i === 0} onClick={() => onChange(move(options, i, -1))}>
+              <ArrowUp size={17} aria-hidden />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`Mover a opção ${option.label} para baixo`} disabled={i === options.length - 1} onClick={() => onChange(move(options, i, 1))}>
+              <ArrowDown size={17} aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 hover:bg-danger-soft hover:text-destructive"
+              aria-label={`Remover a opção ${option.label}`}
+              disabled={options.length === 1}
+              onClick={() => onChange(options.filter((_, j) => j !== i))}
+            >
+              <Trash2 size={17} aria-hidden />
+            </Button>
+          </div>
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => onChange([...options, { label: nextLabel(options), text: '', correct: false }])}>

@@ -540,15 +540,18 @@ async function main() {
     const oculta = await fetch(`${BASE}/aluno/api/tutor/sessions`, { method: 'POST', headers: json, body: JSON.stringify({ statementId: 4 }) });
     registar('uma prova por publicar não abre sessão', oculta.status === 404 ? null : `veio ${oculta.status}`);
 
-    // 4c · salas de prova (#25, passos trazidos do #125). A conta deste fluxo acabou de
-    // registar-se e não tem salas: o que se verifica é que a secção não aparece. As
-    // salas semeadas são da conta 3.
+    // 4c · salas de prova (#25, passos trazidos do #125; linha discreta desde o #795). A
+    // conta deste fluxo acabou de se registar e não tem salas: o Início mostra a linha
+    // discreta «Salas de prova» a apontar para a aba das salas, e não o bloco de cartões
+    // (o `id="salas"`). As salas semeadas são da conta 3.
     await passo(
-      'sem salas, o início não mostra a secção',
+      'sem salas, o início mostra a linha discreta das salas',
       'GET', '/aluno/inicio', {},
       async (r) => {
         const html = await r.text();
-        return html.includes('Salas de prova') ? 'a secção apareceu sem haver salas' : null;
+        if (!html.includes('Salas de prova')) return 'a linha discreta não apareceu';
+        if (!html.includes('/provas?aba=salas')) return 'a linha não aponta para a aba das salas';
+        return html.includes('id="salas"') ? 'o bloco de salas apareceu sem haver salas' : null;
       },
     );
 

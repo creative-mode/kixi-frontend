@@ -3,7 +3,6 @@
 import { ArrowDown, ArrowUp, BookOpen, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { convertKind, emptyItem, groupScore, invalidateReviewOnContentChange, sourceItemLabel, kindOf, move, type LeafKind, type QuestionKind } from '@/lib/exam/draft';
 import type { ExamItem } from '@/lib/exam/schools';
@@ -13,6 +12,7 @@ import { mathNeedsReview, serializeMathText } from '@/student/lib/shared/math-ty
 import { FormulaInput } from './formula-input';
 import { useState } from 'react';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
+import { CotaçãoInput } from './cotacao-input';
 
 const KIND_LABELS: Record<QuestionKind, string> = { ...LEAF_LABELS, group: 'Com alíneas' };
 
@@ -84,12 +84,9 @@ export function QuestionEditor({
             {groupScore(item)}
           </output>
         ) : (
-          <Input
-            type="number"
-            min={0}
-            step="0.5"
+          <CotaçãoInput
             value={item.points}
-            onChange={(e) => onChange({ points: e.target.value === '' ? '' : Number(e.target.value) })}
+            onChange={(points) => onChange({ points })}
             placeholder="Val."
             aria-label={`Cotação da questão ${n}`}
             className="w-20 shrink-0"
@@ -138,7 +135,7 @@ export function QuestionEditor({
           {/* «Ir para a questão» chega ao fieldset pelo id `questao-n`; cada alínea
               tem `data-leaf`, para «Ir para a questão 3a» apanhar a alínea certa. */}
           {items.map((it, j) => (
-            <div key={j} data-leaf={`${n}${sourceItemLabel(it, j)}`} className={it.label?.includes('.') ? 'ml-5' : undefined}>
+            <div key={it.uid ?? j} data-leaf={`${n}${sourceItemLabel(it, j)}`} className={it.label?.includes('.') ? 'ml-5' : undefined}>
               <ItemEditor
                 item={it}
                 label={sourceItemLabel(it, j)}

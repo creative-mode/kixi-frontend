@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/states';
 import { RefreshError } from '@/components/refresh-error';
 import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@/lib/catalog';
 import { listInvitations } from '@/lib/exam-room';
-import { invitationsErrorOf } from '@/lib/exam-room-rules';
+import { hasLiveRoom, invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 import { Calendario } from '@/components/calendario';
 import { DonateLink } from '@/components/donate-link';
@@ -131,6 +131,10 @@ function Filters({
 }) {
   return (
     <form method="get" className="grid gap-3">
+      {/* Este formulário só se desenha na aba dos enunciados; sem este campo, submetê-lo
+       *  perdia o `aba=enunciados` da URL e, para quem tem uma sala a decorrer, o valor por
+       *  omissão passa a ser «Salas» — um filtro aplicado devolvia à aba errada (#795 — code review). */}
+      <input type="hidden" name="aba" value="enunciados" />
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -203,12 +207,20 @@ export default async function Provas({ searchParams }: { searchParams: Params })
     institutionId: num(params.escola),
   };
   const page = Math.max(0, (Number(one(params.pagina)) || 1) - 1);
-  const aba: Aba = one(params.aba) === 'salas' ? 'salas' : 'enunciados';
 
   const [names, invResult] = await Promise.all([getCatalogNames(), listInvitations()]);
   const invitations = invResult.ok ? invResult.data : [];
   const invitationsError = invitationsErrorOf(invResult);
-  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas" convites={invitations.length} />;
+  // #795: quem tem uma prova a decorrer cai na aba das salas, que é por onde se entra.
+  // O parâmetro manda sempre — quem pediu «Enunciados» não é levado para outra aba.
+  const pedida = one(params.aba);
+  const aba: Aba = pedida === 'salas' || pedida === 'enunciados'
+    ? pedida
+    : hasLiveRoom(invitations) ? 'salas' : 'enunciados';
+  // `?aba=enunciados` explícito (#795 — code review): sem ele, quem tem uma sala a decorrer
+  // nunca saía das Salas ao clicar em «Enunciados» — a omissão do parâmetro cai sempre no
+  // valor por omissão, e esse é «Salas» enquanto `hasLiveRoom` for verdade.
+  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas?aba=enunciados" convites={invitations.length} />;
   // #762: a landing é outra app; `appOrigin()` é a raiz do gateway (o mesmo padrão
   // do CookieBanner e do menu da conta). Sem origem configurada cai em `/doar`,
   // que é o que o `npm run dev` atrás do gateway serve.
@@ -227,7 +239,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
               action={<Button asChild variant="outline" size="sm"><DonateLink href={donateHref} origem="provas-empty">Doar um enunciado</DonateLink></Button>}
             />
           ) : (
-            <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
+            <SalasDeProva invitations={invitations} invitationsError={invitationsError} origem="provas" />
           )}
         </Column>
       </Page>
@@ -252,14 +264,16 @@ export default async function Provas({ searchParams }: { searchParams: Params })
 
   const href = (pagina: number) => {
     const search = new URLSearchParams();
+    // `aba=enunciados` (#795 — code review): a mesma razão do campo oculto do formulário
+    // acima — sem isto, paginar devolvia à aba errada a quem tem uma sala a decorrer.
+    search.set('aba', 'enunciados');
     if (filters.q) search.set('q', filters.q);
     if (filters.subjectId) search.set('disciplina', String(filters.subjectId));
     if (filters.examType) search.set('tipo', filters.examType);
     if (filters.schoolYearId) search.set('ano', String(filters.schoolYearId));
     if (filters.institutionId) search.set('escola', String(filters.institutionId));
     if (pagina > 1) search.set('pagina', String(pagina));
-    const query = search.toString();
-    return query ? `/provas?${query}` : '/provas';
+    return `/provas?${search.toString()}`;
   };
 
   const current = result.page + 1;

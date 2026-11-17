@@ -22,11 +22,14 @@ import {
   applyEvent,
   buildMessagePayload,
   buildSessionPayload,
+  canSendMessage,
   composerAction,
   describeHttpFailure,
   modeNeedsQuestion,
   parseRetryAfter,
   parseSse,
+  preselectQuestion,
+  questionOptions,
   type ChatMessage,
   type ChatMode,
   type PaperQuestion,
@@ -129,6 +132,8 @@ export function TutorChat({
       : questions.find((question) => question.number === initialQuestionNumber)?.id ?? null,
   );
   const [notice, setNotice] = useState<string | null>(null);
+  /** Se o «Tentar de novo» faz sentido para este aviso (a escolha da questão não se resolve tentando). */
+  const [noticeRetry, setNoticeRetry] = useState(true);
   const sessionId = useRef<number | null>(null);
   const sessionContext = useRef<string | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -186,10 +191,12 @@ export function TutorChat({
     const selected = questions.find((question) => question.id === desiredQuestionId) ?? null;
     if (modeNeedsQuestion(desiredMode) && !selected) {
       setNotice('Escolhe uma questão para esse modo.');
+      setNoticeRetry(false);
       return;
     }
     lastSent.current = text;
     setNotice(null);
+    setNoticeRetry(true);
     setAnswerAnnouncement('');
     setBusy(true);
 
@@ -271,6 +278,7 @@ export function TutorChat({
         // stays above the box, with the question still there to send again.
         setMessages((prev) => prev.filter((m) => !(m.role === 'tutor' && m.text === '' && m.streaming)));
         setNotice(message);
+        setNoticeRetry(true);
         if (status === 401) window.location.assign(`${BASE_PATH}/entrar?reason=session-expired`);
       }
     } finally {
@@ -290,13 +298,19 @@ export function TutorChat({
 
   const limit = draft.length > MAX_MESSAGE;
   const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
-  const needsQuestion = modeNeedsQuestion(mode);
   // Only the latest finished answer offers it: asking again on every bubble would
   // stack copies of the same request. And only when that answer was about a question:
   // "exercises like this one" needs a "this one", and the request it opens is refused
   // without it.
   const lastAnswer = [...messages].reverse().find((m) => m.role === 'tutor' && !m.streaming);
   const lastAnswerQuestionId = lastAnswer?.questionId ?? null;
+  const needsQuestion = modeNeedsQuestion(mode);
+
+  useEffect(() => {
+    if (!needsQuestion || questionId !== null) return;
+    const pre = preselectQuestion(mode, questions, lastAnswerQuestionId);
+    if (pre != null) setQuestionId(pre);
+  }, [mode, needsQuestion, questionId, questions, lastAnswerQuestionId]);
   const selectedAnswer = answerTo(wrongAnswers, selectedQuestion?.number ?? null);
 
   return (
@@ -416,19 +430,17 @@ export function TutorChat({
                   value={questionId ?? ''}
                   onChange={(e) => setQuestionId(e.target.value ? Number(e.target.value) : null)}
                   disabled={busy}
+                  aria-describedby={`tutor-question-hint`}
                 >
-                  {/* In a mode that is about one question, "the whole paper" is not a
-                    * choice: the turn is refused without a question. Offering it as a
-                    * selectable option is offering something that cannot be sent, so it
-                    * stays visible — the student still needs to see the list start here —
-                    * but it cannot be picked. */}
-                  <option value="" disabled>A prova toda</option>
-                  {questions.map((question) => (
-                    <option key={question.id} value={question.id}>
-                      Questão {question.number}: {question.text.slice(0, 60)}
+                  {questionOptions(mode, questions).map((option) => (
+                    <option key={option.value || 'placeholder'} value={option.value} disabled={option.disabled}>
+                      {option.label}
                     </option>
                   ))}
                 </NativeSelect>
+                <p id="tutor-question-hint" className="text-xs text-muted-foreground">
+                  O modo {mode === 'EXPLAIN_QUESTION' ? '«Explicar questão»' : '«Exercícios semelhantes»'} precisa de uma questão específica da prova — a prova inteira fica disponível no modo «Conceito».
+                </p>
                 {selectedAnswer && (
                   <p className="text-xs text-muted-foreground">Incluo a tua resposta: {selectedAnswer}</p>
                 )}
@@ -441,9 +453,11 @@ export function TutorChat({
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 <TriangleAlert className="size-4 shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1">{notice}</span>
-                <Button type="button" variant="outline" size="sm" onClick={retryLast} disabled={busy}>
-                  <RefreshCw aria-hidden />Tentar de novo
-                </Button>
+                {noticeRetry && (
+                  <Button type="button" variant="outline" size="sm" onClick={retryLast} disabled={busy}>
+                    <RefreshCw aria-hidden />Tentar de novo
+                  </Button>
+                )}
               </div>
             )}
             {messages.length === 0 && (
@@ -497,7 +511,7 @@ export function TutorChat({
                   <Square aria-hidden />
                 </Button>
               ) : (
-                <Button type="submit" size="icon" className="absolute right-1.5 bottom-1.5" disabled={!draft.trim() || limit} aria-label="Enviar">
+                <Button type="submit" size="icon" className="absolute right-1.5 bottom-1.5" disabled={!canSendMessage(draft, mode, questionId, limit)} aria-label="Enviar" aria-describedby={needsQuestion && questionId == null ? 'tutor-question-hint' : undefined}>
                   <Send aria-hidden />
                 </Button>
               )}

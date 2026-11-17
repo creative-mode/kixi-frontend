@@ -17,6 +17,15 @@ export async function coordinationRooms(): Promise<Result<CoordinationRoom[]>> {
   return guard(() => json<CoordinationRoom[]>(BASE));
 }
 
+/** Uma sala da instituição, a partir da lista que o backend já devolve (não há `GET` de uma só). */
+export async function coordinationRoom(roomId: number): Promise<Result<CoordinationRoom>> {
+  if (!Number.isInteger(roomId) || roomId <= 0) return fail('Sala inválida.');
+  const rooms = await coordinationRooms();
+  if (!rooms.ok) return rooms;
+  const room = rooms.data.find((r) => r.id === roomId);
+  return room ? ok(room) : fail('Sala não encontrada.');
+}
+
 export async function coordinationGrades(roomId: number): Promise<Result<CoordinationGrade[]>> {
   if (!Number.isInteger(roomId) || roomId <= 0) return fail('Sala inválida.');
   return guard(() => json<CoordinationGrade[]>(`${BASE}/${roomId}/grades`));

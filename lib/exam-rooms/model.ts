@@ -12,6 +12,16 @@ import { toLuandaDateTimeLocal } from '../format.ts';
 
 export type RoomStatus = 'DRAFT' | 'OPEN' | 'RUNNING' | 'CLOSED';
 
+/** A fase derivada da sala (kixi#592): o que está dentro da janela e ainda não fechou está
+ *  a decorrer, o que já terminou está terminada. O backend devolve-a em `ExamRoomResponse.phase`. */
+export type RoomPhase = 'SCHEDULED' | 'ONGOING' | 'ENDED';
+
+const PHASES: readonly RoomPhase[] = ['SCHEDULED', 'ONGOING', 'ENDED'];
+
+export function isRoomPhase(value: unknown): value is RoomPhase {
+  return typeof value === 'string' && (PHASES as readonly string[]).includes(value);
+}
+
 /** `ExamRoomResponse` */
 export interface ExamRoom {
   id: number;
@@ -22,6 +32,8 @@ export interface ExamRoom {
   endsAt: string;
   durationMinutes: number;
   status: RoomStatus;
+  /** A fase derivada, quando o backend a devolve; sem ela calcula-se aqui. */
+  phase?: RoomPhase | null;
 }
 
 /** `ExamRoomLiveResponse.ParticipantProgress` */
@@ -33,7 +45,7 @@ export interface ParticipantProgress {
   status: string;
   answeredQuestions: number;
   totalQuestions: number;
-  /** Ainda não vem do backend; ver `participantName`. */
+  /** Nome do aluno resolvido pelo backend (kixi#595); ver `participantName`. */
   displayName?: string | null;
 }
 
@@ -65,12 +77,34 @@ export interface Grade {
   displayName?: string | null;
 }
 
-export const STATUS_LABEL: Record<RoomStatus, string> = {
-  DRAFT: 'Rascunho',
-  OPEN: 'Aberta',
-  RUNNING: 'A decorrer',
-  CLOSED: 'Encerrada',
+export const PHASE_LABEL: Record<RoomPhase, string> = {
+  SCHEDULED: 'Agendada',
+  ONGOING: 'A decorrer',
+  ENDED: 'Terminada',
 };
+
+export const PHASE_VARIANT: Record<RoomPhase, 'secondary' | 'success' | 'outline'> = {
+  SCHEDULED: 'secondary',
+  ONGOING: 'success',
+  ENDED: 'outline',
+};
+
+/**
+ * A fase da sala (kixi#750): «Agendada» antes de começar, «A decorrer» dentro da janela, ainda
+ * não fechada, «Terminada» quando está fechada ou a janela já terminou. A comparação é pela hora
+ * de parede de Luanda, que é o que `startsAt`/`endsAt` carregam. Quando o backend já devolveu a
+ * fase (kixi#592), é essa que vale — ganha ao cálculo local, sem depender da hora do browser.
+ */
+export function roomPhase(room: Pick<ExamRoom, 'status' | 'startsAt' | 'endsAt'> & { phase?: RoomPhase | string | null }, nowInput?: string): RoomPhase {
+  if (isRoomPhase(room.phase)) return room.phase;
+  if (room.status === 'CLOSED') return 'ENDED';
+  const now = wallMinutes(nowInput ?? luandaNowInput());
+  const start = wallMinutes(room.startsAt);
+  const end = wallMinutes(room.endsAt);
+  if (now !== null && end !== null && now >= end) return 'ENDED';
+  if (now !== null && start !== null && now < start) return 'SCHEDULED';
+  return 'ONGOING';
+}
 
 export const PARTICIPANT_LABEL: Record<string, string> = {
   NOT_STARTED: 'Por entrar',
@@ -103,7 +137,7 @@ export interface ParticipantIntegrity {
   accountId: number;
   simulationId: number | null;
   events: IntegrityEvent[];
-  /** Ainda não vem do backend; ver `participantName`. */
+  /** Nome do aluno resolvido pelo backend (kixi#595); ver `participantName`. */
   displayName?: string | null;
 }
 
@@ -171,8 +205,8 @@ export function summarizeIntegrity(events: IntegrityEvent[]): IntegritySummary {
   };
 }
 
-/** O backend ainda não devolve o nome do aluno (pedido no kixi#181). Até lá,
- *  o número da conta é a única identificação que o professor pode ler. */
+/** O nome que o backend já resolve (kixi#595). O fallback só serve respostas
+ *  antigas ou parciais — nunca deve ser a identificação normal do aluno. */
 export function participantName(p: { accountId: number; displayName?: string | null }): string {
   return p.displayName?.trim() || `Aluno n.º ${p.accountId}`;
 }
@@ -206,13 +240,14 @@ function wallSeconds(value: string): number | null {
   return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), s ? Number(s) : 0) / 1000;
 }
 
-/** "12/10 09:00", ou com o ano quando não é o corrente. */
+/** "12/10 09:00", com o ano sempre que a sala o visita a ele e não ao ano corrente. */
 export function formatWall(value: string | null | undefined, currentYear?: number): string {
   if (!value) return '—';
   const m = WALL.exec(value);
   if (!m) return value;
   const [, y, mo, d, h, mi] = m;
-  const year = currentYear && Number(y) !== currentYear ? `/${y}` : '';
+  const refYear = currentYear ?? new Date().getFullYear();
+  const year = Number(y) !== refYear ? `/${y}` : '';
   return `${d}/${mo}${year} ${h}:${mi}`;
 }
 

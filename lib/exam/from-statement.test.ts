@@ -50,3 +50,11 @@ test('sem contexto o molde fica em branco em vez de inventar', () => {
   const { draft, school } = draftFromStatement({ questions: [] });
   assert.deepEqual([draft.subject, draft.grade, draft.schoolYear, school.name], ['', '', '', '']);
 });
+
+test('as linhas de cotação de um enunciado guardado não entram no rascunho: a cotação é calculada a partir das questões', () => {
+  const { draft } = draftFromStatement({
+    ...STATEMENT,
+    instructions: 'Cotação: de 0 a 20 valores.\nLeia com atenção.\nCotação: 14 valores.\n\nResponda de forma clara.',
+  }, { subject: 'SEAC', grade: 12, schoolYear: '2025/2026' });
+  assert.deepEqual(draft.rules, ['Leia com atenção.', 'Responda de forma clara.']);
+});

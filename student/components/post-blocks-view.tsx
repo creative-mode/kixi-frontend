@@ -7,6 +7,7 @@ import { TONE_LABEL, type CalloutTone, type PostBlock } from '@/lib/post-blocks'
 import { assetUrl } from '@/lib/assets';
 import { imageAlt } from '@/lib/lightbox';
 import { ImageLightbox } from '@/components/image-lightbox';
+import { MathText } from '@/lib/shared/math-text';
 
 const TONE: Record<CalloutTone, { box: string; Icon: typeof Info }> = {
   info: { box: 'border-info/30 bg-info-soft', Icon: Info },
@@ -22,7 +23,7 @@ function Choice({ block }: { block: PostBlock }) {
   const done = picked !== null;
   return (
     <section className="grid gap-2.5 rounded-xl border bg-card p-3.5" aria-label="Desafio">
-      <p className="font-semibold">{block.text}</p>
+      <p className="font-semibold"><MathText text={block.text ?? ''} normalize /></p>
       <ul className="grid gap-2">
         {items.map((item, i) => {
           const isRight = done && i === right;
@@ -43,7 +44,7 @@ function Choice({ block }: { block: PostBlock }) {
                 <span className="grid size-6 shrink-0 place-items-center rounded-full border text-xs font-bold" aria-hidden="true">
                   {isRight ? <Check className="size-3.5" /> : isWrong ? <X className="size-3.5" /> : String.fromCharCode(65 + i)}
                 </span>
-                <span className="min-w-0 flex-1 break-words">{item}</span>
+                <span className="min-w-0 flex-1 break-words"><MathText text={item} normalize /></span>
                 {isRight && <span className="sr-only">, resposta certa</span>}
                 {isWrong && <span className="sr-only">, a tua resposta, errada</span>}
               </button>
@@ -55,7 +56,7 @@ function Choice({ block }: { block: PostBlock }) {
         {done && (
           <p className="grid gap-1 text-sm">
             <b>{picked === right ? 'Certo!' : `Não é essa. A certa é a ${String.fromCharCode(65 + right)}.`}</b>
-            {block.explanation && <span className="text-muted-foreground">{block.explanation}</span>}
+            {block.explanation && <span className="text-muted-foreground"><MathText text={block.explanation} normalize /></span>}
           </p>
         )}
       </div>
@@ -134,19 +135,24 @@ export function PostBlocksView({ blocks }: { blocks: PostBlock[] }) {
     }
     switch (b.type) {
       case 'heading':
-        out.push(<h4 key={i} className="text-lg leading-snug font-bold">{b.text}</h4>);
+        out.push(<h4 key={i} className="text-lg leading-snug font-bold"><MathText text={b.text ?? ''} normalize /></h4>);
         break;
       case 'text':
-        out.push(<p key={i} className="max-w-[62ch] leading-relaxed break-words whitespace-pre-wrap">{b.text}</p>);
+        out.push(<p key={i} className="max-w-[62ch] leading-relaxed break-words whitespace-pre-wrap"><MathText text={b.text ?? ''} normalize /></p>);
         break;
       case 'formula':
-        out.push(<code key={i} className="block overflow-x-auto rounded-lg border bg-secondary px-3 py-2 text-center font-mono text-[15px] whitespace-pre-wrap">{b.text}</code>);
+        // O bloco guarda LaTeX; publicações antigas têm texto simples e ficam como texto (não compilam).
+        out.push(
+          <div key={i} className="max-w-full overflow-x-auto rounded-lg border bg-secondary px-3 py-2 text-center">
+            <MathText mode="formula" display text={b.text ?? ''} className="text-[17px]" />
+          </div>,
+        );
         break;
       case 'list': {
         const List = b.ordered ? 'ol' : 'ul';
         out.push(
           <List key={i} className={cn('grid max-w-[62ch] gap-1 pl-5 leading-relaxed', b.ordered ? 'list-decimal' : 'list-disc')}>
-            {(b.items ?? []).map((item, j) => <li key={j} className="break-words">{item}</li>)}
+            {(b.items ?? []).map((item, j) => <li key={j} className="break-words"><MathText text={item} normalize /></li>)}
           </List>,
         );
         break;
@@ -156,7 +162,7 @@ export function PostBlocksView({ blocks }: { blocks: PostBlock[] }) {
         out.push(
           <aside key={i} className={cn('flex max-w-[62ch] gap-2.5 rounded-xl border p-3', tone.box)}>
             <tone.Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <p className="min-w-0 break-words"><b>{TONE_LABEL[b.tone ?? 'info']}: </b>{b.text}</p>
+            <p className="min-w-0 break-words"><b>{TONE_LABEL[b.tone ?? 'info']}: </b><MathText text={b.text ?? ''} normalize /></p>
           </aside>,
         );
         break;

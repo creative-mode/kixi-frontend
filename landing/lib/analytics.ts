@@ -14,7 +14,14 @@ export type AnalyticsEvent =
   | 'page_view' | 'cta_clique' | 'signup_started' | 'signup_error' | 'sign_up' | 'login_success'
   | 'donation_started' | 'donation_step' | 'donation_error' | 'donation_submitted'
   | 'consent_choice' | 'error_view' | 'exam_started' | 'exam_submitted'
-  | 'exam_room_joined' | 'exam_abandoned' | 'scroll_depth' | 'onboarding_completed' | 'tutor_used';
+  | 'exam_room_joined' | 'exam_abandoned' | 'scroll_depth' | 'onboarding_completed' | 'tutor_used'
+  | 'web_vitals';
+
+/** As métricas de campo que o `useReportWebVitals` entrega (LCP, INP e TTFB são as da #799). */
+export const VITAL_METRICS = ['LCP', 'INP', 'TTFB', 'FCP', 'CLS'] as const;
+export type VitalMetric = (typeof VITAL_METRICS)[number];
+export const VITAL_DEVICES = ['mobile', 'tablet', 'desktop'] as const;
+export type VitalDevice = (typeof VITAL_DEVICES)[number];
 export type AnalyticsParams = Record<string, string | number | boolean>;
 export type TrackStatus = 'sent' | 'queued' | 'denied' | 'invalid' | 'overflow';
 type Gtag = (...args: unknown[]) => void;
@@ -51,6 +58,8 @@ const DONATION_FIELDS = ['files', 'institution', 'subject', 'exam_type', 'class_
 /** De onde veio o clique num CTA da landing (`CtaOrigem`, #512). */
 const CTA_ORIGENS = ['header', 'outro', 'faq', 'hero', 'provas', 'provas-empty', 'student-menu'] as const;
 const DONATION_STEPS = ['statement', 'origin', 'contact'] as const;
+/** De onde se entrou numa sala de prova (#795): o bloco do Início ou a aba das salas. */
+const ROOM_ORIGENS = ['inicio', 'provas'] as const;
 
 function oneOf<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
   return typeof value === 'string' && (allowed as readonly string[]).includes(value);
@@ -173,9 +182,11 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
     case 'onboarding_completed':
     case 'exam_started':
     case 'exam_submitted':
-    case 'exam_room_joined':
     case 'tutor_used':
       return { event, params: {} };
+    case 'exam_room_joined':
+      // A entrada conta sempre; `origem` só existe quando se sabe de onde veio (#795).
+      return { event, params: oneOf(params.origem, ROOM_ORIGENS) ? { origem: params.origem } : {} };
     case 'donation_step':
       return oneOf(params.step, DONATION_STEPS) ? { event, params: { step: params.step } } : null;
     case 'donation_error':
@@ -198,9 +209,39 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
         && oneOf(params.page, PAGES.landing)
         && [25, 50, 75, 100].includes(Number(params.depth))
         ? { event, params: { app: 'landing', page: params.page, depth: Number(params.depth) } } : null;
+    case 'web_vitals': {
+      const app = params.app;
+      const page = params.page;
+      if (!oneOf(app, ['manager', 'student', 'landing'] as const) || !oneOf(page, PAGES[app])) return null;
+      if (!oneOf(params.metric, VITAL_METRICS) || !oneOf(params.device, VITAL_DEVICES)) return null;
+      if (typeof params.value !== 'number' || !Number.isFinite(params.value) || params.value < 0) return null;
+      const value = vitalValue(params.metric, params.value);
+      if (value > 600_000) return null;
+      return { event, params: { app, page, metric: params.metric, value, device: params.device } };
+    }
     default:
       return null;
   }
+}
+
+/**
+ * Telemóvel, tablet ou computador, sem ler o user-agent inteiro nem guardar nada (#799): o UA
+ * separa iPad/tablet de telemóvel, o ponteiro grosso apanha tablets que se apresentam como
+ * computador (iPadOS), e a largura é o último recurso.
+ */
+export function deviceType(width: number, coarsePointer: boolean, userAgent: string): VitalDevice {
+  const ua = userAgent ?? '';
+  if (/iPad|Tablet|PlayBook|Silk|Android(?!.*Mobile)/i.test(ua)) return 'tablet';
+  if (/Mobi|iPhone|iPod|Android.*Mobile|Windows Phone/i.test(ua)) return 'mobile';
+  if (coarsePointer && Number.isFinite(width) && width >= 768) return 'tablet';
+  if (coarsePointer || (Number.isFinite(width) && width < 768)) return 'mobile';
+  return 'desktop';
+}
+
+/** CLS é adimensional; as restantes métricas são milissegundos. Tudo arredondado para o evento não levar ruído. */
+export function vitalValue(name: VitalMetric, value: number): number {
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return name === 'CLS' ? Math.round(value * 1000) / 1000 : Math.round(value);
 }
 
 export function safePageLocation(app: AnalyticsApp, page: AnalyticsPage, origin: string): string {

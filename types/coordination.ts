@@ -3,6 +3,8 @@
 export interface CoordinationRoom {
   id: number;
   status: 'DRAFT' | 'OPEN' | 'RUNNING' | 'CLOSED';
+  /** A fase derivada (kixi#592/#750); o mock e o backend devolvem-na sempre. */
+  phase?: 'SCHEDULED' | 'ONGOING' | 'ENDED' | null;
   startsAt: string;
   endsAt: string;
   className: string;

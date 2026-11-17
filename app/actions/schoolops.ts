@@ -4,13 +4,14 @@
 // as suas tarefas e conclui-as com o form do próprio processo, no desenho do Kixi.
 
 import { getCurrentUser } from '@/lib/auth.server';
-import { fail, ok, type Result } from '@/lib/crud/http';
+import { call, fail, ok, type Result } from '@/lib/crud/http';
 import {
   concluirTarefa,
   obterFormulario,
   obterTarefa,
   tarefasDoProfessor,
   variaveisDaTarefa,
+  variaveisDasTarefas,
 } from '@/lib/schoolops/camunda';
 import {
   dadosParaConcluir,
@@ -54,10 +55,48 @@ async function professor(): Promise<number> {
 
 export type ListaDeTarefas = { tarefas: Tarefa[]; total: number };
 
+/**
+ * O título de cada avaliação de MAC com enunciado (kixi-frontend#809): o motor não traz o título como variável leve da
+ * tarefa (só `provaId`, o id do enunciado, e `tipoProva = AVALIACAO_CONTINUA`), por isso pede-se ao próprio Kixi, pelos
+ * `provaId` em causa. Nunca falha a lista inteira por isto: sem título, `tituloDaTarefa` mostra "Avaliação contínua" liso.
+ */
+async function titulosDasAvaliacoesContinuas(variaveis: Record<string, Record<string, unknown>>): Promise<Map<string, string>> {
+  const ids = new Set<string>();
+  for (const v of Object.values(variaveis)) {
+    if (v.tipoProva === 'AVALIACAO_CONTINUA' && v.provaId != null) ids.add(String(v.provaId));
+  }
+  if (ids.size === 0) return new Map();
+  try {
+    const res = await call('/api/v1/statements');
+    if (!res.ok) return new Map();
+    const statements = (await res.json()) as { id: number | string; title?: string }[];
+    return new Map(statements.filter((s) => ids.has(String(s.id))).map((s) => [String(s.id), String(s.title ?? `Enunciado ${s.id}`)]));
+  } catch (e) {
+    console.warn('[schoolops] títulos das avaliações contínuas indisponíveis; a lista segue sem título:', (e as Error)?.message);
+    return new Map();
+  }
+}
+
 export async function listarTarefas(): Promise<Result<ListaDeTarefas>> {
   return protegido(async () => {
     const { items, total } = await tarefasDoProfessor(await professor());
-    return ok({ tarefas: items.map(paraTarefa), total });
+    // Uma só pesquisa de variáveis para todas as tarefas da lista (kixi-frontend#774), não uma por tarefa.
+    // O detalhe é cosmético: se o motor rejeitar o filtro, devolver um formato inesperado ou estiver em
+    // baixo, a lista continua a existir sem ele, em vez de a tarefa inteira falhar por isso.
+    let variaveis: Record<string, Record<string, unknown>> = {};
+    try {
+      variaveis = await variaveisDasTarefas(items.map((t) => t.processInstanceKey));
+    } catch (e) {
+      console.warn('[schoolops] variáveis das tarefas indisponíveis; a lista segue sem detalhe:', (e as Error)?.message);
+    }
+    const titulos = await titulosDasAvaliacoesContinuas(variaveis);
+    return ok({
+      tarefas: items.map((t) => {
+        const v = variaveis[t.processInstanceKey] ?? {};
+        return paraTarefa(t, v, v.provaId != null ? titulos.get(String(v.provaId)) : undefined);
+      }),
+      total,
+    });
   });
 }
 

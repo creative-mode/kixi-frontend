@@ -27,10 +27,18 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     const start = (page - 1) * limit;
     return json(
-      scoped.slice(start, start + limit).map((p) => ({
-        ...p,
-        hasReacted: db.postReactions.some((r) => r.postId === p.id && r.accountId === account.id),
-      })),
+      scoped.slice(start, start + limit).map((p) => {
+        const mine = p.authorAccountId === account.id;
+        // Como o backend (#612): quando o autor esconde a nota, só ele a recebe.
+        const hidden = p.showScore === false && !mine && p.simulation != null;
+        return {
+          ...p,
+          ...(hidden
+            ? { simulation: { ...p.simulation, finalScore: null, maxScore: null, correctAnswers: null, totalQuestions: null } }
+            : {}),
+          hasReacted: db.postReactions.some((r) => r.postId === p.id && r.accountId === account.id),
+        };
+      }),
     );
   }
 
@@ -99,6 +107,7 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
       commentCount: 0,
       createdAt: now,
       updatedAt: now,
+      ...(isSimulation ? { showScore: body.showScore !== false } : {}),
       ...(blocks.length > 0 ? { blocks } : {}),
       ...(simulation ? { simulation } : {}),
     };

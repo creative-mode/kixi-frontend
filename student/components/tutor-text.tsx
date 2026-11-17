@@ -1,22 +1,13 @@
 'use client';
 
 import { Fragment, useEffect, useRef, useState } from 'react';
-import katex from 'katex';
 import { parseMarkdown, type Block, type Inline } from '@/lib/markdown';
 import { advance } from '@/lib/typewriter';
+import { MathText } from '@/lib/shared/math-text';
 
-/** Uma fórmula. O KaTeX escreve no elemento por si: o texto do modelo nunca passa por `__html` nosso. */
+/** Uma fórmula, pelo mesmo renderizador das publicações e da folha da prova (#754). */
 function Formula({ latex, display }: { latex: string; display: boolean }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!ref.current) return;
-    try {
-      katex.render(latex, ref.current, { displayMode: display, throwOnError: false, strict: 'ignore', trust: false });
-    } catch {
-      ref.current.textContent = latex;
-    }
-  }, [latex, display]);
-  return <span ref={ref} className={display ? 'block overflow-x-auto py-1' : undefined} aria-label={latex} />;
+  return <MathText mode="formula" display={display} text={latex} className={display ? 'block overflow-x-auto py-1' : undefined} />;
 }
 
 function Inlines({ nodes }: { nodes: Inline[] }) {

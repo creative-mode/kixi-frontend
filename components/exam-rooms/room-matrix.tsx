@@ -34,9 +34,9 @@ const withKeywords = (draft: MatrixDraft, known: SubjectTopic[]): MatrixDraft =>
 });
 
 /**
- * A matriz da prova (matriz de especificação): os temas que saem, quantas questões e que cotação tem cada um, em
- * 20 valores. Os alunos convidados veem-na em «Prepara-te para a prova» e treinam por tema com questões de provas
- * anteriores. Importa-se de um CSV (ou colado do Excel), mas nada é guardado sem o professor rever.
+ * A matriz da prova (matriz de especificação): os temas que saem, quantas questões e que cotação tem cada um, na escala
+ * que o professor escolher. A discussão dos alunos acontece depois, em «Prepara-te para a prova». Importa-se de um CSV
+ * (ou colado do Excel), mas nada é guardado sem o professor rever.
  */
 export function RoomMatrix({ roomId, subjectId, readOnly }: { roomId: number; subjectId: number | null; readOnly: boolean }) {
   const [draft, setDraft] = useState<MatrixDraft | null>(null);

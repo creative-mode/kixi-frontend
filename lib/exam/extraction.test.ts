@@ -104,7 +104,7 @@ test('a sigla OGI encontra a disciplina da escola; sem ela, avisa e deixa a disc
 test('sem cotação no papel as cotações ficam vazias e há uma nota a explicar como distribuir', () => {
   const { items, notes } = draftFromExtraction(OGI_EXTRACTION, { subjects: SUBJECTS });
   assert.equal(totalScore(items), 0);
-  assert.match(notes.map((n) => n.text).join(' '), /Distribuir 20 valores/);
+  assert.match(notes.map((n) => n.text).join(' '), /Distribuir por igual/);
   assert.match(notes.map((n) => n.text).join(' '), /Marque Verdadeiro ou Falso/);
 });
 
@@ -336,4 +336,16 @@ test('figuresOf dá a cada figura o número da questão na ordem em que vai ao s
   const edited = [items[0], { ...items[0], text: '', images: undefined }, items[1], items[2]];
   assert.deepEqual(figuresOf(edited).map((f) => f.number), [2, 3, 3]);
   assert.ok(withoutImages({ items }).items.every((q) => q.images === undefined));
+});
+
+test('as linhas de cotação do enunciado original não entram: a cotação é calculada a partir das questões', () => {
+  const ex: ExamExtraction = {
+    subject_name: 'Matemática',
+    instructions: 'Cotação: de 0 a 20 valores.\nLeia atentamente.\nCotação: 16 valores.\nSem livros nem apontamentos.',
+    questions: [
+      { type: 'dissertativa', text: 'Resolva.', cotacao: 4, confidence: 0.9 },
+    ],
+  };
+  const out = draftFromExtraction(ex, { subjects: ['Matemática'] });
+  assert.deepEqual(out.patch.rules, ['Leia atentamente.', 'Sem livros nem apontamentos.']);
 });

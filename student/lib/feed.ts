@@ -91,13 +91,16 @@ export async function createBuiltPost(
   return apiPost<FeedPost>('/feed/posts', { type: type.toUpperCase(), classId, title: title || undefined, blocks });
 }
 
-/** Publica o resultado de uma simulação terminada, com uma reflexão opcional. */
+/** Publica o resultado de uma simulação terminada, com uma reflexão opcional.
+ *  `showScore` diz se a turma vê a nota e as respostas certas (kixi#612); ausente
+ *  no backend antigo, o cartão continua a mostrar os números como antes. */
 export async function createSimulationPost(
   classId: number,
   simulationId: number,
   content: string,
+  showScore = true,
 ): Promise<Result<FeedPost>> {
-  return apiPost<FeedPost>('/feed/posts', { type: 'SIMULATION', classId, simulationId, content: content || undefined });
+  return apiPost<FeedPost>('/feed/posts', { type: 'SIMULATION', classId, simulationId, content: content || undefined, showScore });
 }
 
 /** Alterna a reação do aluno (sempre 'applause' aqui: só há uma forma de aplaudir

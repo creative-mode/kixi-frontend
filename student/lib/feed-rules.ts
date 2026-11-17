@@ -103,6 +103,48 @@ export function canPublishReflection(content: string): boolean {
   return content.trim().length <= MAX_POST_LENGTH;
 }
 
+/** A turma como o aluno a lê: «12.ª B» a partir do `grade` e do `code` do /me.
+ *  O código pode já trazer a classe por extenso («12.ª B»), e nesse caso não se
+ *  acrescenta nada; sem `grade`, fica o código como veio. */
+export function classDisplayName(grade: number | null | undefined, code: string | null | undefined): string | null {
+  const trimmed = code?.trim();
+  if (trimmed && trimmed.includes('ª')) return trimmed;
+  if (grade == null) return trimmed || null;
+  if (!trimmed) return `${grade}.ª`;
+  const tail = trimmed.startsWith(String(grade))
+    ? trimmed.slice(String(grade).length).replace(/^[\s.\-–—]+/, '')
+    : trimmed;
+  return `${grade}.ª${tail ? ` ${tail}` : ''}`;
+}
+
+/** «Visível para a turma 12.ª B (31 colegas)». O número vem do `totalStudents`
+ *  do ranking de turma, que inclui o próprio aluno; os colegas são os restantes.
+ *  Sem contagem (ranking indisponível), a frase fica sem parênteses em vez de
+ *  inventar um número. */
+export function classAudienceLabel(
+  grade: number | null | undefined,
+  code: string | null | undefined,
+  classmates: number | null | undefined,
+): string {
+  const klass = classDisplayName(grade, code);
+  const peers = classmates != null && classmates > 0
+    ? ` (${classmates} ${classmates === 1 ? 'colega' : 'colegas'})`
+    : '';
+  return `Visível para a turma${klass ? ` ${klass}` : ''}${peers}`;
+}
+
+/** O cartão que a pré-visualização mostra quando o aluno desliga «Mostrar a nota»:
+ *  os números saem do objecto, por isso não podem escapar para o HTML. O tempo e o
+ *  cabeçalho da prova ficam, como no feed de quem não é o autor (kixi#612). */
+export function cardWithoutScore<T extends {
+  finalScore: number | null;
+  maxScore: number | null;
+  correctAnswers: number | null;
+  totalQuestions: number | null;
+}>(card: T): T & { scoreHidden: true } {
+  return { ...card, finalScore: null, maxScore: null, correctAnswers: null, totalQuestions: null, scoreHidden: true };
+}
+
 /** Nota em percentagem da cotação total, ou null quando falta um dos números (ou a cotação é 0). */
 export function scorePercent(score: number | null | undefined, max: number | null | undefined): number | null {
   if (score == null || max == null || max <= 0) return null;

@@ -17,10 +17,11 @@ import { getResultView } from '@/lib/result';
 import { getCommunityStats } from '@/lib/community';
 import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
+import { getLeaderboard } from '@/lib/ranking';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
 import { CorrecaoRetry } from '@/components/correcao-retry';
 import { listInvitations } from '@/lib/exam-room';
-import { comCorrecao, eSimulacaoLivre } from '@/lib/schoolops/correcao-rules';
+import { comCorrecao, eSimulacaoLivre, escalaDaNota } from '@/lib/schoolops/correcao-rules';
 import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
@@ -199,7 +200,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
       }
       if (correcao?.kind === 'corrigida') {
         result = comCorrecao(resultadoDoBackend, correcao.resultado);
-        totalMax = correcao.resultado.maximo ?? 20;
+        // A nota do motor é 0–20: o denominador é a escala, não a cotação em pontos da prova (#60).
+        totalMax = escalaDaNota(correcao.resultado);
       }
     }
   }
@@ -213,11 +215,17 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   // A leitura da nota (#492) só usa números do servidor: a média da turma vem da
   // comunidade da prova, e o XP, a sequência e as medalhas vêm de /me. Cada bloco
   // que falha fica omisso em vez de derrubar o resultado.
-  const [stats, badges, community] = await Promise.all([
+  const [stats, badges, community, classRanking] = await Promise.all([
     getStats(),
     getBadges(),
     statementId != null ? getCommunityStats(statementId) : Promise.resolve(null),
+    // O `totalStudents` do ranking de turma é a contagem de matrículas activas na
+    // turma; serve só para dizer «(N colegas)» antes de publicar (#801).
+    classId != null ? getLeaderboard('class') : Promise.resolve(null),
   ]);
+  const classmateCount = classRanking?.ok
+    ? Math.max(classRanking.data.totalStudents - 1, 0)
+    : null;
   const reading = gradeReading({
     score: result.finalScore,
     totalMax,
@@ -319,6 +327,9 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           <PublishResult
             classId={classId}
             simulationId={result.simulationId}
+            classGrade={me?.currentClass?.grade ?? null}
+            classCode={me?.currentClass?.code ?? null}
+            classmateCount={classmateCount}
             card={{
               simulationId: result.simulationId,
               statementId,
