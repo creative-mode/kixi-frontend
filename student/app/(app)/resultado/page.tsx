@@ -25,6 +25,7 @@ import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { MathText } from '@/lib/shared/math-text';
+import { PedirRevisaoButton } from '@/components/pedir-revisao';
 import { answersOf, marksOf, paperQuestions, stampOf } from '@/lib/folha-do-resultado';
 import {
   formatDelta,
@@ -52,10 +53,14 @@ const VERDICT: Record<Verdict, { label: string; variant: 'success' | 'destructiv
   blank: { label: 'Sem resposta', variant: 'secondary' },
 };
 
-function Review({ question, context }: { question: ResultQuestion; context: boolean }) {
+function Review({ question, context, simulationId }: { question: ResultQuestion; context: boolean; simulationId: number }) {
   const v = verdict(question);
   const options = question.options ?? [];
   const shown = displayNumber(question);
+  const isOpenQuestion = options.length === 0;
+  const isAiGraded = question.aiLevel != null;
+  const aiLevelLabel = question.aiLevel ? { TOTAL: 'Resposta completa', PARCIAL: 'Resposta parcial', MINIMA: 'Resposta mínima', NULA: 'Sem pontuação' }[question.aiLevel] : null;
+  const aiConfidence = question.confidence != null ? Math.round(question.confidence * 100) : null;
   return (
     <li className="grid gap-3 px-5 py-4">
       {context && question.parentText ? (
@@ -101,6 +106,19 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
           <p><span className="text-muted-foreground">A tua resposta: </span>{question.answerText?.trim() || 'Sem resposta'}</p>
           {question.modelAnswer && <p><span className="text-muted-foreground">Resposta esperada: </span>{question.modelAnswer}</p>}
           {v === 'pending' && <p className="text-muted-foreground">Esta resposta ainda está a ser corrigida.</p>}
+          {isAiGraded && (
+            <div className="grid gap-1 pt-1 border-t border-dashed">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-blue-700">
+                <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5">Corrigida pela IA</span>
+                {aiLevelLabel && <span className="text-blue-800">· {aiLevelLabel}</span>}
+                {aiConfidence != null && <span className="text-blue-600">· Confiança {aiConfidence}%</span>}
+              </p>
+              {question.aiFeedback && (
+                <p className="text-xs text-blue-800"><span className="font-medium">Justificação: </span>{question.aiFeedback}</p>
+              )}
+              <PedirRevisaoButton simulationId={simulationId} questionId={question.questionId} questionNumber={shown} />
+            </div>
+          )}
         </div>
       )}
 
@@ -189,6 +207,16 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const pending = result.pendingReviewCount ?? 0;
   const hasMistakes = questions.some((q) => ['wrong', 'blank'].includes(verdict(q)));
 
+  // Cálculo do desdobramento da nota: objectivas vs abertas (IA)
+  const objectiveQuestions = questions.filter((q) => (q.options ?? []).length > 0);
+  const openQuestions = questions.filter((q) => (q.options ?? []).length === 0);
+  const objectiveScore = objectiveQuestions.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const objectiveMax = objectiveQuestions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+  const aiGradedQuestions = openQuestions.filter((q) => q.aiLevel != null);
+  const openScore = openQuestions.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const openMax = openQuestions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+  const hasAiGraded = aiGradedQuestions.length > 0;
+
   // A leitura da nota (#492) só usa números do servidor: a média da turma vem da
   // comunidade da prova, e o XP, a sequência e as medalhas vêm de /me. Cada bloco
   // que falha fica omisso em vez de derrubar o resultado.
@@ -270,8 +298,27 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
         </div>
 
-        {questions.length > 0 && (
-          <Card className="gap-3 p-3 sm:p-5" aria-label="A tua prova corrigida">
+        {questions.length > 0 && objectiveMax > 0 && (
+            <Card className="gap-2 p-3 sm:p-4 border-blue-200 bg-blue-50">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="flex items-center gap-1.5 font-medium text-blue-800">
+                  <span className="font-bold">{formatScore(objectiveScore)}</span> de <span className="font-bold">{formatScore(objectiveMax)}</span> valores nas objectivas (pelo gabarito)
+                </span>
+              </div>
+            </Card>
+          )}
+          {questions.length > 0 && openMax > 0 && (
+            <Card className="gap-2 p-3 sm:p-4 border-blue-200 bg-blue-50">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="flex items-center gap-1.5 font-medium text-blue-800">
+                  <span className="font-bold">{formatScore(openScore)}</span> de <span className="font-bold">{formatScore(openMax)}</span> valores nas abertas{hasAiGraded ? ' (pela IA)' : ''}
+                </span>
+              </div>
+            </Card>
+          )}
+
+          {questions.length > 0 && (
+            <Card className="gap-3 p-3 sm:p-5" aria-label="A tua prova corrigida">
             <div>
               <h2 className="text-[17px] font-bold tracking-tight">A tua prova corrigida</h2>
               <p className="text-sm text-muted-foreground">Como a entregaste: a verde o que acertaste, a vermelho o que falhaste, com a resposta certa.</p>
@@ -295,7 +342,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <p className="border-t px-5 py-4 text-sm text-muted-foreground">Não respondeste a nenhuma questão desta prova.</p>
           ) : (
             <ul className="divide-y border-t">
-              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} />)}
+              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} simulationId={result.simulationId} />)}
             </ul>
           )}
         </Card>
