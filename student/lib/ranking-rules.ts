@@ -106,19 +106,6 @@ export function podiumGap(board: Leaderboard, metric: RankingMetric): string | n
   return `A ${formatAverage(third.average - board.myAverage)} pontos do 3.º lugar`;
 }
 
-/** A regra de grupo pequeno (#117) esconde o pódio e corta as últimas posições:
- *  quando isso acontece, a lista de `entries` é só os vizinhos do aluno, nunca
- *  a turma toda - este texto explica o porquê em vez de deixar parecer incompleta.
- *  Fica depois da tabela, para o aluno ver primeiro os resultados (#800). */
-export function smallGroupNote(smallGroup: boolean): { title: string; text: string } | null {
-  return smallGroup
-    ? {
-        title: 'Este grupo é pequeno',
-        text: 'Como existem poucos alunos nesta turma, mostramos apenas as posições próximas da tua, protegendo a privacidade dos restantes colegas.',
-      }
-    : null;
-}
-
 export const PERIOD_LABEL: Record<RankingPeriod, string> = { all: 'Desde sempre', month: 'Últimos 30 dias' };
 export const METRIC_LABEL: Record<RankingMetric, string> = { average: 'Média das provas', xp: 'XP acumulado' };
 

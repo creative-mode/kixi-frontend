@@ -240,25 +240,21 @@ test.describe('aparecer no ranking (#800)', () => {
       await naLiga.click();
       await expect(naLiga).toBeChecked();
     }
-    // Hierarquia revista: posição antes dos separadores, tabela primeiro e
-    // explicação de privacidade depois, colada ao destaque verde.
+    // Hierarquia final: posição antes dos separadores; cartão verde depois da
+    // tabela, com espaço acima e sem bloco explicativo por baixo.
     const posicao = page.getByTestId('ranking-posicao');
     const tabela = page.getByRole('table');
     const destaque = page.getByTestId('ranking-destaque');
-    const privacidade = page.getByTestId('ranking-privacidade');
     await expect(posicao).toContainText('A tua média: 16,4%');
-    await expect(privacidade).toContainText('Este grupo é pequeno');
-    await expect(privacidade).toContainText(/protegendo a privacidade dos restantes colegas/);
-    const [posicaoBox, abasBox, tabelaBox, destaqueBox, privacidadeBox] = await Promise.all([
+    const [posicaoBox, abasBox, tabelaBox, destaqueBox] = await Promise.all([
       posicao.boundingBox(),
       page.getByRole('tablist').boundingBox(),
       tabela.boundingBox(),
       destaque.boundingBox(),
-      privacidade.boundingBox(),
     ]);
     expect(posicaoBox!.y).toBeLessThan(abasBox!.y);
-    expect(tabelaBox!.y).toBeLessThan(destaqueBox!.y);
-    expect(destaqueBox!.y).toBeLessThan(privacidadeBox!.y);
+    expect(destaqueBox!.y - (tabelaBox!.y + tabelaBox!.height)).toBeGreaterThanOrEqual(16);
+    await expect(page.getByText('Este grupo é pequeno')).toHaveCount(0);
     // O destaque não nomeia o fundo da tabela.
     await expect(destaque.getByText('Estás entre os 40% do meio', { exact: true })).toBeVisible();
     await expect(destaque.getByText(/Faltam .* para subires um lugar/)).toBeVisible();

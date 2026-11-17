@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { EyeOff, TrendingUp, Users } from 'lucide-react';
+import { TrendingUp, Users } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,7 +14,7 @@ import { FriendsPanel } from '@/components/friends-panel';
 import { RankingVisibility } from '@/components/ranking-visibility';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
-import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, relativeBandLabel, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, relativeBandLabel, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
 import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { useMe } from '@/lib/me-context';
 import { photoUrl } from '@/lib/profile';
@@ -90,7 +90,6 @@ export function RankingView({
   const band = board ? relativeBandLabel(board.myPosition, board.totalStudents) : null;
   const gap = board ? nextPlaceGap(board, metric) : null;
   const posicao = myPositionLabel(board?.myPosition ?? null, board?.totalStudents ?? 0);
-  const privacidade = board ? smallGroupNote(board.smallGroup) : null;
 
   return (
     <Page variant="wide">
@@ -207,10 +206,10 @@ export function RankingView({
                     </TableBody>
                   </Table>
                 </Card>
-                {/* Depois da tabela: o aluno lê primeiro os resultados e só depois
-                    o contexto. Mesmas cores da maquete, com padding mais curto. */}
+                {/* Depois da tabela, com espaço acima para o cartão respirar. Só a
+                    faixa e a distância ao lugar de cima, sem texto explicativo extra. */}
                 {band && (
-                  <div data-testid="ranking-destaque" className="flex items-start gap-3 rounded-2xl border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] px-4 py-2.5">
+                  <div data-testid="ranking-destaque" className="mt-6 flex items-start gap-3 rounded-2xl border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] px-4 py-2.5">
                     <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#dcecd9] text-[#1F5C2E]" aria-hidden="true">
                       <TrendingUp className="size-4" />
                     </span>
@@ -219,17 +218,6 @@ export function RankingView({
                       <span className="text-[#6B6B6B]">
                         {gap ? `${gap} ` : ''}Os lugares de baixo não se mostram a ninguém.
                       </span>
-                    </div>
-                  </div>
-                )}
-                {privacidade && (
-                  <div data-testid="ranking-privacidade" className="flex items-start gap-3 rounded-2xl border border-[#dde3da] bg-white px-4 py-2.5">
-                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#eef6ea] text-[#1F5C2E]" aria-hidden="true">
-                      <EyeOff className="size-4" />
-                    </span>
-                    <div className="grid min-w-0 gap-0.5 text-sm leading-snug">
-                      <strong className="font-bold text-[#121c15]">{privacidade.title}</strong>
-                      <span className="text-[#6B6B6B]">{privacidade.text}</span>
                     </div>
                   </div>
                 )}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, showsNameInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, showsNameInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
 
 test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
@@ -33,13 +33,6 @@ test('o progresso até ao pódio respeita a métrica e não inventa dados ausent
   assert.equal(podiumGap(board, 'xp'), 'A 240 XP do 3.º lugar');
   assert.equal(podiumGap({ ...board, myPosition: 3 }, 'average'), null);
   assert.equal(podiumGap({ ...board, entries: [] }, 'average'), null);
-});
-
-test('o aviso de grupo pequeno só aparece quando o backend o assinala', () => {
-  const nota = smallGroupNote(true);
-  assert.equal(nota?.title, 'Este grupo é pequeno');
-  assert.match(nota?.text ?? '', /protegendo a privacidade dos restantes colegas/);
-  assert.equal(smallGroupNote(false), null);
 });
 
 test('as opções de período e de métrica têm rótulo em português', () => {
