@@ -41,7 +41,7 @@ export interface StatementSummaryView {
 
 export interface AttemptRow {
   id: number;
-  /** 'corrected' | 'unfinished' | 'cancelled' — from `labelOf`, the same rule the card uses. */
+  /** 'corrected' | 'correcting' | 'unfinished' | 'cancelled' — from `labelOf`, the same rule the card uses. */
   label: AttemptLabel;
   score?: string;
   since?: string;

@@ -28,7 +28,7 @@ function Item({ n }: { n: Notification }) {
   );
 }
 
-/** As notificações do aluno: respostas às suas perguntas, medalhas e resultados, com «Marcar tudo como lido» guardado no servidor. */
+/** As notificações do aluno: respostas às perguntas, medalhas, entregas e correções prontas (#793), com «Marcar tudo como lido» guardado no servidor. */
 export default async function NotificacoesPage() {
   const profile = await getProfile();
   if (profile.kind !== 'ok') {

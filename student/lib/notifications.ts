@@ -5,12 +5,13 @@ import { apiGet } from './api';
 import { getBadges } from './stats';
 import { parseServerTime } from './exam-rules';
 import { getFeed, getComments } from './feed';
+import { correctionNoticeOf } from './correction-notice';
 import type { RawSimulation } from './performance-rules';
 import type { Me } from './types';
 
 export interface Notification {
   key: string;
-  kind: 'reply' | 'badge' | 'result';
+  kind: 'reply' | 'badge' | 'result' | 'correction';
   /** Quem fez, quando há uma pessoa (resposta à tua pergunta). */
   who: string | null;
   text: string;
@@ -22,6 +23,8 @@ export interface Notification {
 export interface Notifications {
   items: Notification[];
   unreadCount: number;
+  /** Só as notificações de nota por ver: acende o ponto na entrada «Provas». */
+  unreadCorrections: number;
 }
 
 /** Até quando o aluno já viu as notificações; sem registo, nada foi lido. */
@@ -32,9 +35,9 @@ async function readAtOf(): Promise<number> {
 }
 
 /**
- * As notificações do aluno, derivadas do que o backend já guarda: respostas às suas perguntas, medalhas e resultados,
- * cada uma com a sua data. Está por ler quando a data é posterior ao «marcar tudo como lido». Uma fonte que falha fica
- * de fora em vez de levar as outras.
+ * As notificações do aluno, derivadas do que o backend já guarda: respostas às suas perguntas, medalhas, resultados e
+ * correções prontas (kixi#793), cada uma com a sua data. Está por ler quando a data é posterior ao «marcar tudo como
+ * lido». Uma fonte que falha fica de fora em vez de levar as outras.
  */
 export const loadNotifications = cache(async (me: Me, withReplies = true): Promise<Notifications> => {
   const [readAt, badges, sims] = await Promise.all([
@@ -48,6 +51,14 @@ export const loadNotifications = cache(async (me: Me, withReplies = true): Promi
     items.push({ key: `badge-${b.code}-${b.unlockedAt}`, kind: 'badge', who: null, text: `Desbloqueaste a medalha ${b.name}`, href: '/perfil', at: b.unlockedAt });
   }
   for (const s of sims) {
+    // #793: quando a correção fica pronta, a notificação da entrega dá lugar à da
+    // nota. A data passa a ser a da correção, por isso a mesma prova volta a contar
+    // como nova para quem já tinha lido «Terminaste…».
+    const corrigida = correctionNoticeOf(s);
+    if (corrigida) {
+      items.push({ ...corrigida, kind: 'correction', who: null });
+      continue;
+    }
     if (s.status === 'FINISHED' && s.finishedAt) {
       const title = s.statement?.title ?? 'a prova';
       const nota = s.finalScore != null ? ` com ${String(s.finalScore).replace('.', ',')}` : '';
@@ -76,5 +87,9 @@ export const loadNotifications = cache(async (me: Me, withReplies = true): Promi
     .map((i) => ({ ...i, ts: parseServerTime(i.at) || 0 }))
     .sort((a, b) => b.ts - a.ts)
     .map(({ ts, ...i }) => ({ ...i, unread: ts > readAt }));
-  return { items: stamped, unreadCount: stamped.filter((i) => i.unread).length };
+  return {
+    items: stamped,
+    unreadCount: stamped.filter((i) => i.unread).length,
+    unreadCorrections: stamped.filter((i) => i.unread && i.kind === 'correction').length,
+  };
 });

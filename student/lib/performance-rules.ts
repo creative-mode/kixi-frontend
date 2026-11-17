@@ -15,6 +15,9 @@ export interface RawSimulation {
   status?: string | null;
   finalScore?: number | null;
   finishedAt?: string | null;
+  /** kixi#609: quando a correção fica pronta, a notificação sai daqui. */
+  correctionStatus?: string | null;
+  correctedAt?: string | null;
   statement?: { id?: number | null; title?: string | null; totalMaxScore?: number | null } | null;
 }
 
