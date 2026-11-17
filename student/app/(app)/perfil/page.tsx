@@ -3,6 +3,7 @@ import { RefreshError } from '@/components/refresh-error';
 import { getFeed } from '@/lib/feed';
 import { getExperience } from '@/lib/experience';
 import { getMyVisibility } from '@/lib/profiles';
+import { loadRankingVisibility } from '@/lib/ranking';
 import { getProfile } from '@/lib/me';
 import { loadSocial } from '@/lib/social';
 import { ownPosts, profileTabOf } from '@/lib/social-rules';
@@ -34,11 +35,12 @@ export default async function PerfilPage({ searchParams }: { searchParams: Promi
   const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
-  const [social, feed, visibility, experience] = await Promise.all([
+  const [social, feed, visibility, experience, rankingVisibility] = await Promise.all([
     loadSocial(me),
     classId ? getFeed(classId, 1, 30) : Promise.resolve(null),
     getMyVisibility(),
     me.accountId ? getExperience(me.accountId) : Promise.resolve(null),
+    loadRankingVisibility(),
   ]);
 
   return (
@@ -46,6 +48,7 @@ export default async function PerfilPage({ searchParams }: { searchParams: Promi
         landingOrigin={appOrigin()}
         me={me}
         visibility={visibility.ok ? visibility.data.visibility : 'school'}
+        rankingVisibility={rankingVisibility.ok ? rankingVisibility.data : null}
         stats={social.stats}
         badges={social.badges}
         history={social.history}

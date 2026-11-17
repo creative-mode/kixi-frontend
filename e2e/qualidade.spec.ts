@@ -223,7 +223,76 @@ test.describe('ranking acessível (#498)', () => {
     await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('Ranking da Escola carregado');
     await expect(painel.getByRole('table')).toBeVisible();
     await expect(painel.locator('tbody tr').first().locator('td').nth(2)).toContainText('%');
-    await expect(painel.getByText(/A tua média:/)).toContainText('%');
+    // A linha da posição fica acima do painel (#812), não dentro dele.
+    await expect(page.getByTestId('ranking-posicao')).toContainText('A tua média:');
+    await expect(page.getByTestId('ranking-posicao')).toContainText('%');
+  });
+});
+
+test.describe('aparecer no ranking (#800)', () => {
+  test('o interruptor da Liga sai do ranking e o Perfil mostra a mesma escolha', async ({ page }) => {
+    await alunoLogin(page);
+
+    await page.goto('/aluno/ranking');
+    const naLiga = page.getByRole('switch', { name: /Aparecer no ranking/ });
+    await expect(naLiga).toBeVisible();
+    // Se um teste anterior não repôs a escolha, normaliza para «a aparecer»
+    // antes de exercer o interruptor (o mock guarda o estado entre pedidos).
+    if (!(await naLiga.isChecked())) {
+      await naLiga.click();
+      await expect(naLiga).toBeChecked();
+    }
+    // Hierarquia final: filtros → posição → tabela → cartão verde, com espaço
+    // por baixo dos filtros e acima do cartão, e sem bloco explicativo extra.
+    const posicao = page.getByTestId('ranking-posicao');
+    const filtros = page.getByTestId('ranking-filtros');
+    const tabela = page.getByRole('table');
+    const destaque = page.getByTestId('ranking-destaque');
+    await expect(posicao).toContainText('A tua média: 16,4%');
+    await expect(posicao).toContainText('Faltam 1,6 pts');
+    const [posicaoBox, abasBox, filtrosBox, tabelaBox, destaqueBox] = await Promise.all([
+      posicao.boundingBox(),
+      page.getByRole('tablist').boundingBox(),
+      filtros.boundingBox(),
+      tabela.boundingBox(),
+      destaque.boundingBox(),
+    ]);
+    expect(abasBox!.y).toBeLessThan(posicaoBox!.y);
+    expect(posicaoBox!.y - (filtrosBox!.y + filtrosBox!.height)).toBeGreaterThanOrEqual(16);
+    expect(posicaoBox!.y).toBeLessThan(tabelaBox!.y);
+    expect(destaqueBox!.y - (tabelaBox!.y + tabelaBox!.height)).toBeGreaterThanOrEqual(16);
+    await expect(page.getByText('Este grupo é pequeno')).toHaveCount(0);
+    // O destaque não nomeia o fundo da tabela.
+    await expect(destaque.getByText('Estás entre os 40% do meio', { exact: true })).toBeVisible();
+    await expect(destaque.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
+    await expect(destaque.getByText(/Mostramos só as posições próximas da tua/)).toBeVisible();
+    await expect(page.getByText(/Os colegas veem o teu nome no ranking/)).toBeVisible();
+
+    // Na aba de amigos o cartão verde não encosta ao painel «Os teus amigos».
+    await page.getByRole('tab', { name: 'Amigos' }).click();
+    const painelAmigos = page.locator('[data-slot="card"]').filter({ has: page.getByText('Os teus amigos', { exact: true }) });
+    await expect(painelAmigos).toBeVisible();
+    const [cartaoAmigosBox, painelAmigosBox] = await Promise.all([
+      destaque.boundingBox(),
+      painelAmigos.boundingBox(),
+    ]);
+    expect(painelAmigosBox!.y - (cartaoAmigosBox!.y + cartaoAmigosBox!.height)).toBeGreaterThanOrEqual(12);
+    await expect(posicao).toContainText('A tua média');
+    await page.getByRole('tab', { name: 'Turma' }).click();
+
+    // Desligar não tira a linha da tabela: só o nome desaparece, como a frase diz.
+    await naLiga.click();
+    await expect(naLiga).not.toBeChecked();
+    await expect(page.getByText(/Os colegas veem «Um colega» no teu lugar/)).toBeVisible();
+
+    await page.goto(`/aluno/perfil?tab=${encodeURIComponent('Definições')}`);
+    const noPerfil = page.getByRole('switch', { name: /Aparecer no ranking/ });
+    await expect(noPerfil).not.toBeChecked();
+    await expect(page.getByText(/Os colegas veem «Um colega» no teu lugar/)).toBeVisible();
+
+    // Repõe o estado visível para os testes seguintes, que contam com os colegas.
+    await noPerfil.click();
+    await expect(noPerfil).toBeChecked();
   });
 });
 
@@ -463,6 +532,8 @@ test.describe('ranking global e métrica', () => {
     expect(await graves(page)).toEqual([]);
     await retirar.click();
     await expect(participar).toBeVisible();
+    // Sem board (o 403 do global pede consentimento), não há linha de posição.
+    await expect(page.getByTestId('ranking-posicao')).toHaveCount(0);
 
     await page.getByRole('tab', { name: 'Turma' }).click();
     await page.getByLabel('Ordenar por').selectOption('xp');

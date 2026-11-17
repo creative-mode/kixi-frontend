@@ -1,6 +1,8 @@
 import 'server-only';
 
+import { cache } from 'react';
 import { apiGet, apiPut, type Result } from './api';
+import { VISIBILITY_SCOPES, fromWireVisibility, toWireVisibility, type RankingVisibility, type RankingVisibilityScope, type VisibilityPreferences } from './ranking-rules';
 
 /** As abas de GET /leaderboard. "global" cruza escolas e só existe com o consentimento do
  *  aluno (ADR-0013): sem ele o backend responde 403, e a página oferece o interruptor. */
@@ -56,3 +58,47 @@ export async function getLeaderboard(
 export async function setCrossInstitutionConsent(crossInstitution: boolean): Promise<Result<{ crossInstitution: boolean }>> {
   return apiPut<{ crossInstitution: boolean }>('/leaderboard/consent', { crossInstitution });
 }
+
+/** Contrato do kixi#619: uma resposta com os três âmbitos, quer na leitura quer
+ *  depois de uma escrita. `rankingVisibility` usa `out` onde o cliente diz `hidden`;
+ *  a conversão vive em `ranking-rules.ts`, para não haver duas traduções. */
+interface WirePreference {
+  scope: string;
+  rankingVisibility: string;
+}
+interface WirePreferences {
+  preferences: WirePreference[];
+}
+
+function preferencesFromWire(data: WirePreferences): VisibilityPreferences {
+  const stored = new Map(
+    data.preferences.map((entry) => [entry.scope, fromWireVisibility(entry.rankingVisibility)]),
+  );
+  return Object.fromEntries(
+    VISIBILITY_SCOPES.map((scope) => [scope, stored.get(scope) ?? 'visible']),
+  ) as VisibilityPreferences;
+}
+
+/** GET /leaderboard/preferences: uma leitura devolve os três âmbitos. Sem linha,
+ *  o backend responde `visible`, o comportamento que a tabela sempre teve. */
+export async function readRankingPreferences(): Promise<Result<VisibilityPreferences>> {
+  const result = await apiGet<WirePreferences>('/leaderboard/preferences');
+  return result.ok ? { ok: true, data: preferencesFromWire(result.data) } : result;
+}
+
+/** PUT /leaderboard/preferences/{scope}: escreve só o âmbito pedido, sempre na
+ *  conta da sessão. O backend devolve o estado completo depois de gravar. */
+export async function setRankingVisibility(
+  scope: RankingVisibilityScope,
+  preference: RankingVisibility,
+): Promise<Result<VisibilityPreferences>> {
+  const result = await apiPut<WirePreferences>(
+    `/leaderboard/preferences/${scope}`,
+    { rankingVisibility: toWireVisibility(preference) },
+  );
+  return result.ok ? { ok: true, data: preferencesFromWire(result.data) } : result;
+}
+
+/** As três respostas do interruptor, numa leitura por pedido (#611). O global não
+ *  entra: é o consentimento entre escolas, que tem o seu próprio endpoint. */
+export const loadRankingVisibility = cache(readRankingPreferences);
