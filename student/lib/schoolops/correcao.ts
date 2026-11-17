@@ -3,7 +3,7 @@ import 'server-only';
 import { BASE_PATH } from '../base-path';
 import type { Me } from '../types';
 import { abrirCorrecaoComId, iniciarAbertura, consultarEstado, type Abertura, type EstadoLido } from './correcao-motor';
-import { pedidoDeCorrecao, type VistaCorrecao } from './correcao-rules';
+import { pedidoDeCorrecao } from './correcao-rules';
 
 // Cliente do SchoolOps para as simulações do aluno: a correcção corre no motor (objectivas pelo gabarito, dissertativas
 // por proximidade ao gabarito) e o aluno só vê a nota quando está feita. Só corre no servidor: the token do cliente nunca
