@@ -128,7 +128,9 @@ export function RankingVisibility({
         )}
       </div>
       {error && <p role="alert" className="text-[13px] text-destructive">{error}</p>}
-      <span className="sr-only" role="status" aria-live="polite">
+      {/* Só `aria-live`: um segundo `role="status"` aqui daria dois nós ao selector
+          do anúncio do ranking (#498), que também é um `role="status"`. */}
+      <span className="sr-only" aria-live="polite">
         {pending ? 'A guardar a tua preferência de ranking.' : error ?? ''}
       </span>
     </div>
