@@ -39,9 +39,11 @@ const PROCESSOS: Record<string, string> = {
 
 export const nomeDoProcesso = (id: string) => PROCESSOS[id] ?? id;
 
-/** Os nomes das variáveis que o ecrã lê para descrever a tarefa (kixi-frontend#774): a prova, a avaliação contínua e a
- *  turma/disciplina da pauta. Usado para pedir só estas ao Camunda, numa só pesquisa para todas as tarefas da lista. */
-export const NOMES_DAS_VARIAVEIS_DO_CARTAO = ['provaId', 'prova', 'avaliacaoContinua', 'pauta'];
+/** Os nomes das variáveis que o ecrã lê para descrever a tarefa (kixi-frontend#774): a prova, a avaliação contínua, a
+ *  turma/disciplina da pauta e o tipo de prova. Usado para pedir só estas ao Camunda, numa só pesquisa para todas as
+ *  tarefas da lista. `tipoProva` (kixi-frontend#809) é como se reconhece uma avaliação de MAC em `minipauta-prova` e
+ *  `correcao-prova` (o mesmo processo da P1/P2, desde o schoolops#65): vale `AVALIACAO_CONTINUA`, nunca um objecto. */
+export const NOMES_DAS_VARIAVEIS_DO_CARTAO = ['provaId', 'prova', 'avaliacaoContinua', 'pauta', 'tipoProva'];
 
 const texto = (v: unknown): string | undefined => {
   if (typeof v === 'string') return v.trim() || undefined;
@@ -65,9 +67,19 @@ function turmaEDisciplina(variaveis: Record<string, unknown>): string | undefine
  * A que prova ou avaliação contínua a tarefa se refere (kixi-frontend#774): o título quando o motor o tiver, ou
  * "Prova P1"/"Prova P2" a partir do componente (é o que `SchoolOpsPautaOpener`, no backend, sempre manda; o motor não
  * recebe um título de texto para a prova), seguido da turma/disciplina. `null` quando nada identifica a tarefa.
+ *
+ * Uma avaliação de MAC com enunciado corre o mesmo processo da P1/P2 (`minipauta-prova`, que chama `correcao-prova`;
+ * schoolops#65/kixi-frontend#809), com `tipoProva = AVALIACAO_CONTINUA`: reconhece-se por esta variável, não pelo
+ * `processDefinitionId` (que é o da prova). O motor não traz o título da avaliação como variável leve da tarefa (só o
+ * `pedido` inteiro, grande demais para aqui); `tituloAvaliacao`, quando o chamador o resolveu (o enunciado no Kixi, pelo
+ * `provaId`), entra no texto. Sem ele mostra-se "Avaliação contínua" liso — melhor do que nada, nunca "Prova P1".
  */
-export function tituloDaTarefa(processDefinitionId: string, variaveis: Record<string, unknown>): string | null {
+export function tituloDaTarefa(processDefinitionId: string, variaveis: Record<string, unknown>, tituloAvaliacao?: string | null): string | null {
   const contexto = turmaEDisciplina(variaveis);
+  if (variaveis.tipoProva === 'AVALIACAO_CONTINUA') {
+    const referencia = tituloAvaliacao ? `Avaliação contínua: ${tituloAvaliacao}` : 'Avaliação contínua';
+    return [referencia, contexto].filter(Boolean).join(' · ') || null;
+  }
   if (processDefinitionId === 'minipauta-prova') {
     const prova = variaveis.prova as { componente?: unknown; titulo?: unknown } | string | undefined;
     const titulo = typeof prova === 'string' ? texto(prova) : texto(prova?.titulo);
@@ -84,7 +96,7 @@ export function tituloDaTarefa(processDefinitionId: string, variaveis: Record<st
   return contexto ?? null;
 }
 
-export function paraTarefa(t: TarefaCamunda, variaveis: Record<string, unknown> = {}): Tarefa {
+export function paraTarefa(t: TarefaCamunda, variaveis: Record<string, unknown> = {}, tituloAvaliacao?: string | null): Tarefa {
   return {
     key: t.userTaskKey,
     nome: t.name?.trim() || t.elementId,
@@ -92,7 +104,7 @@ export function paraTarefa(t: TarefaCamunda, variaveis: Record<string, unknown> 
     processo: nomeDoProcesso(t.processDefinitionId),
     criadaEm: t.creationDate,
     prazo: t.dueDate ?? null,
-    detalhe: tituloDaTarefa(t.processDefinitionId, variaveis),
+    detalhe: tituloDaTarefa(t.processDefinitionId, variaveis, tituloAvaliacao),
   };
 }
 
