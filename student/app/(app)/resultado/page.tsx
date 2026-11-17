@@ -60,7 +60,6 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
   const v = verdict(question);
   const options = question.options ?? [];
   const shown = displayNumber(question);
-  const _isOpenQuestion = options.length === 0;
   const isAiGraded = question.aiLevel != null;
   const aiLevelLabel = question.aiLevel ? { TOTAL: 'Resposta completa', PARCIAL: 'Resposta parcial', MINIMA: 'Resposta mínima', NULA: 'Sem pontuação' }[question.aiLevel] : null;
   // TODO: aiConfidence deve vir do backend (campo aiConfidence no QuestionResult).
@@ -70,6 +69,7 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
   return (
     <li className="grid gap-3 px-5 py-4">
       {context && question.parentText ? (
+        // O enunciado comum da questão com alíneas, uma vez, acima da primeira alínea.
         <div className="grid gap-1 rounded-lg border border-dashed bg-secondary/60 px-4 py-3">
           <p className="text-xs font-semibold text-muted-foreground">Questão {topNumber(question.number)}</p>
           <p className="text-sm leading-relaxed"><MathText text={question.parentText} /></p>
@@ -98,6 +98,7 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
               >
                 <span className="font-bold">{optionTag(option, i)}</span>
                 <span className="min-w-0 flex-1">{option.optionText}</span>
+                {/* Texto e não só cor: quem não distingue cores tem de saber qual era a certa. */}
                 {right && <span className="inline-flex items-center gap-1 text-xs font-semibold text-success"><Check className="size-3.5" aria-hidden />Resposta certa</span>}
                 {chosen && !right && <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive"><X className="size-3.5" aria-hidden />A tua resposta</span>}
                 {chosen && right && <span className="text-xs text-muted-foreground">(a tua)</span>}
@@ -112,9 +113,9 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
           {v === 'pending' && <p className="text-muted-foreground">Esta resposta ainda está a ser corrigida.</p>}
           {isAiGraded && (
             <div className="grid gap-1 pt-1 border-t border-dashed">
-              <p className="flex items-center gap-1.5 text-xs font-medium text-blue-700">
-                <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5">Corrigida pela IA</span>
-                {aiLevelLabel && <span className="text-blue-800">· {aiLevelLabel}</span>}
+              <p className="flex items-center gap-1.5 text-xs font-medium text-info">
+                <span className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5">Corrigida pela IA</span>
+                {aiLevelLabel && <span className="text-info">· {aiLevelLabel}</span>}
               </p>
               <PedirRevisaoButton simulationId={simulationId} questionId={question.questionId} />
             </div>
@@ -135,6 +136,7 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
 export default async function Resultado({ searchParams }: { searchParams: Promise<{ prova?: string | string[] }> }) {
   const raw = (await searchParams).prova;
   const id = Number(Array.isArray(raw) ? raw[0] : raw);
+  // Sem tentativa não há resultado para mostrar: a lista de provas é onde se escolhe.
   if (!Number.isInteger(id) || id <= 0) redirect('/provas');
 
   const view = await getResultView(id);
@@ -154,6 +156,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
 
   let totalMax = view.totalMaxScore;
   let result = resultadoDoBackend;
+  // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
+  // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   if (correcaoLigada() && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
@@ -229,6 +233,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   });
   const medalhasNovas = badgesUnlockedIn(badges, view.startedAt, view.finishedAt);
 
+  // A prova entregue na folha, corrigida. O cabeçalho e as figuras são extras: se algum falhar, a folha leva o
+  // molde em branco e a revisão questão a questão, mais abaixo, continua a ser a fonte de tudo.
   const statement = statementId != null ? await getStatementFull(statementId, { cached: true }) : null;
   const paperMeta = statement?.ok ? await loadPaperMeta(statement.data) : { kind: 'Prova', totalMaxScore: totalMax };
   const figures = Object.fromEntries(await Promise.all(questions.map(async (q) => [q.questionId, await getQuestionImages(q.questionId)] as const)));

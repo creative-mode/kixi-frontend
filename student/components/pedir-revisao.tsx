@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, FormEvent, useRef } from 'react';
-import { AlertCircle, Send } from 'lucide-react';
+import { AlertCircle, Send, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { pedirRevisaoAction } from '@/lib/review-actions';
@@ -12,6 +12,11 @@ interface PedirRevisaoProps {
   questionId: number;
 }
 
+// Feature flag: o endpoint POST /simulations/{id}/review ainda não existe no backend
+// (kixi#798 Fase 2). O botão só aparece quando o backend estiver pronto, para o aluno
+// não ver "Não encontrámos o que procuravas". Activar com NEXT_PUBLIC_REVISOES_ATIVAS=1.
+export const REVISOES_ATIVAS = process.env.NEXT_PUBLIC_REVISOES_ATIVAS === '1';
+
 const MAX_MOTIVO_LENGTH = 1000; // TODO: alinhar com contrato backend
 
 export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoProps) {
@@ -20,8 +25,12 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  // IDs únicos por questão: várias questões abertas na mesma página não colidem.
+  const formId = `revisao-form-${questionId}`;
+  const hintId = `revisao-hint-${questionId}`;
+  const messageId = `revisao-msg-${questionId}`;
 
   const openForm = () => {
     previousActiveElement.current = document.activeElement as HTMLElement;
@@ -54,7 +63,6 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
       setStatus('success');
       setMessage(result.message);
       setMotivo('');
-      // Don't auto-close - let user dismiss. Keep success visible.
     } else {
       setStatus('error');
       setMessage(result.message);
@@ -68,17 +76,45 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
     }
   };
 
+  // Sem backend pronto, o botão não aparece (não há endpoint que responda).
+  if (!REVISOES_ATIVAS) return null;
+
+  // Depois de enviar, mostra o estado "já pediste" e deixa fechar.
+  if (status === 'success') {
+    return (
+      <div
+        id={messageId}
+        role="status"
+        aria-live="polite"
+        className="flex items-start gap-2 rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-xs text-success"
+      >
+        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <b>Pedido enviado.</b> {message}
+        </span>
+        <button
+          type="button"
+          onClick={closeForm}
+          className="shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold hover:bg-success/20"
+          aria-label="Fechar confirmação"
+        >
+          Fechar
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="pl-[46px]">
-      {!isOpen && status === 'idle' ? (
+      {!isOpen ? (
         <Button
-          ref={buttonRef}
+          type="button"
           variant="outline"
           size="sm"
           className="text-xs gap-1.5 border-destructive/50 text-destructive hover:bg-destructive/10 min-h-[44px] min-w-[44px]"
           onClick={openForm}
           aria-expanded={false}
-          aria-controls="revisao-form"
+          aria-controls={formId}
           aria-label="Pedir revisão desta correcção"
         >
           <AlertCircle className="size-3.5" aria-hidden />
@@ -86,7 +122,7 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
         </Button>
       ) : (
         <form
-          id="revisao-form"
+          id={formId}
           onSubmit={handleSubmit}
           onKeyDown={handleKeyDown}
           className="grid gap-2"
@@ -102,9 +138,9 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
             required
             maxLength={MAX_MOTIVO_LENGTH}
             aria-label="Motivo do pedido de revisão"
-            aria-describedby="motivo-hint"
+            aria-describedby={hintId}
           />
-          <p id="motivo-hint" className="text-xs text-muted-foreground">
+          <p id={hintId} className="text-xs text-muted-foreground">
             Máximo {MAX_MOTIVO_LENGTH} caracteres.
           </p>
           <div className="flex items-center gap-2">
@@ -138,11 +174,12 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
               </Button>
             )}
           </div>
-          {message && (
+          {message && status === 'error' && (
             <p
-              className={cn('text-xs', status === 'success' ? 'text-green-700' : 'text-destructive')}
-              role={status === 'success' ? 'status' : 'alert'}
-              aria-live={status === 'success' ? 'polite' : 'assertive'}
+              id={messageId}
+              className={cn('text-xs', 'text-destructive')}
+              role="alert"
+              aria-live="assertive"
             >
               {message}
             </p>

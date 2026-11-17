@@ -22,21 +22,25 @@ export function ScoreBreakdown({
   hasSchoolOpsGraded,
 }: ScoreBreakdownProps) {
   const hasOpen = openMax > 0 || openPendingMax > 0;
-  const openLabel = hasAiGraded ? ' (pela IA)' : hasSchoolOpsGraded ? ' (pelo SchoolOps)' : '';
+  // O aluno não conhece "SchoolOps": diz-se "pela escola". A IA diz-se "pela IA".
+  const openLabel = hasAiGraded ? 'pela IA' : hasSchoolOpsGraded ? 'pela escola' : '';
   const pendingLabel = openPendingMax > 0 ? ` · ${openPendingScore} de ${openPendingMax} pendentes` : '';
 
+  if (objectiveMax <= 0 && !hasOpen) return null;
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-medium text-primary">
       {objectiveMax > 0 && (
-        <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary-foreground">
-          <span className="font-bold">{formatScore(objectiveScore)}</span> de <span className="font-bold">{formatScore(objectiveMax)}</span> valores nas objectivas (pelo gabarito)
+        <span>
+          Objectivas <b className="font-bold">{formatScore(objectiveScore)}</b>/{formatScore(objectiveMax)} pelo gabarito
         </span>
       )}
+      {objectiveMax > 0 && hasOpen && <span className="text-muted-foreground" aria-hidden>·</span>}
       {hasOpen && (
-        <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary-foreground">
-          <span className="font-bold">{formatScore(openScore)}</span> de <span className="font-bold">{formatScore(openMax)}</span> valores nas abertas{openLabel}{pendingLabel}
+        <span>
+          Abertas <b className="font-bold">{formatScore(openScore)}</b>/{formatScore(openMax)}{openLabel ? ` ${openLabel}` : ''}{pendingLabel}
         </span>
       )}
-    </div>
+    </p>
   );
 }
