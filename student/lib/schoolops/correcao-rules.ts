@@ -37,7 +37,11 @@ export type VistaCorrecao =
   | { kind: 'a-corrigir' }
   /** `semGabarito`: há questões abertas que o motor não pôde corrigir por não terem gabarito no Kixi. */
   | { kind: 'incompleta'; semGabarito: boolean }
-  | { kind: 'falhou' };
+  /** `motivo`: o motor recusou o pedido, a correcção ficou com um incidente (ou foi cancelada), ou o motor diz que já existe
+   *  com outro conteúdo e não se conseguiu ler o estado. Em todos o aluno tem uma saída (#787). */
+  | { kind: 'falhou'; motivo: MotivoDaFalha };
+
+export type MotivoDaFalha = 'recusada' | 'incidente' | 'conflito';
 
 /** Estados do motor em que não vale a pena esperar mais. */
 const FALHADOS = new Set(['CANCELADA', 'FALHADA', 'INCIDENTE']); // FALHADA: o motor tem um incidente e não avança sozinho
@@ -51,17 +55,53 @@ export function vistaDaCorrecao(c: CorrecaoEstado): VistaCorrecao {
     }
     return { kind: 'corrigida', resultado: c.resultado };
   }
-  return FALHADOS.has(c.estado) ? { kind: 'falhou' } : { kind: 'a-corrigir' };
+  return FALHADOS.has(c.estado) ? { kind: 'falhou', motivo: 'incidente' } : { kind: 'a-corrigir' };
+}
+
+/** O que o motor respondeu ao abrir a correcção (sem ser um 2xx). O 409 trata-se à parte (`correcaoIdDoConflito`). */
+export function vistaDeUmaRecusa(status: number): VistaCorrecao {
+  // Um 4xx (menos 408 e 429) é o motor a recusar o pedido: repetir tal e qual não adianta e esperar para sempre é pior do que dizê-lo.
+  // O resto (rede, 5xx, 408, 429) é um atraso: mostra-se "a corrigir" e volta-se a ler.
+  const recusa = status >= 400 && status < 500 && status !== 408 && status !== 429;
+  return recusa ? { kind: 'falhou', motivo: 'recusada' } : { kind: 'a-corrigir' };
+}
+
+/**
+ * O motor responde 409 quando a mesma correcção chega com outro conteúdo (o aluno mudou de nome, por exemplo). A
+ * correcção já existe: o `detail` do problema traz o seu identificador (`CR-` e 16 hexadecimais) e é com ele que se lê o estado.
+ */
+export function correcaoIdDoConflito(corpo: string | null | undefined): string | null {
+  return /\bCR-[0-9A-F]{16}\b/.exec(corpo ?? '')?.[0] ?? null;
+}
+
+/**
+ * A nota das questões fechadas, só para dizer ao aluno onde está enquanto as abertas não se corrigem. Vem do resultado do
+ * backend (as fechadas já foram pontuadas na entrega) e nunca é a nota final: sem fechadas pontuadas não há nada a mostrar.
+ */
+export function notaProvisoria(resultado: SimulationResult): { pontos: number; maximo: number } | null {
+  let pontos = 0;
+  let maximo = 0;
+  let fechadas = 0;
+  for (const q of resultado.questions ?? []) {
+    if ((q.reviewStatus ?? '').toUpperCase() !== 'AUTO_GRADED' || q.scoreObtained == null || q.maxScore == null) continue;
+    pontos += q.scoreObtained;
+    maximo += q.maxScore;
+    fechadas += 1;
+  }
+  return fechadas > 0 && maximo > 0 ? { pontos: Math.round(pontos * 100) / 100, maximo } : null;
 }
 
 type Pessoa = { accountId: number; first_name?: string | null; last_name?: string | null; username: string; school?: { id: number; name: string; code: string } | null };
 
-/** O pedido `POST /v1/correcoes` de uma simulação. Idempotente no motor: (cliente, org, prova, simulação). */
+/**
+ * O pedido `POST /v1/correcoes` de uma simulação. Idempotente no motor: (cliente, org, prova, simulação). O motor compara o
+ * corpo inteiro e responde 409 se mudou, por isso só vai o que o contrato exige: o título da prova (opcional, e que o
+ * professor pode editar) já não segue (#787).
+ */
 export function pedidoDeCorrecao(args: {
   me: Pessoa;
   simulationId: number;
   statementId: number;
-  statementTitle: string | null;
   callbackUrl: string;
 }) {
   const { me } = args;
@@ -74,7 +114,7 @@ export function pedidoDeCorrecao(args: {
     contratoVersao: '1',
     correcaoRef: `kixi-sim-${args.simulationId}`,
     org,
-    prova: { sourcedId: String(args.statementId), titulo: args.statementTitle ?? undefined },
+    prova: { sourcedId: String(args.statementId) },
     simulacao: { sourcedId: String(args.simulationId) },
     aluno: { sourcedId: String(me.accountId), nome },
     callback: { url: args.callbackUrl },
