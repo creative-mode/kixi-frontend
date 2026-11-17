@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { TrendingUp, Users } from 'lucide-react';
+import { EyeOff, TrendingUp, Users } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -89,14 +89,25 @@ export function RankingView({
   const progress = board ? podiumGap(board, metric) : null;
   const band = board ? relativeBandLabel(board.myPosition, board.totalStudents) : null;
   const gap = board ? nextPlaceGap(board, metric) : null;
+  const posicao = myPositionLabel(board?.myPosition ?? null, board?.totalStudents ?? 0);
+  const privacidade = board ? smallGroupNote(board.smallGroup) : null;
 
   return (
     <Page variant="wide">
-      <Column className="gap-5">
+      <Column className="gap-3">
         <PageHeader
           title={pending ? `A carregar ${SCOPE_LABEL[scope]}…` : `Ranking · ${SCOPE_LABEL[scope]}`}
           description="Média das simulações deste período. Vês o topo e quem está perto de ti."
         />
+        {/* A posição responde ao título antes de qualquer filtro: é a pergunta que
+            o aluno traz («onde estou?»), não um detalhe da tabela (#800). */}
+        <div data-testid="ranking-posicao" className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+          <Users className="size-4" aria-hidden />
+          {posicao ?? 'Ainda sem nota para te posicionar'}
+          {progress && <span>· {progress}</span>}
+          {board?.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
+          {scope === 'global' && board?.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
+        </div>
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
         {/* A escolha é da conta, não da aba: fica no topo e sobrevive à troca de
             âmbito. Uma linha compacta em vez do bloco grande da maquete, para a
@@ -166,34 +177,7 @@ export function RankingView({
               </Card>
             ) : (
               <>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="size-4" aria-hidden />
-                  {myPositionLabel(board.myPosition, board.totalStudents) ?? 'Ainda sem nota para te posicionar'}
-                  {progress && <span>· {progress}</span>}
-                  {board.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
-                  {scope === 'global' && board.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
-                </div>
                 {scope === 'global' && <p className="text-sm text-muted-foreground">{globalNote(board.institutionsCounted, metric)}</p>}
-                {smallGroupNote(board.smallGroup) && (
-                  <p className="text-sm text-muted-foreground">{smallGroupNote(board.smallGroup)}</p>
-                )}
-                {/* O destaque é o contexto da tabela, não um cartão solto no fim da
-                    página: fica logo acima dela e não repete a faixa da linha de
-                    posição. Mesmas cores da maquete, mas com a escala de um texto
-                    de leitura, para não competir com as notas. */}
-                {band && (
-                  <div data-testid="ranking-destaque" className="flex items-start gap-3 rounded-2xl border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] px-4 py-3">
-                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#dcecd9] text-[#1F5C2E]" aria-hidden="true">
-                      <TrendingUp className="size-4" />
-                    </span>
-                    <div className="grid min-w-0 gap-0.5 text-sm leading-snug">
-                      <strong className="font-bold text-[#121c15]">{band.replace(/\.$/, '')}</strong>
-                      <span className="text-[#6B6B6B]">
-                        {gap ? `${gap} ` : ''}Os lugares de baixo não se mostram a ninguém.
-                      </span>
-                    </div>
-                  </div>
-                )}
                 <Card className="overflow-hidden py-0">
                   <Table>
                     <TableHeader>
@@ -223,6 +207,32 @@ export function RankingView({
                     </TableBody>
                   </Table>
                 </Card>
+                {/* Depois da tabela: o aluno lê primeiro os resultados e só depois
+                    o contexto. Mesmas cores da maquete, com padding mais curto. */}
+                {band && (
+                  <div data-testid="ranking-destaque" className="flex items-start gap-3 rounded-2xl border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] px-4 py-2.5">
+                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#dcecd9] text-[#1F5C2E]" aria-hidden="true">
+                      <TrendingUp className="size-4" />
+                    </span>
+                    <div className="grid min-w-0 gap-0.5 text-sm leading-snug">
+                      <strong className="font-bold text-[#121c15]">{band.replace(/\.$/, '')}</strong>
+                      <span className="text-[#6B6B6B]">
+                        {gap ? `${gap} ` : ''}Os lugares de baixo não se mostram a ninguém.
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {privacidade && (
+                  <div data-testid="ranking-privacidade" className="flex items-start gap-3 rounded-2xl border border-[#dde3da] bg-white px-4 py-2.5">
+                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#eef6ea] text-[#1F5C2E]" aria-hidden="true">
+                      <EyeOff className="size-4" />
+                    </span>
+                    <div className="grid min-w-0 gap-0.5 text-sm leading-snug">
+                      <strong className="font-bold text-[#121c15]">{privacidade.title}</strong>
+                      <span className="text-[#6B6B6B]">{privacidade.text}</span>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 

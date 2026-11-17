@@ -36,7 +36,9 @@ test('o progresso até ao pódio respeita a métrica e não inventa dados ausent
 });
 
 test('o aviso de grupo pequeno só aparece quando o backend o assinala', () => {
-  assert.match(smallGroupNote(true) ?? '', /últimos lugares/);
+  const nota = smallGroupNote(true);
+  assert.equal(nota?.title, 'Este grupo é pequeno');
+  assert.match(nota?.text ?? '', /protegendo a privacidade dos restantes colegas/);
   assert.equal(smallGroupNote(false), null);
 });
 

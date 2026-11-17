@@ -108,10 +108,14 @@ export function podiumGap(board: Leaderboard, metric: RankingMetric): string | n
 
 /** A regra de grupo pequeno (#117) esconde o pódio e corta as últimas posições:
  *  quando isso acontece, a lista de `entries` é só os vizinhos do aluno, nunca
- *  a turma toda - esta frase explica o porquê em vez de deixar parecer incompleta. */
-export function smallGroupNote(smallGroup: boolean): string | null {
+ *  a turma toda - este texto explica o porquê em vez de deixar parecer incompleta.
+ *  Fica depois da tabela, para o aluno ver primeiro os resultados (#800). */
+export function smallGroupNote(smallGroup: boolean): { title: string; text: string } | null {
   return smallGroup
-    ? 'Este grupo é pequeno: por isso só mostramos quem está perto de ti, sem revelar os últimos lugares.'
+    ? {
+        title: 'Este grupo é pequeno',
+        text: 'Como existem poucos alunos nesta turma, mostramos apenas as posições próximas da tua, protegendo a privacidade dos restantes colegas.',
+      }
     : null;
 }
 
