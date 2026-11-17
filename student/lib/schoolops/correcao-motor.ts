@@ -1,4 +1,4 @@
-import { correcaoIdDoConflito, vistaDaCorrecao, vistaDeUmaRecusa, type CorrecaoEstado, type VistaCorrecao } from './correcao-rules';
+import { correcaoIdDoConflito, vistaDaCorrecao, vistaDeUmaRecusa, type CorrecaoEstado, type VistaCorrecao } from './correcao-rules.ts';
 
 // A conversa com o motor, sem `server-only` nem `process.env`, para se testar com um `fetch` falso: abrir a correcção e
 // ler o estado, e dizer sempre ao ecrã o que mostrar. Nenhum caminho devolve "espera" quando o motor já disse que não
