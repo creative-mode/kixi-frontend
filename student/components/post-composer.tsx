@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { UserAvatar } from '@/components/user-avatar';
 import { Input } from '@/components/ui/input';
