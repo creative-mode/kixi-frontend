@@ -94,12 +94,15 @@ export async function iniciarAbertura(args: {
   return { correcaoId: aberta.corpo.correcaoId };
 }
 
-/** Lê o estado de uma correcção existente pelo ID (para polling leve na espera). */
-export async function consultarEstado(cfg: ConfigDoMotor, correcaoId: string, fetcher?: typeof fetch): Promise<VistaCorrecao | null> {
+/** Lê o estado de uma correcção existente pelo ID (para polling leve na espera). A falha traz o estado HTTP:
+ *  um 404 do motor é "não existe"; um 0/5xx é "não sei agora" e quem espera volta a ler em vez de desistir (#794). */
+export type EstadoLido = { ok: true; vista: VistaCorrecao } | { ok: false; status: number };
+
+export async function consultarEstado(cfg: ConfigDoMotor, correcaoId: string, fetcher?: typeof fetch): Promise<EstadoLido> {
   const f = fetcher ?? fetch;
   const estado = await lerEstado(cfg, correcaoId, f);
-  if (!estado.ok) return null;
-  return vistaDaCorrecao(estado.corpo);
+  if (!estado.ok) return { ok: false, status: estado.status };
+  return { ok: true, vista: vistaDaCorrecao(estado.corpo) };
 }
 
 function vistaLida(estado: CorrecaoEstado, simulationId: number, registar: Registo): VistaCorrecao {

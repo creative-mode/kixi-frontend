@@ -1,9 +1,10 @@
 'use server';
 
+import { after } from 'next/server';
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
-import { checkQuestion, getStatementFull, myAccountId, startPractice, startMatrixPractice, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation, listSimulationsResult } from './exam';
+import { checkQuestion, getStatementFull, myAccountId, startPractice, startMatrixPractice, saveAnswer, saveIntegrityEvent, startSimulation, submitSimulation } from './exam';
 import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 import { isIntegrityKind, type IntegrityKind } from './integrity';
@@ -143,42 +144,31 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   // por acidentalmente carregar em Entregar duas vezes.
   if (!result.ok && result.status !== 409) return { error: translateError(result.message) };
 
-  // Se a entrega foi bem sucedida (ou já entregue), iniciar a correcção no SchoolOps
-  // para simulações livres (não salas de prova). Isto corre em segundo plano: a
-  // entrega já está guardada e o aluno não pode ficar preso à espera do motor (até
-  // 8 s). Se falhar, nada quebra — o ecrã de resultado volta a pedir a correcção
-  // (idempotente no motor) quando o aluno lá chegar (#794).
-  let correcaoId: string | null = null;
+  // Se a entrega foi bem sucedida (ou já entregue), a correcção do SchoolOps arranca
+  // **depois da resposta** (`after`), para o aluno não esperar pelo motor (#794): a
+  // entrega já está guardada e o ecrã de resultado aparece de imediato. Se isto
+  // falhar, nada quebra — o resultado volta a pedir a correcção (idempotente no motor).
   if (result.ok) {
-    try {
-      const me = await getMe();
-      const simResult = await listSimulationsResult();
-      const simulacao = simResult.ok
-        ? simResult.data.find((s) => Number(s.id) === simulationId)
-        : undefined;
-      if (me && simulacao?.statement?.id) {
-        const salasResult = await apiGet<Array<{ simulationId: number | null }>>('/exam-rooms/mine');
-        if (salasResult.ok && eSimulacaoLivre(simulationId, salasResult.data)) {
-          const iniciada = await iniciarCorrecao({
-            me,
-            simulationId,
-            statementId: simulacao.statement.id,
-          });
-          if (iniciada) correcaoId = iniciada.correcaoId;
-        }
+    after(async () => {
+      try {
+        const me = await getMe(); // já lido durante a entrega: o cache da requisição devolve o mesmo
+        const simulacao = await apiGet<{ statement?: { id?: number | null } | null }>(`/simulations/${simulationId}`);
+        const statementId = simulacao.ok ? simulacao.data.statement?.id : null;
+        if (!me || statementId == null) return;
+        // Uma prova de sala não é corrigida pelo motor; o cartão dela vem da pauta.
+        const salas = await apiGet<Array<{ simulationId: number | null }>>('/exam-rooms/mine');
+        if (!salas.ok || !eSimulacaoLivre(simulationId, salas.data)) return;
+        await iniciarCorrecao({ me, simulationId, statementId });
+      } catch {
+        // o resultado volta a pedir a correcção ao abrir (idempotente)
       }
-    } catch {
-      // Falha ao iniciar a correcção na entrega: segue para o resultado sem
-      // correcaoId; o ecrã de resultado pede a correcção ao abrir (idempotente).
-      correcaoId = null;
-    }
+    });
   }
 
   // `submetida=1` é o sinal de uso único do kixi-frontend#219 ("prova submetida"): o
   // resultado é revisitado depois, para o aluno ver a nota de novo.
   forgetVisitedPages();
-  const url = `/resultado?prova=${simulationId}&submetida=1${correcaoId ? `&correcaoId=${correcaoId}` : ''}`;
-  await redirectFromAction(url);
+  await redirectFromAction(`/resultado?prova=${simulationId}&submetida=1`);
 }
 
 /** O que o modo de avaliação regista. Vem do cliente, por isso o tipo é validado

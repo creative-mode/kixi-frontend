@@ -34,13 +34,18 @@ export async function GET(
     return new Response(JSON.stringify({ error: 'Não autorizado' }), { status: 403 });
   }
 
-  const vista = await consultarEstadoCorrecao(correcaoId);
-  if (!vista) {
-    // 404 vs 502/503: o motor em baixo (status 0) ou a falhar (5xx) não é "não
-    // encontrada". A espera distingue para mostrar a mensagem certa e continuar.
-    return new Response(JSON.stringify({ error: 'Correção não encontrada' }), { status: 404 });
+  const estado = await consultarEstadoCorrecao(correcaoId);
+  if (!estado.ok) {
+    // Só um 404 do motor é "não existe". Um 0 (motor fora) ou um 5xx é "não sei agora":
+    // a espera volta a ler em vez de desistir (e mostra a mensagem certa).
+    if (estado.status === 404) {
+      return new Response(JSON.stringify({ error: 'Correção não encontrada' }), { status: 404 });
+    }
+    return new Response(JSON.stringify({ error: 'Serviço temporariamente indisponível' }), { status: 503 });
   }
-  return Response.json(vista, {
+  // Só o estado: nunca o resultado completo (pontos, justificações) nem dados de outro aluno.
+  const vista = estado.vista;
+  return Response.json(vista.kind === 'falhou' ? { kind: vista.kind, motivo: vista.motivo } : { kind: vista.kind }, {
     headers: { 'Cache-Control': 'no-store' },
   });
 }

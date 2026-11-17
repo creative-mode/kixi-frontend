@@ -2,7 +2,7 @@ import 'server-only';
 
 import { BASE_PATH } from '../base-path';
 import type { Me } from '../types';
-import { abrirCorrecao, iniciarAbertura, consultarEstado } from './correcao-motor';
+import { abrirCorrecao, iniciarAbertura, consultarEstado, type EstadoLido } from './correcao-motor';
 import { pedidoDeCorrecao, type VistaCorrecao } from './correcao-rules';
 
 // Cliente do SchoolOps para as simulações do aluno: a correcção corre no motor (objectivas pelo gabarito, dissertativas
@@ -44,9 +44,10 @@ export async function iniciarCorrecao(args: {
   return iniciarAbertura({ cfg, pedido, simulationId: args.simulationId });
 }
 
-/** Consulta o estado de uma correcção pelo ID (para polling leve na espera). */
-export async function consultarEstadoCorrecao(correcaoId: string): Promise<VistaCorrecao | null> {
+/** Consulta o estado de uma correcção pelo ID (para polling leve na espera).
+ *  Devolve o estado do motor quando falha (0 = fora, 404 = não existe) para a espera distinguir "volta a ler" de "desiste". */
+export async function consultarEstadoCorrecao(correcaoId: string): Promise<EstadoLido> {
   const cfg = config();
-  if (!cfg) return null;
+  if (!cfg) return { ok: false, status: 0 };
   return consultarEstado(cfg, correcaoId);
 }

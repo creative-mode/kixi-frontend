@@ -166,11 +166,12 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
       // Com correcaoId (entrega #794): lê o estado pela rota leve, sem reabrir a correcção.
       // Sem correcaoId (ecrã aberto antes da entrega, ou utilizador voltou mais tarde): abre a correcção (idempotente).
-      // Se o motor estiver em baixo (consultarEstadoCorrecao devolve null) com correcaoId,
-      // não se mostra a nota do backend como se fosse final: fica "a corrigir" e volta-se a ler.
+      // Se o motor estiver em baixo com correcaoId, não se mostra a nota do backend como se
+      // fosse final: fica "a corrigir" e a espera volta a ler.
+      const lida = correcaoId ? await consultarEstadoCorrecao(correcaoId) : null;
       const correcao =
         (correcaoId
-          ? (await consultarEstadoCorrecao(correcaoId)) ?? { kind: 'a-corrigir' as const }
+          ? lida?.ok ? lida.vista : { kind: 'a-corrigir' as const }
           : await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId })) ??
         { kind: 'a-corrigir' as const };
       if (correcao.kind !== 'corrigida') {
