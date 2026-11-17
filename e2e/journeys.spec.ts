@@ -2399,33 +2399,40 @@ test.describe('cartão de prova no feed (#602)', () => {
 
     const mostrarNota = previa.getByRole('switch', { name: 'Mostrar a nota' });
     await expect(mostrarNota).toBeChecked();
-    await expect(previa.getByText('Positiva')).toBeVisible();
+    // A simulação 1 tem uma resposta aberta por corrigir: a nota parcial nunca
+    // aparece como final na pré-visualização (kixi#788).
+    await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
+    await expect(previa.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
+    await expect(previa.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
+    await expect(previa.getByText('16,4')).toBeHidden();
 
     await mostrarNota.click();
     await expect(mostrarNota).not.toBeChecked();
     // A pré-visualização é a publicação como a turma a vê: os números saem do cartão.
     await expect(previa.getByText('Nota escondida')).toBeVisible();
     await expect(previa.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
-    await expect(previa.getByText('Positiva')).toBeHidden();
+    await expect(previa.getByText('A corrigir', { exact: true })).toBeHidden();
     await expect(previa.getByText('16,4')).toBeHidden();
 
     await mostrarNota.click();
-    await expect(previa.getByText('Positiva')).toBeVisible();
+    await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
   });
 
   test('publicar o resultado mostra o cabeçalho e o carimbo no início', async ({ page }) => {
+    // A simulação 5 (Nuno) está terminada e não tem abertas por corrigir: é o
+    // caso da nota final, com o carimbo como antes da #788.
     await page.goto('/aluno/entrar');
-    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.getByLabel('Utilizador ou email').fill('nuno.dias');
     await page.locator('#password').fill(PASSWORD);
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    // A simulação 1 do mock está terminada (16,4 em 20): publica-se do resultado.
-    await page.goto('/aluno/resultado?prova=1');
+    await page.goto('/aluno/resultado?prova=5');
     const previa = page.getByLabel('Publicar o resultado no feed');
     await expect(previa).toBeVisible();
     await expect(previa.getByText('Ministério da Educação')).toBeVisible();
     await expect(previa.getByText(/12ª Classe/)).toBeVisible();
+    await expect(previa.getByText('Positiva')).toBeVisible();
     // Na pré-visualização não há link para a corrigida: já se está nela.
     await expect(previa.getByRole('link', { name: /Ver a prova corrigida/ })).toBeHidden();
     await previa.getByRole('button', { name: 'Publicar no feed' }).click();
@@ -2435,13 +2442,52 @@ test.describe('cartão de prova no feed (#602)', () => {
 
     // No feed, o cartão traz o mesmo cabeçalho, o carimbo e o link para a corrigida.
     await page.goto('/aluno/inicio');
-    const artigo = page.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+    const artigo = page.locator('article').filter({ hasText: 'Nuno Dias' }).filter({ hasText: 'Redes de Computadores' });
     await expect(artigo).toBeVisible();
     const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
     await expect(cartao).toBeVisible();
     await expect(cartao.getByText('Ministério da Educação')).toBeVisible();
     await expect(cartao.getByText(/Ano letivo/)).toBeVisible();
     await expect(cartao.getByText('Positiva')).toBeVisible();
+    await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=5/);
+  });
+
+  test('com abertas por corrigir, o cartão do feed diz «A corrigir» e não a nota parcial (#788)', async ({ page }) => {
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    // A simulação 1 tem uma resposta aberta por corrigir: o ecrã de resultado já
+    // avisa disso, e a pré-visualização não pode estampar 16,4 como nota final.
+    await page.goto('/aluno/resultado?prova=1');
+    await expect(page.getByText(/1 resposta aberta ainda está a ser corrigida/)).toBeVisible();
+    const previa = page.getByLabel('Publicar o resultado no feed');
+    await expect(previa).toBeVisible();
+    await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
+    await expect(previa.getByText('Nota provisória')).toBeVisible();
+    await expect(previa.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
+    await expect(previa.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
+    await expect(previa.getByText('16,4')).toBeHidden();
+    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+    // No Início, o cartão do dono diz o mesmo que o resultado: ainda a corrigir,
+    // sem a nota parcial a fazer-se passar pela final.
+    await page.goto('/aluno/inicio');
+    const artigo = page.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+    await expect(artigo).toBeVisible();
+    const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
+    await expect(cartao).toBeVisible();
+    await expect(cartao.getByText('A corrigir', { exact: true })).toBeVisible();
+    await expect(cartao.getByText('Nota provisória')).toBeVisible();
+    await expect(cartao.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
+    await expect(cartao.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
+    await expect(cartao.getByText('16,4')).toBeHidden();
+    await expect(cartao.getByText('Positiva')).toBeHidden();
+    // O link continua a levar ao resultado, onde se vê a correção a acontecer.
     await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
     await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
   });
@@ -2481,13 +2527,13 @@ test.describe('cartão de prova no feed (#602)', () => {
   });
 
   test('desligar «Mostrar a nota» esconde-a dos colegas no feed (#801)', async ({ browser, page }) => {
-    // O Nuno tem a simulação 5 terminada e ainda não a publicou.
+    // A Sara tem a simulação 6 terminada e ainda não a publicou.
     await page.goto('/aluno/entrar');
-    await page.getByLabel('Utilizador ou email').fill('nuno.dias');
+    await page.getByLabel('Utilizador ou email').fill('sara.pinto');
     await page.locator('#password').fill(PASSWORD);
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
-    await page.goto('/aluno/resultado?prova=5');
+    await page.goto('/aluno/resultado?prova=6');
     const previa = page.getByLabel('Publicar o resultado no feed');
     await expect(previa).toBeVisible();
     await previa.getByRole('switch', { name: 'Mostrar a nota' }).click();
@@ -2503,7 +2549,7 @@ test.describe('cartão de prova no feed (#602)', () => {
     await colega.locator('#password').fill(PASSWORD);
     await colega.getByTestId('aluno-entrar-submeter').click();
     await expect(colega).toHaveURL(/\/aluno\/inicio/);
-    const artigo = colega.locator('article').filter({ hasText: 'Nuno Dias' }).filter({ hasText: 'Redes de Computadores' });
+    const artigo = colega.locator('article').filter({ hasText: 'Sara P.' }).filter({ hasText: 'Redes de Computadores' });
     await expect(artigo).toBeVisible();
     await expect(artigo.getByText('Nota escondida')).toBeVisible();
     await expect(artigo.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
