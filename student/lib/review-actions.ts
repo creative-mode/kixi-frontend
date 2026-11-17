@@ -1,8 +1,8 @@
 'use server';
 
-import { requireStudent } from './guard';
-import { apiPost } from './api';
-import { translateError } from './exam-rules';
+import { requireStudent } from './guard.ts';
+import { apiPost } from './api.ts';
+import { translateError } from './exam-rules.ts';
 
 export type ReviewRequestResult =
   | { ok: true; message: string }

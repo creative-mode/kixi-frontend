@@ -1,9 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pedirRevisaoAction } from './review-actions';
+
+// Mock do guard antes de importar review-actions
+const guardMock = {
+  requireStudent: async () => ({ id: 1, username: 'test' })
+};
+
+// Import dinâmico após mock
+const { pedirRevisaoAction } = await import('./review-actions.ts');
 
 // Mock do apiPost
-const originalApiPost = await import('./api').then(m => m.apiPost);
+const originalApiPost = await import('./api.ts').then(m => m.apiPost);
 
 // Helper para mockar apiPost
 let mockApiPost: typeof originalApiPost;

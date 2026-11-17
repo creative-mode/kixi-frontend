@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateScoreBreakdown, type ResultQuestion } from './result-rules';
+import { calculateScoreBreakdown, type ResultQuestion } from './result-rules.ts';
 
 function q(overrides: Partial<ResultQuestion> = {}): ResultQuestion {
   return {
