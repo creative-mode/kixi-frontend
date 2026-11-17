@@ -60,7 +60,7 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
   const v = verdict(question);
   const options = question.options ?? [];
   const shown = displayNumber(question);
-  const isOpenQuestion = options.length === 0;
+  const _isOpenQuestion = options.length === 0;
   const isAiGraded = question.aiLevel != null;
   const aiLevelLabel = question.aiLevel ? { TOTAL: 'Resposta completa', PARCIAL: 'Resposta parcial', MINIMA: 'Resposta mínima', NULA: 'Sem pontuação' }[question.aiLevel] : null;
   // TODO: aiConfidence deve vir do backend (campo aiConfidence no QuestionResult).
