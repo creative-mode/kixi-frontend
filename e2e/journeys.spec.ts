@@ -1048,7 +1048,6 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
   });
 
   test('aluno: a resposta que não chegou ao servidor sobrevive a recarregar e é recuperada (#587)', async ({ page }) => {
-    // Recarregar com respostas por confirmar pede confirmação ao browser: aceita-se, é o que o aluno faria.
     page.on('dialog', (dialogo) => void dialogo.accept());
     const id = randomUUID().replaceAll('-', '').slice(0, 12);
     await page.goto('/aluno/cadastro');
@@ -1072,22 +1071,111 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     const temRascunho = () => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('kixi:rascunho:')));
-
-    // Sem rede para gravar: só as server actions (têm o cabeçalho next-action) ficam sem resposta, a página continua a abrir.
     const semRede = (route: import('@playwright/test').Route) =>
       route.request().headers()['next-action'] ? route.abort('failed') : route.continue();
     await page.route('**/aluno/prova/**', semRede);
     await page.locator('label:has(input[type="radio"])').last().click();
     await expect.poll(temRascunho, { timeout: 15_000 }).toBe(true);
-    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toHaveCount(0);
-
-    // A rede volta e o aluno reabre a prova: a resposta regressa e é enviada.
     await page.unroute('**/aluno/prova/**', semRede);
     await page.reload();
     await expect(page.getByText(/Recuperámos 1 resposta/)).toBeVisible();
     await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toBeVisible();
-    // Confirmada pelo servidor, o rascunho local deixa de existir.
     await expect.poll(temRascunho, { timeout: 15_000 }).toBe(false);
+  });
+
+  test('aluno: resposta recuperada sob 3G continua confirmada quando o tempo nominal termina (#790)', async ({ page }) => {
+    test.setTimeout(90_000);
+    const baseline = process.env.ISSUE_790_BASELINE === 'true';
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    page.on('dialog', (dialogo) => void dialogo.accept());
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Network.enable');
+    const id = randomUUID().replaceAll('-', '').slice(0, 12);
+    await page.goto('/aluno/cadastro');
+    await page.getByLabel('Nome', { exact: true }).fill('Rita');
+    await page.getByLabel('Apelido').fill(`E2E${id}`);
+    await page.getByLabel('Utilizador').fill(`aluno${id}`);
+    await page.getByLabel('Email').fill(`aluno${id}@kixi.ao`);
+    await page.locator('#password').fill(PASSWORD);
+    await page.locator('#confirm').fill(PASSWORD);
+    await page.getByTestId('aluno-cadastro-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/onboarding/);
+    await page.getByLabel('Código de matrícula').fill('TESTE1234');
+    await page.getByRole('button', { name: 'Entrar na turma' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.goto('/aluno/provas');
+    await page.getByRole('link', { name: 'Ver a prova' }).first().click();
+    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
+    await page.getByRole('button', { name: 'Começar', exact: true }).click();
+    await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
+
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 400,
+      downloadThroughput: 400 * 1024 / 8,
+      uploadThroughput: 400 * 1024 / 8,
+      connectionType: 'cellular3g',
+    });
+
+    const temRascunho = () => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('kixi:rascunho:')));
+
+    // Sem rede para gravar, a escrita POST falha mas as leituras continuam disponíveis.
+    const chamadasBloqueadas: string[] = [];
+    const semRede = (route: import('@playwright/test').Route) => {
+      if (route.request().method() === 'POST') {
+        chamadasBloqueadas.push(route.request().url());
+        return route.abort('failed');
+      }
+      return route.continue();
+    };
+    await page.route('**/*', semRede);
+    const opcoesDaQuestao = page.locator('fieldset input[type="radio"]');
+    const optionCount = await opcoesDaQuestao.count();
+    const checkedIndex = await opcoesDaQuestao.evaluateAll((inputs) => inputs.findIndex((input) => (input as HTMLInputElement).checked));
+    const optionIndex = checkedIndex < 0 ? 0 : (checkedIndex + 1) % optionCount;
+    await opcoesDaQuestao.nth(optionIndex).evaluate((element) => {
+      const input = element as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set?.call(input, true);
+      input.dispatchEvent(new Event('click', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(opcoesDaQuestao.nth(optionIndex)).toBeChecked();
+    await expect.poll(() => chamadasBloqueadas.length, { timeout: 10_000 }).toBeGreaterThan(0);
+    await expect.poll(temRascunho, { timeout: 15_000 }).toBe(true);
+    await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toHaveCount(0);
+
+    // A resposta permanece apenas no dispositivo até o relógio chegar ao fim.
+    // Base: reproduz a perda; correcção: mantém o estado pendente e não declara rejeição.
+    await page.clock.setFixedTime(new Date(Date.now() + 60 * 60_000 + (baseline ? 130_000 : 0)));
+    await page.waitForTimeout(1_100);
+    await expect(page.getByText('O tempo desta prova terminou')).toBeVisible();
+    if (baseline) {
+      await expect(page.getByText(/vai ficar de fora|não chegou ao servidor/i)).toBeVisible();
+      await page.screenshot({ path: 'test-results/issue-790-before-desktop.png', fullPage: true });
+      return;
+    }
+
+    await expect(page.getByText(/ainda sem confirmação|a tentar enviar/i)).toBeVisible();
+    await expect(page.getByText(/vai ficar de fora|não chegou ao servidor|recusou/i)).toHaveCount(0);
+    await page.screenshot({ path: 'test-results/issue-790-after-desktop.png', fullPage: true });
+
+    // A rede regressa depois do fim nominal, dentro da tolerância do servidor.
+    await page.unroute('**/*', semRede);
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await expect.poll(temRascunho, { timeout: 15_000 }).toBe(false);
+    await expect(page.getByText('As respostas confirmadas estão guardadas. Podes entregar a prova.')).toBeVisible();
+    await page.screenshot({ path: 'test-results/issue-790-after-desktop.png', fullPage: true });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: 'test-results/issue-790-after-mobile.png', fullPage: true });
   });
 
   test('aluno: sem ligação avisa, guarda a resposta e a entrega falha sem partir a sala (#485)', async ({ page }) => {

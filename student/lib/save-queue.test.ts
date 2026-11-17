@@ -100,6 +100,7 @@ test('uma recusa definitiva não é repetida', async () => {
   await queue.request(1, A);
   assert.equal(calls, 1);
   assert.equal(queue.status(1).status, 'error');
+  assert.deepEqual(queue.rejected(), [1]);
 });
 
 test('uma excepção do envio conta como falha transitória', async () => {

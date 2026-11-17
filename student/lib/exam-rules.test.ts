@@ -318,8 +318,8 @@ test('verdadeiro/falso responde-se por opção, como qualquer escolha', () => {
 import { GRACE_MS, displayRemainingMs } from './exam-rules.ts';
 
 test('o relógio do aluno não conta a tolerância do servidor', () => {
-  assert.equal(GRACE_MS, 10_000);
-  assert.equal(displayRemainingMs(3_610_000), 3_600_000);
+  assert.equal(GRACE_MS, 120_000);
+  assert.equal(displayRemainingMs(3_610_000), 3_490_000);
 });
 
 test('o relógio nunca fica negativo e sem prazo continua sem prazo', () => {
@@ -331,7 +331,7 @@ test('o relógio nunca fica negativo e sem prazo continua sem prazo', () => {
 test('a urgência parte do que o aluno vê: âmbar aos 5 min, vermelho ao minuto', () => {
   // A auditoria de UX (M11) pede mudança de estilo aos 5 e aos 1 minutos. Os
   // limiares leem-se sobre `displayRemainingMs` — o número no ecrã, sem estarem já
-  // 10 s adiantados relativamente a ele por causa da tolerância do servidor.
+  // 2 min adiantados relativamente a ele por causa da tolerância do servidor.
   assert.equal(urgencyOf(null), 'calmo'); // sem limite, ou relógio por arrancar
   assert.equal(urgencyOf(300_001), 'calmo');
   assert.equal(urgencyOf(300_000), 'alerta');
