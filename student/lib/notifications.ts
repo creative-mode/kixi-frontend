@@ -74,7 +74,6 @@ async function notasDoMotor(me: Me, sims: RawSimulation[]): Promise<NotasDoMotor
       me,
       simulationId: s.id,
       statementId: Number(s.statement?.id),
-      statementTitle: s.statement?.title ?? null,
     });
     if (vista?.kind === 'corrigida' && vista.resultado.nota != null) {
       grades.set(s.id, { score: vista.resultado.nota, scale: escalaDaNota(vista.resultado) });
