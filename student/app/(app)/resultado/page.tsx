@@ -116,7 +116,7 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
               {question.aiFeedback && (
                 <p className="text-xs text-blue-800"><span className="font-medium">Justificação: </span>{question.aiFeedback}</p>
               )}
-              <PedirRevisaoButton simulationId={simulationId} questionId={question.questionId} questionNumber={shown} />
+              <PedirRevisaoButton simulationId={simulationId} questionId={question.questionId} />
             </div>
           )}
         </div>
