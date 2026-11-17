@@ -17,6 +17,9 @@ export interface FaseDaEspera {
 const SEGUNDO = 1000;
 const MINUTO = 60 * SEGUNDO;
 
+/** Passado este tempo o ecrã de espera deixa de ser só espera: mostra a nota provisória e a nova tentativa (#787). */
+export const SEM_SAIDA_MS = 10 * MINUTO;
+
 /**
  * A fase da espera a partir do tempo que passou. Os intervalos alongam-se, e nunca terminam: o ecrã continua a ler
  * (devagar) enquanto estiver à vista, em vez de desistir e mostrar uma falha.
@@ -45,8 +48,8 @@ export function faseDaEspera(decorridoMs: number): FaseDaEspera {
     id: 'demora',
     titulo: 'Ainda estamos a corrigir, com calma',
     mensagem: 'Corrigir bem leva tempo, e isso é normal: a tua prova está guardada e o resultado aparece assim que estiver pronto.',
-    conselho: t >= 10 * MINUTO ? 'Se quiseres, fecha este ecrã e volta mais tarde: o resultado fica nas tuas provas. Se demorar muito, fala com o teu professor.' : null,
-    intervaloMs: t >= 10 * MINUTO ? 30 * SEGUNDO : 15 * SEGUNDO,
+    conselho: t >= SEM_SAIDA_MS ? 'Se quiseres, fecha este ecrã e volta mais tarde: o resultado fica nas tuas provas. Se demorar muito, fala com o teu professor.' : null,
+    intervaloMs: t >= SEM_SAIDA_MS ? 30 * SEGUNDO : 15 * SEGUNDO,
   };
 }
 

@@ -19,9 +19,8 @@ import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
 import { getLeaderboard } from '@/lib/ranking';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
-import { CorrecaoRetry } from '@/components/correcao-retry';
 import { listInvitations } from '@/lib/exam-room';
-import { comCorrecao, eSimulacaoLivre, escalaDaNota } from '@/lib/schoolops/correcao-rules';
+import { comCorrecao, eSimulacaoLivre, escalaDaNota, notaProvisoria } from '@/lib/schoolops/correcao-rules';
 import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
@@ -140,24 +139,11 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   let totalMax = view.totalMaxScore;
   let result = resultadoDoBackend;
-  let correcaoState: { kind: string; notaProvisoria?: { pontos: number; maximo: number }; correcaoId?: string; motivo?: string; semGabarito?: boolean } | null = null;
   if (correcaoLigada() && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
-      const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId, statementTitle: view.title });
+      const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId });
       if (correcao && correcao.kind !== 'corrigida') {
-        // Extrai dados para o componente CorrecaoEmCurso
-        if (correcao.kind === 'falhou') {
-          correcaoState = { kind: 'falhou', notaProvisoria: correcao.notaProvisoria ?? undefined };
-        } else if (correcao.kind === 'recusada') {
-          correcaoState = { kind: 'recusada', motivo: correcao.motivo };
-        } else if (correcao.kind === 'conflito') {
-          correcaoState = { kind: 'conflito', correcaoId: correcao.correcaoId };
-        } else if (correcao.kind === 'incompleta') {
-          correcaoState = { kind: 'incompleta', semGabarito: correcao.semGabarito };
-        } else {
-          correcaoState = { kind: 'a-corrigir' };
-        }
         return (
           <Page>
             <FireEventOnce param="submetida" event="exam_submitted" />
@@ -165,29 +151,20 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <Column className="gap-5">
               <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
-                <CorrecaoEmCurso
-                  desdeMs={correcaoState.kind === 'falhou' ? 3 * 60_000 : 0}
-                  podeTentarDeNovo={correcaoState.kind === 'falhou' || correcaoState.kind === 'recusada' || correcaoState.kind === 'conflito'}
-                  aoTentarDeNovo={() => {}}
-                  notaProvisoria={correcaoState.notaProvisoria ?? null}
-                  erro={correcaoState.kind === 'falhou' || correcaoState.kind === 'recusada' ? correcaoState.kind : null}
-                  mensagemErro={correcaoState.motivo}
-                />
-                {correcaoState.kind === 'incompleta' && (
+                {correcao.kind === 'a-corrigir' && (
+                  <CorrecaoEmCurso simulationId={resultadoDoBackend.simulationId} provisoria={notaProvisoria(resultadoDoBackend)} />
+                )}
+                {correcao.kind === 'incompleta' && (
                   <p role="status" className="text-sm">
-                    {correcaoState.semGabarito
+                    {correcao.semGabarito
                       ? 'Esta prova ainda não tem gabarito nas questões abertas, por isso não conseguimos dar-te nota. Fala com o teu professor.'
                       : 'Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.'}
                   </p>
                 )}
-                {correcaoState.kind === 'conflito' && (
-                  <CorrecaoRetry
-                    aoTentarDeNovo={() => {
-                      // Force refresh by navigating to same URL with a timestamp
-                      window.location.href = `${window.location.pathname}?prova=${id}&retry=${Date.now()}`;
-                    }}
-                    label="Consultar estado da correcção"
-                  />
+                {/* O motor recusou o pedido ou a correção ficou com um incidente: não se espera, dá-se a nota das fechadas
+                    como provisória e uma nova tentativa (#787). */}
+                {correcao.kind === 'falhou' && (
+                  <CorrecaoEmCurso simulationId={resultadoDoBackend.simulationId} provisoria={notaProvisoria(resultadoDoBackend)} falha={correcao.motivo} />
                 )}
               </Card>
               <div className="flex flex-wrap items-start gap-2.5">
