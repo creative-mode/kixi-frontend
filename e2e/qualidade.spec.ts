@@ -240,10 +240,21 @@ test.describe('aparecer no ranking (#800)', () => {
       await naLiga.click();
       await expect(naLiga).toBeChecked();
     }
-    // A caixa de destaque fica por baixo da tabela e não nomeia o fundo.
-    await expect(page.getByText('Estás entre os 40% do meio', { exact: true })).toBeVisible();
-    await expect(page.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
-    await expect(page.getByText(/Os lugares de baixo não se mostram a ninguém/)).toBeVisible();
+    // Disposição revista: o interruptor é uma linha no topo e o destaque vem
+    // antes da tabela, não dois blocos grandes no fim da página.
+    const destaque = page.getByTestId('ranking-destaque');
+    await expect(destaque).toBeVisible();
+    const [switchBox, destaqueBox, tabelaBox] = await Promise.all([
+      naLiga.boundingBox(),
+      destaque.boundingBox(),
+      page.getByRole('table').boundingBox(),
+    ]);
+    expect(switchBox!.y).toBeLessThan(destaqueBox!.y);
+    expect(destaqueBox!.y).toBeLessThan(tabelaBox!.y);
+    // O destaque não nomeia o fundo da tabela.
+    await expect(destaque.getByText('Estás entre os 40% do meio', { exact: true })).toBeVisible();
+    await expect(destaque.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
+    await expect(destaque.getByText(/Os lugares de baixo não se mostram a ninguém/)).toBeVisible();
     await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
 
     // Desligar não tira a linha da tabela: só o nome desaparece, como a frase diz.

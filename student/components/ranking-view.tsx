@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Users } from 'lucide-react';
+import { TrendingUp, Users } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -98,6 +98,12 @@ export function RankingView({
           description="Média das simulações deste período. Vês o topo e quem está perto de ti."
         />
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
+        {/* A escolha é da conta, não da aba: fica no topo e sobrevive à troca de
+            âmbito. Uma linha compacta em vez do bloco grande da maquete, para a
+            tabela continuar à vista sem scrolling (#800). */}
+        <Card className="gap-0 px-4 py-0">
+          <RankingVisibility initial={initialVisibility} />
+        </Card>
         <Tabs value={scope} onValueChange={(v) => changeScope(v as RankingScope)}>
           <TabsList aria-label="Comparar com">
             {SCOPES.map((s) => <TabsTrigger key={s} value={s}>{SCOPE_LABEL[s]}</TabsTrigger>)}
@@ -163,7 +169,6 @@ export function RankingView({
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <Users className="size-4" aria-hidden />
                   {myPositionLabel(board.myPosition, board.totalStudents) ?? 'Ainda sem nota para te posicionar'}
-                  {band && <span>· {band}</span>}
                   {progress && <span>· {progress}</span>}
                   {board.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
                   {scope === 'global' && board.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
@@ -171,6 +176,23 @@ export function RankingView({
                 {scope === 'global' && <p className="text-sm text-muted-foreground">{globalNote(board.institutionsCounted, metric)}</p>}
                 {smallGroupNote(board.smallGroup) && (
                   <p className="text-sm text-muted-foreground">{smallGroupNote(board.smallGroup)}</p>
+                )}
+                {/* O destaque é o contexto da tabela, não um cartão solto no fim da
+                    página: fica logo acima dela e não repete a faixa da linha de
+                    posição. Mesmas cores da maquete, mas com a escala de um texto
+                    de leitura, para não competir com as notas. */}
+                {band && (
+                  <div data-testid="ranking-destaque" className="flex items-start gap-3 rounded-2xl border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] px-4 py-3">
+                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#dcecd9] text-[#1F5C2E]" aria-hidden="true">
+                      <TrendingUp className="size-4" />
+                    </span>
+                    <div className="grid min-w-0 gap-0.5 text-sm leading-snug">
+                      <strong className="font-bold text-[#121c15]">{band.replace(/\.$/, '')}</strong>
+                      <span className="text-[#6B6B6B]">
+                        {gap ? `${gap} ` : ''}Os lugares de baixo não se mostram a ninguém.
+                      </span>
+                    </div>
+                  </div>
                 )}
                 <Card className="overflow-hidden py-0">
                   <Table>
@@ -201,16 +223,6 @@ export function RankingView({
                     </TableBody>
                   </Table>
                 </Card>
-                {band && (
-                  <div className="rounded-[20px] border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] p-6">
-                    <p className="text-2xl font-bold leading-tight text-[#121c15]">
-                      {band.replace(/\.$/, '')}
-                    </p>
-                    <p className="mt-2 text-xl leading-relaxed text-[#6B6B6B]">
-                      {gap ? `${gap} ` : ''}Os lugares de baixo não se mostram a ninguém.
-                    </p>
-                  </div>
-                )}
               </>
             )}
 
@@ -221,9 +233,6 @@ export function RankingView({
             {scope === 'friends' && !pending && <FriendsPanel onChange={() => load('friends')} />}
           </TabsContent>
         </Tabs>
-        {/* Fica fora das Tabs para a escolha sobreviver à troca de âmbito, e por
-            baixo da caixa de destaque, como na maquete. */}
-        <RankingVisibility initial={initialVisibility} />
       </Column>
     </Page>
   );

@@ -20,8 +20,10 @@ import { cn } from '@/lib/utils';
  * só o nome sai, que é o que a frase promete. Quem já vinha de outro cliente com
  * um estado `hidden` vê-o explicado, em vez de o interruptor mentir.
  *
- * Na Liga segue a maquete (título 26px, switch 88×52); no Perfil entra em modo
- * `compact` para não romper a escala das restantes definições.
+ * Uma preferência global da conta, não um filtro da aba: fica no topo da Liga,
+ * numa linha compacta com o mesmo tamanho das outras definições do Perfil. O
+ * switch grande e o título de 26px da primeira maquete ocupavam mais espaço do
+ * que a decisão merecia e empurravam a tabela para fora do ecrã (#800).
  */
 export function RankingVisibility({
   initial,
@@ -42,21 +44,10 @@ export function RankingVisibility({
     : 'Não foi possível ler a tua preferência de ranking.';
   const copy = (
     <>
-      <span
-        className={cn(
-          'font-bold text-[#121c15]',
-          compact ? 'text-base' : 'text-[26px] leading-tight',
-        )}
-      >
+      <span className={cn('font-bold text-[#121c15] leading-snug', compact ? 'text-base' : 'text-[15px]')}>
         Aparecer no ranking
       </span>
-      <span
-        id="ranking-visibility-note"
-        className={cn(
-          'font-normal text-[#6B6B6B]',
-          compact ? 'text-[13px]' : 'text-xl leading-snug',
-        )}
-      >
+      <span id="ranking-visibility-note" className="text-[13px] leading-snug text-[#6B6B6B]">
         {note}
       </span>
     </>
@@ -93,16 +84,16 @@ export function RankingVisibility({
   }
 
   return (
-    <div className={cn('grid gap-1 py-4', compact && 'py-3.5', className)}>
-      <div className="flex items-center justify-between gap-4">
+    <div className={cn('grid gap-1 py-2', compact && 'py-3.5', className)}>
+      <div className="flex items-center justify-between gap-3">
         {preferences ? (
-          <Label htmlFor="ranking-visibility" className="grid gap-1 leading-snug">
+          <Label htmlFor="ranking-visibility" className="grid min-w-0 gap-0.5 leading-snug">
             {copy}
           </Label>
         ) : (
           // Sem preferência não há controlo para rotular: um <label for> sem
           // destino seria um rótulo órfão para quem lê o ecrã.
-          <div className="grid gap-1 leading-snug">{copy}</div>
+          <div className="grid min-w-0 gap-0.5 leading-snug">{copy}</div>
         )}
         {preferences ? (
           <Switch
@@ -111,15 +102,7 @@ export function RankingVisibility({
             disabled={pending}
             aria-describedby="ranking-visibility-note"
             onCheckedChange={change}
-            className={cn(
-              'border-0',
-              !compact &&
-                'h-[52px] w-[88px] bg-[#dde3da] data-[state=checked]:bg-[#1F5C2E]',
-            )}
-            thumbClassName={cn(
-              !compact &&
-                'size-11 bg-white shadow-sm data-[state=checked]:translate-x-[40px] data-[state=unchecked]:translate-x-1',
-            )}
+            className="bg-[#dde3da] data-[state=checked]:bg-[#1F5C2E]"
           />
         ) : (
           <Button type="button" variant="outline" size="sm" disabled={pending} onClick={retry}>
