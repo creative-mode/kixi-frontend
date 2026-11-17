@@ -10,10 +10,9 @@ import { cn } from '@/lib/utils';
 interface PedirRevisaoProps {
   simulationId: number;
   questionId: number;
-  questionNumber: string | number;
 }
 
-export function PedirRevisaoButton({ simulationId, questionId, questionNumber }: PedirRevisaoProps) {
+export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');

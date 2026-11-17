@@ -1,7 +1,7 @@
 'use server';
 
 import { requireStudent } from './guard';
-import { apiPost, apiPatch } from './api';
+import { apiPost } from './api';
 import { translateError } from './exam-rules';
 
 export type ReviewRequestResult =
