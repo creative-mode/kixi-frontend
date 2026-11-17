@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, FormEvent, useRef, useEffect } from 'react';
-import { AlertCircle, Send, X } from 'lucide-react';
+import { useState, FormEvent, useRef } from 'react';
+import { AlertCircle, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { pedirRevisaoAction } from '@/lib/review-actions';

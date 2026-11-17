@@ -1,4 +1,3 @@
-import { Card } from '@/components/ui/card';
 import { formatScore } from '@/lib/result-rules';
 
 interface ScoreBreakdownProps {
