@@ -254,6 +254,8 @@ export type MockPost = {
     durationMinutes?: number | null; schoolYear?: string | null; variant?: string | null;
     finalScore: number | null; maxScore: number | null;
     correctAnswers: number | null; totalQuestions: number | null; timeSpentSeconds: number | null;
+    /** Respostas abertas por corrigir quando a publicação foi feita (kixi#788). */
+    pendingReviewCount?: number | null;
   };
 };
 
