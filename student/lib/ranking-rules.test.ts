@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, nextPlaceGapShort, podiumGap, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, showsNameInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
+import { formatAverage, fromWireVisibility, globalNote, myPositionLabel, nextPlaceGap, nextPlaceGapShort, podiumGap, showPositionLine, toWireVisibility, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, showsNameInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
 
 test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
@@ -18,6 +18,18 @@ test('a média formata-se com uma casa decimal, e sem nota dá um traço', () =>
 test('a posição só aparece com nota rankeável', () => {
   assert.equal(myPositionLabel(5, 28), '5.º de 28');
   assert.equal(myPositionLabel(null, 28), null);
+});
+
+test('a linha da posição não aparece sem board, a carregar, em erro ou no 403 do global', () => {
+  const board = {
+    scope: 'class' as const, groupId: 1, statementId: null, period: 'all' as const,
+    totalStudents: 3, rankedStudents: 3, smallGroup: true, myPosition: 2, myAverage: 16.4,
+    entries: [],
+  };
+  assert.equal(showPositionLine(board, false, false), true);
+  assert.equal(showPositionLine(null, false, false), false);
+  assert.equal(showPositionLine(board, true, false), false);
+  assert.equal(showPositionLine(board, false, true), false);
 });
 
 test('o progresso até ao pódio respeita a métrica e não inventa dados ausentes', () => {
@@ -78,13 +90,25 @@ test('o texto do interruptor diz o que os colegas veem, em cada estado', () => {
   const anonymous: VisibilityPreferences = { class: 'anonymous', school: 'anonymous', friends: 'anonymous' };
   const mixed: VisibilityPreferences = { class: 'hidden', school: 'visible', friends: 'hidden' };
   const hidden: VisibilityPreferences = { class: 'hidden', school: 'hidden', friends: 'hidden' };
-  // Ligado ou desligado, a frase é a mesma que a maquete mostra: desligar deixa
-  // a linha na tabela, só o nome sai.
-  assert.match(visibilityNote(visible), /Desligado, os colegas veem «Um colega»/);
-  assert.match(visibilityNote(anonymous), /Um colega/);
+  // Cada estado tem a sua frase: ligado não pode dizer «desligado».
+  assert.match(visibilityNote(visible), /veem o teu nome/);
+  assert.doesNotMatch(visibilityNote(visible), /Desligado/);
+  assert.match(visibilityNote(anonymous), /veem «Um colega»/);
   assert.match(visibilityNote(mixed), /alguns rankings/);
   assert.match(visibilityNote(hidden), /não te veem no ranking/);
   assert.match(visibilityNote(hidden), /Continuas a ver a tua posição/);
+});
+
+test('a tradução out/hidden vive num só sítio', () => {
+  assert.equal(toWireVisibility('hidden'), 'out');
+  assert.equal(toWireVisibility('visible'), 'visible');
+  assert.equal(toWireVisibility('anonymous'), 'anonymous');
+  assert.equal(fromWireVisibility('out'), 'hidden');
+  // Aceita também a grafia antiga, por dados vindos de outro cliente.
+  assert.equal(fromWireVisibility('hidden'), 'hidden');
+  assert.equal(fromWireVisibility('anonymous'), 'anonymous');
+  assert.equal(fromWireVisibility('visible'), 'visible');
+  assert.equal(fromWireVisibility('desconhecido'), 'visible');
 });
 
 test('o próximo lugar mede-se pelo vizinho logo acima, sem inventar dados', () => {

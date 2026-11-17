@@ -4,6 +4,7 @@ import { forgetVisitedPages } from './refresh';
 import {
   getLeaderboard,
   loadRankingVisibility,
+  readRankingPreferences,
   setCrossInstitutionConsent,
   setRankingVisibility,
   type Leaderboard,
@@ -11,8 +12,8 @@ import {
   type RankingPeriod,
   type RankingScope,
 } from './ranking';
+import { syncRankingVisibility } from './ranking-visibility-sync';
 import {
-  VISIBILITY_SCOPES,
   type RankingVisibility,
   type VisibilityPreferences,
 } from './ranking-rules';
@@ -47,28 +48,23 @@ export async function setConsentAction(
 
 export type VisibilityResult =
   | { ok: true; preferences: VisibilityPreferences }
-  | { ok: false; message: string };
+  | { ok: false; message: string; preferences: VisibilityPreferences | null };
 
 /** O interruptor do #800 é um só, mas o #611 guarda uma resposta por âmbito:
  *  ligar escreve `visible` nos três, desligar escreve `anonymous` nos três (a
- *  linha fica, o nome sai — é o que a cópia promete). Só devolve sucesso quando
- *  as três escritas landaram: uma preferência meio escrita não pode aparecer
- *  como escolhida. */
+ *  linha fica, o nome sai — é o que a cópia promete). Em falha parcial, a
+ *  releitura diz ao ecrã o que o servidor guardou realmente. */
 export async function setRankingVisibilityAction(appear: boolean): Promise<VisibilityResult> {
   const preference: RankingVisibility = appear ? 'visible' : 'anonymous';
-  const results = await Promise.all(
-    VISIBILITY_SCOPES.map((scope) => setRankingVisibility(scope, preference)),
+  const result = await syncRankingVisibility(
+    (scope, value) => setRankingVisibility(scope, value),
+    readRankingPreferences,
+    preference,
   );
-  const failed = results.find((result) => !result.ok);
-  if (failed && !failed.ok) return { ok: false, message: failed.message };
-
+  // Mesmo uma falha parcial mudou o servidor: as páginas visitadas têm de ser
+  // refrescadas para a próxima leitura não usar dados antigos.
   forgetVisitedPages();
-  return {
-    ok: true,
-    preferences: Object.fromEntries(
-      VISIBILITY_SCOPES.map((scope) => [scope, preference]),
-    ) as VisibilityPreferences,
-  };
+  return result;
 }
 
 /** Releitura para o botão de tentar de novo quando a página abriu sem a preferência. */
@@ -76,5 +72,5 @@ export async function loadRankingVisibilityAction(): Promise<VisibilityResult> {
   const result = await loadRankingVisibility();
   return result.ok
     ? { ok: true, preferences: result.data }
-    : { ok: false, message: result.message };
+    : { ok: false, message: result.message, preferences: null };
 }

@@ -16,7 +16,20 @@ export type RankingVisibilityScope = Exclude<RankingScope, 'global'>;
 export type RankingVisibility = 'visible' | 'anonymous' | 'hidden';
 export type VisibilityPreferences = Record<RankingVisibilityScope, RankingVisibility>;
 
+/** O vocabulário do fio no kixi#619: `out` é o mesmo que o cliente chama `hidden`. */
+export type WireRankingVisibility = 'visible' | 'anonymous' | 'out';
+
 export const VISIBILITY_SCOPES: readonly RankingVisibilityScope[] = ['class', 'school', 'friends'];
+
+/** A única tradução entre o contrato do backend e o nome usado no cliente. */
+export function toWireVisibility(value: RankingVisibility): WireRankingVisibility {
+  return value === 'hidden' ? 'out' : value;
+}
+
+export function fromWireVisibility(value: string): RankingVisibility {
+  if (value === 'out' || value === 'hidden') return 'hidden';
+  return value === 'anonymous' ? 'anonymous' : 'visible';
+}
 
 /** O interruptor está ligado quando o aluno aparece com o nome em todos os
  *  âmbitos. Desligado, a linha fica mas o nome sai; só um estado `hidden` (vindo
@@ -25,9 +38,9 @@ export function showsNameInRanking(preferences: VisibilityPreferences): boolean 
   return VISIBILITY_SCOPES.every((scope) => preferences[scope] === 'visible');
 }
 
-/** O que os colegas veem, por palavras (#800). O interruptor é um só e desligar
- *  escreve `anonymous`: a frase explica isso mesmo. Um estado `hidden` vindo de
- *  outro cliente é dito como é, em vez de o interruptor mentir. */
+/** O que os colegas veem, por palavras (#800): uma frase por estado, para a
+ *  legenda nunca descrever o estado contrário ao do interruptor. Desligar
+ *  escreve `anonymous`; um `out`/`hidden` vindo de outro cliente é dito como é. */
 export function visibilityNote(preferences: VisibilityPreferences): string {
   const hidden = VISIBILITY_SCOPES.filter((scope) => preferences[scope] === 'hidden');
 
@@ -37,7 +50,10 @@ export function visibilityNote(preferences: VisibilityPreferences): string {
   if (hidden.length > 0) {
     return 'Apareces em alguns rankings e não em outros. Liga para apareceres com o teu nome em todos, ou desliga para ficares como «Um colega».';
   }
-  return 'Desligado, os colegas veem «Um colega».';
+  if (showsNameInRanking(preferences)) {
+    return 'Os colegas veem o teu nome no ranking.';
+  }
+  return 'Os colegas veem «Um colega» no teu lugar.';
 }
 
 /** Onde o aluno está na tabela, dito sem nomear o fundo (#800): topo, meio, ou
@@ -102,6 +118,13 @@ export function formatAverage(value: number | null): string {
 export function myPositionLabel(myPosition: number | null, totalStudents: number): string | null {
   if (myPosition == null) return null;
   return `${myPosition}.º de ${totalStudents}`;
+}
+
+/** A linha da posição só existe quando há uma tabela para a contextualizar.
+ *  Sem board (erro, 403 do global ou carregamento) dizer «Ainda sem nota» seria
+ *  inventar uma situação que o servidor não confirmou (#812). */
+export function showPositionLine(board: Leaderboard | null, pending: boolean, blocked: boolean): boolean {
+  return board !== null && !pending && !blocked;
 }
 
 /** Progresso até ao pódio, apenas quando o backend forneceu as duas pontuações. */

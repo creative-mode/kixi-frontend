@@ -263,8 +263,8 @@ test.describe('aparecer no ranking (#800)', () => {
     // O destaque não nomeia o fundo da tabela.
     await expect(destaque.getByText('Estás entre os 40% do meio', { exact: true })).toBeVisible();
     await expect(destaque.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
-    await expect(destaque.getByText(/Os lugares de baixo não se mostram a ninguém/)).toBeVisible();
-    await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
+    await expect(destaque.getByText(/Mostramos só as posições próximas da tua/)).toBeVisible();
+    await expect(page.getByText(/Os colegas veem o teu nome no ranking/)).toBeVisible();
 
     // Na aba de amigos o cartão verde não encosta ao painel «Os teus amigos».
     await page.getByRole('tab', { name: 'Amigos' }).click();
@@ -281,12 +281,12 @@ test.describe('aparecer no ranking (#800)', () => {
     // Desligar não tira a linha da tabela: só o nome desaparece, como a frase diz.
     await naLiga.click();
     await expect(naLiga).not.toBeChecked();
-    await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
+    await expect(page.getByText(/Os colegas veem «Um colega» no teu lugar/)).toBeVisible();
 
     await page.goto(`/aluno/perfil?tab=${encodeURIComponent('Definições')}`);
     const noPerfil = page.getByRole('switch', { name: /Aparecer no ranking/ });
     await expect(noPerfil).not.toBeChecked();
-    await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
+    await expect(page.getByText(/Os colegas veem «Um colega» no teu lugar/)).toBeVisible();
 
     // Repõe o estado visível para os testes seguintes, que contam com os colegas.
     await noPerfil.click();
@@ -530,6 +530,8 @@ test.describe('ranking global e métrica', () => {
     expect(await graves(page)).toEqual([]);
     await retirar.click();
     await expect(participar).toBeVisible();
+    // Sem board (o 403 do global pede consentimento), não há linha de posição.
+    await expect(page.getByTestId('ranking-posicao')).toHaveCount(0);
 
     await page.getByRole('tab', { name: 'Turma' }).click();
     await page.getByLabel('Ordenar por').selectOption('xp');

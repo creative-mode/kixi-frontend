@@ -15,10 +15,10 @@ import { cn } from '@/lib/utils';
 
 /**
  * O interruptor «Aparecer no ranking» (#800), um só para a turma, a escola e os
- * amigos. O backend do #611 guarda uma resposta por âmbito; aqui ligar escreve
- * `visible` nos três e desligar escreve `anonymous` — a linha fica na tabela,
- * só o nome sai, que é o que a frase promete. Quem já vinha de outro cliente com
- * um estado `hidden` vê-o explicado, em vez de o interruptor mentir.
+ * amigos. O backend do #611 (kixi#619) guarda uma resposta por âmbito; aqui
+ * ligar escreve `visible` nos três e desligar escreve `anonymous` — a linha fica
+ * na tabela, só o nome sai, que é o que a frase promete. Quem já vinha de outro
+ * cliente com um estado `out` vê-o explicado, em vez de o interruptor mentir.
  *
  * Uma preferência global da conta, não um filtro da aba: fica no topo da Liga,
  * numa linha compacta com o mesmo tamanho das outras definições do Perfil. O
@@ -68,7 +68,9 @@ export function RankingVisibility({
       if (result.ok) {
         setPreferences(result.preferences);
       } else {
-        setPreferences(before);
+        // Falha parcial: o servidor é a fonte da verdade. Só se mantém o valor
+        // anterior quando nem a releitura foi possível.
+        setPreferences(result.preferences ?? before);
         setError(result.message);
       }
     });
@@ -102,7 +104,7 @@ export function RankingVisibility({
             disabled={pending}
             aria-describedby="ranking-visibility-note"
             onCheckedChange={change}
-            className="bg-[#dde3da] data-[state=checked]:bg-[#1F5C2E]"
+            className="bg-[#7f8f85] data-[state=checked]:bg-[#1F5C2E]"
           />
         ) : (
           <Button type="button" variant="outline" size="sm" disabled={pending} onClick={retry}>

@@ -1,5 +1,6 @@
 import * as friends from '../friends';
 import { institutionsCounted as countInstitutions, rankGlobal } from '../global-ranking';
+import { VISIBILITY_SCOPES, fromWireVisibility, toWireVisibility, type RankingVisibilityScope } from '../../ranking-rules';
 
 import { json, maskedName, problem } from '../store';
 import type { MockCtx } from '../store';
@@ -150,26 +151,34 @@ export async function rankingRoutes({ method, pathname, search, filter, body, te
     });
   }
 
-  // ── visibilidade do ranking (#611) ─────────────────────────────────────────
-  // Espelha GET/PUT /leaderboard/visibility do PR #621: o âmbito vem do pedido,
-  // mas a conta vem sempre da sessão. Sem linha guardada, o backend responde
-  // `visible`.
-  if (pathname === '/leaderboard/visibility' && method === 'GET') {
-    const scope = search.get('scope') ?? 'class';
-    if (!['class', 'school', 'friends', 'global'].includes(scope)) {
-      return problem(400, 'scope must be class, school, friends or global');
-    }
-    return json({ scope, preference: db.rankingVisibility[`${account.id}:${scope}`] ?? 'visible' });
+  // ── preferências de visibilidade (#611, contrato do kixi#619) ─────────────
+  // Uma leitura devolve os três âmbitos; o PUT escreve um e devolve o estado
+  // completo, como o LeaderboardController. A conta vem sempre da sessão.
+  // `out` guarda-se como `hidden`, o nome que a janela usa ao filtrar linhas.
+  const visibilityResponse = () => json({
+    preferences: VISIBILITY_SCOPES.map((scope) => ({
+      scope,
+      rankingVisibility: toWireVisibility(fromWireVisibility(
+        db.rankingVisibility[`${account.id}:${scope}`] ?? 'visible',
+      )),
+    })),
+  });
+
+  if (pathname === '/leaderboard/preferences' && method === 'GET') {
+    return visibilityResponse();
   }
 
-  if (pathname === '/leaderboard/visibility' && method === 'PUT') {
-    const scope = text('scope');
-    const preference = text('preference');
-    if (!['class', 'school', 'friends', 'global'].includes(scope) || !['visible', 'anonymous', 'hidden'].includes(preference)) {
-      return problem(400, 'scope and preference are required: visible, anonymous or hidden');
+  if (pathname.startsWith('/leaderboard/preferences/') && method === 'PUT') {
+    const scope = pathname.slice('/leaderboard/preferences/'.length);
+    const rankingVisibility = text('rankingVisibility');
+    if (!VISIBILITY_SCOPES.includes(scope as RankingVisibilityScope)) {
+      return problem(400, 'scope must be class, school or friends');
     }
-    db.rankingVisibility[`${account.id}:${scope}`] = preference;
-    return json({ scope, preference });
+    if (!['visible', 'anonymous', 'out'].includes(rankingVisibility)) {
+      return problem(400, 'rankingVisibility must be visible, anonymous or out');
+    }
+    db.rankingVisibility[`${account.id}:${scope}`] = fromWireVisibility(rankingVisibility);
+    return visibilityResponse();
   }
 
   if (pathname === '/leaderboard/consent' && method === 'PUT') {

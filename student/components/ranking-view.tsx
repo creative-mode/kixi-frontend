@@ -14,7 +14,7 @@ import { FriendsPanel } from '@/components/friends-panel';
 import { RankingVisibility } from '@/components/ranking-visibility';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
-import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, nextPlaceGapShort, podiumGap, relativeBandLabel, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, nextPlaceGapShort, podiumGap, relativeBandLabel, showPositionLine, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
 import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { useMe } from '@/lib/me-context';
 import { photoUrl } from '@/lib/profile';
@@ -127,15 +127,18 @@ export function RankingView({
           </div>
 
           {/* A posição é o contexto da tabela: fica logo acima do ranking, depois
-              dos filtros, para «onde estou?» ser respondido onde a lista é lida. */}
-          <div data-testid="ranking-posicao" className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
-            <Users className="size-4" aria-hidden />
-            {posicao ?? 'Ainda sem nota para te posicionar'}
-            {progress && <span>· {progress}</span>}
-            {board?.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
-            {gapCurto && <span>· {gapCurto}</span>}
-            {scope === 'global' && board?.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
-          </div>
+              dos filtros. Sem board (erro, consentimento ou carregamento) não há
+              posição para mostrar: «Ainda sem nota» seria uma afirmação falsa. */}
+          {board && showPositionLine(board, pending, needsConsent || Boolean(boardError)) && (
+            <div data-testid="ranking-posicao" className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+              <Users className="size-4" aria-hidden />
+              {posicao ?? 'Ainda sem nota para te posicionar'}
+              {progress && <span>· {progress}</span>}
+              {board.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
+              {gapCurto && <span>· {gapCurto}</span>}
+              {scope === 'global' && board.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
+            </div>
+          )}
 
           <TabsContent value={scope} aria-busy={pending} aria-label={`Ranking ${SCOPE_LABEL[scope]}`}>
             {pending ? (
@@ -219,7 +222,7 @@ export function RankingView({
                     <div className="grid min-w-0 gap-0.5 text-sm leading-snug">
                       <strong className="font-bold text-[#121c15]">{band.replace(/\.$/, '')}</strong>
                       <span className="text-[#6B6B6B]">
-                        {gap ? `${gap} ` : ''}Os lugares de baixo não se mostram a ninguém.
+                        {gap ? `${gap} ` : ''}Mostramos só as posições próximas da tua.
                       </span>
                     </div>
                   </div>
