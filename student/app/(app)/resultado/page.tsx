@@ -20,7 +20,7 @@ import { getBadges, getStats } from '@/lib/stats';
 import { getLeaderboard } from '@/lib/ranking';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
 import { listInvitations } from '@/lib/exam-room';
-import { comCorrecao, eSimulacaoLivre, escalaDaNota } from '@/lib/schoolops/correcao-rules';
+import { comCorrecao, eSimulacaoLivre, escalaDaNota, notaProvisoria } from '@/lib/schoolops/correcao-rules';
 import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
@@ -142,7 +142,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   if (correcaoLigada() && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
-      const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId, statementTitle: view.title });
+      const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId });
       if (correcao && correcao.kind !== 'corrigida') {
         return (
           <Page>
@@ -151,7 +151,9 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <Column className="gap-5">
               <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
-                {correcao.kind === 'a-corrigir' && <CorrecaoEmCurso />}
+                {correcao.kind === 'a-corrigir' && (
+                  <CorrecaoEmCurso simulationId={resultadoDoBackend.simulationId} provisoria={notaProvisoria(resultadoDoBackend)} />
+                )}
                 {correcao.kind === 'incompleta' && (
                   <p role="status" className="text-sm">
                     {correcao.semGabarito
@@ -159,8 +161,11 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                       : 'Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.'}
                   </p>
                 )}
-                {/* O motor atrasou-se: para o aluno é só mais tempo, com a prova guardada. Nunca um erro. */}
-                {correcao.kind === 'falhou' && <CorrecaoEmCurso desdeMs={3 * 60_000} />}
+                {/* O motor recusou o pedido ou a correção ficou com um incidente: não se espera, dá-se a nota das fechadas
+                    como provisória e uma nova tentativa (#787). */}
+                {correcao.kind === 'falhou' && (
+                  <CorrecaoEmCurso simulationId={resultadoDoBackend.simulationId} provisoria={notaProvisoria(resultadoDoBackend)} falha={correcao.motivo} />
+                )}
               </Card>
               <div className="flex flex-wrap items-start gap-2.5">
                 {statementId != null && <RefazerSimulacao statementId={statementId} />}

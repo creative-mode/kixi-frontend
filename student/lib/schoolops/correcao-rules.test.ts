@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { test } from 'node:test';
-import { assinaturaValida, eSimulacaoLivre, escalaDaNota, pedidoDeCorrecao, vistaDaCorrecao } from './correcao-rules.ts';
+import { assinaturaValida, correcaoIdDoConflito, eSimulacaoLivre, escalaDaNota, notaProvisoria, pedidoDeCorrecao, vistaDaCorrecao, vistaDeUmaRecusa } from './correcao-rules.ts';
 
 const me = { accountId: 3, first_name: 'Ana', last_name: 'Domingos', username: 'ana.domingos', school: { id: 1, name: 'Instituto', code: 'ITEL' } };
 
@@ -16,21 +16,22 @@ test('corrigida mostra o resultado; sem respostas legíveis diz-se incompleta, n
 });
 
 test('uma correcção cancelada ou com incidente é uma falha, não uma espera eterna', () => {
-  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'CANCELADA' }).kind, 'falhou');
-  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'INCIDENTE' }).kind, 'falhou');
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'CANCELADA' }), { kind: 'falhou', motivo: 'incidente' });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'FALHADA' }), { kind: 'falhou', motivo: 'incidente' });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'INCIDENTE' }), { kind: 'falhou', motivo: 'incidente' });
 });
 
 test('o pedido leva a instituição, a prova, a simulação e o aluno, e usa o username sem nome', () => {
-  const p = pedidoDeCorrecao({ me, simulationId: 9, statementId: 2, statementTitle: 'P1', callbackUrl: 'https://k/e' });
+  const p = pedidoDeCorrecao({ me, simulationId: 9, statementId: 2, callbackUrl: 'https://k/e' });
   assert.equal(p?.correcaoRef, 'kixi-sim-9');
   assert.deepEqual(p?.org, { sourcedId: '1', nome: 'Instituto', sigla: 'ITEL' });
   assert.deepEqual(p?.simulacao, { sourcedId: '9' });
   assert.equal(p?.aluno.nome, 'Ana Domingos');
-  assert.equal(pedidoDeCorrecao({ me: { ...me, first_name: null, last_name: null }, simulationId: 9, statementId: 2, statementTitle: null, callbackUrl: 'x' })?.aluno.nome, 'ana.domingos');
+  assert.equal(pedidoDeCorrecao({ me: { ...me, first_name: null, last_name: null }, simulationId: 9, statementId: 2, callbackUrl: 'x' })?.aluno.nome, 'ana.domingos');
 });
 
 test('um aluno sem escola usa a organização geral do Kixi em vez de ficar sem pedido', () => {
-  const p = pedidoDeCorrecao({ me: { ...me, school: null }, simulationId: 1, statementId: 1, statementTitle: null, callbackUrl: 'x' });
+  const p = pedidoDeCorrecao({ me: { ...me, school: null }, simulationId: 1, statementId: 1, callbackUrl: 'x' });
   assert.deepEqual(p?.org, { sourcedId: 'kixi', nome: 'Kixi', sigla: 'KIXI' });
 });
 
@@ -113,4 +114,34 @@ test('sem gabarito numa questão aberta diz-se, em vez de culpar a leitura das r
 
 test('uma correcção FALHADA (incidente no motor) é uma falha, não uma espera', () => {
   assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'FALHADA' }).kind, 'falhou');
+});
+
+// ── #787: recusa, 409, nota provisória ───────────────────────────────────────
+
+test('o pedido só leva o que o contrato exige: o título da prova, que o professor pode editar, não segue', () => {
+  const p = pedidoDeCorrecao({ me, simulationId: 9, statementId: 2, callbackUrl: 'https://k/e' });
+  assert.deepEqual(p.prova, { sourcedId: '2' });
+});
+
+test('um 4xx do motor (menos 408 e 429) é uma recusa; rede, 5xx, 408 e 429 são só atraso', () => {
+  for (const status of [400, 401, 403, 404, 422]) assert.deepEqual(vistaDeUmaRecusa(status), { kind: 'falhou', motivo: 'recusada' }, String(status));
+  for (const status of [0, 408, 429, 500, 502, 503, 504]) assert.deepEqual(vistaDeUmaRecusa(status), { kind: 'a-corrigir' }, String(status));
+});
+
+test('o 409 do motor traz o identificador da correcção que já existe', () => {
+  const problema = JSON.stringify({ status: 409, title: 'Conflict', detail: 'A correcção CR-0A5ECDCA54339EB3 já existe com outro conteúdo.' });
+  assert.equal(correcaoIdDoConflito(problema), 'CR-0A5ECDCA54339EB3');
+  assert.equal(correcaoIdDoConflito('{"detail":"outro erro"}'), null);
+  assert.equal(correcaoIdDoConflito('CR-123 curto'), null);
+  assert.equal(correcaoIdDoConflito(null), null);
+});
+
+test('a nota provisória soma só as questões fechadas já pontuadas e nunca inventa uma', () => {
+  const q = (reviewStatus: string, scoreObtained: number | null, maxScore: number) => ({ questionId: 1, reviewStatus, scoreObtained, maxScore }) as never;
+  const base = { simulationId: 1, finalScore: null, pendingReviewCount: 2 };
+  const com = (questions?: unknown[]) => notaProvisoria({ ...base, questions } as never);
+  assert.deepEqual(com([q('AUTO_GRADED', 2, 2), q('AUTO_GRADED', 0, 3), q('PENDING_REVIEW', null, 6)]), { pontos: 2, maximo: 5 });
+  assert.equal(com([q('PENDING_REVIEW', null, 6)]), null);
+  assert.equal(com([]), null);
+  assert.equal(com(undefined), null);
 });
