@@ -198,7 +198,7 @@ export function PerfilView({
               <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c]">{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</span>
             </div>
             {/* #800: um interruptor só, mas o #611 guarda a resposta por âmbito. */}
-            <RankingVisibility initial={rankingVisibility} className="border-t border-[#eef0ec]" />
+            <RankingVisibility initial={rankingVisibility} compact className="border-t border-[#eef0ec]" />
             <VisibilityPicker initial={visibility} />
             <Link href="/pautas" className="flex min-h-[58px] items-center gap-3 border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]"><span className="flex-1">As minhas pautas</span><Ico name="chevron" size={18} className="text-[#7a857d]" aria-hidden /></Link>
             <a href={`${landingOrigin ?? ''}/privacidade`} className="flex min-h-[58px] items-center border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]">Privacidade</a>

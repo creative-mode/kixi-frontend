@@ -240,20 +240,24 @@ test.describe('aparecer no ranking (#800)', () => {
       await naLiga.click();
       await expect(naLiga).toBeChecked();
     }
-    await expect(page.getByText(/Os colegas veem o teu nome abreviado/)).toBeVisible();
+    // A caixa de destaque fica por baixo da tabela e não nomeia o fundo.
+    await expect(page.getByText('Estás entre os 40% do meio', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
+    await expect(page.getByText(/Os lugares de baixo não se mostram a ninguém/)).toBeVisible();
+    await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
 
+    // Desligar não tira a linha da tabela: só o nome desaparece, como a frase diz.
     await naLiga.click();
-    await expect(page.getByText(/Os colegas não te veem no ranking/)).toBeVisible();
     await expect(naLiga).not.toBeChecked();
+    await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
 
     await page.goto(`/aluno/perfil?tab=${encodeURIComponent('Definições')}`);
     const noPerfil = page.getByRole('switch', { name: /Aparecer no ranking/ });
     await expect(noPerfil).not.toBeChecked();
-    await expect(page.getByText(/Os colegas não te veem no ranking/)).toBeVisible();
+    await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
 
     // Repõe o estado visível para os testes seguintes, que contam com os colegas.
     await noPerfil.click();
-    await expect(page.getByText(/Os colegas veem o teu nome abreviado/)).toBeVisible();
     await expect(noPerfil).toBeChecked();
   });
 });

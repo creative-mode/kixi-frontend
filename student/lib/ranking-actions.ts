@@ -49,12 +49,13 @@ export type VisibilityResult =
   | { ok: true; preferences: VisibilityPreferences }
   | { ok: false; message: string };
 
-/** O interruptor do #800 é um só, mas o #611 guarda uma resposta por âmbito: ligar
- *  escreve `visible` nos três, desligar escreve `hidden` nos três. Só devolve
- *  sucesso quando as três escritas landaram — uma preferência meio escrita não
- *  pode aparecer como escolhida. */
+/** O interruptor do #800 é um só, mas o #611 guarda uma resposta por âmbito:
+ *  ligar escreve `visible` nos três, desligar escreve `anonymous` nos três (a
+ *  linha fica, o nome sai — é o que a cópia promete). Só devolve sucesso quando
+ *  as três escritas landaram: uma preferência meio escrita não pode aparecer
+ *  como escolhida. */
 export async function setRankingVisibilityAction(appear: boolean): Promise<VisibilityResult> {
-  const preference: RankingVisibility = appear ? 'visible' : 'hidden';
+  const preference: RankingVisibility = appear ? 'visible' : 'anonymous';
   const results = await Promise.all(
     VISIBILITY_SCOPES.map((scope) => setRankingVisibility(scope, preference)),
   );

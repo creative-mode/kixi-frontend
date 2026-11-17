@@ -14,7 +14,7 @@ import { FriendsPanel } from '@/components/friends-panel';
 import { RankingVisibility } from '@/components/ranking-visibility';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
-import { formatAverage, globalNote, myPositionLabel, podiumGap, relativeBandLabel, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, relativeBandLabel, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
 import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { useMe } from '@/lib/me-context';
 import { photoUrl } from '@/lib/profile';
@@ -88,6 +88,7 @@ export function RankingView({
   };
   const progress = board ? podiumGap(board, metric) : null;
   const band = board ? relativeBandLabel(board.myPosition, board.totalStudents) : null;
+  const gap = board ? nextPlaceGap(board, metric) : null;
 
   return (
     <Page variant="wide">
@@ -96,9 +97,6 @@ export function RankingView({
           title={pending ? `A carregar ${SCOPE_LABEL[scope]}…` : `Ranking · ${SCOPE_LABEL[scope]}`}
           description="Média das simulações deste período. Vês o topo e quem está perto de ti."
         />
-        <Card className="px-5 py-1">
-          <RankingVisibility initial={initialVisibility} />
-        </Card>
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
         <Tabs value={scope} onValueChange={(v) => changeScope(v as RankingScope)}>
           <TabsList aria-label="Comparar com">
@@ -203,6 +201,16 @@ export function RankingView({
                     </TableBody>
                   </Table>
                 </Card>
+                {band && (
+                  <div className="rounded-[20px] border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] p-6">
+                    <p className="text-2xl font-bold leading-tight text-[#121c15]">
+                      {band.replace(/\.$/, '')}
+                    </p>
+                    <p className="mt-2 text-xl leading-relaxed text-[#6B6B6B]">
+                      {gap ? `${gap} ` : ''}Os lugares de baixo não se mostram a ninguém.
+                    </p>
+                  </div>
+                )}
               </>
             )}
 
@@ -213,6 +221,9 @@ export function RankingView({
             {scope === 'friends' && !pending && <FriendsPanel onChange={() => load('friends')} />}
           </TabsContent>
         </Tabs>
+        {/* Fica fora das Tabs para a escolha sobreviver à troca de âmbito, e por
+            baixo da caixa de destaque, como na maquete. */}
+        <RankingVisibility initial={initialVisibility} />
       </Column>
     </Page>
   );

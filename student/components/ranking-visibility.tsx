@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { loadRankingVisibilityAction, setRankingVisibilityAction } from '@/lib/ranking-actions';
 import {
   VISIBILITY_SCOPES,
-  appearsInRanking,
+  showsNameInRanking,
   visibilityNote,
   type VisibilityPreferences,
 } from '@/lib/ranking-rules';
@@ -16,29 +16,47 @@ import { cn } from '@/lib/utils';
 /**
  * O interruptor «Aparecer no ranking» (#800), um só para a turma, a escola e os
  * amigos. O backend do #611 guarda uma resposta por âmbito; aqui ligar escreve
- * `visible` nos três e desligar escreve `hidden`, e a frase diz o que os colegas
- * veem em cada estado. Quem já vinha de outro cliente com um estado anónimo vê-o
- * explicado, em vez de o interruptor mentir.
+ * `visible` nos três e desligar escreve `anonymous` — a linha fica na tabela,
+ * só o nome sai, que é o que a frase promete. Quem já vinha de outro cliente com
+ * um estado `hidden` vê-o explicado, em vez de o interruptor mentir.
+ *
+ * Na Liga segue a maquete (título 26px, switch 88×52); no Perfil entra em modo
+ * `compact` para não romper a escala das restantes definições.
  */
 export function RankingVisibility({
   initial,
+  compact = false,
   className,
 }: {
   initial: VisibilityPreferences | null;
+  compact?: boolean;
   className?: string;
 }) {
   const [preferences, setPreferences] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  const appearing = preferences ? appearsInRanking(preferences) : false;
+  const appearing = preferences ? showsNameInRanking(preferences) : false;
   const note = preferences
     ? visibilityNote(preferences)
     : 'Não foi possível ler a tua preferência de ranking.';
   const copy = (
     <>
-      <span className="text-base">Aparecer no ranking</span>
-      <span id="ranking-visibility-note" className="text-[13px] font-normal text-muted-foreground">
+      <span
+        className={cn(
+          'font-bold text-[#121c15]',
+          compact ? 'text-base' : 'text-[26px] leading-tight',
+        )}
+      >
+        Aparecer no ranking
+      </span>
+      <span
+        id="ranking-visibility-note"
+        className={cn(
+          'font-normal text-[#6B6B6B]',
+          compact ? 'text-[13px]' : 'text-xl leading-snug',
+        )}
+      >
         {note}
       </span>
     </>
@@ -47,7 +65,7 @@ export function RankingVisibility({
   function change(next: boolean) {
     if (!preferences) return;
     const before = preferences;
-    const preference = next ? 'visible' : 'hidden';
+    const preference = next ? 'visible' : 'anonymous';
     setPreferences(
       Object.fromEntries(
         VISIBILITY_SCOPES.map((scope) => [scope, preference]),
@@ -75,16 +93,16 @@ export function RankingVisibility({
   }
 
   return (
-    <div className={cn('grid gap-1 py-3.5', className)}>
-      <div className="flex items-start justify-between gap-4">
+    <div className={cn('grid gap-1 py-4', compact && 'py-3.5', className)}>
+      <div className="flex items-center justify-between gap-4">
         {preferences ? (
-          <Label htmlFor="ranking-visibility" className="grid gap-0.5 leading-snug">
+          <Label htmlFor="ranking-visibility" className="grid gap-1 leading-snug">
             {copy}
           </Label>
         ) : (
           // Sem preferência não há controlo para rotular: um <label for> sem
           // destino seria um rótulo órfão para quem lê o ecrã.
-          <div className="grid gap-0.5 leading-snug">{copy}</div>
+          <div className="grid gap-1 leading-snug">{copy}</div>
         )}
         {preferences ? (
           <Switch
@@ -93,6 +111,15 @@ export function RankingVisibility({
             disabled={pending}
             aria-describedby="ranking-visibility-note"
             onCheckedChange={change}
+            className={cn(
+              'border-0',
+              !compact &&
+                'h-[52px] w-[88px] bg-[#dde3da] data-[state=checked]:bg-[#1F5C2E]',
+            )}
+            thumbClassName={cn(
+              !compact &&
+                'size-11 bg-white shadow-sm data-[state=checked]:translate-x-[40px] data-[state=unchecked]:translate-x-1',
+            )}
           />
         ) : (
           <Button type="button" variant="outline" size="sm" disabled={pending} onClick={retry}>

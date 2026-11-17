@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatAverage, globalNote, myPositionLabel, podiumGap, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, appearsInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, smallGroupNote, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, showsNameInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
 
 test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
@@ -67,15 +67,15 @@ test('a faixa relativa fala do topo e do meio, mas nunca nomeia o fundo', () => 
   assert.equal(relativeBandLabel(3, 0), null);
 });
 
-test('o interruptor liga-se enquanto o aluno aparecer em pelo menos um âmbito', () => {
+test('o interruptor só está ligado quando o nome aparece nos três âmbitos', () => {
   const visible: VisibilityPreferences = { class: 'visible', school: 'visible', friends: 'visible' };
   const anonymous: VisibilityPreferences = { class: 'anonymous', school: 'anonymous', friends: 'anonymous' };
   const mixed: VisibilityPreferences = { class: 'hidden', school: 'visible', friends: 'hidden' };
   const hidden: VisibilityPreferences = { class: 'hidden', school: 'hidden', friends: 'hidden' };
-  assert.equal(appearsInRanking(visible), true);
-  assert.equal(appearsInRanking(anonymous), true);
-  assert.equal(appearsInRanking(mixed), true);
-  assert.equal(appearsInRanking(hidden), false);
+  assert.equal(showsNameInRanking(visible), true);
+  assert.equal(showsNameInRanking(anonymous), false);
+  assert.equal(showsNameInRanking(mixed), false);
+  assert.equal(showsNameInRanking(hidden), false);
 });
 
 test('o texto do interruptor diz o que os colegas veem, em cada estado', () => {
@@ -83,9 +83,39 @@ test('o texto do interruptor diz o que os colegas veem, em cada estado', () => {
   const anonymous: VisibilityPreferences = { class: 'anonymous', school: 'anonymous', friends: 'anonymous' };
   const mixed: VisibilityPreferences = { class: 'hidden', school: 'visible', friends: 'hidden' };
   const hidden: VisibilityPreferences = { class: 'hidden', school: 'hidden', friends: 'hidden' };
-  assert.match(visibilityNote(visible), /nome abreviado/);
+  // Ligado ou desligado, a frase é a mesma que a maquete mostra: desligar deixa
+  // a linha na tabela, só o nome sai.
+  assert.match(visibilityNote(visible), /Desligado, os colegas veem «Um colega»/);
   assert.match(visibilityNote(anonymous), /Um colega/);
   assert.match(visibilityNote(mixed), /alguns rankings/);
   assert.match(visibilityNote(hidden), /não te veem no ranking/);
   assert.match(visibilityNote(hidden), /Continuas a ver a tua posição/);
+});
+
+test('o próximo lugar mede-se pelo vizinho logo acima, sem inventar dados', () => {
+  const board = {
+    scope: 'class' as const, groupId: 1, statementId: null, period: 'all' as const,
+    totalStudents: 10, rankedStudents: 10, smallGroup: false, myPosition: 4, myAverage: 14.2,
+    entries: [
+      { position: 3, accountId: null, displayName: 'Colega A', average: 16.5, xp: 500, me: false },
+      { position: 4, accountId: 4, displayName: 'Tu', average: 14.2, xp: 380, me: true },
+    ],
+  };
+  assert.equal(nextPlaceGap(board, 'average'), 'Faltam 2,3 pontos para subires um lugar.');
+  assert.equal(nextPlaceGap(board, 'xp'), 'Faltam 120 XP para subires um lugar.');
+  // Sem a linha de cima à vista, não há distância a anunciar.
+  assert.equal(nextPlaceGap({ ...board, entries: [board.entries[1]] }, 'average'), null);
+  // O primeiro lugar não tem ninguém acima.
+  assert.equal(nextPlaceGap({ ...board, myPosition: 1, entries: [{ ...board.entries[1], position: 1 }] }, 'average'), null);
+  // Sem nota de um dos lados, também não.
+  assert.equal(nextPlaceGap({ ...board, entries: [{ ...board.entries[0], average: null }, board.entries[1]] }, 'average'), null);
+  // O global compara percentis dentro da própria escola, não notas.
+  const global = {
+    ...board, scope: 'global' as const, myPercentile: 60,
+    entries: [
+      { position: 3, accountId: null, displayName: 'Aluno de outra escola', average: 18, percentile: 72, me: false },
+      board.entries[1],
+    ],
+  };
+  assert.equal(nextPlaceGap(global, 'average'), 'Faltam 12,0 pontos percentuais para subires um lugar.');
 });

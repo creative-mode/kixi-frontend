@@ -18,31 +18,26 @@ export type VisibilityPreferences = Record<RankingVisibilityScope, RankingVisibi
 
 export const VISIBILITY_SCOPES: readonly RankingVisibilityScope[] = ['class', 'school', 'friends'];
 
-/** O interruptor responde a «apareço?»: fica ligado enquanto o aluno não estiver
- *  fora de todos os âmbitos. Um estado anónimo ainda conta como aparecer. */
-export function appearsInRanking(preferences: VisibilityPreferences): boolean {
-  return VISIBILITY_SCOPES.some((scope) => preferences[scope] !== 'hidden');
+/** O interruptor está ligado quando o aluno aparece com o nome em todos os
+ *  âmbitos. Desligado, a linha fica mas o nome sai; só um estado `hidden` (vindo
+ *  de outro cliente) o tira da tabela por completo. */
+export function showsNameInRanking(preferences: VisibilityPreferences): boolean {
+  return VISIBILITY_SCOPES.every((scope) => preferences[scope] === 'visible');
 }
 
-/** O que os colegas veem, por palavras (#800). O interruptor é um só, mas o
- *  backend guarda três respostas: a frase tem de ser honesta quando divergem. */
+/** O que os colegas veem, por palavras (#800). O interruptor é um só e desligar
+ *  escreve `anonymous`: a frase explica isso mesmo. Um estado `hidden` vindo de
+ *  outro cliente é dito como é, em vez de o interruptor mentir. */
 export function visibilityNote(preferences: VisibilityPreferences): string {
   const hidden = VISIBILITY_SCOPES.filter((scope) => preferences[scope] === 'hidden');
-  const anonymous = VISIBILITY_SCOPES.filter((scope) => preferences[scope] === 'anonymous');
 
   if (hidden.length === VISIBILITY_SCOPES.length) {
     return 'Os colegas não te veem no ranking. Continuas a ver a tua posição e a tua média.';
   }
   if (hidden.length > 0) {
-    return 'Apareces em alguns rankings e não em outros. Liga para apareceres com o teu nome em todos, ou desliga para saíres de todos.';
+    return 'Apareces em alguns rankings e não em outros. Liga para apareceres com o teu nome em todos, ou desliga para ficares como «Um colega».';
   }
-  if (anonymous.length === VISIBILITY_SCOPES.length) {
-    return 'Os colegas veem «Um colega» no teu lugar. A posição mantém-se; só o nome desaparece.';
-  }
-  if (anonymous.length > 0) {
-    return 'Num dos rankings apareces como «Um colega»; nos restantes, com o nome abreviado.';
-  }
-  return 'Os colegas veem o teu nome abreviado — primeiro nome e inicial do apelido — na turma, na escola e entre amigos.';
+  return 'Desligado, os colegas veem «Um colega».';
 }
 
 /** Onde o aluno está na tabela, dito sem nomear o fundo (#800): topo, meio, ou
@@ -53,6 +48,35 @@ export function relativeBandLabel(myPosition: number | null, totalStudents: numb
   if (ratio <= 0.3) return 'Estás entre os 30% melhores.';
   if (ratio <= 0.7) return 'Estás entre os 40% do meio.';
   return null;
+}
+
+/** Quanto falta para subir um lugar (#800), a partir da janela que o backend
+ *  devolveu. Sem a linha de cima à vista, ou sem nota dos dois lados, devolve
+ *  null: é melhor não dizer nada do que inventar uma distância. */
+export function nextPlaceGap(board: Leaderboard, metric: RankingMetric): string | null {
+  const mine = board.entries.find((entry) => entry.me);
+  if (!mine || mine.position <= 1) return null;
+
+  const above = board.entries
+    .filter((entry) => entry.position < mine.position)
+    .sort((a, b) => b.position - a.position)[0];
+  if (!above) return null;
+
+  if (board.scope === 'global') {
+    if (board.myPercentile == null || above.percentile == null) return null;
+    const gap = above.percentile - board.myPercentile;
+    return gap > 0 ? `Faltam ${formatAverage(gap)} pontos percentuais para subires um lugar.` : null;
+  }
+
+  if (metric === 'xp') {
+    if (mine.xp == null || above.xp == null) return null;
+    const gap = above.xp - mine.xp;
+    return gap > 0 ? `Faltam ${gap} XP para subires um lugar.` : null;
+  }
+
+  if (mine.average == null || above.average == null) return null;
+  const gap = above.average - mine.average;
+  return gap > 0 ? `Faltam ${formatAverage(gap)} pontos para subires um lugar.` : null;
 }
 
 export function formatAverage(value: number | null): string {
