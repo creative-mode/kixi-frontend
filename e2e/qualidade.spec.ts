@@ -223,7 +223,9 @@ test.describe('ranking acessível (#498)', () => {
     await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('Ranking da Escola carregado');
     await expect(painel.getByRole('table')).toBeVisible();
     await expect(painel.locator('tbody tr').first().locator('td').nth(2)).toContainText('%');
-    await expect(painel.getByText(/A tua média:/)).toContainText('%');
+    // A linha da posição fica acima do painel (#812), não dentro dele.
+    await expect(page.getByTestId('ranking-posicao')).toContainText('A tua média:');
+    await expect(page.getByTestId('ranking-posicao')).toContainText('%');
   });
 });
 
