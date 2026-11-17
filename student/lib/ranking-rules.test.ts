@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, showsNameInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, nextPlaceGapShort, podiumGap, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL, showsNameInRanking, relativeBandLabel, visibilityNote, type VisibilityPreferences } from './ranking-rules.ts';
 
 test('os rótulos das abas são os scopes do backend', () => {
   assert.equal(SCOPE_LABEL.class, 'Turma');
@@ -98,6 +98,8 @@ test('o próximo lugar mede-se pelo vizinho logo acima, sem inventar dados', () 
   };
   assert.equal(nextPlaceGap(board, 'average'), 'Faltam 2,3 pontos para subires um lugar.');
   assert.equal(nextPlaceGap(board, 'xp'), 'Faltam 120 XP para subires um lugar.');
+  assert.equal(nextPlaceGapShort(board, 'average'), 'Faltam 2,3 pts');
+  assert.equal(nextPlaceGapShort(board, 'xp'), 'Faltam 120 XP');
   // Sem a linha de cima à vista, não há distância a anunciar.
   assert.equal(nextPlaceGap({ ...board, entries: [board.entries[1]] }, 'average'), null);
   // O primeiro lugar não tem ninguém acima.
@@ -113,4 +115,5 @@ test('o próximo lugar mede-se pelo vizinho logo acima, sem inventar dados', () 
     ],
   };
   assert.equal(nextPlaceGap(global, 'average'), 'Faltam 12,0 pontos percentuais para subires um lugar.');
+  assert.equal(nextPlaceGapShort(global, 'average'), 'Faltam 12,0 p.p.');
 });

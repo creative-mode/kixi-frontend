@@ -247,6 +247,7 @@ test.describe('aparecer no ranking (#800)', () => {
     const tabela = page.getByRole('table');
     const destaque = page.getByTestId('ranking-destaque');
     await expect(posicao).toContainText('A tua média: 16,4%');
+    await expect(posicao).toContainText('Faltam 1,6 pts');
     const [posicaoBox, abasBox, filtrosBox, tabelaBox, destaqueBox] = await Promise.all([
       posicao.boundingBox(),
       page.getByRole('tablist').boundingBox(),
@@ -264,6 +265,18 @@ test.describe('aparecer no ranking (#800)', () => {
     await expect(destaque.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
     await expect(destaque.getByText(/Os lugares de baixo não se mostram a ninguém/)).toBeVisible();
     await expect(page.getByText(/Desligado, os colegas veem «Um colega»/)).toBeVisible();
+
+    // Na aba de amigos o cartão verde não encosta ao painel «Os teus amigos».
+    await page.getByRole('tab', { name: 'Amigos' }).click();
+    const painelAmigos = page.locator('[data-slot="card"]').filter({ has: page.getByText('Os teus amigos', { exact: true }) });
+    await expect(painelAmigos).toBeVisible();
+    const [cartaoAmigosBox, painelAmigosBox] = await Promise.all([
+      destaque.boundingBox(),
+      painelAmigos.boundingBox(),
+    ]);
+    expect(painelAmigosBox!.y - (cartaoAmigosBox!.y + cartaoAmigosBox!.height)).toBeGreaterThanOrEqual(12);
+    await expect(posicao).toContainText('A tua média');
+    await page.getByRole('tab', { name: 'Turma' }).click();
 
     // Desligar não tira a linha da tabela: só o nome desaparece, como a frase diz.
     await naLiga.click();

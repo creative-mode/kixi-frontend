@@ -50,10 +50,10 @@ export function relativeBandLabel(myPosition: number | null, totalStudents: numb
   return null;
 }
 
-/** Quanto falta para subir um lugar (#800), a partir da janela que o backend
- *  devolveu. Sem a linha de cima à vista, ou sem nota dos dois lados, devolve
- *  null: é melhor não dizer nada do que inventar uma distância. */
-export function nextPlaceGap(board: Leaderboard, metric: RankingMetric): string | null {
+/** A distância até à linha de cima, a partir da janela que o backend devolveu.
+ *  Sem essa linha à vista, ou sem nota dos dois lados, devolve null: é melhor
+ *  não dizer nada do que inventar uma distância. */
+function nextPlaceGapValue(board: Leaderboard, metric: RankingMetric): { value: string; unit: string } | null {
   const mine = board.entries.find((entry) => entry.me);
   if (!mine || mine.position <= 1) return null;
 
@@ -65,18 +65,32 @@ export function nextPlaceGap(board: Leaderboard, metric: RankingMetric): string 
   if (board.scope === 'global') {
     if (board.myPercentile == null || above.percentile == null) return null;
     const gap = above.percentile - board.myPercentile;
-    return gap > 0 ? `Faltam ${formatAverage(gap)} pontos percentuais para subires um lugar.` : null;
+    return gap > 0 ? { value: formatAverage(gap), unit: 'p.p.' } : null;
   }
 
   if (metric === 'xp') {
     if (mine.xp == null || above.xp == null) return null;
     const gap = above.xp - mine.xp;
-    return gap > 0 ? `Faltam ${gap} XP para subires um lugar.` : null;
+    return gap > 0 ? { value: String(gap), unit: 'XP' } : null;
   }
 
   if (mine.average == null || above.average == null) return null;
   const gap = above.average - mine.average;
-  return gap > 0 ? `Faltam ${formatAverage(gap)} pontos para subires um lugar.` : null;
+  return gap > 0 ? { value: formatAverage(gap), unit: 'pts' } : null;
+}
+
+/** Quanto falta para subir um lugar (#800), por extenso no cartão verde. */
+export function nextPlaceGap(board: Leaderboard, metric: RankingMetric): string | null {
+  const distance = nextPlaceGapValue(board, metric);
+  if (!distance) return null;
+  const unit = board.scope === 'global' ? 'pontos percentuais' : metric === 'xp' ? 'XP' : 'pontos';
+  return `Faltam ${distance.value} ${unit} para subires um lugar.`;
+}
+
+/** A mesma distância em poucas palavras, para a linha da posição (#800): «Faltam 1,6 pts». */
+export function nextPlaceGapShort(board: Leaderboard, metric: RankingMetric): string | null {
+  const distance = nextPlaceGapValue(board, metric);
+  return distance ? `Faltam ${distance.value} ${distance.unit}` : null;
 }
 
 export function formatAverage(value: number | null): string {

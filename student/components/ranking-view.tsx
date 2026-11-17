@@ -14,7 +14,7 @@ import { FriendsPanel } from '@/components/friends-panel';
 import { RankingVisibility } from '@/components/ranking-visibility';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
-import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, podiumGap, relativeBandLabel, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, nextPlaceGapShort, podiumGap, relativeBandLabel, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
 import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { useMe } from '@/lib/me-context';
 import { photoUrl } from '@/lib/profile';
@@ -89,6 +89,7 @@ export function RankingView({
   const progress = board ? podiumGap(board, metric) : null;
   const band = board ? relativeBandLabel(board.myPosition, board.totalStudents) : null;
   const gap = board ? nextPlaceGap(board, metric) : null;
+  const gapCurto = board ? nextPlaceGapShort(board, metric) : null;
   const posicao = myPositionLabel(board?.myPosition ?? null, board?.totalStudents ?? 0);
 
   return (
@@ -132,6 +133,7 @@ export function RankingView({
             {posicao ?? 'Ainda sem nota para te posicionar'}
             {progress && <span>· {progress}</span>}
             {board?.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
+            {gapCurto && <span>· {gapCurto}</span>}
             {scope === 'global' && board?.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
           </div>
 
@@ -229,7 +231,11 @@ export function RankingView({
               <div><Button variant="outline" size="sm" disabled={pending} onClick={() => consent(false)}>Deixar de participar no ranking global</Button></div>
             )}
 
-            {scope === 'friends' && !pending && <FriendsPanel onChange={() => load('friends')} />}
+            {/* Na aba de amigos o cartão verde é seguido pelo painel de convites:
+                sem esta folga os dois blocos encostam. */}
+            {scope === 'friends' && !pending && (
+              <div className="mt-4"><FriendsPanel onChange={() => load('friends')} /></div>
+            )}
           </TabsContent>
         </Tabs>
       </Column>
