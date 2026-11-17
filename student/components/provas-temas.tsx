@@ -12,6 +12,7 @@ function estadoDe(item: CatalogItem): { estado: Estado; label: string; pct: numb
     if (pct >= 50) return { estado: 'apr', label: 'A aprender', pct };
     return { estado: 'fra', label: 'A rever', pct };
   }
+  if (item.state === 'done' && item.correction) return { estado: 'apr', label: item.correction, pct: null };
   if (item.state === 'progress') return { estado: 'apr', label: 'Em curso', pct: null };
   return { estado: 'nov', label: 'Ainda não treinaste', pct: null };
 }

@@ -72,8 +72,8 @@ function State({ item }: { item: CatalogItem }) {
   if (item.state === 'done') {
     return (
       <div className="grid gap-1.5">
-        <Badge variant="success" className="justify-self-start">
-          Concluída{item.score ? ` · ${item.score}` : ''}
+        <Badge variant={item.correction ? 'warning' : 'success'} className="justify-self-start">
+          Concluída{item.score ? ` · ${item.score}` : item.correction ? ` · ${item.correction}` : ''}
         </Badge>
       </div>
     );

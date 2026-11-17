@@ -7,6 +7,8 @@ import { parseServerTime } from './exam-rules';
 import { getFeed, getComments } from './feed';
 import { correctionNoticeOf } from './correction-notice';
 import { listInvitations } from './exam-room';
+import { listSimulationsResult } from './exam';
+import { estadoDaNotaEmPalavras, notaFinal } from './nota-da-simulacao';
 import { correcaoDaSimulacao, correcaoLigada } from './schoolops/correcao';
 import { eSimulacaoLivre, escalaDaNota } from './schoolops/correcao-rules';
 import type { RawSimulation } from './performance-rules';
@@ -91,7 +93,7 @@ export const loadNotifications = cache(async (me: Me, withReplies = true, comNot
   const [readAt, badges, sims] = await Promise.all([
     readAtOf(),
     getBadges().catch(() => []),
-    apiGet<RawSimulation[]>('/simulations').then((r) => (r.ok && Array.isArray(r.data) ? r.data : [])),
+    listSimulationsResult().then((r) => (r.ok ? r.data : [])),
   ]);
   const notas = comNotasDoMotor ? await notasDoMotor(me, sims) : null;
   const items: Omit<Notification, 'unread'>[] = [];
@@ -113,8 +115,11 @@ export const loadNotifications = cache(async (me: Me, withReplies = true, comNot
     }
     if (s.status === 'FINISHED' && s.finishedAt) {
       const title = s.statement?.title ?? 'a prova';
-      const nota = s.finalScore != null ? ` com ${String(s.finalScore).replace('.', ',')}` : '';
-      items.push({ key: `sim-${s.id}`, kind: 'result', who: null, text: `Terminaste ${title}${nota}`, href: `/resultado?prova=${s.id}`, at: s.finishedAt });
+      // A nota só se diz quando é a do resultado; por corrigir, diz-se o estado (#791).
+      const nota = notaFinal(s);
+      const estado = estadoDaNotaEmPalavras(s);
+      const sufixo = nota != null ? ` com ${String(nota).replace('.', ',')}` : estado ? ` — ${estado.toLowerCase()}` : '';
+      items.push({ key: `sim-${s.id}`, kind: 'result', who: null, text: `Terminaste ${title}${sufixo}`, href: `/resultado?prova=${s.id}`, at: s.finishedAt });
     }
   }
 

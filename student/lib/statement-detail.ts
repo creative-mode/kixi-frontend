@@ -2,7 +2,7 @@ import 'server-only';
 
 import { apiGet } from './api';
 import { getCatalogNames, type Named } from './catalog';
-import { correctionFailed, currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
+import { correctionFailed, currentAttempt, history, labelOf, scoreOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
 import { getStatementFull } from './exam';
 import { isItem } from './question-number';
 import type { PaperQuestion } from './tutor-rules';
@@ -44,6 +44,8 @@ export interface AttemptRow {
   /** 'corrected' | 'correcting' | 'unfinished' | 'cancelled' — from `labelOf`, the same rule the card uses. */
   label: AttemptLabel;
   score?: string;
+  /** «A corrigir» / «Correção falhou» quando a tentativa está entregue mas ainda não há nota (#791). */
+  correction?: string;
   since?: string;
   /** A correção falhou: não há nota a chegar pelo sino (#793). */
   failed?: boolean;
@@ -72,10 +74,11 @@ function toRow(attempt: Attempt): AttemptRow {
     id: attempt.id,
     label,
     // Uma nota de zero é uma nota: só a ausente é ausente. E uma tentativa cancelada
-    // nunca tem nota, porque nunca foi corrigida.
-    score: label === 'corrected' ? formatScore(attempt.finalScore) : undefined,
-    since: sinceLabel(attempt.startedAt),
+    // nunca tem nota, porque nunca foi corrigida. Uma livre por corrigir tem a nota
+    // parcial no backend, que não é a nota do resultado (#791): mostra-se o estado.
+    score: scoreOf(attempt),
     failed: correctionFailed(attempt),
+    since: sinceLabel(attempt.startedAt),
   };
 }
 

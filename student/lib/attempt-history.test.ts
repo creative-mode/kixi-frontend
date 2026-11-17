@@ -11,6 +11,7 @@ import {
   inProgress,
   isFinished,
   labelOf,
+  scoreOf,
   settled,
   sinceLabel,
   type Attempt,
@@ -48,6 +49,13 @@ test('o histórico não mexe na lista que recebeu', () => {
   const original = [done(1), done(2)];
   history(original);
   assert.deepEqual(original.map((a) => a.id), [1, 2]);
+});
+
+test('a nota de uma tentativa por corrigir é o estado, não a parcial do backend', () => {
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'PENDING' }), undefined);
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'FAILED' }), undefined);
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 14.5, correctionStatus: 'DONE' }), '14,5');
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 12 }), '12');
 });
 
 test('uma nota de zero é uma nota', () => {

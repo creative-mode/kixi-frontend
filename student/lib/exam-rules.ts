@@ -62,6 +62,10 @@ export interface SimulationSummary {
   status?: string | null;
   deadline?: string | null;
   finalScore?: number | null;
+  finishedAt?: string | null;
+  /** kixi#609: PENDING, IN_PROGRESS, DONE ou FAILED. Ausente numa prova de sala. */
+  correctionStatus?: string | null;
+  correctedAt?: string | null;
   statement?: { id?: number | null; title?: string | null } | null;
 }
 

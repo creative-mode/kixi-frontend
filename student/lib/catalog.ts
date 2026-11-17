@@ -3,6 +3,8 @@ import 'server-only';
 import { apiGet, viewerKey } from './api';
 import { TtlCache } from './ttl-cache';
 import { currentAttempt, formatScore, isFinished, type Attempt } from './attempt-history';
+import { estadoDaNotaEmPalavras, notaDaSimulacao } from './nota-da-simulacao';
+import { listSimulationsResult } from './exam';
 
 /** Item do catálogo como o backend devolve (StatementSummary): só ids, sem nomes.
  *  Os nomes vêm de /subjects, /school-years e /institutions, carregados uma vez. */
@@ -42,6 +44,8 @@ export interface CatalogItem {
   year: string;
   state: ExamState;
   score?: string;
+  /** «A corrigir» / «Correção falhou» quando está entregue e ainda não há nota (#791). */
+  correction?: string;
 }
 
 export interface CatalogFilters {
@@ -129,9 +133,10 @@ export async function getCatalog(
   const yearById = new Map(names.years.map((y) => [y.id, y.label]));
   const schoolById = new Map(names.schools.map((s) => [s.id, s.name]));
 
-  const simulations = await apiGet<CatalogSimulation[]>('/simulations');
+  // A mesma leitura que o histórico, as notificações e o desempenho (#791): uma por pedido.
+  const simulations = await listSimulationsResult();
   const attempts = new Map<number, CatalogSimulation[]>();
-  if (simulations.ok && Array.isArray(simulations.data)) {
+  if (simulations.ok) {
     for (const sim of simulations.data) {
       const id = Number(sim.statement?.id);
       if (!Number.isInteger(id)) continue;
@@ -147,6 +152,7 @@ export async function getCatalog(
     // CANCELLED: o cartão dizia «Ver resultado» e o detalhe «Em curso». Uma regra só.
     const attempt = currentAttempt((attempts.get(Number(s.id)) ?? []) as Attempt[]);
     const finished = attempt ? isFinished(attempt) : false;
+    const nota = attempt ? notaDaSimulacao(attempt) : ({ kind: 'sem-nota' } as const);
     return {
       id: String(s.id),
       kind: s.examType || 'Prova',
@@ -155,7 +161,9 @@ export async function getCatalog(
       school: s.institutionId == null ? '' : (schoolById.get(s.institutionId) ?? ''),
       year: s.schoolYearId == null ? '' : (yearById.get(s.schoolYearId) ?? ''),
       state: !attempt ? 'new' : finished ? 'done' : 'progress',
-      score: finished ? formatScore(attempt?.finalScore) : undefined,
+      // A nota só é nota quando a correcção está feita; até lá mostra-se o estado (#791).
+      score: finished && nota.kind === 'nota' ? formatScore(nota.nota) : undefined,
+      correction: finished && attempt ? estadoDaNotaEmPalavras(attempt) ?? undefined : undefined,
     } satisfies CatalogItem;
   });
 

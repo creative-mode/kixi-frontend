@@ -13,18 +13,19 @@
  */
 
 import { parseServerTime } from './exam-rules.ts';
+import { notaFinal } from './nota-da-simulacao.ts';
 
 /** A simulation as `GET /simulations` returns it for the signed-in student. */
 export interface Attempt {
   id: number;
   status?: string | null;
   finalScore?: number | null;
-  /** ISO date from `startedAt`, when the backend sends one. */
-  startedAt?: string | null;
-  /** kixi#609: estado da correção, derivado das respostas. Só vem em tentativas entregues. */
+  /** kixi#609: PENDING, IN_PROGRESS, DONE ou FAILED. Ausente numa prova de sala. */
   correctionStatus?: string | null;
   /** kixi#609: hora da última resposta aberta corrigida; só com `DONE`. */
   correctedAt?: string | null;
+  /** ISO date from `startedAt`, when the backend sends one. */
+  startedAt?: string | null;
 }
 
 export const inProgress = (a: Attempt) => (a.status ?? '').toUpperCase() === 'IN_PROGRESS';
@@ -89,6 +90,11 @@ export const correcting = (a: Attempt) => isFinished(a) && !correctionDone(a);
  *  que aqui não há nada a chegar. */
 export const correctionFailed = (a: Attempt) => (a.correctionStatus ?? '').toUpperCase() === 'FAILED';
 
+/** A nota que se pode mostrar desta tentativa, já pela regra única (#791): uma tentativa por
+ *  corrigir não tem nota, tem estado. `formatScore` continua a ser só a formatação. */
+export function scoreOf(a: Attempt): string | undefined {
+  return formatScore(notaFinal(a));
+}
 /** What the screen calls an attempt. Kept here so the card and the detail cannot
  *  disagree about it — which is how the same paper ends up "done" in one place and
  *  "in progress" in the other. */

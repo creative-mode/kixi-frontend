@@ -47,6 +47,12 @@ nota chega ao ecrã por leitura, não pelo evento.
 
 ## A nota fora do resultado
 
-Com a correcção ligada, a nota de uma simulação livre só aparece no resultado, depois de corrigida. `listSimulationsResult` (histórico,
-catálogo, detalhe do enunciado, desempenho) tira a `finalScore` das simulações que não são de sala, e `getCommunityStats` tira
-`mine.finalScore` (comparação com a média). Se a lista de salas não se ler, tira a de todas. Sem a correcção ligada nada muda.
+O backend sabe se a correcção está feita: `correctionStatus` vem em `GET /simulations` (`PENDING`, `IN_PROGRESS`, `DONE`, `FAILED`) e
+`correctedAt` diz quando a última aberta ficou corrigida (kixi#609). Enquanto a correcção não está `DONE`, a `finalScore` é a **parcial**
+(só as fechadas) e não é a nota do resultado.
+
+Por isso há uma regra só, em `student/lib/nota-da-simulacao.ts`: mostra-se `finalScore` quando a correcção está `DONE`; por corrigir
+diz-se «A corrigir» e uma falha diz «Correção falhou». Nenhuma lista mostra a parcial. Provas, histórico, detalhe do enunciado,
+notificações, desempenho e plano de estudo leem as simulações **uma vez por pedido** (`listSimulationsResult`, com `cache` do React),
+e não há mais o pedido a `/exam-rooms/mine` que existia só para saber o que esconder. Uma prova de sala não traz `correctionStatus`:
+a nota dela é a da pauta e mostra-se como sempre.
