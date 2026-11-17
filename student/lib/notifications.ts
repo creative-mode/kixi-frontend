@@ -62,7 +62,8 @@ async function notasDoMotor(me: Me, sims: RawSimulation[]): Promise<NotasDoMotor
   const salas = await listInvitations().catch(() => null);
   if (!salas?.ok) return null;
 
-  const candidatas = corrigidas.filter((s) => eSimulacaoLivre(s.id, salas.data));
+  const candidatas = corrigidas
+    .filter((s) => eSimulacaoLivre(s.id, salas.data))
     .sort((a, b) =>
       (parseServerTime(b.correctedAt || b.finishedAt || '') || 0) - (parseServerTime(a.correctedAt || a.finishedAt || '') || 0));
 
