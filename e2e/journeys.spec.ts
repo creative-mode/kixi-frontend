@@ -308,6 +308,9 @@ test.describe('jornadas críticas do Kixi', () => {
   });
 
   test('publicar no Início no telemóvel: o cartão novo aparece no topo', async ({ page }) => {
+    const unique = randomUUID().slice(0, 8);
+    const texto = `Publicação do telemóvel ${unique}`;
+
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/aluno/entrar');
     await page.getByLabel('Utilizador ou email').fill('12345');
@@ -318,14 +321,27 @@ test.describe('jornadas críticas do Kixi', () => {
     // #796: o compositor inline está no Início no telemóvel — sem navegar para /publicar.
     const compositor = page.getByRole('textbox', { name: 'Nova publicação' });
     await expect(compositor).toBeVisible();
-    await compositor.fill('Publicação do telemóvel no início');
+
+    // Caso de falha de entrada: abaixo do mínimo o botão não publica.
+    await compositor.fill('Oi');
+    await expect(page.getByRole('button', { name: 'Publicar' })).toBeDisabled();
+
+    // O botão flutuante não tapada o compositor/feed; só existe quando o compositor sai do ecrã.
+    await expect(page.getByRole('link', { name: 'Criar publicação' })).toHaveCount(0);
+
+    await compositor.fill(texto);
     await page.getByRole('button', { name: 'Publicar' }).click();
 
-    const novo = page.getByRole('article').filter({ hasText: 'Publicação do telemóvel no início' }).first();
-    await expect(novo).toBeVisible();
-    // O cartão novo é a primeira entrada do feed — comparar pelo texto e não pela identidade do nó:
-    // o refresh devolve uma lista nova e o antigo nth=0 já não existe.
-    await expect(page.getByRole('article').first()).toContainText('Publicação do telemóvel no início');
+    // Exatamente uma entrada — sem duplicados vindos do optimista.
+    const novo = page.getByRole('article').filter({ hasText: texto });
+    await expect(novo).toHaveCount(1);
+    await expect(page.getByRole('article').first()).toContainText(texto);
+
+    // Nem mesmo com a cache de 30 s: o cartão novo aparece também na Turma e no Perfil.
+    await page.goto('/aluno/turma');
+    await expect(page.getByText(texto).first()).toBeVisible();
+    await page.goto('/aluno/perfil');
+    await expect(page.getByText(texto).first()).toBeVisible();
   });
 
   test('construtor de publicações: cartão de estudo com imagem e desafio respondido no feed', async ({ page }) => {

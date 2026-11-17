@@ -57,6 +57,20 @@ export function InicioFeed({
   const loaded = mergeFeedPages(posts, extra);
   const shown = [...optimistic, ...loaded];
 
+  // O botão flutuante só existe quando o compositor do topo sai da viewport (#796, revisão):
+  // na parte de cima da página o campo já está vendo e tapar publicações é a queixa original.
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerVisible, setComposerVisible] = useState(true);
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) setComposerVisible(entry.isIntersecting);
+    }, { threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     const pending = focusAfterDelete.current;
     if (!pending || shown.some((p) => p.id === pending.deletedId)) return;
@@ -124,9 +138,9 @@ export function InicioFeed({
             <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
             <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
           </Link>
-          {/* #796 no telemóvel: o compositor inline está na mesma página, acima do feed. */}
-          <div className="md:hidden" data-feed-composer>
-            <PostComposer classId={classId} onOptimistic={(post) => setOptimistic((current) => [post, ...current])} />
+          {/* #796 no telemóvel: o campo «Partilha…» existe no topo, como no md+. */}
+          <div ref={composerRef} className="md:hidden" data-feed-composer tabIndex={-1} aria-label="Compositor de publicações">
+            <PostComposer classId={classId} onOptimistic={(post) => setOptimistic((current) => [post, ...current])} onOptimisticFailed={(post) => setOptimistic((current) => current.filter((p) => p.id !== post.id))} />
           </div>
         </>
       )}
@@ -177,10 +191,12 @@ export function InicioFeed({
           </div>
         </>
       )}
-      {/* No telemóvel a porta para publicar é um botão por cima da barra inferior; o feed começa logo nas publicações. */}
-      {classId && (
-        <Link href="/publicar" aria-label="Criar publicação" data-press className="fixed right-4 bottom-[calc(84px+var(--ck-banner-h,0px))] z-20 flex size-14 items-center justify-center rounded-full bg-[#1f5a2c] text-white shadow-[0_6px_18px_rgba(18,28,21,.25)] md:hidden">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      {/* No telemóvel a porta para publicar do fundo existe quando o compositor sai do ecrã;
+          com rótulo visível para não ser mais um «+» mudo por cima das publicações. */}
+      {classId && !composerVisible && (
+        <Link href="/publicar" aria-label="Criar publicação" data-press className="fixed right-4 bottom-[calc(84px+var(--ck-banner-h,0px))] z-20 flex h-12 items-center gap-2 rounded-full bg-[#1f5a2c] px-4 text-[14px] font-semibold text-white shadow-[0_6px_18px_rgba(18,28,21,.25)] md:hidden">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          <span>Criar publicação</span>
         </Link>
       )}
     </div>
