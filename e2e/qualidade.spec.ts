@@ -529,10 +529,12 @@ test.describe('início sem blocos acima das publicações', () => {
     await alunoLogin(page);
     await page.goto('/aluno/inicio');
     await expect(page.getByTestId('mobile-progresso')).toHaveCount(0);
-    // #796: o compositor inline é a porta de entrada no Início; o botão flutuante só
-    // existe quando ele sai da viewport (com 375×812 no topo, não há FAB).
-    await expect(page.getByRole('textbox', { name: 'Nova publicação' })).toBeVisible();
+    // #796: no 375×812 o compositor fica abaixo do fold — o FAB é o caminho de publicar daqui.
+    await expect(page.getByRole('link', { name: 'Criar publicação' })).toBeVisible();
+    // Ao entrar na viewport, a pílula assume e o FAB desiste (a regra de #796 no sentido inverso).
+    await page.locator('div[data-feed-composer]').scrollIntoViewIfNeeded();
     await expect(page.getByRole('link', { name: 'Criar publicação' })).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: 'Nova publicação' })).toBeVisible();
     await expect(page.getByRole('article').first()).toBeVisible();
     // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a
     // decorrer, caso em que /provas abriria nas Salas — e o Calendário só vive na aba dos
