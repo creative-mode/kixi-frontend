@@ -240,35 +240,44 @@ function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessm
         {a.dispensedReason && <span className="text-xs text-muted-foreground">Motivo: {a.dispensedReason}</span>}
       </div>
       {open && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2">
+          {/* Ligar o enunciado e a sala são dois passos distintos (kixi-frontend#809): cada um na sua linha, com o
+              seu rótulo, em vez de tudo espremido numa só — ligar a sala já traz o enunciado dela, por isso o
+              enunciado só aparece sozinho quando faz sentido escolher um à parte (o caso em papel). */}
           {mine && a.statementId === null && statements.length > 0 && (
-            <>
-              <NativeSelect aria-label={`Enunciado de ${a.title}`} value={statement} onChange={(e) => setStatement(e.target.value)} className="max-w-72">
-                <option value="">Ligar um enunciado…</option>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor={`st-${a.id}`} className="w-20 shrink-0 text-xs text-muted-foreground">Enunciado</Label>
+              <NativeSelect id={`st-${a.id}`} value={statement} onChange={(e) => setStatement(e.target.value)} className="max-w-64">
+                <option value="">Escolher…</option>
                 {statements.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </NativeSelect>
-              <Button size="sm" variant="outline" disabled={!statement} onClick={() => void act(() => linkStatement(plan.id, a.id, Number(statement)), 'Enunciado ligado.')}>Ligar enunciado</Button>
-            </>
+              <Button size="sm" variant="outline" disabled={!statement} onClick={() => void act(() => linkStatement(plan.id, a.id, Number(statement)), 'Enunciado ligado.')}>Ligar</Button>
+            </div>
           )}
           {mine && a.roomId === null && rooms.length > 0 && (
-            <>
-              <NativeSelect aria-label={`Sala para ${a.title}`} value={room} onChange={(e) => setRoom(e.target.value)} className="max-w-72">
-                <option value="">Ligar a uma sala…</option>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor={`rm-${a.id}`} className="w-20 shrink-0 text-xs text-muted-foreground">Sala</Label>
+              <NativeSelect id={`rm-${a.id}`} value={room} onChange={(e) => setRoom(e.target.value)} className="max-w-64">
+                <option value="">Escolher…</option>
                 {rooms.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
               </NativeSelect>
               <Button size="sm" variant="outline" disabled={!room} onClick={() => void act(() => linkRoom(plan.id, a.id, Number(room)), 'Sala ligada.')}>Ligar</Button>
-            </>
+            </div>
           )}
-          {ctx.canDecide && !asking && <Button size="sm" variant="ghost" onClick={() => setAsking(true)}>{isExam ? 'Reagendar…' : 'Dispensar…'}</Button>}
-          {ctx.canDecide && asking && (
-            <>
-              {isExam && <Input aria-label="Nova data" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="max-w-40" />}
-              <Input aria-label={isExam ? 'Motivo do reagendamento' : 'Motivo da dispensa'} placeholder="Motivo" value={reason} onChange={(e) => setReason(e.target.value)} className="max-w-64" />
-              {isExam
-                ? <Button size="sm" disabled={!reason.trim() || !newDate} onClick={() => void act(() => reschedule(plan.id, a.id, newDate, reason), 'Prova reagendada.')}>Reagendar</Button>
-                : <Button size="sm" disabled={!reason.trim()} onClick={() => void act(() => dispense(plan.id, a.id, reason), 'Avaliação dispensada.')}>Dispensar</Button>}
-              <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancelar</Button>
-            </>
+          {ctx.canDecide && (
+            <div className="flex flex-wrap items-center gap-2">
+              {!asking && <Button size="sm" variant="ghost" onClick={() => setAsking(true)}>{isExam ? 'Reagendar…' : 'Dispensar…'}</Button>}
+              {asking && (
+                <>
+                  {isExam && <Input aria-label="Nova data" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="max-w-40" />}
+                  <Input aria-label={isExam ? 'Motivo do reagendamento' : 'Motivo da dispensa'} placeholder="Motivo" value={reason} onChange={(e) => setReason(e.target.value)} className="max-w-64" />
+                  {isExam
+                    ? <Button size="sm" disabled={!reason.trim() || !newDate} onClick={() => void act(() => reschedule(plan.id, a.id, newDate, reason), 'Prova reagendada.')}>Reagendar</Button>
+                    : <Button size="sm" disabled={!reason.trim()} onClick={() => void act(() => dispense(plan.id, a.id, reason), 'Avaliação dispensada.')}>Dispensar</Button>}
+                  <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancelar</Button>
+                </>
+              )}
+            </div>
           )}
         </div>
       )}
