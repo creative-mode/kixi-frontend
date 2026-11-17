@@ -2,7 +2,7 @@ import 'server-only';
 
 import { BASE_PATH } from '../base-path';
 import type { Me } from '../types';
-import { abrirCorrecao, iniciarAbertura, consultarEstado, type EstadoLido } from './correcao-motor';
+import { abrirCorrecaoComId, iniciarAbertura, consultarEstado, type Abertura, type EstadoLido } from './correcao-motor';
 import { pedidoDeCorrecao, type VistaCorrecao } from './correcao-rules';
 
 // Cliente do SchoolOps para as simulações do aluno: a correcção corre no motor (objectivas pelo gabarito, dissertativas
@@ -24,11 +24,11 @@ export async function correcaoDaSimulacao(args: {
   me: Me;
   simulationId: number;
   statementId: number;
-}): Promise<VistaCorrecao | null> {
+}): Promise<Abertura | null> {
   const cfg = config();
   if (!cfg) return null;
   const pedido = pedidoDeCorrecao({ ...args, callbackUrl: cfg.callback });
-  return abrirCorrecao({ cfg, pedido, simulationId: args.simulationId });
+  return abrirCorrecaoComId({ cfg, pedido, simulationId: args.simulationId });
 }
 
 /** Inicia a correcção na entrega (POST /v1/correcoes?aguardar=0) sem esperar o resultado.

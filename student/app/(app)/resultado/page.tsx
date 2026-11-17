@@ -169,11 +169,12 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
       // Se o motor estiver em baixo com correcaoId, não se mostra a nota do backend como se
       // fosse final: fica "a corrigir" e a espera volta a ler.
       const lida = correcaoId ? await consultarEstadoCorrecao(correcaoId) : null;
+      const abertura = correcaoId ? null : await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId });
       const correcao =
-        (correcaoId
-          ? lida?.ok ? lida.vista : { kind: 'a-corrigir' as const }
-          : await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId })) ??
+        (correcaoId ? (lida?.ok ? lida.vista : { kind: 'a-corrigir' as const }) : abertura?.vista) ??
         { kind: 'a-corrigir' as const };
+      // O id para a espera ler só o estado: o da URL, ou o que a abertura acabou de devolver (#794).
+      const idDaEspera = correcaoId ?? abertura?.correcaoId ?? null;
       if (correcao.kind !== 'corrigida') {
         return (
           <Page>
@@ -184,7 +185,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
               <Card className="px-5 py-6">
                 {correcao.kind === 'a-corrigir' && (
                   <CorrecaoEmCurso
-                    correcaoId={correcaoId}
+                    correcaoId={idDaEspera}
                     simulationId={resultadoDoBackend.simulationId}
                     provisoria={notaProvisoria(resultadoDoBackend)}
                   />
@@ -200,7 +201,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                     como provisória e uma nova tentativa (#787). */}
                 {correcao.kind === 'falhou' && (
                   <CorrecaoEmCurso
-                    correcaoId={correcaoId}
+                    correcaoId={idDaEspera}
                     simulationId={resultadoDoBackend.simulationId}
                     provisoria={notaProvisoria(resultadoDoBackend)}
                     falha={correcao.motivo}

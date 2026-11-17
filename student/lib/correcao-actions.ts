@@ -18,6 +18,6 @@ export async function tentarCorrecaoDeNovo(simulationId: number): Promise<{ ok: 
   const [view, me, salas] = await Promise.all([getResultView(simulationId), getMe(), listInvitations()]);
   if (view.kind !== 'ok' || !me || view.statementId == null || !salas.ok) return { ok: false };
   if (!eSimulacaoLivre(view.result.simulationId, salas.data)) return { ok: false };
-  const vista = await correcaoDaSimulacao({ me, simulationId: view.result.simulationId, statementId: view.statementId });
-  return { ok: vista != null && vista.kind !== 'falhou' };
+  const abertura = await correcaoDaSimulacao({ me, simulationId: view.result.simulationId, statementId: view.statementId });
+  return { ok: abertura != null && abertura.vista.kind !== 'falhou' };
 }
