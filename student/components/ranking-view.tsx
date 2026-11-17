@@ -98,15 +98,6 @@ export function RankingView({
           title={pending ? `A carregar ${SCOPE_LABEL[scope]}…` : `Ranking · ${SCOPE_LABEL[scope]}`}
           description="Média das simulações deste período. Vês o topo e quem está perto de ti."
         />
-        {/* A posição responde ao título antes de qualquer filtro: é a pergunta que
-            o aluno traz («onde estou?»), não um detalhe da tabela (#800). */}
-        <div data-testid="ranking-posicao" className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
-          <Users className="size-4" aria-hidden />
-          {posicao ?? 'Ainda sem nota para te posicionar'}
-          {progress && <span>· {progress}</span>}
-          {board?.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
-          {scope === 'global' && board?.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
-        </div>
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
         {/* A escolha é da conta, não da aba: fica no topo e sobrevive à troca de
             âmbito. Uma linha compacta em vez do bloco grande da maquete, para a
@@ -119,7 +110,7 @@ export function RankingView({
             {SCOPES.map((s) => <TabsTrigger key={s} value={s}>{SCOPE_LABEL[s]}</TabsTrigger>)}
           </TabsList>
 
-          <div className="flex flex-wrap gap-3">
+          <div data-testid="ranking-filtros" className="mb-5 flex flex-wrap gap-3">
             <label className="grid min-w-40 flex-1 gap-1 text-[13px] text-muted-foreground">
               Período
               <NativeSelect value={period} disabled={pending} onChange={(e) => changePeriod(e.target.value as RankingPeriod)}>
@@ -132,6 +123,16 @@ export function RankingView({
                 {(Object.keys(METRIC_LABEL) as RankingMetric[]).map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
               </NativeSelect>
             </label>
+          </div>
+
+          {/* A posição é o contexto da tabela: fica logo acima do ranking, depois
+              dos filtros, para «onde estou?» ser respondido onde a lista é lida. */}
+          <div data-testid="ranking-posicao" className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+            <Users className="size-4" aria-hidden />
+            {posicao ?? 'Ainda sem nota para te posicionar'}
+            {progress && <span>· {progress}</span>}
+            {board?.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
+            {scope === 'global' && board?.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
           </div>
 
           <TabsContent value={scope} aria-busy={pending} aria-label={`Ranking ${SCOPE_LABEL[scope]}`}>

@@ -240,19 +240,23 @@ test.describe('aparecer no ranking (#800)', () => {
       await naLiga.click();
       await expect(naLiga).toBeChecked();
     }
-    // Hierarquia final: posição antes dos separadores; cartão verde depois da
-    // tabela, com espaço acima e sem bloco explicativo por baixo.
+    // Hierarquia final: filtros → posição → tabela → cartão verde, com espaço
+    // por baixo dos filtros e acima do cartão, e sem bloco explicativo extra.
     const posicao = page.getByTestId('ranking-posicao');
+    const filtros = page.getByTestId('ranking-filtros');
     const tabela = page.getByRole('table');
     const destaque = page.getByTestId('ranking-destaque');
     await expect(posicao).toContainText('A tua média: 16,4%');
-    const [posicaoBox, abasBox, tabelaBox, destaqueBox] = await Promise.all([
+    const [posicaoBox, abasBox, filtrosBox, tabelaBox, destaqueBox] = await Promise.all([
       posicao.boundingBox(),
       page.getByRole('tablist').boundingBox(),
+      filtros.boundingBox(),
       tabela.boundingBox(),
       destaque.boundingBox(),
     ]);
-    expect(posicaoBox!.y).toBeLessThan(abasBox!.y);
+    expect(abasBox!.y).toBeLessThan(posicaoBox!.y);
+    expect(posicaoBox!.y - (filtrosBox!.y + filtrosBox!.height)).toBeGreaterThanOrEqual(16);
+    expect(posicaoBox!.y).toBeLessThan(tabelaBox!.y);
     expect(destaqueBox!.y - (tabelaBox!.y + tabelaBox!.height)).toBeGreaterThanOrEqual(16);
     await expect(page.getByText('Este grupo é pequeno')).toHaveCount(0);
     // O destaque não nomeia o fundo da tabela.
