@@ -296,6 +296,90 @@ test.describe('aparecer no ranking (#800)', () => {
   });
 });
 
+test.describe('aviso de correção (#793)', () => {
+  test('a nota corrigida chega ao sino e acende o ponto das Provas até marcar como lido', async ({ page }) => {
+    await alunoLogin(page);
+    // Simula o momento em que a correção fica pronta: `correctedAt` passa a ser agora,
+    // mesmo que uma sessão anterior já tenha marcado as notificações como lidas.
+    // `page.request` partilha os cookies do browser; o fixture `request` não partilha
+    // e levaria o pedido para a página de login em vez da rota do mock.
+    const forcar = (status: string) => page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status } });
+    try {
+      expect((await forcar('DONE')).ok()).toBe(true);
+      await page.goto('/aluno/inicio');
+
+      const barra = page.locator('nav[aria-label="Principal"]:visible');
+      const provas = barra.getByRole('link', { name: /^Provas/ });
+      await expect(provas).toHaveAttribute('aria-label', /^Provas, 1 correção nova/);
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toBeVisible();
+      const sino = barra.getByRole('link', { name: 'Notificações' });
+      await expect(sino.locator('span[aria-label*="nova"]')).toHaveCount(1);
+
+      // O mesmo aviso no telemóvel: a nota fala pelo nome acessível e acende o ponto
+      // na barra inferior, mesmo quando há uma sala aberta a disputar o espaço.
+      await page.setViewportSize({ width: 390, height: 844 });
+      const provasMobile = page.getByTestId('nav-mobile').getByRole('link', { name: /^Provas, 1 correção nova/ });
+      await expect(provasMobile).toBeVisible();
+      await expect(page.getByTestId('provas-correcao-nova-mobile')).toBeVisible();
+      await expect(page.getByRole('link', { name: /^Notificações, \d+ novas/ })).toHaveCount(1);
+      await page.setViewportSize({ width: 1366, height: 860 });
+
+      // O critério de aceitação: sair do ecrã de espera e descobrir a nota pelo sino.
+      await sino.click();
+      await expect(page).toHaveURL(/\/aluno\/notificacoes/);
+      const aviso = page.getByRole('link', { name: /A tua prova de Redes de Computadores foi corrigida: 16,4\/20/ });
+      await expect(aviso).toBeVisible();
+      await expect(aviso.locator('[aria-label="Nova"]')).toBeVisible();
+
+      await page.getByRole('button', { name: 'Marcar tudo como lido' }).click();
+      await expect(aviso.locator('[aria-label="Nova"]')).toHaveCount(0);
+      await page.goto('/aluno/inicio');
+      await expect(barra.getByRole('link', { name: /^Provas/ })).not.toHaveAttribute('aria-label', /correção/);
+      await expect(sino.locator('span[aria-label*="nova"]')).toHaveCount(0);
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toHaveCount(0);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(page.getByTestId('nav-mobile').getByRole('link', { name: 'Provas' })).toBeVisible();
+      await expect(page.getByTestId('provas-correcao-nova-mobile')).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Notificações' })).toHaveCount(1);
+    } finally {
+      await forcar('');
+    }
+  });
+
+  test('uma prova entregue fica «A corrigir» até a nota chegar', async ({ page }) => {
+    await alunoLogin(page);
+    const forcar = (status: string) => page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status } });
+    try {
+      expect((await forcar('PENDING')).ok()).toBe(true);
+      await page.goto('/aluno/prova/1/detalhe');
+      const porCorrigir = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
+      await expect(porCorrigir).toContainText('A corrigir');
+      await expect(porCorrigir.getByRole('link', { name: 'Ver resultado' })).toHaveCount(0);
+
+      // Sem correção nova, o ponto das Provas apaga-se; o sino continua a ter a entrega.
+      await page.goto('/aluno/inicio');
+      await expect(page.locator('nav[aria-label="Principal"]:visible').getByRole('link', { name: /^Provas/ })).not.toHaveAttribute('aria-label', /correção/);
+
+      // FAILED quer dizer que o motor não vai corrigir sozinho: a lista diz isso
+      // em vez de prometer uma nota pelo sino, e nenhum ponto se acende.
+      expect((await forcar('FAILED')).ok()).toBe(true);
+      await page.goto('/aluno/prova/1/detalhe');
+      const falhada = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
+      await expect(falhada).toContainText('A corrigir');
+      await expect(falhada).toContainText('a correção falhou, fala com o professor');
+      await expect(falhada).not.toContainText('a nota chega pelo sino');
+      await page.goto('/aluno/inicio');
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toHaveCount(0);
+
+      expect((await forcar('DONE')).ok()).toBe(true);
+      await page.goto('/aluno/prova/1/detalhe');
+      await expect(page.getByRole('listitem').filter({ hasText: 'Prova corrigida' })).toContainText('16,4 valores');
+    } finally {
+      await forcar('');
+    }
+  });
+});
+
 test.describe('títulos', () => {
   test('cada página do aluno e do gestor tem o seu título', async ({ page }) => {
     const titulos = new Map<string, string>();

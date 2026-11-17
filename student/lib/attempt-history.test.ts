@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  correctionDone,
+  correctionFailed,
+  correcting,
   currentAttempt,
   formatScore,
   history,
@@ -121,6 +124,41 @@ test('cancelada nunca passa a ser a tentativa actual se há uma mais recente', (
 test('a tentativa em curso ganha mesmo a uma cancelada mais recente', () => {
   // Há um papel por terminar: é esse que o cartão e o detalhe falam.
   assert.equal(currentAttempt([{ id: 5, status: 'CANCELLED' }, running(9)])?.id, 9);
+});
+
+// ── CORREÇÃO (#609/#793) ─────────────────────────────────────────────────────
+// O backend passou a dizer se a correção acabou. Enquanto não acaba, a prova está
+// entregue mas não tem nota: dizer «corrigida» seria dar ao aluno uma nota que
+// ainda não existe.
+
+test('uma prova entregue com a correção por acabar fica «A corrigir»', () => {
+  for (const status of ['PENDING', 'IN_PROGRESS', 'FAILED', 'failed']) {
+    const prova: Attempt = { id: 1, status: 'FINISHED', finalScore: 12, correctionStatus: status };
+    assert.equal(correctionDone(prova), false);
+    assert.equal(correcting(prova), true);
+    assert.equal(labelOf(prova), 'correcting');
+  }
+});
+
+test('só DONE (ou um backend sem o campo) é uma prova corrigida', () => {
+  assert.equal(correctionDone({ id: 1, correctionStatus: 'DONE' }), true);
+  assert.equal(correctionDone({ id: 1, correctionStatus: 'done' }), true);
+  assert.equal(correctionDone({ id: 1 }), true); // backend anterior ao #609
+  assert.equal(labelOf({ id: 1, status: 'FINISHED', correctionStatus: 'DONE' }), 'corrected');
+});
+
+test('FAILED é por corrigir, mas não promete nota nenhuma', () => {
+  const prova: Attempt = { id: 1, status: 'FINISHED', correctionStatus: 'FAILED' };
+  assert.equal(correctionFailed(prova), true);
+  assert.equal(correcting(prova), true);
+  assert.equal(correctionFailed({ id: 1, correctionStatus: 'PENDING' }), false);
+  assert.equal(correctionFailed({ id: 1, correctionStatus: 'DONE' }), false);
+});
+
+test('um campo de correção não inventa estado numa prova por terminar', () => {
+  const prova: Attempt = { id: 1, status: 'IN_PROGRESS', correctionStatus: 'PENDING' };
+  assert.equal(correcting(prova), false);
+  assert.equal(labelOf(prova), 'unfinished');
 });
 
 test('um estado que o servidor invente não é dado como terminado', () => {

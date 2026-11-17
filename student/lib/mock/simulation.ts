@@ -12,6 +12,8 @@
  *  - `SimulationSubmissionService.java:96-111`: a question is objective because it
  *    HAS OPTIONS, not because of its type, and it scores all or nothing.
  *  - `SimulationResultService.java:83-90`: the result exists only once FINISHED.
+ *  - `CorrectionSummary.java` (kixi#609): the status is derived from the answers,
+ *    never stored; `DONE` also covers a paper with objective questions only.
  */
 
 import { parseServerTime } from '../exam-rules.ts';
@@ -116,4 +118,22 @@ export function gradeAnswer(answer: MockAnswer, question: MockQuestion): MockAns
 export function finalScore(answers: MockAnswer[]): number {
   const total = answers.reduce((sum, a) => sum + (a.scoreObtained ?? 0), 0);
   return Math.round(total * 10) / 10;
+}
+
+/** Os quatro estados que o backend deriva das respostas (kixi#609). */
+export type MockCorrectionStatus = 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'FAILED';
+
+/**
+ * O estado da correção e se houve alguma resposta aberta corrigida (para saber se
+ * `correctedAt` faz sentido). Nenhuma aberta por corrigir é `DONE`, o mesmo caso das
+ * provas só com objetivas; algumas já corrigidas é `IN_PROGRESS`.
+ */
+export function correctionSummary(reviewStatuses: readonly (MockAnswerStatus | null)[]): {
+  status: MockCorrectionStatus;
+  corrected: boolean;
+} {
+  const pending = reviewStatuses.filter((s) => s === 'PENDING_REVIEW').length;
+  const ai = reviewStatuses.filter((s) => s === 'AI_GRADED').length;
+  if (pending > 0) return { status: ai > 0 ? 'IN_PROGRESS' : 'PENDING', corrected: false };
+  return { status: 'DONE', corrected: ai > 0 };
 }

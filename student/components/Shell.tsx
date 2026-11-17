@@ -33,7 +33,7 @@ const WORD =
  * Computador: barra lateral de 232 px, coluna central de 680 px e coluna da direita (`rail`, vinda do servidor).
  * Telemóvel: cabeçalho com a nave, o sino e o avatar, e barra de 4 separadores em baixo.
  */
-export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0 }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null; unread?: number; roomsOpen?: number }) {
+export function Shell({ children, rail, landingOrigin, unread = 0, unreadCorrections = 0, roomsOpen = 0 }: { children: React.ReactNode; rail?: React.ReactNode; landingOrigin: string | null; unread?: number; unreadCorrections?: number; roomsOpen?: number }) {
   const path = usePathname();
   const me = useMe();
   const on = (it: (typeof ITEMS)[number]) => [it.href, ...it.also].some((p) => path === p || path.startsWith(p + '/'));
@@ -43,11 +43,17 @@ export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0
   // também no telemóvel apagava o nome acessível «Explorar» que a navegação e os testes usam
   // para encontrar o item (#704); por isso o telemóvel só ganha `aria-label` quando precisa de
   // falar o contador, e fica sem o atributo nos outros itens, exactamente como antes.
-  const roomsLabel = (it: (typeof ITEMS)[number]) => it.href === '/provas' && roomsOpen > 0
-    ? `Provas, ${roomsOpen} ${roomsOpen === 1 ? 'sala aberta' : 'salas abertas'}`
-    : null;
-  const desktopLabelOf = (it: (typeof ITEMS)[number]) => roomsLabel(it) ?? it.ariaLabel ?? it.label;
-  const mobileLabelOf = (it: (typeof ITEMS)[number]) => roomsLabel(it) ?? undefined;
+  // #793: o ponto das Provas fala por `aria-label`, como o sino. O nome começa por
+  // «Provas» para continuar a apontar para o mesmo destino na navegação e nos testes.
+  const provasLabel = (it: (typeof ITEMS)[number]) => {
+    if (it.href !== '/provas') return null;
+    const novidades: string[] = [];
+    if (unreadCorrections > 0) novidades.push(`${unreadCorrections} ${unreadCorrections === 1 ? 'correção nova' : 'correções novas'}`);
+    if (roomsOpen > 0) novidades.push(`${roomsOpen} ${roomsOpen === 1 ? 'sala aberta' : 'salas abertas'}`);
+    return novidades.length > 0 ? `Provas, ${novidades.join(', ')}` : null;
+  };
+  const desktopLabelOf = (it: (typeof ITEMS)[number]) => provasLabel(it) ?? it.ariaLabel ?? it.label;
+  const mobileLabelOf = (it: (typeof ITEMS)[number]) => provasLabel(it) ?? undefined;
   const name = fullName(me) || 'Aluno';
   const showRail = !!rail && !NO_RAIL.some((p) => path === p || path.startsWith(p + '/'));
 
@@ -82,8 +88,11 @@ export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0
             >
               <NavIcon name={it.icon} active={on(it)} size={22} desktop />
               {it.label}
-              {it.href === '/provas' && roomsOpen > 0 && (
-                <span aria-hidden="true" className="ml-auto min-w-[20px] rounded-full bg-[#1f5a2c] px-1.5 py-0.5 text-center text-[11px] font-bold text-white">{roomsOpen}</span>
+              {it.href === '/provas' && (unreadCorrections > 0 || roomsOpen > 0) && (
+                <span aria-hidden="true" className="ml-auto flex shrink-0 items-center gap-1.5">
+                  {unreadCorrections > 0 && <span data-testid="provas-correcao-nova-desktop" className="size-[7px] rounded-full bg-[#c2383e]" />}
+                  {roomsOpen > 0 && <span className="grid min-w-[20px] rounded-full bg-[#1f5a2c] px-1.5 py-0.5 text-center text-[11px] font-bold text-white">{roomsOpen}</span>}
+                </span>
               )}
               {it.icon === 'notificacoes' && unread > 0 && <span className="ml-auto size-[7px] shrink-0 rounded-full bg-[#c2383e]" aria-label={`${unread} novas`} />}
             </Link>
@@ -136,6 +145,11 @@ export function Shell({ children, rail, landingOrigin, unread = 0, roomsOpen = 0
               <NavIcon name={it.icon} active={on(it)} size={24} />
               {it.href === '/provas' && roomsOpen > 0 && (
                 <span aria-hidden="true" className="absolute -top-1.5 -right-2.5 grid min-w-[17px] place-items-center rounded-full bg-[#1f5a2c] px-1 text-[10px] font-bold leading-[17px] text-white">{roomsOpen}</span>
+              )}
+              {/* #793: quando há também uma sala aberta, o ponto da nota vai para o
+                  lado oposto do ícone para não tapar o contador verde. */}
+              {it.href === '/provas' && unreadCorrections > 0 && (
+                <span aria-hidden="true" data-testid="provas-correcao-nova-mobile" className={`absolute size-[7px] rounded-full bg-[#c2383e] ${roomsOpen > 0 ? '-bottom-0.5 -left-1' : '-top-0.5 -right-1'}`} />
               )}
             </span>
             {it.label}

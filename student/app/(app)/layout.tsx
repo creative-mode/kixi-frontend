@@ -34,12 +34,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // O ponto da barra: só as fontes baratas (medalhas e resultados), para não custar leituras de conversas em cada página.
   // O contador das salas (#795) viaja na mesma vaga: são duas leituras em paralelo, uma vez por página.
-  const [notifications, roomsOpen]: [{ unreadCount: number }, number] = profile.kind === 'ok'
+  const [notifications, roomsOpen]: [{ unreadCount: number; unreadCorrections: number }, number] = profile.kind === 'ok'
     ? await Promise.all([
-        loadNotifications(profile.me, false).catch(() => ({ unreadCount: 0 })),
+        loadNotifications(profile.me, false).catch(() => ({ unreadCount: 0, unreadCorrections: 0 })),
         roomsForNav(),
       ])
-    : [{ unreadCount: 0 }, 0];
+    : [{ unreadCount: 0, unreadCorrections: 0 }, 0];
   const unread = notifications.unreadCount;
 
   return (
@@ -47,6 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <ToastProvider>
       <Shell
         unread={unread}
+        unreadCorrections={notifications.unreadCorrections}
         roomsOpen={roomsOpen}
         landingOrigin={appOrigin()}
         rail={profile.kind === 'ok'

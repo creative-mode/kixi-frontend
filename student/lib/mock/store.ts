@@ -3,7 +3,7 @@ import { countLeafQuestions } from './leaf-count';
 import { resolveSchoolId } from './school';
 import * as friends from './friends';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
-import { deadlineFor, expired, finalScore, gradeAnswer, toLocalDateTime, type MockAnswer, type MockQuestion } from './simulation';
+import { correctionSummary, deadlineFor, expired, finalScore, gradeAnswer, toLocalDateTime, type MockAnswer, type MockCorrectionStatus, type MockQuestion } from './simulation';
 import crypto from 'node:crypto';
 import { getJwtSecretValue, isMockEnabled } from '../dev-secret';
 import { roomDeadline, type MockParticipant, type MockRoom } from './exam-rooms';
@@ -36,6 +36,27 @@ export const currentFault = (): Fault => effectiveFault(G.__kixiFault, FAULT);
 
 export function setFault(mode: string): void {
   G.__kixiFault = normalizeFault(mode);
+}
+
+const CORRECTION_STATUSES = new Set<MockCorrectionStatus>(['PENDING', 'IN_PROGRESS', 'DONE', 'FAILED']);
+
+/** Só para o e2e (#793): força o estado da correção de uma simulação, como o motor
+ *  faria com um PUT .../ai-grade. Sem isto não há forma determinística de apanhar o
+ *  ecrã «A corrigir» — entregar uma prova depende do relógio e do enunciado. */
+export function setMockCorrection(simulationId: number, status: string): boolean {
+  const row = store().simulations.find((s) => s.id === simulationId);
+  if (!row) return false;
+  if (status === '') {
+    // Volta à regra derivada das respostas, para um teste não deixar o próximo com
+    // uma correção forçada.
+    delete row.correctionOverride;
+    row.correctedAt = null;
+    return true;
+  }
+  if (!CORRECTION_STATUSES.has(status as MockCorrectionStatus)) return false;
+  row.correctionOverride = status as MockCorrectionStatus;
+  row.correctedAt = status === 'DONE' ? toLocalDateTime(new Date()) : null;
+  return true;
 }
 
 export const SEED_PASSWORD = 'Kixi1234!';
@@ -118,6 +139,10 @@ export type SimulationRow = {
   examRoomId?: number | null;
   /** Só num treino montado (kixi#729). */
   selectedQuestionIds?: number[];
+  /** kixi#609/#793: hora em que a nota ficou pronta. O estado é derivado das respostas;
+   *  o override só existe para o e2e forçar uma prova por corrigir sem depender do relógio. */
+  correctionOverride?: MockCorrectionStatus;
+  correctedAt?: string | null;
 };
 
 export type Store = {
@@ -523,6 +548,9 @@ export function seed(): Store {
         id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4,
         startedAt: toLocalDateTime(new Date(Date.now() - 72 * 3600 * 1000)),
         finishedAt: toLocalDateTime(new Date(Date.now() - 71 * 3600 * 1000)),
+        // #793: a nota chegou duas horas depois da entrega. É esta data que faz a
+        // notificação voltar a ser nova no sino depois de «Marcar tudo como lido».
+        correctedAt: toLocalDateTime(new Date(Date.now() - 2 * 3600 * 1000)),
         timeSpentSeconds: 3120,
       },
       {
@@ -571,7 +599,7 @@ export function seed(): Store {
     // ficou em vez de recomeçar: um POST novo na mesma pergunta daria 409.
     answers: [
       // A tentativa 1 está corrigida: duas escolhas, uma certa e uma errada, e uma
-      // resposta aberta que fica para o professor. É o que o ecrã de resultado mostra.
+      // resposta aberta corrigida pela IA. É o que o ecrã de resultado mostra.
       {
         id: 2, simulationId: 1, questionId: 1, selectedOptionId: 12, answerText: null,
         scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED', answeredAt: null,
@@ -581,8 +609,10 @@ export function seed(): Store {
         scoreObtained: 0, isCorrect: false, reviewStatus: 'AUTO_GRADED', answeredAt: null,
       },
       {
+        // #609/#793: a aberta da tentativa 1 já foi corrigida, por isso a simulação
+        // está DONE e o sino pode mostrar a nota com `correctedAt`.
         id: 4, simulationId: 1, questionId: 3, selectedOptionId: null, answerText: 'É dividir uma rede em sub-redes mais pequenas.',
-        scoreObtained: null, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answeredAt: null,
+        scoreObtained: 4, isCorrect: true, reviewStatus: 'AI_GRADED', answeredAt: null,
       },
       {
         id: 1, simulationId: 2, questionId: 1, selectedOptionId: 12, answerText: null,
@@ -815,6 +845,13 @@ export function roomDeadlineOf(db: Store, row: SimulationRow): string | null {
 export function simulationResponse(db: Store, row: SimulationRow) {
   const statement = db.statements.find((s) => s.id === row.statementId);
   const owner = db.accounts.find((a) => a.id === row.accountId);
+  // kixi#609: enquanto a prova não é entregue não há correção; depois, o estado vem
+  // das respostas. O override serve só para o e2e simular uma correção em curso.
+  const answers = db.answers.filter((a) => a.simulationId === row.id);
+  const summary = correctionSummary(answers.map((a) => a.reviewStatus));
+  const status = row.status === 'FINISHED' ? (row.correctionOverride ?? summary.status) : null;
+  const temCorrecao = row.correctionOverride ? row.correctionOverride === 'DONE' : summary.corrected;
+  const correctedAt = status === 'DONE' && temCorrecao ? row.correctedAt ?? row.finishedAt : null;
   return {
     id: row.id,
     account: owner ? { id: owner.id, username: owner.username, email: owner.email } : null,
@@ -831,6 +868,8 @@ export function simulationResponse(db: Store, row: SimulationRow) {
     createdAt: row.startedAt,
     updatedAt: row.finishedAt,
     deletedAt: null,
+    ...(status ? { correctionStatus: status } : {}),
+    ...(correctedAt ? { correctedAt } : {}),
     ...(row.selectedQuestionIds ? { selectedQuestionIds: row.selectedQuestionIds } : {}),
   };
 }

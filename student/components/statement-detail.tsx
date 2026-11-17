@@ -76,9 +76,10 @@ export function StatementDetailView({
                   </span>
                 </div>
               </div>
-              {/* Uma tentativa corrigida não abre a sala outra vez (a sala manda-a para o
-                  resultado), por isso o botão diz o que de facto faz. */}
-              {current?.label === 'corrected' ? (
+              {/* Uma tentativa terminada não abre a sala outra vez (a sala manda-a para o
+                  resultado). Mesmo com a correção por acabar, o resultado é o sítio onde
+                  o aluno vê o ecrã de espera e recebe a nota pelo sino (#793). */}
+              {current?.label === 'corrected' || current?.label === 'correcting' ? (
                 <VerResultado simulationId={current.id} variant="default" className="w-full" />
               ) : (
                 <Button asChild className={`${ACTION_LABEL} w-full`}>
@@ -137,21 +138,25 @@ export function StatementDetailView({
                       </span>
                     ) : (
                       <Badge variant={a.label === 'cancelled' ? 'secondary' : 'warning'}>
-                        {a.label === 'cancelled' ? 'Cancelada' : 'Em curso'}
+                        {a.label === 'cancelled' ? 'Cancelada' : a.label === 'correcting' ? 'A corrigir' : 'Em curso'}
                       </Badge>
                     )}
                     <div className="min-w-0 flex-1 leading-snug">
                       <b className="block text-sm">
-                        {a.label === 'corrected' ? 'Prova corrigida' : a.label === 'cancelled' ? 'Prova cancelada' : 'Prova por terminar'}
+                        {a.label === 'corrected' ? 'Prova corrigida' : a.label === 'cancelled' ? 'Prova cancelada' : a.label === 'correcting' ? 'Prova entregue' : 'Prova por terminar'}
                       </b>
                       <span className="text-[13px] text-muted-foreground">
                         {a.since ?? 'sem data'}
                         {a.label === 'corrected' && a.score != null ? ` · ${a.score} valores` : ''}
                         {a.label === 'cancelled' ? ' · não foi corrigida' : ''}
+                        {/* #793: FAILED quer dizer que o motor não vai corrigir sozinho;
+                            prometer a nota pelo sino aqui seria uma mentira. */}
+                        {a.label === 'correcting' && a.failed ? ' · a correção falhou, fala com o professor' : ''}
+                        {a.label === 'correcting' && !a.failed ? ' · a nota chega pelo sino' : ''}
                       </span>
                     </div>
-                    {/* Uma tentativa cancelada não tem nada para continuar: o botão
-                        era o que a mostrava como «por terminar». */}
+                    {/* Uma tentativa cancelada não tem nada para continuar; uma por corrigir
+                        ainda não tem resultado para ver — a nota aparece no sino (#793). */}
                     {a.label === 'corrected' && (
                       <VerResultado simulationId={a.id} size="sm" />
                     )}

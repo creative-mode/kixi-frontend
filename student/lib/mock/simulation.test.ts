@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { parseServerTime } from '../exam-rules.ts';
 import {
   TOLERANCE_SECONDS,
+  correctionSummary,
   deadlineFor,
   expired,
   finalScore,
@@ -149,6 +150,17 @@ test('a nota final é a soma das cotações, em fração decimal', () => {
   ];
   // 2 + 0 (a aberta não pontua) + 0 = 2. Uma aberta por corrigir não pesa para baixo.
   assert.equal(finalScore(answers), 2);
+});
+
+test('o estado da correção vem das respostas, como no kixi#609', () => {
+  // Nenhuma aberta, ou só objetivas: DONE, mas sem `correctedAt` para dar data à nota.
+  assert.deepEqual(correctionSummary(['AUTO_GRADED', null]), { status: 'DONE', corrected: false });
+  assert.deepEqual(correctionSummary([]), { status: 'DONE', corrected: false });
+  // Uma aberta por corrigir: nem toda a correção acabou, mesmo com escolhas já feitas.
+  assert.deepEqual(correctionSummary(['AUTO_GRADED', 'PENDING_REVIEW']), { status: 'PENDING', corrected: false });
+  // Metade corrigida pela IA: ainda há trabalho, mas já se viu uma nota.
+  assert.deepEqual(correctionSummary(['AI_GRADED', 'PENDING_REVIEW']), { status: 'IN_PROGRESS', corrected: false });
+  assert.deepEqual(correctionSummary(['AUTO_GRADED', 'AI_GRADED']), { status: 'DONE', corrected: true });
 });
 
 test('o LocalDateTime do mock é a hora do servidor (+01:00), seja qual for o fuso do processo', () => {
