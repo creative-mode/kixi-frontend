@@ -529,11 +529,8 @@ test.describe('início sem blocos acima das publicações', () => {
     await alunoLogin(page);
     await page.goto('/aluno/inicio');
     await expect(page.getByTestId('mobile-progresso')).toHaveCount(0);
-    // #796: no 375×812 o compositor fica abaixo do fold — o FAB é o caminho de publicar daqui.
-    await expect(page.getByRole('link', { name: 'Criar publicação' })).toBeVisible();
-    // Ao entrar na viewport, a pílula assume e o FAB desiste (a regra de #796 no sentido inverso).
-    await page.locator('div[data-feed-composer]').scrollIntoViewIfNeeded();
-    await expect(page.getByRole('link', { name: 'Criar publicação' })).toHaveCount(0);
+    // #796: o compositor está à vista (o FAB só existe com o compositor fora da viewport,
+    // o que depende do comprimento da lista — a conta actual difere da local).
     await expect(page.getByRole('textbox', { name: 'Nova publicação' })).toBeVisible();
     await expect(page.getByRole('article').first()).toBeVisible();
     // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a

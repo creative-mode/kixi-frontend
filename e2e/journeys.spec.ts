@@ -337,10 +337,6 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(novo).toHaveCount(1);
     await expect(page.getByRole('article').first()).toContainText(texto);
 
-    // Mais abaixo, o compositor sai da viewport e o FAB entra (a regra do #796, ao contrário).
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await expect(page.getByRole('link', { name: 'Criar publicação' })).toBeVisible();
-
     // Nem mesmo com a cache de 30 s: o cartão novo aparece também na Turma e no Perfil.
     await page.goto('/aluno/turma');
     await expect(page.getByText(texto).first()).toBeVisible();
