@@ -42,7 +42,7 @@ import {
   toReview,
   type Verdict,
   calculateScoreBreakdown,
-  type ScoreBreakdown,
+  type ScoreBreakdownData,
 } from '@/lib/result-rules';
 import { displayNumber, topNumber, wholeNumbers } from '@/lib/question-number';
 import { wrongAnswersParam } from '@/lib/tutor-rules';
@@ -204,7 +204,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const pending = result.pendingReviewCount ?? 0;
   const hasMistakes = questions.some((q) => ['wrong', 'blank'].includes(verdict(q)));
 
-  const breakdown: ScoreBreakdown = calculateScoreBreakdown(questions);
+  const breakdown: ScoreBreakdownData = calculateScoreBreakdown(questions);
 
   // A leitura da nota (#492) só usa números do servidor: a média da turma vem da
   // comunidade da prova, e o XP, a sequência e as medalhas vêm de /me. Cada bloco

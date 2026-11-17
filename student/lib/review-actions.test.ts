@@ -46,7 +46,7 @@ test('pedirRevisaoAction: motivo excede maxLength', async () => {
 
 test('pedirRevisaoAction: sucesso com message no data', async () => {
   await runWithMock(
-    async () => ({ ok: true, data: { message: 'Custom success' } }),
+    (async () => ({ ok: true, data: { message: 'Custom success' } })) as typeof originalApiPost,
     async () => {
       const r = await pedirRevisaoAction(1, 1, 'motivo válido');
       assert.equal(r.ok, true);
@@ -57,7 +57,7 @@ test('pedirRevisaoAction: sucesso com message no data', async () => {
 
 test('pedirRevisaoAction: sucesso HTTP 204 (data undefined)', async () => {
   await runWithMock(
-    async () => ({ ok: true, data: undefined }),
+    (async () => ({ ok: true, data: undefined })) as typeof originalApiPost,
     async () => {
       const r = await pedirRevisaoAction(1, 1, 'motivo válido');
       assert.equal(r.ok, true);

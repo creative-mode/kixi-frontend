@@ -188,7 +188,7 @@ export function optionTag(option: ResultOption, index: number): string {
 }
 
 /** Score breakdown for display: objective vs open questions, separating graded from pending. */
-export interface ScoreBreakdown {
+export interface ScoreBreakdownData {
   objectiveScore: number;
   objectiveMax: number;
   openScore: number;
@@ -200,7 +200,7 @@ export interface ScoreBreakdown {
 }
 
 /** Calculate score breakdown from questions. Pure function, no server, no React. */
-export function calculateScoreBreakdown(questions: ResultQuestion[] | undefined): ScoreBreakdown {
+export function calculateScoreBreakdown(questions: ResultQuestion[] | undefined): ScoreBreakdownData {
   const qs = questions ?? [];
   const objectiveQuestions = qs.filter((q) => (q.options ?? []).length > 0);
   const openQuestions = qs.filter((q) => (q.options ?? []).length === 0);
