@@ -91,6 +91,10 @@ export async function termPlanRoutes({ method, path, auth, readBody }: MockConte
     if (!plan.assessments.some((a: any) => a.kind === 'P1' && a.statementId) || !plan.assessments.some((a: any) => a.kind === 'P2' && a.statementId)) {
       return problem(409, 'P1 and P2 need a statement before the scheduling is concluded');
     }
+    // Uma avaliação de MAC é uma prova como a P1 e a P2 (kixi#623/schoolops#65): sem enunciado só se for dispensada.
+    if (plan.assessments.some((a: any) => a.kind === 'MAC' && status(a) !== 'DISPENSED' && !a.statementId)) {
+      return problem(409, 'Every MAC assessment needs a statement (or must be dispensed) before the scheduling is concluded');
+    }
     plan.concludedAt = plan.concludedAt ?? new Date().toISOString();
     return json(200, view(plan));
   }
@@ -125,7 +129,10 @@ export async function termPlanRoutes({ method, path, auth, readBody }: MockConte
   if (assessment && !m[3] && method === 'PATCH') {
     const b = readBody();
     if (b.roomId) assessment.roomId = b.roomId;
+    // Sem enunciado explícito, a sala traz o seu (TermPlanService.link, no backend real): ligar uma sala já liga o enunciado.
+    const room = b.roomId ? db['exam-rooms']?.find((r: any) => r.id === b.roomId) : null;
     if (b.statementId) assessment.statementId = b.statementId;
+    else if (room?.statementId) assessment.statementId = room.statementId;
     return json(200, view(plan));
   }
   return problem(405, 'Method Not Allowed');

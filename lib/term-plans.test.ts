@@ -1,7 +1,7 @@
 // Testes das regras do plano do trimestre:  node --test lib/term-plans.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac } from './term-plans.ts';
+import { conclusionProblem, daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac } from './term-plans.ts';
 import type { PlanDraft, Reminder } from '../types/term-plans.ts';
 
 const draft = (over: Partial<PlanDraft> = {}): PlanDraft => ({
@@ -42,6 +42,19 @@ test('o progresso conta só o que está corrigido ou dispensado', () => {
   const plan = { assessments: [{ status: 'GRADED' }, { status: 'DISPENSED' }, { status: 'ROOM_OPEN' }, { status: 'PLANNED' }] } as never;
   assert.deepEqual(progress(plan), { done: 2, total: 4 });
   assert.equal(isCleared({ status: 'DONE' }), false);
+});
+
+test('concluir o agendamento pede o enunciado de cada avaliação não dispensada (kixi#623/kixi-frontend#809)', () => {
+  const avaliacao = (kind: 'P1' | 'P2' | 'MAC', over: Record<string, unknown> = {}) =>
+    ({ kind, seq: 1, status: 'PLANNED', statementId: null, ...over }) as never;
+  assert.equal(conclusionProblem({ assessments: [avaliacao('P1', { statementId: 1 }), avaliacao('P2', { statementId: 2 })] }), null);
+  assert.equal(conclusionProblem({ assessments: [avaliacao('P1')] }), 'Falta ligar o enunciado: P1.');
+  assert.equal(
+    conclusionProblem({ assessments: [avaliacao('P1', { statementId: 1 }), avaliacao('MAC', { seq: 2 })] }),
+    'Falta ligar o enunciado: MAC 2.',
+  );
+  // Uma MAC dispensada não pede enunciado.
+  assert.equal(conclusionProblem({ assessments: [avaliacao('MAC', { status: 'DISPENSED' })] }), null);
 });
 
 test('os lembretes vêm com o atraso primeiro e dizem o que fazer', () => {

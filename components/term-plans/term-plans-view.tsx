@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { approvePlan, concludeScheduling, createPlan, dispense, linkRoom, markDone, planContext, reschedule, type PlanContext, type RoomChoice } from '@/app/actions/term-plans';
+import { approvePlan, concludeScheduling, createPlan, dispense, linkRoom, linkStatement, planContext, reschedule, type PlanContext, type RoomChoice, type StatementChoice } from '@/app/actions/term-plans';
 import { ACTION_TIMEOUT_MS, withDeadline } from '@/lib/timeout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { SectionState } from '@/components/dashboard/section-state';
-import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac } from '@/lib/term-plans';
+import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, conclusionProblem, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac } from '@/lib/term-plans';
 import type { Section } from '@/types/analytics';
 import type { Assessment, PlanDraft, TermPlan } from '@/types/term-plans';
 
@@ -181,6 +181,7 @@ type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string) =
 function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: Act }) {
   const { done, total } = progress(plan);
   const mine = ctx.pairs.some((p) => p.classId === plan.classId && p.subjectId === plan.subjectId);
+  const problem = conclusionProblem(plan);
   return (
     <Card>
       <CardHeader>
@@ -201,7 +202,10 @@ function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: A
           {plan.assessments.map((a) => <AssessmentRow key={a.id} plan={plan} a={a} mine={mine} ctx={ctx} act={act} />)}
         </ul>
         {(mine || ctx.canDecide) && !plan.schedulingConcluded && !plan.pautaOpened && (
-          <div><Button onClick={() => void act(() => concludeScheduling(plan.id), 'Agendamento concluído: a pauta vai abrir.')}>Concluir o agendamento</Button></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button disabled={problem !== null} onClick={() => void act(() => concludeScheduling(plan.id), 'Agendamento concluído: a pauta vai abrir.')}>Concluir o agendamento</Button>
+            {problem && <span className="text-sm text-muted-foreground">{problem}</span>}
+          </div>
         )}
         {ctx.canDecide && !plan.approved && (
           <div><Button variant="outline" onClick={() => void act(() => approvePlan(plan.id), 'Plano aprovado.')}>Aprovar o plano</Button></div>
@@ -213,11 +217,18 @@ function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: A
 
 function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessment; mine: boolean; ctx: PlanContext; act: Act }) {
   const [room, setRoom] = useState('');
+  const [statement, setStatement] = useState('');
   const [reason, setReason] = useState('');
   const [asking, setAsking] = useState(false);
   const [newDate, setNewDate] = useState('');
   const isExam = a.kind !== 'MAC';
   const rooms = useMemo<RoomChoice[]>(() => ctx.rooms.filter((r) => r.classId === plan.classId), [ctx.rooms, plan.classId]);
+  // Um enunciado da turma (ou livre, sem turma própria) e da disciplina do plano: a P1, a P2 e cada MAC escolhem-no
+  // da mesma forma (kixi#623/kixi-frontend#809), antes ou em vez de lhe abrir sala.
+  const statements = useMemo<StatementChoice[]>(
+    () => ctx.statements.filter((s) => (s.classId === null || s.classId === plan.classId) && (s.subjectId === null || s.subjectId === plan.subjectId)),
+    [ctx.statements, plan.classId, plan.subjectId],
+  );
   const open = !DONE_TONE.has(a.status) || (ctx.canDecide && a.kind !== 'MAC' && !plan.pautaOpened && a.status === 'GRADED');
   return (
     <li className="flex flex-col gap-2 py-3">
@@ -230,6 +241,15 @@ function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessm
       </div>
       {open && (
         <div className="flex flex-wrap items-center gap-2">
+          {mine && a.statementId === null && statements.length > 0 && (
+            <>
+              <NativeSelect aria-label={`Enunciado de ${a.title}`} value={statement} onChange={(e) => setStatement(e.target.value)} className="max-w-72">
+                <option value="">Ligar um enunciado…</option>
+                {statements.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </NativeSelect>
+              <Button size="sm" variant="outline" disabled={!statement} onClick={() => void act(() => linkStatement(plan.id, a.id, Number(statement)), 'Enunciado ligado.')}>Ligar enunciado</Button>
+            </>
+          )}
           {mine && a.roomId === null && rooms.length > 0 && (
             <>
               <NativeSelect aria-label={`Sala para ${a.title}`} value={room} onChange={(e) => setRoom(e.target.value)} className="max-w-72">
@@ -238,9 +258,6 @@ function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessm
               </NativeSelect>
               <Button size="sm" variant="outline" disabled={!room} onClick={() => void act(() => linkRoom(plan.id, a.id, Number(room)), 'Sala ligada.')}>Ligar</Button>
             </>
-          )}
-          {mine && a.kind === 'MAC' && a.roomId === null && (
-            <Button size="sm" variant="outline" onClick={() => void act(() => markDone(plan.id, a.id), 'Avaliação concluída.')}>Marcar concluída</Button>
           )}
           {ctx.canDecide && !asking && <Button size="sm" variant="ghost" onClick={() => setAsking(true)}>{isExam ? 'Reagendar…' : 'Dispensar…'}</Button>}
           {ctx.canDecide && asking && (

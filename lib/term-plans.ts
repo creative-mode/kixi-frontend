@@ -72,6 +72,18 @@ export function resizeMac(d: PlanDraft, count: number): PlanDraft {
   };
 }
 
+/**
+ * O que falta para concluir o agendamento (kixi#623/kixi-frontend#809): a P1, a P2 e cada MAC não dispensada precisam
+ * de enunciado antes de a pauta poder abrir. Espelha a validação do backend (`TermPlanService.conclude`), em português
+ * e já com o nome de cada avaliação em falta, para o professor ver o que falta sem ter de tentar concluir primeiro.
+ */
+export function conclusionProblem(plan: Pick<TermPlan, 'assessments'>): string | null {
+  const missing = plan.assessments.filter((a) => a.status !== 'DISPENSED' && a.statementId === null);
+  if (missing.length === 0) return null;
+  const nomes = missing.map((a) => (a.kind === 'MAC' ? `MAC ${a.seq}` : a.kind));
+  return `Falta ligar o enunciado: ${nomes.join(', ')}.`;
+}
+
 export function remindersFirst(reminders: readonly Reminder[]): Reminder[] {
   const rank: Record<ReminderLevel, number> = { LATE: 0, D2: 1, D7: 2, D14: 3 };
   return [...reminders].sort((a, b) => rank[a.level] - rank[b.level] || a.plannedDate.localeCompare(b.plannedDate));
