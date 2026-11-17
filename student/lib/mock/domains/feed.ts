@@ -90,6 +90,7 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
         variant: statement?.variant ?? null,
         finalScore: sim.finalScore, maxScore: statement?.totalMaxScore ?? null,
         correctAnswers: null, totalQuestions: null, timeSpentSeconds: sim.timeSpentSeconds,
+        pendingReviewCount: db.answers.filter((a) => a.simulationId === sim.id && a.reviewStatus === 'PENDING_REVIEW').length,
       };
     }
     const now = toLocalDateTime(new Date());

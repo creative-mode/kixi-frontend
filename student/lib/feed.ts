@@ -38,6 +38,9 @@ export interface SimulationCard {
   correctAnswers: number | null;
   totalQuestions: number | null;
   timeSpentSeconds: number | null;
+  /** Respostas abertas ainda por corrigir, do instantâneo (kixi#788): acima de
+   *  zero, o cartão diz «A corrigir» em vez de mostrar a nota parcial como final. */
+  pendingReviewCount?: number | null;
 }
 
 export type ReactionType = 'applause' | 'strength';

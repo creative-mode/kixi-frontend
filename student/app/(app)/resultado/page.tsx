@@ -318,11 +318,18 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
               durationMinutes: paperMeta.durationMinutes,
               schoolYear: paperMeta.schoolYear,
               variant: paperMeta.variant,
-              finalScore: result.finalScore,
-              maxScore: totalMax,
-              correctAnswers: result.correctAnswers ?? null,
-              totalQuestions: result.totalQuestions ?? null,
-              timeSpentSeconds: result.timeSpentSeconds ?? null,
+              // A pré-visualização usa os números que o servidor vai gravar no
+              // instantâneo (SimulationShowcase): a nota e as contagens do resultado
+              // do backend, e a cotação do enunciado — não a nota do SchoolOps, que
+              // só chega ao feed quando o kixi#609 estiver feito. Enquanto houver
+              // respostas abertas por corrigir, `pendingReviewCount` faz o cartão
+              // dizer «A corrigir» em vez de estampar a nota parcial (kixi#788).
+              finalScore: resultadoDoBackend.finalScore ?? null,
+              maxScore: view.totalMaxScore,
+              correctAnswers: resultadoDoBackend.correctAnswers ?? null,
+              totalQuestions: resultadoDoBackend.totalQuestions ?? null,
+              timeSpentSeconds: resultadoDoBackend.timeSpentSeconds ?? null,
+              pendingReviewCount: resultadoDoBackend.pendingReviewCount ?? 0,
             }}
           />
         )}

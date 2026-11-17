@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { useId, useState, useTransition } from 'react';
-import { Check, Loader2, Share2, Users } from 'lucide-react';
+import { Check, Loader2, Share2, TriangleAlert, Users } from 'lucide-react';
 import type { SimulationCardData } from '@/components/simulation-card';
 import { PostPreview } from '@/components/post-parts';
 import { useMe } from '@/lib/me-context';
 import { fullName, photoUrl } from '@/lib/profile';
-import { cardWithoutScore, classAudienceLabel, postTypeLabel } from '@/lib/feed-rules';
+import { cardWithoutScore, classAudienceLabel, pendingReviews, postTypeLabel } from '@/lib/feed-rules';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -45,6 +45,10 @@ export function PublishResult({
   const [published, setPublished] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Ainda há abertas por corrigir: o cartão publicado vai dizer «A corrigir» até
+  // a nota final chegar, e não a nota parcial do backend (kixi#788).
+  const pendingReviewCount = pendingReviews(card);
+  const provisional = pendingReviewCount > 0;
 
   const publish = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,9 +74,11 @@ export function PublishResult({
             <div className="grid gap-0.5">
               <label htmlFor={toggleId} className="text-sm font-semibold">Mostrar a nota</label>
               <p id={toggleHintId} className="text-[13px] leading-snug text-muted-foreground">
-                {showScore
-                  ? 'A turma vê a nota e as respostas certas.'
-                  : 'A turma vê o cartão, mas sem a nota nem as respostas certas. Só tu continuas a vê-las.'}
+                {!showScore
+                  ? 'A turma vê o cartão, mas sem a nota nem as respostas certas. Só tu continuas a vê-las.'
+                  : provisional
+                    ? 'A turma vê o cartão com «A corrigir». A nota aparece quando a correção terminar.'
+                    : 'A turma vê a nota e as respostas certas.'}
               </p>
             </div>
             <Switch
@@ -84,6 +90,14 @@ export function PublishResult({
             />
           </div>
         </div>
+        {provisional && showScore && (
+          <p className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-[13px] font-medium text-warning" role="status">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              Ainda {pendingReviewCount === 1 ? 'há 1 resposta aberta' : `há ${pendingReviewCount} respostas abertas`} por corrigir: o cartão vai mostrar «A corrigir» até a nota final chegar.
+            </span>
+          </p>
+        )}
         {/* A pré-visualização é a publicação inteira, como a turma a vai ver: cabeçalho, cartão e reflexão. */}
         <PostPreview
           author={{ name: fullName(me) || 'Tu', photo: photoUrl(me) }}
