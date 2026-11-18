@@ -3,7 +3,17 @@ import type { ResultQuestion, SimulationResult } from '../result-rules';
 // Regras puras da correcção de simulações no SchoolOps (sem rede, para se testarem à parte).
 
 /** A resposta de `GET /v1/correcoes/{id}` e do POST com `aguardar`. */
-export type CorrecaoEstado = { correcaoId: string; estado: string; resultado?: ResultadoCorrecao | null };
+export type CorrecaoEstado = {
+  correcaoId: string;
+  estado: string;
+  resultado?: ResultadoCorrecao | null;
+  /** As dissertativas já corrigidas (schoolops#59). Opcional: null até o motor saber quantas são, e ausente num motor antigo. */
+  progresso?: ProgressoDoMotor | null;
+  /** Segundos que faltam, estimados pelo motor (schoolops#59). null/ausente sem amostras: o cliente estima por si. */
+  previsaoSegundos?: number | null;
+};
+
+export type ProgressoDoMotor = { corrigidas: number; total: number };
 
 export type ResultadoCorrecao = {
   estado?: string;
@@ -34,7 +44,8 @@ export function escalaDaNota(r: ResultadoCorrecao): number {
 /** O que o ecrã mostra: nunca uma nota antes de a correcção estar feita. */
 export type VistaCorrecao =
   | { kind: 'corrigida'; resultado: ResultadoCorrecao }
-  | { kind: 'a-corrigir' }
+  /** `progresso` e `previsaoSegundos` só vêm quando o motor os disse; ausentes, o ecrã estima pelo número de abertas da prova. */
+  | { kind: 'a-corrigir'; progresso?: ProgressoDoMotor; previsaoSegundos?: number }
   /** `semGabarito`: há questões abertas que o motor não pôde corrigir por não terem gabarito no Kixi. */
   | { kind: 'incompleta'; semGabarito: boolean }
   /** `motivo`: o motor recusou o pedido, a correcção ficou com um incidente (ou foi cancelada), ou o motor diz que já existe
@@ -55,7 +66,25 @@ export function vistaDaCorrecao(c: CorrecaoEstado): VistaCorrecao {
     }
     return { kind: 'corrigida', resultado: c.resultado };
   }
-  return FALHADOS.has(c.estado) ? { kind: 'falhou', motivo: 'incidente' } : { kind: 'a-corrigir' };
+  if (FALHADOS.has(c.estado)) return { kind: 'falhou', motivo: 'incidente' };
+  const progresso = progressoValido(c.progresso);
+  const previsaoSegundos = previsaoValida(c.previsaoSegundos);
+  return {
+    kind: 'a-corrigir',
+    ...(progresso ? { progresso } : {}),
+    ...(previsaoSegundos != null ? { previsaoSegundos } : {}),
+  };
+}
+
+/** O progresso do motor, só se for coerente: inteiros, sem negativos e com `corrigidas` até ao `total`. O resto é «ainda não se sabe». */
+export function progressoValido(p: ProgressoDoMotor | null | undefined): ProgressoDoMotor | null {
+  if (!p || !Number.isInteger(p.corrigidas) || !Number.isInteger(p.total)) return null;
+  return p.corrigidas >= 0 && p.total > 0 && p.corrigidas <= p.total ? { corrigidas: p.corrigidas, total: p.total } : null;
+}
+
+/** A previsão do motor, só se for um número finito e não negativo; null, ausente ou lixo é «ainda não se sabe», nunca zero. */
+export function previsaoValida(segundos: number | null | undefined): number | null {
+  return typeof segundos === 'number' && Number.isFinite(segundos) && segundos >= 0 ? Math.round(segundos) : null;
 }
 
 /** O que o motor respondeu ao abrir a correcção (sem ser um 2xx). O 409 trata-se à parte (`correcaoIdDoConflito`). */

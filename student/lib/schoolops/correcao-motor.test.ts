@@ -102,3 +102,11 @@ test('aberta e corrigida: devolve a nota', async () => {
   const { fetcher } = motor({ post: { status: 202, corpo: { correcaoId: 'CR-0A5ECDCA54339EB3' } }, get: { '/v1/correcoes/CR-0A5ECDCA54339EB3': { status: 200, corpo: corrigida } } });
   assert.equal((await abrirCorrecao({ cfg, pedido, simulationId: 9, fetcher })).kind, 'corrigida');
 });
+
+test('o progresso e a previsão do motor chegam à vista de quem espera (schoolops#59)', async () => {
+  const { fetcher } = motor({
+    post: { status: 200, corpo: { correcaoId: 'CR-0A5ECDCA54339EB3' } },
+    get: { '/v1/correcoes/CR-0A5ECDCA54339EB3': { status: 200, corpo: { correcaoId: 'CR-0A5ECDCA54339EB3', estado: 'ABERTA', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 55 } } },
+  });
+  assert.deepEqual(await abrirCorrecao({ cfg, pedido, simulationId: 9, fetcher }), { kind: 'a-corrigir', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 55 });
+});
