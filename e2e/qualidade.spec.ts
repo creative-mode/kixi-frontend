@@ -364,7 +364,7 @@ test.describe('aviso de correção (#793)', () => {
       // em vez de prometer uma nota pelo sino, e nenhum ponto se acende.
       expect((await forcar('FAILED')).ok()).toBe(true);
       await page.goto('/aluno/prova/1/detalhe');
-      const falhada = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
+      const falhada = page.getByRole('listitem').filter({ hasText: 'Prova entregue' }).first();
       await expect(falhada).toContainText('A corrigir');
       await expect(falhada).toContainText('a correção falhou, fala com o professor');
       await expect(falhada).not.toContainText('a nota chega pelo sino');
