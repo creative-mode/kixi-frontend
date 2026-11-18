@@ -117,7 +117,7 @@ export function CorrecaoEmCurso({
         >
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold">Objectivas, já corrigidas</h3>
-            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">pelo gabarito</span>
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">pelo gabarito</span>
           </div>
           <p className="tabular-nums">
             <span className="text-3xl font-bold">{formatScore(provisoria.pontos)}</span>{' '}
