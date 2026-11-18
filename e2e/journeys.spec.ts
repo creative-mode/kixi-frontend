@@ -2428,31 +2428,41 @@ test.describe('cartão de prova no feed (#602)', () => {
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    await page.goto('/aluno/resultado?prova=1');
-    const previa = page.getByLabel('Publicar o resultado no feed');
-    await expect(previa).toBeVisible();
-    // A turma do mock é a 12B: a linha diz quem vê e quantos colegas há.
-    await expect(previa.getByText(/Visível para a turma 12\.ª B \(\d+ colegas\)/)).toBeVisible();
+    // O seed da simulação 1 está corrigido (#793), porque é ele que faz a nota
+    // chegar ao sino; aqui põe-se a aberta a aguardar correção só durante o teste.
+    const forcar = (pending: boolean) =>
+      page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status: pending ? 'PENDING' : '', pending } });
+    try {
+      expect((await forcar(true)).ok()).toBe(true);
 
-    const mostrarNota = previa.getByRole('switch', { name: 'Mostrar a nota' });
-    await expect(mostrarNota).toBeChecked();
-    // A simulação 1 tem uma resposta aberta por corrigir: a nota parcial nunca
-    // aparece como final na pré-visualização (kixi#788).
-    await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
-    await expect(previa.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
-    await expect(previa.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
-    await expect(previa.getByText('16,4')).toBeHidden();
+      await page.goto('/aluno/resultado?prova=1');
+      const previa = page.getByLabel('Publicar o resultado no feed');
+      await expect(previa).toBeVisible();
+      // A turma do mock é a 12B: a linha diz quem vê e quantos colegas há.
+      await expect(previa.getByText(/Visível para a turma 12\.ª B \(\d+ colegas\)/)).toBeVisible();
 
-    await mostrarNota.click();
-    await expect(mostrarNota).not.toBeChecked();
-    // A pré-visualização é a publicação como a turma a vê: os números saem do cartão.
-    await expect(previa.getByText('Nota escondida')).toBeVisible();
-    await expect(previa.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
-    await expect(previa.getByText('A corrigir', { exact: true })).toBeHidden();
-    await expect(previa.getByText('16,4')).toBeHidden();
+      const mostrarNota = previa.getByRole('switch', { name: 'Mostrar a nota' });
+      await expect(mostrarNota).toBeChecked();
+      // A simulação 1 tem uma resposta aberta por corrigir: a nota parcial nunca
+      // aparece como final na pré-visualização (kixi#788).
+      await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
+      await expect(previa.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
+      await expect(previa.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
+      await expect(previa.getByText('16,4')).toBeHidden();
 
-    await mostrarNota.click();
-    await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
+      await mostrarNota.click();
+      await expect(mostrarNota).not.toBeChecked();
+      // A pré-visualização é a publicação como a turma a vê: os números saem do cartão.
+      await expect(previa.getByText('Nota escondida')).toBeVisible();
+      await expect(previa.getByText('Só o autor vê a nota e as respostas certas.')).toBeVisible();
+      await expect(previa.getByText('A corrigir', { exact: true })).toBeHidden();
+      await expect(previa.getByText('16,4')).toBeHidden();
+
+      await mostrarNota.click();
+      await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
+    } finally {
+      await forcar(false);
+    }
   });
 
   test('publicar o resultado mostra o cabeçalho e o carimbo no início', async ({ page }) => {
@@ -2497,36 +2507,46 @@ test.describe('cartão de prova no feed (#602)', () => {
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    // A simulação 1 tem uma resposta aberta por corrigir: o ecrã de resultado já
-    // avisa disso, e a pré-visualização não pode estampar 16,4 como nota final.
-    await page.goto('/aluno/resultado?prova=1');
-    await expect(page.getByText(/1 resposta aberta ainda está a ser corrigida/)).toBeVisible();
-    const previa = page.getByLabel('Publicar o resultado no feed');
-    await expect(previa).toBeVisible();
-    await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
-    await expect(previa.getByText('Nota provisória')).toBeVisible();
-    await expect(previa.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
-    await expect(previa.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
-    await expect(previa.getByText('16,4')).toBeHidden();
-    await previa.getByRole('button', { name: 'Publicar no feed' }).click();
-    await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+    // A simulação 1 do seed está corrigida desde o #793; o cartão «A corrigir»
+    // precisa dela por corrigir, só durante este teste.
+    const forcar = (pending: boolean) =>
+      page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status: pending ? 'PENDING' : '', pending } });
+    try {
+      expect((await forcar(true)).ok()).toBe(true);
 
-    // No Início, o cartão do dono diz o mesmo que o resultado: ainda a corrigir,
-    // sem a nota parcial a fazer-se passar pela final.
-    await page.goto('/aluno/inicio');
-    const artigo = page.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
-    await expect(artigo).toBeVisible();
-    const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
-    await expect(cartao).toBeVisible();
-    await expect(cartao.getByText('A corrigir', { exact: true })).toBeVisible();
-    await expect(cartao.getByText('Nota provisória')).toBeVisible();
-    await expect(cartao.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
-    await expect(cartao.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
-    await expect(cartao.getByText('16,4')).toBeHidden();
-    await expect(cartao.getByText('Positiva')).toBeHidden();
-    // O link continua a levar ao resultado, onde se vê a correção a acontecer.
-    await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
-    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
+      // A simulação 1 tem uma resposta aberta por corrigir: o ecrã de resultado já
+      // avisa disso, e a pré-visualização não pode estampar 16,4 como nota final.
+      await page.goto('/aluno/resultado?prova=1');
+      await expect(page.getByText(/1 resposta aberta ainda está a ser corrigida/)).toBeVisible();
+      const previa = page.getByLabel('Publicar o resultado no feed');
+      await expect(previa).toBeVisible();
+      await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
+      await expect(previa.getByText('Nota provisória')).toBeVisible();
+      await expect(previa.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
+      await expect(previa.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
+      await expect(previa.getByText('16,4')).toBeHidden();
+      await previa.getByRole('button', { name: 'Publicar no feed' }).click();
+      await expect(previa.getByText(/Publicado no feed da turma\.|já foi publicado no feed\./)).toBeVisible();
+
+      // No Início, o cartão do dono diz o mesmo que o resultado: ainda a corrigir,
+      // sem a nota parcial a fazer-se passar pela final.
+      await page.goto('/aluno/inicio');
+      const artigo = page.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+      await expect(artigo).toBeVisible();
+      const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
+      await expect(cartao).toBeVisible();
+      await expect(cartao.getByText('A corrigir', { exact: true })).toBeVisible();
+      await expect(cartao.getByText('Nota provisória')).toBeVisible();
+      await expect(cartao.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
+      await expect(cartao.getByText('A nota aparece aqui quando a correção terminar.')).toBeVisible();
+      await expect(cartao.getByText('16,4')).toBeHidden();
+      await expect(cartao.getByText('Positiva')).toBeHidden();
+      // O link continua a levar ao resultado, onde se vê a correção a acontecer.
+      await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
+      await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
+    } finally {
+      await forcar(false);
+    }
   });
 
   test('um colega vê o cartão sem o link para a corrigida', async ({ browser, page }) => {
