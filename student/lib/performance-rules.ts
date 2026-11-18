@@ -16,8 +16,10 @@ export interface RawSimulation {
   status?: string | null;
   finalScore?: number | null;
   /** kixi#609: só uma nota `DONE` entra no desempenho (#791); é também o sinal de que a
-   *  notificação da nota pode sair. Ausente numa prova de sala. */
+   *  notificação da nota pode sair. Calculado para qualquer simulação entregue. */
   correctionStatus?: string | null;
+  /** A nota é a do motor (0–20): a percentagem usa a cotação, a lista não mostra o número. */
+  notaDoMotor?: boolean;
   finishedAt?: string | null;
   correctedAt?: string | null;
   statement?: { id?: number | null; title?: string | null; totalMaxScore?: number | null } | null;
@@ -34,6 +36,8 @@ export interface ActivityItem {
   id: number;
   title: string;
   score: number;
+  /** Só o resultado mostra este número; no perfil fica «Corrigida» (#820). */
+  notaDoMotor: boolean;
   finishedAt: string | null;
 }
 
@@ -64,6 +68,7 @@ export function buildPerformance(simulations: RawSimulation[]): Performance {
     id: s.id,
     title: s.statement?.title?.trim() || 'Prova',
     score: notaFinal(s) as number,
+    notaDoMotor: s.notaDoMotor === true,
     finishedAt: s.finishedAt ?? null,
   }));
 

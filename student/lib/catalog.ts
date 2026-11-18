@@ -5,6 +5,7 @@ import { TtlCache } from './ttl-cache';
 import { currentAttempt, formatScore, isFinished, type Attempt } from './attempt-history';
 import { estadoDaNotaEmPalavras, notaDaSimulacao } from './nota-da-simulacao';
 import { listSimulationsResult } from './exam';
+import { marcarNotaDoMotor } from './nota-do-motor';
 
 /** Item do catálogo como o backend devolve (StatementSummary): só ids, sem nomes.
  *  Os nomes vêm de /subjects, /school-years e /institutions, carregados uma vez. */
@@ -16,6 +17,7 @@ export interface CatalogStatement {
   schoolYearId?: number | null;
   institutionId?: number | null;
   classId?: number | null;
+  totalMaxScore?: number | null;
 }
 
 export interface CatalogPage {
@@ -44,8 +46,10 @@ export interface CatalogItem {
   year: string;
   state: ExamState;
   score?: string;
-  /** «A corrigir» / «Correção falhou» quando está entregue e ainda não há nota (#791). */
+  /** «A corrigir» / «Corrigida» / «Correção falhou» (#791/#820). */
   correction?: string;
+  /** A cotação da prova: a percentagem de `provas-temas` divide por ela, não por 20. */
+  maxScore?: number;
 }
 
 export interface CatalogFilters {
@@ -137,7 +141,9 @@ export async function getCatalog(
   const simulations = await listSimulationsResult();
   const attempts = new Map<number, CatalogSimulation[]>();
   if (simulations.ok) {
-    for (const sim of simulations.data) {
+    // A nota de uma simulação livre `DONE` é a do motor (0–20) e só o resultado a
+    // conhece: a regra única esconde o número e mostra «Corrigida» (#820).
+    for (const sim of await marcarNotaDoMotor(simulations.data)) {
       const id = Number(sim.statement?.id);
       if (!Number.isInteger(id)) continue;
       const list = attempts.get(id) ?? [];
@@ -164,6 +170,7 @@ export async function getCatalog(
       // A nota só é nota quando a correcção está feita; até lá mostra-se o estado (#791).
       score: finished && nota.kind === 'nota' ? formatScore(nota.nota) : undefined,
       correction: finished && attempt ? estadoDaNotaEmPalavras(attempt) ?? undefined : undefined,
+      maxScore: s.totalMaxScore ?? undefined,
     } satisfies CatalogItem;
   });
 

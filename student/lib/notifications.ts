@@ -8,7 +8,7 @@ import { getFeed, getComments } from './feed';
 import { correctionNoticeOf } from './correction-notice';
 import { listInvitations } from './exam-room';
 import { listSimulationsResult } from './exam';
-import { estadoDaNotaEmPalavras, notaFinal } from './nota-da-simulacao';
+import { sufixoDaNota } from './nota-da-simulacao';
 import { correcaoDaSimulacao, correcaoLigada } from './schoolops/correcao';
 import { eSimulacaoLivre, escalaDaNota } from './schoolops/correcao-rules';
 import type { RawSimulation } from './performance-rules';
@@ -115,10 +115,10 @@ export const loadNotifications = cache(async (me: Me, withReplies = true, comNot
     }
     if (s.status === 'FINISHED' && s.finishedAt) {
       const title = s.statement?.title ?? 'a prova';
-      // A nota só se diz quando é a do resultado; por corrigir, diz-se o estado (#791).
-      const nota = notaFinal(s);
-      const estado = estadoDaNotaEmPalavras(s);
-      const sufixo = nota != null ? ` com ${String(nota).replace('.', ',')}` : estado ? ` — ${estado.toLowerCase()}` : '';
+      // A nota só se diz quando é a do resultado; por corrigir — ou quando é o motor
+      // que a tem (0–20, só no resultado) — diz-se o estado (#791/#820).
+      const livre = notas?.livres.has(s.id) ?? false;
+      const sufixo = sufixoDaNota({ ...s, notaDoMotor: livre });
       items.push({ key: `sim-${s.id}`, kind: 'result', who: null, text: `Terminaste ${title}${sufixo}`, href: `/resultado?prova=${s.id}`, at: s.finishedAt });
     }
   }

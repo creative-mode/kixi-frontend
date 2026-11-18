@@ -72,3 +72,13 @@ test('uma livre por corrigir não entra no desempenho, mesmo com a nota parcial 
   assert.deepEqual(p.mastery, [{ id: 2, label: 'P2', value: 71 }]);
   assert.equal(percentOf({ id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'IN_PROGRESS', statement: { totalMaxScore: 20 } }), null);
 });
+
+test('a percentagem continua sobre a cotação quando a nota é a do motor', () => {
+  // 17,75/25 = 71%, a mesma percentagem que o resultado mostra (14,2/20).
+  const prova = { ...sim(1, 1, 17.75, 25, '2026-10-01T10:00:00'), correctionStatus: 'DONE', notaDoMotor: true };
+  assert.equal(percentOf(prova), 71);
+  const p = buildPerformance([prova]);
+  // A lista do perfil sabe que não pode mostrar o número; a barra de domínio mantém-se.
+  assert.equal(p.activity[0].notaDoMotor, true);
+  assert.equal(p.activity[0].score, 17.75);
+});

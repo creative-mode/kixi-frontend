@@ -1,7 +1,8 @@
 import 'server-only';
 
 import { listSimulationsResult } from './exam';
-import { buildPerformance, type Performance, type RawSimulation } from './performance-rules';
+import { marcarNotaDoMotor } from './nota-do-motor';
+import { buildPerformance, type Performance } from './performance-rules';
 
 export type { Performance } from './performance-rules';
 
@@ -12,5 +13,8 @@ const EMPTY: Performance = { mastery: [], activity: [] };
 export async function getPerformance(): Promise<Performance> {
   // A mesma leitura de `/simulations` que o resto da página (#791): uma só, por pedido.
   const result = await listSimulationsResult();
-  return result.ok ? buildPerformance(result.data as RawSimulation[]) : EMPTY;
+  if (!result.ok) return EMPTY;
+  // A percentagem continua sobre a cotação; a lista do perfil esconde o número quando
+  // a nota é a do motor (#820).
+  return buildPerformance(await marcarNotaDoMotor(result.data));
 }

@@ -13,7 +13,7 @@
  */
 
 import { parseServerTime } from './exam-rules.ts';
-import { notaFinal } from './nota-da-simulacao.ts';
+import { notaDaSimulacao } from './nota-da-simulacao.ts';
 
 /** A simulation as `GET /simulations` returns it for the signed-in student. */
 export interface Attempt {
@@ -24,6 +24,8 @@ export interface Attempt {
   correctionStatus?: string | null;
   /** kixi#609: hora da última resposta aberta corrigida; só com `DONE`. */
   correctedAt?: string | null;
+  /** A nota que vale é a do motor (0–20): fora do resultado mostra-se o estado (#820). */
+  notaDoMotor?: boolean;
   /** ISO date from `startedAt`, when the backend sends one. */
   startedAt?: string | null;
 }
@@ -91,9 +93,11 @@ export const correcting = (a: Attempt) => isFinished(a) && !correctionDone(a);
 export const correctionFailed = (a: Attempt) => (a.correctionStatus ?? '').toUpperCase() === 'FAILED';
 
 /** A nota que se pode mostrar desta tentativa, já pela regra única (#791): uma tentativa por
- *  corrigir não tem nota, tem estado. `formatScore` continua a ser só a formatação. */
+ *  corrigir não tem nota, tem estado, e uma livre corrigida pelo motor só mostra a nota no
+ *  resultado (#820). `formatScore` continua a ser só a formatação. */
 export function scoreOf(a: Attempt): string | undefined {
-  return formatScore(notaFinal(a));
+  const nota = notaDaSimulacao(a);
+  return nota.kind === 'nota' ? formatScore(nota.nota) : undefined;
 }
 /** What the screen calls an attempt. Kept here so the card and the detail cannot
  *  disagree about it — which is how the same paper ends up "done" in one place and

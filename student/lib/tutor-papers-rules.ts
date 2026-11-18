@@ -8,7 +8,7 @@
  */
 
 import { acceptsAnswers, type SimulationSummary } from './exam-rules.ts';
-import { estadoDaNotaEmPalavras, notaFinal } from './nota-da-simulacao.ts';
+import { estadoDaNotaEmPalavras, notaDaSimulacao } from './nota-da-simulacao.ts';
 import type { Mastery } from './performance-rules.ts';
 
 /** Uma linha da lista do tutor: a prova e uma nota curta de porque está ali. */
@@ -30,8 +30,11 @@ function scoreLabel(score: number | null | undefined): string | null {
 function noteOf(simulation: SimulationSummary): string | undefined {
   const status = (simulation.status ?? '').toUpperCase();
   if (status === 'FINISHED') {
-    const score = scoreLabel(notaFinal(simulation));
-    if (score) return `Concluída · ${score}`;
+    const nota = notaDaSimulacao(simulation);
+    if (nota.kind === 'nota') {
+      const score = scoreLabel(nota.nota);
+      return score ? `Concluída · ${score}` : 'Concluída';
+    }
     const estado = estadoDaNotaEmPalavras(simulation);
     return estado ? `Concluída · ${estado}` : 'Concluída';
   }

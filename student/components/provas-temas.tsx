@@ -1,24 +1,9 @@
 import Link from 'next/link';
 import type { CatalogItem } from '@/lib/catalog';
-
-type Estado = 'dom' | 'apr' | 'fra' | 'nov';
-
-/** O estado de uma prova pela nota (0–20): sem nota ainda é «por treinar». */
-function estadoDe(item: CatalogItem): { estado: Estado; label: string; pct: number | null } {
-  const nota = item.score ? Number(item.score.replace(',', '.')) : NaN;
-  if (item.state === 'done' && Number.isFinite(nota)) {
-    const pct = Math.round((nota / 20) * 100);
-    if (pct >= 80) return { estado: 'dom', label: 'Dominado', pct };
-    if (pct >= 50) return { estado: 'apr', label: 'A aprender', pct };
-    return { estado: 'fra', label: 'A rever', pct };
-  }
-  if (item.state === 'done' && item.correction) return { estado: 'apr', label: item.correction, pct: null };
-  if (item.state === 'progress') return { estado: 'apr', label: 'Em curso', pct: null };
-  return { estado: 'nov', label: 'Ainda não treinaste', pct: null };
-}
+import { estadoDaProva, type EstadoDaProva } from '@/lib/provas-temas-rules';
 
 /** Por ordem de urgência: o que está por rever primeiro, o dominado no fim. */
-const ORDEM: Record<Estado, number> = { fra: 0, apr: 1, nov: 2, dom: 3 };
+const ORDEM: Record<EstadoDaProva, number> = { fra: 0, apr: 1, nov: 2, dom: 3 };
 
 /**
  * O ecrã «Provas» da nova experiência: separadores por disciplina e, por baixo, o que há para treinar
@@ -28,7 +13,7 @@ const ORDEM: Record<Estado, number> = { fra: 0, apr: 1, nov: 2, dom: 3 };
 export function ProvasTemas({ items, total, materia }: { items: CatalogItem[]; total: number; materia: string | null }) {
   const subjects = [...new Set(items.map((i) => i.subject).filter(Boolean))];
   const ativa = materia && subjects.includes(materia) ? materia : subjects[0] ?? null;
-  const lista = items.filter((i) => i.subject === ativa).map((i) => ({ item: i, ...estadoDe(i) })).sort((a, b) => ORDEM[a.estado] - ORDEM[b.estado]);
+  const lista = items.filter((i) => i.subject === ativa).map((i) => ({ item: i, ...estadoDaProva(i) })).sort((a, b) => ORDEM[a.estado] - ORDEM[b.estado]);
 
   return (
     <div className="flex min-w-0 flex-col px-4 pt-3 pb-24 md:px-0 md:pt-7 md:pb-12">

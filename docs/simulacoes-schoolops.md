@@ -48,11 +48,16 @@ nota chega ao ecrã por leitura, não pelo evento.
 ## A nota fora do resultado
 
 O backend sabe se a correcção está feita: `correctionStatus` vem em `GET /simulations` (`PENDING`, `IN_PROGRESS`, `DONE`, `FAILED`) e
-`correctedAt` diz quando a última aberta ficou corrigida (kixi#609). Enquanto a correcção não está `DONE`, a `finalScore` é a **parcial**
-(só as fechadas) e não é a nota do resultado.
+`correctedAt` diz quando a última aberta ficou corrigida (kixi#609). O `CorrectionSummary.of` calcula-o para **qualquer** simulação
+entregue, prova de sala incluída. Enquanto a correcção não está `DONE`, a `finalScore` é a **parcial** (só as fechadas) e não é a nota
+do resultado.
 
 Por isso há uma regra só, em `student/lib/nota-da-simulacao.ts`: mostra-se `finalScore` quando a correcção está `DONE`; por corrigir
-diz-se «A corrigir» e uma falha diz «Correção falhou». Nenhuma lista mostra a parcial. Provas, histórico, detalhe do enunciado,
-notificações, desempenho e plano de estudo leem as simulações **uma vez por pedido** (`listSimulationsResult`, com `cache` do React),
-e não há mais o pedido a `/exam-rooms/mine` que existia só para saber o que esconder. Uma prova de sala não traz `correctionStatus`:
-a nota dela é a da pauta e mostra-se como sempre.
+diz-se «A corrigir» e uma falha diz «Correção falhou». Uma simulação **livre** corrigida pelo SchoolOps tem a nota em 0–20 e só o
+resultado a conhece: fora dele a regra diz «Corrigida» e liga ao resultado, em vez de mostrar a `finalScore` em pontos da prova ao lado
+de outra escala (17,75/25 no cartão e 14,2/20 no resultado, #820). Numa prova de sala a nota é a da pauta e mostra-se como sempre.
+
+Provas, histórico, detalhe do enunciado, notificações, desempenho e plano de estudo leem as simulações **uma vez por pedido**
+(`listSimulationsResult`, com `cache` do React). Quando o motor está ligado, `marcarNotaDoMotor` consulta `/exam-rooms/mine` (também
+em `cache`) uma vez por pedido para saber quais são livres; sem motor, não há esse pedido. A percentagem do desempenho continua a ser
+`nota / totalMaxScore` — a cotação da prova, não 20.

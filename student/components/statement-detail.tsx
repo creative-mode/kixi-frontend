@@ -115,14 +115,18 @@ export function StatementDetailView({
                   <li key={a.id} className="flex items-center gap-3.5 px-5 py-3.5">
                     {/* A nota é curta e cabe num círculo; «Em curso» não cabia e
                         transbordava. O estado agora vive num badge, que cresce. */}
-                    {a.label === 'corrected' ? (
-                      <span role="img" aria-label={a.score != null ? `Nota ${a.score} valores` : 'Sem nota'}
+                    {a.label === 'corrected' && a.score != null ? (
+                      <span role="img" aria-label={`Nota ${a.score} valores`}
                         className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-sm font-bold text-success tabular-nums">
-                        {a.score ?? '—'}
+                        {a.score}
                       </span>
+                    ) : a.label === 'corrected' ? (
+                      // A nota é a do motor (0–20) e só o resultado a mostra (#820): o
+                      // cartão diz que está corrigida e leva lá, em vez de inventar um número.
+                      <Badge variant="secondary">{a.correction ?? 'Corrigida'}</Badge>
                     ) : (
                       <Badge variant={a.label === 'cancelled' ? 'secondary' : 'warning'}>
-                        {a.label === 'cancelled' ? 'Cancelada' : a.label === 'correcting' ? 'A corrigir' : 'Em curso'}
+                        {a.label === 'cancelled' ? 'Cancelada' : a.label === 'correcting' ? (a.failed ? 'Correção falhou' : 'A corrigir') : 'Em curso'}
                       </Badge>
                     )}
                     <div className="min-w-0 flex-1 leading-snug">
