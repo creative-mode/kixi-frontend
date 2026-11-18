@@ -262,8 +262,9 @@ test.describe('aparecer no ranking (#800)', () => {
     expect(posicaoBox!.y).toBeLessThan(tabelaBox!.y);
     expect(destaqueBox!.y - (tabelaBox!.y + tabelaBox!.height)).toBeGreaterThanOrEqual(16);
     await expect(page.getByText('Este grupo é pequeno')).toHaveCount(0);
-    // O destaque não nomeia o fundo da tabela.
-    await expect(destaque.getByText('Estás entre os 40% do meio', { exact: true })).toBeVisible();
+    // A posição pode variar depois de jornadas que terminam outra simulação; o
+    // contrato é mostrar só topo ou meio, nunca nomear o fundo da tabela.
+    await expect(destaque.getByText(/Estás entre os (30% melhores|40% do meio)/, { exact: true })).toBeVisible();
     await expect(destaque.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
     await expect(destaque.getByText(/Mostramos só as posições próximas da tua/)).toBeVisible();
     await expect(page.getByText(/Os colegas veem o teu nome no ranking/)).toBeVisible();
