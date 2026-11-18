@@ -2428,7 +2428,7 @@ test.describe('cartão de prova no feed (#602)', () => {
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    await page.goto('/aluno/resultado?prova=1');
+    await page.goto('/aluno/resultado?prova=8');
     const previa = page.getByLabel('Publicar o resultado no feed');
     await expect(previa).toBeVisible();
     // A turma do mock é a 12B: a linha diz quem vê e quantos colegas há.
@@ -2497,9 +2497,9 @@ test.describe('cartão de prova no feed (#602)', () => {
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    // A simulação 1 tem uma resposta aberta por corrigir: o ecrã de resultado já
-    // avisa disso, e a pré-visualização não pode estampar 16,4 como nota final.
-    await page.goto('/aluno/resultado?prova=1');
+    // A simulação 8 tem uma resposta aberta por corrigir: o ecrã de resultado já
+    // avisa disso, e a pré-visualização não pode estampar a nota parcial como final.
+    await page.goto('/aluno/resultado?prova=8');
     await expect(page.getByText(/1 resposta aberta ainda está a ser corrigida/)).toBeVisible();
     const previa = page.getByLabel('Publicar o resultado no feed');
     await expect(previa).toBeVisible();
@@ -2526,7 +2526,7 @@ test.describe('cartão de prova no feed (#602)', () => {
     await expect(cartao.getByText('Positiva')).toBeHidden();
     // O link continua a levar ao resultado, onde se vê a correção a acontecer.
     await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
-    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
+    await expect(page).toHaveURL(/\/aluno\/resultado\?prova=8/);
   });
 
   test('um colega vê o cartão sem o link para a corrigida', async ({ browser, page }) => {

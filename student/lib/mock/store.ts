@@ -558,6 +558,15 @@ export function seed(): Store {
         startedAt: toLocalDateTime(new Date(Date.now() - 20 * 60 * 1000)),
         finishedAt: null, timeSpentSeconds: null,
       },
+      // Tentativa 8: a prova está entregue e a resposta aberta continua por corrigir.
+      // As suítes de #801 e #788 precisam de um estado «A corrigir» determinístico;
+      // sem esta tentativa, qualquer teste que dependa de PENDING_REVIEW quebra com a #793.
+      {
+        id: 8, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 10.0,
+        startedAt: toLocalDateTime(new Date(Date.now() - 6 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 5 * 3600 * 1000)),
+        timeSpentSeconds: 2950,
+      },
       // Duas tentativas de outras contas na mesma prova (#119/#32): sem elas a
       // comunidade tinha sempre sampleSize=1 e nenhuma distribuição real para mostrar.
       // Não são contas de verdade (não há linha em `accounts`) - a comunidade só
@@ -618,9 +627,15 @@ export function seed(): Store {
         id: 1, simulationId: 2, questionId: 1, selectedOptionId: 12, answerText: null,
         scoreObtained: null, isCorrect: null, reviewStatus: null, answeredAt: null,
       },
+      // Tentativa 8 — a resposta aberta continua PENDING_REVIEW até a professora corrigir.
+      {
+        id: 6, simulationId: 8, questionId: 3, selectedOptionId: null,
+        answerText: 'Antes de comentar o resultado, a professora valida à mão.',
+        scoreObtained: null, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answeredAt: null,
+      },
     ],
-    nextSimulation: 8,
-    nextAnswer: 5,
+    nextSimulation: 9,
+    nextAnswer: 7,
     topics: TOPICS.map((t) => ({ ...t })),
     questionTopics: structuredClone(SEED_QUESTION_TOPICS),
     matrices: structuredClone(SEED_MATRICES),
