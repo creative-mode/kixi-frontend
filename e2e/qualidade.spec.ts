@@ -352,7 +352,7 @@ test.describe('aviso de correção (#793)', () => {
     try {
       expect((await forcar('PENDING')).ok()).toBe(true);
       await page.goto('/aluno/prova/1/detalhe');
-      const porCorrigir = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
+      const porCorrigir = page.getByRole('listitem').filter({ hasText: 'Prova entregue' }).first();
       await expect(porCorrigir).toContainText('A corrigir');
       await expect(porCorrigir.getByRole('link', { name: 'Ver resultado' })).toHaveCount(0);
 

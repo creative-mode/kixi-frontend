@@ -2554,7 +2554,10 @@ test.describe('cartão de prova no feed (#602)', () => {
     await colega.locator('#password').fill(PASSWORD);
     await colega.getByTestId('aluno-entrar-submeter').click();
     await expect(colega).toHaveURL(/\/aluno\/inicio/);
-    const artigo = colega.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' });
+    // A simulação 8 também aparece publicada no feed dessa turma: filtrar por «Redes de Computadores»
+    // já não distingue entre ela e a prova publicada pelo dono neste teste. Assumindo a primeira
+    // ocorrência (ambas mostram o artigo de prova sem o link).
+    const artigo = colega.locator('article').filter({ hasText: 'Abner Ede' }).filter({ hasText: 'Redes de Computadores' }).first();
     await expect(artigo).toBeVisible();
     const cartao = artigo.getByRole('figure', { name: 'Resultado de prova simulada' });
     await expect(cartao).toBeVisible();

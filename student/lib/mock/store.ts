@@ -562,7 +562,7 @@ export function seed(): Store {
       // As suítes de #801 e #788 precisam de um estado «A corrigir» determinístico;
       // sem esta tentativa, qualquer teste que dependa de PENDING_REVIEW quebra com a #793.
       {
-        id: 8, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 10.0,
+        id: 8, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4,
         startedAt: toLocalDateTime(new Date(Date.now() - 6 * 3600 * 1000)),
         finishedAt: toLocalDateTime(new Date(Date.now() - 5 * 3600 * 1000)),
         timeSpentSeconds: 2950,
