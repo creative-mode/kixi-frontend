@@ -958,13 +958,16 @@ test.describe('jornadas críticas do Kixi', () => {
     // not assume a fixed class-to-statement mapping.
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    // #820: a folha abre a pedido; é preciso abri-la para ler (e imprimir) o enunciado.
-    await page.locator('summary', { hasText: 'Ver o enunciado' }).click();
-    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    // #820: no ecrã a folha abre a pedido, para a página não ser uma parede de conteúdo.
+    await expect(page.locator('[aria-label="A prova"]')).toBeHidden();
+    // No papel sai inteira, mesmo fechada: o CSS de impressão abre o `details`.
     await page.emulateMedia({ media: 'print' });
     await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
     await assertPrintablePdf(page);
     await page.emulateMedia({ media: 'screen' });
+    // E o resumo continua a abri-la para quem quer ler no ecrã.
+    await page.locator('summary', { hasText: 'Ver o enunciado' }).click();
+    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
     await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
