@@ -65,6 +65,8 @@ export interface SimulationSummary {
   statement?: { id?: number | null; title?: string | null } | null;
 }
 
+type AnswerWindow = Pick<SimulationSummary, 'status' | 'deadline'> & { id?: number };
+
 /** The answer body SimulationAnswerRequest takes. `answeredAt` is deliberately
  *  absent: the server ignores it when deciding whether time is up
  *  (SimulationAnswerService.java:118) and it is a LocalDateTime, so a `Z` suffix
@@ -303,13 +305,25 @@ export function attemptFor(simulations: SimulationSummary[], statementId: number
  *  conditions the server does — not IN_PROGRESS, or past the deadline — so the
  *  student is not invited to answer into a 409. */
 export function acceptsAnswers(
-  simulation: SimulationSummary | null,
+  simulation: AnswerWindow | null,
   now: number,
 ): boolean {
   if (!simulation) return false;
   if ((simulation.status ?? '').toUpperCase() !== 'IN_PROGRESS') return false;
   const left = remainingMs(simulation.deadline, now);
   return left === null || left > 0;
+}
+
+/** The final-minute sync runs while the server can still accept a write, including
+ * its grace period. Keeping this predicate pure makes the interval's transition to
+ * `false` at the effective deadline explicit and testable. */
+export function shouldPeriodicallyFlush(
+  simulation: AnswerWindow | null,
+  now: number,
+): boolean {
+  if (!acceptsAnswers(simulation, now)) return false;
+  const left = remainingMs(simulation?.deadline, now);
+  return left !== null && left <= GRACE_MS + 60_000;
 }
 
 /** The backend answers in English, and the student reads Portuguese. Only the

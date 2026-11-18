@@ -21,6 +21,7 @@ import {
   remainingMs,
   translateError,
   savedAnswerFor,
+  shouldPeriodicallyFlush,
   timer,
   urgencyOf,
   type ExamQuestion,
@@ -219,6 +220,13 @@ test('aceita respostas só em curso e antes do prazo', () => {
     false,
   );
   assert.equal(acceptsAnswers(null, now), false);
+});
+
+test('o envio periódico pára no prazo efectivo do servidor', () => {
+  const room = { status: 'IN_PROGRESS', deadline: '2026-10-11T10:00:00' };
+  assert.equal(shouldPeriodicallyFlush(room, parseServerTime('2026-10-11T09:57:00')), true);
+  assert.equal(shouldPeriodicallyFlush(room, parseServerTime('2026-10-11T10:00:00')), false);
+  assert.equal(shouldPeriodicallyFlush({ ...room, status: 'FINISHED' }, parseServerTime('2026-10-11T09:57:00')), false);
 });
 
 test('um prazo sem fuso lê-se na hora do servidor (+01:00), não na do aparelho', () => {

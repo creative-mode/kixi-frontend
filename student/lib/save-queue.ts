@@ -56,10 +56,12 @@ export interface SaveQueueOptions {
   onChange?: () => void;
   /** Wait before retry `attempt`; injected so tests do not sleep. */
   wait?: (attempt: number) => Promise<void>;
+  /** Stops queued retries once the room can no longer accept an answer. */
+  canSend?: () => boolean;
   maxAttempts?: number;
 }
 
-export function createSaveQueue({ send, onChange, wait, maxAttempts = 4 }: SaveQueueOptions) {
+export function createSaveQueue({ send, onChange, wait, canSend, maxAttempts = 4 }: SaveQueueOptions) {
   const entries = new Map<number, Entry>();
   const idle = new Set<() => void>();
 
@@ -95,6 +97,11 @@ export function createSaveQueue({ send, onChange, wait, maxAttempts = 4 }: SaveQ
         let attempt = 0;
         let done = false;
         while (!done) {
+          if (canSend && !canSend()) {
+            e.status = 'error';
+            e.error = 'O tempo desta prova terminou.';
+            return;
+          }
           attempt += 1;
           let result: SendResult;
           try {

@@ -12,6 +12,7 @@ import { PASTE_NOTICE, pasteBlocked } from '@/lib/integrity';
 import { useIntegrity } from '@/components/use-integrity';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  acceptsAnswers,
   backoffMs,
   cellState,
   displayRemainingMs,
@@ -19,6 +20,7 @@ import {
   GRACE_MS,
   isChoice,
   remainingMs,
+  shouldPeriodicallyFlush,
   timer,
   urgencyOf,
   type CellState,
@@ -394,6 +396,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
         }),
       onChange: () => rerender((n) => n + 1),
       wait: (attempt) => new Promise((resolve) => setTimeout(resolve, backoffMs(attempt))),
+      canSend: () => acceptsAnswers(data, Date.now()),
     });
     for (const [questionId, saved] of Object.entries(data.saved)) {
       created.seed(Number(questionId), saved.answerId, { optionId: saved.optionId, text: saved.text });
@@ -417,9 +420,12 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
    *  deadline as "no limit" — which is what SimulationDeadlineService.java:89 means by
    *  a null deadline. Before the clock starts there is no reason to lock the form, so
    *  the room stays open. */
+  const acceptsWritesNow = now !== null && acceptsAnswers(data, now);
   const closed =
     (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' ||
-    (now !== null && left !== null && left <= 0);
+    (now !== null && !acceptsWritesNow);
+  const canAutomaticallyFlush = acceptsWritesNow;
+  const periodicFlushActive = now !== null && shouldPeriodicallyFlush(data, now);
   const nominalDeadlineReached = left !== null && left <= GRACE_MS;
   const lockedForAnswering = closed || nominalDeadlineReached;
 
@@ -468,7 +474,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     const sync = () => setOnline(navigator.onLine);
     const onOnline = () => {
       setOnline(true);
-      void flushAll();
+      if (canAutomaticallyFlush) void flushAll();
     };
     sync();
     window.addEventListener('online', onOnline);
@@ -477,13 +483,17 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', sync);
     };
-  }, [flushAll]);
+  }, [canAutomaticallyFlush, flushAll]);
 
   // O que ainda não saiu não pode ficar só neste separador: ao esconder ou fechar a
   // página, e pouco antes de o tempo acabar, tudo o que está por enviar é enviado.
   useEffect(() => {
-    const onHide = () => { if (document.visibilityState === 'hidden') void flushAll(); };
-    const onPageHide = () => void flushAll();
+    const onHide = () => {
+      if (canAutomaticallyFlush && document.visibilityState === 'hidden') void flushAll();
+    };
+    const onPageHide = () => {
+      if (canAutomaticallyFlush) void flushAll();
+    };
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', onPageHide);
     return () => {
@@ -491,14 +501,14 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
       window.removeEventListener('pagehide', onPageHide);
       for (const timer of timers.current.values()) clearTimeout(timer);
     };
-  }, [flushAll]);
+  }, [canAutomaticallyFlush, flushAll]);
 
   useEffect(() => {
-    if (left === null || left <= 0 || left > GRACE_MS + 60_000) return;
+    if (!periodicFlushActive) return;
     const timer = window.setInterval(() => void flushAll(), FLUSH_INTERVAL_MS);
     void flushAll();
     return () => window.clearInterval(timer);
-  }, [left !== null && left <= GRACE_MS + 60_000, flushAll]);
+  }, [periodicFlushActive, flushAll]);
 
   // Avisos falados aos 5 e a 1 minuto: o cronómetro visual não chega a quem usa
   // leitor de ecrã, e `role="timer"` não anuncia por si. Os limiares leem-se do
@@ -565,7 +575,9 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
         for (const id of ids) next[id] = restaurar[id];
         draftsRef.current = next;
         setDrafts(next);
-        for (const id of ids) guardar(id);
+        if (acceptsAnswers(data, Date.now())) {
+          for (const id of ids) guardar(id);
+        }
         setRecuperadas(ids.length);
       }
     }
