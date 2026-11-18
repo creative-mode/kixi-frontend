@@ -3,7 +3,7 @@ import 'server-only';
 import { BASE_PATH } from '../base-path';
 import type { Me } from '../types';
 import { abrirCorrecaoComId, iniciarAbertura, consultarEstado, type Abertura, type EstadoLido } from './correcao-motor';
-import { pedidoDeCorrecao } from './correcao-rules';
+import { pedidoDeCorrecao, type VistaCorrecao } from './correcao-rules';
 
 // Cliente do SchoolOps para as simulações do aluno: a correcção corre no motor (objectivas pelo gabarito, dissertativas
 // por proximidade ao gabarito) e o aluno só vê a nota quando está feita. Só corre no servidor: the token do cliente nunca
@@ -21,6 +21,17 @@ export const correcaoLigada = (): boolean => config() !== null;
 
 /** Abre a correcção (idempotente no motor, por simulação) e devolve o que se pode mostrar já. */
 export async function correcaoDaSimulacao(args: {
+  me: Me;
+  simulationId: number;
+  statementId: number;
+}): Promise<VistaCorrecao | null> {
+  const abertura = await correcaoDaSimulacaoComId(args);
+  return abertura?.vista ?? null;
+}
+
+/** Como `correcaoDaSimulacao`, mas devolve também o `correcaoId`: o ecrã de resultado usa-o para a
+ *  espera ler só o estado pela rota leve (#794). O resto do código continua a usar a vista. */
+export async function correcaoDaSimulacaoComId(args: {
   me: Me;
   simulationId: number;
   statementId: number;

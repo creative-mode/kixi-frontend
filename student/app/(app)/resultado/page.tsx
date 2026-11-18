@@ -21,7 +21,7 @@ import { getLeaderboard } from '@/lib/ranking';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
 import { listInvitations } from '@/lib/exam-room';
 import { comCorrecao, eSimulacaoLivre, escalaDaNota, notaProvisoria } from '@/lib/schoolops/correcao-rules';
-import { correcaoDaSimulacao, consultarEstadoCorrecao, correcaoLigada } from '@/lib/schoolops/correcao';
+import { correcaoDaSimulacaoComId, consultarEstadoCorrecao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImagesBatch, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { MathText } from '@/lib/shared/math-text';
@@ -169,7 +169,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
       // Se o motor estiver em baixo com correcaoId, não se mostra a nota do backend como se
       // fosse final: fica "a corrigir" e a espera volta a ler.
       const lida = correcaoId ? await consultarEstadoCorrecao(correcaoId) : null;
-      const abertura = correcaoId ? null : await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId });
+      const abertura = correcaoId ? null : await correcaoDaSimulacaoComId({ me, simulationId: resultadoDoBackend.simulationId, statementId });
       const correcao =
         (correcaoId ? (lida?.ok ? lida.vista : { kind: 'a-corrigir' as const }) : abertura?.vista) ??
         { kind: 'a-corrigir' as const };
