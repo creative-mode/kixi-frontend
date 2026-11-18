@@ -19,6 +19,9 @@ function world() {
   return sheets;
 }
 
+/** As pautas semeadas, para o plano do trimestre de cada uma (domains/term-plans) ter o mesmo id do motor. */
+export const mockTermSheets = () => world();
+
 function viewerOf(auth: any): Viewer {
   const accountId = Number(auth?.sub);
   const teacher = db.teachers.find((t) => t.accountId === accountId && !t.deletedAt);

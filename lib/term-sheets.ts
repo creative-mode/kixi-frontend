@@ -3,6 +3,9 @@ import type { RowStatus, SheetStatus, TermSheetDetail, TermSheetRow, TermSheetSu
 /** Regras de apresentação das pautas, sem React: ficam testáveis com `node --test`. */
 
 export const NOTA_POSITIVA = 10;
+
+/** O id da pauta entra no caminho do pedido: só aceita o formato que o motor gera (PT-...), nada que mude o caminho. */
+export const SHEET_ID = /^[A-Za-z0-9._-]{1,80}$/;
 export const SEM_NOTA = '—';
 
 /** Uma nota (0 a 20) ou o travessão quando não há nenhuma. Médias levam até duas casas, as notas inteiras nenhuma. */
