@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { BASE_PATH } from '@/lib/base-path';
 import { tentarCorrecaoDeNovo } from '@/lib/correcao-actions';
 import { faseDaEspera, passosDaEspera, SEM_SAIDA_MS } from '@/lib/correcao-espera';
+import { passoDepoisDaLeitura } from '@/lib/correcao-polling';
 import { formatScore } from '@/lib/result-rules';
 import type { MotivoDaFalha } from '@/lib/schoolops/correcao-rules';
 
@@ -49,6 +50,7 @@ export function CorrecaoEmCurso({
     if (falha) return; // o motor já disse que não corrige: não há nada para ler; a saída é «Tentar de novo»
     let timer: ReturnType<typeof setTimeout> | undefined;
     let parado = false;
+    let terminou = false;
     const controller = new AbortController();
 
     const consultar = async () => {
@@ -65,7 +67,12 @@ export function CorrecaoEmCurso({
             setErroPoll(null);
             // Se a correção terminou (corrigida, incompleta ou falhou), recarrega a página
             // uma vez para mostrar o resultado; enquanto "a-corrigir" continua a ler.
-            if (data.kind !== 'a-corrigir') {
+            if (passoDepoisDaLeitura(data.kind) === 'terminar') {
+              // Uma recarga só: para o ciclo e ignora uma leitura que ainda esteja em voo.
+              if (terminou) return;
+              terminou = true;
+              parado = true;
+              clearTimeout(timer);
               router.refresh();
               return;
             }
