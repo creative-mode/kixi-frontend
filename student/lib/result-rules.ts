@@ -186,3 +186,51 @@ export function formatDelta(delta: number): string {
 export function optionTag(option: ResultOption, index: number): string {
   return option.optionLabel?.trim() || String.fromCharCode(65 + index);
 }
+
+/** Score breakdown for display: objective vs open questions, separating graded from pending. */
+export interface ScoreBreakdownData {
+  objectiveScore: number;
+  objectiveMax: number;
+  openScore: number;
+  openMax: number;
+  openPendingScore: number;
+  openPendingMax: number;
+  hasAiGraded: boolean;
+  hasSchoolOpsGraded: boolean;
+}
+
+/** Calculate score breakdown from questions. Pure function, no server, no React. */
+export function calculateScoreBreakdown(questions: ResultQuestion[] | undefined): ScoreBreakdownData {
+  const qs = questions ?? [];
+  const objectiveQuestions = qs.filter((q) => (q.options ?? []).length > 0);
+  const openQuestions = qs.filter((q) => (q.options ?? []).length === 0);
+
+  // Objective: always graded by answer key
+  const objectiveScore = objectiveQuestions.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const objectiveMax = objectiveQuestions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+
+  // Open questions: separate graded (IA or SchoolOps) from pending
+  const gradedOpen = openQuestions.filter((q) => q.scoreObtained != null);
+  const pendingOpen = openQuestions.filter((q) => q.scoreObtained == null);
+
+  const openScore = gradedOpen.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const openMax = gradedOpen.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+  const openPendingScore = pendingOpen.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const openPendingMax = pendingOpen.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+
+  // Identification: conservative - only aiLevel means AI-graded (kixi#542 plan exams)
+  // SchoolOps sets feedback but not aiLevel. TODO: backend should send gradedBy: 'IA' | 'SCHOOLOPS' | 'TEACHER'
+  const hasAiGraded = openQuestions.some((q) => q.aiLevel != null);
+  const hasSchoolOpsGraded = openQuestions.some((q) => q.feedback != null && q.aiLevel == null);
+
+  return {
+    objectiveScore,
+    objectiveMax,
+    openScore,
+    openMax,
+    openPendingScore,
+    openPendingMax,
+    hasAiGraded,
+    hasSchoolOpsGraded,
+  };
+}

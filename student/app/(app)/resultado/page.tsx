@@ -25,6 +25,8 @@ import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { MathText } from '@/lib/shared/math-text';
+import { PedirRevisaoButton } from '@/components/pedir-revisao';
+import { ScoreBreakdown } from '@/components/score-breakdown';
 import { answersOf, marksOf, paperQuestions, stampOf } from '@/lib/folha-do-resultado';
 import {
   formatDelta,
@@ -39,6 +41,8 @@ import {
   showsContext,
   toReview,
   type Verdict,
+  calculateScoreBreakdown,
+  type ScoreBreakdownData,
 } from '@/lib/result-rules';
 import { displayNumber, topNumber, wholeNumbers } from '@/lib/question-number';
 import { wrongAnswersParam } from '@/lib/tutor-rules';
@@ -52,10 +56,16 @@ const VERDICT: Record<Verdict, { label: string; variant: 'success' | 'destructiv
   blank: { label: 'Sem resposta', variant: 'secondary' },
 };
 
-function Review({ question, context }: { question: ResultQuestion; context: boolean }) {
+function Review({ question, context, simulationId }: { question: ResultQuestion; context: boolean; simulationId: number }) {
   const v = verdict(question);
   const options = question.options ?? [];
   const shown = displayNumber(question);
+  const isAiGraded = question.aiLevel != null;
+  const aiLevelLabel = question.aiLevel ? { TOTAL: 'Resposta completa', PARCIAL: 'Resposta parcial', MINIMA: 'Resposta mínima', NULA: 'Sem pontuação' }[question.aiLevel] : null;
+  // TODO: aiConfidence deve vir do backend (campo aiConfidence no QuestionResult).
+  // Actualmente question.confidence é confiança do OCR (MathContentFields), não da IA.
+  // Não apresentar confiança até o backend a disponibilizar.
+  // const aiConfidence = question.aiConfidence != null ? Math.round(question.aiConfidence * 100) : null;
   return (
     <li className="grid gap-3 px-5 py-4">
       {context && question.parentText ? (
@@ -101,6 +111,15 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
           <p><span className="text-muted-foreground">A tua resposta: </span>{question.answerText?.trim() || 'Sem resposta'}</p>
           {question.modelAnswer && <p><span className="text-muted-foreground">Resposta esperada: </span>{question.modelAnswer}</p>}
           {v === 'pending' && <p className="text-muted-foreground">Esta resposta ainda está a ser corrigida.</p>}
+          {isAiGraded && (
+            <div className="grid gap-1 pt-1 border-t border-dashed">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-info">
+                <span className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5">Corrigida pela IA</span>
+                {aiLevelLabel && <span className="text-info">· {aiLevelLabel}</span>}
+              </p>
+              <PedirRevisaoButton simulationId={simulationId} questionId={question.questionId} />
+            </div>
+          )}
         </div>
       )}
 
@@ -135,10 +154,10 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const { result: resultadoDoBackend, statementId, comparison } = view;
   const me = await getMe();
 
-  // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
-  // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   let totalMax = view.totalMaxScore;
   let result = resultadoDoBackend;
+  // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
+  // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   if (correcaoLigada() && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
@@ -188,6 +207,8 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const time = formatDuration(result.timeSpentSeconds);
   const pending = result.pendingReviewCount ?? 0;
   const hasMistakes = questions.some((q) => ['wrong', 'blank'].includes(verdict(q)));
+
+  const breakdown: ScoreBreakdownData = calculateScoreBreakdown(questions);
 
   // A leitura da nota (#492) só usa números do servidor: a média da turma vem da
   // comunidade da prova, e o XP, a sequência e as medalhas vêm de /me. Cada bloco
@@ -271,6 +292,19 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         </div>
 
         {questions.length > 0 && (
+          <ScoreBreakdown
+            objectiveScore={breakdown.objectiveScore}
+            objectiveMax={breakdown.objectiveMax}
+            openScore={breakdown.openScore}
+            openMax={breakdown.openMax}
+            openPendingScore={breakdown.openPendingScore}
+            openPendingMax={breakdown.openPendingMax}
+            hasAiGraded={breakdown.hasAiGraded}
+            hasSchoolOpsGraded={breakdown.hasSchoolOpsGraded}
+          />
+        )}
+
+        {questions.length > 0 && (
           <Card className="gap-3 p-3 sm:p-5" aria-label="A tua prova corrigida">
             <div>
               <h2 className="text-[17px] font-bold tracking-tight">A tua prova corrigida</h2>
@@ -295,7 +329,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <p className="border-t px-5 py-4 text-sm text-muted-foreground">Não respondeste a nenhuma questão desta prova.</p>
           ) : (
             <ul className="divide-y border-t">
-              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} />)}
+              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} simulationId={result.simulationId} />)}
             </ul>
           )}
         </Card>

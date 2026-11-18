@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  calculateScoreBreakdown,
   compareWithPrevious,
   formatDelta,
   formatDuration,
@@ -154,4 +155,111 @@ test('uma dissertativa corrigida pela IA não fica por corrigir', () => {
   assert.equal(verdict(q), 'correct');
   const errada = { ...q, isCorrect: false };
   assert.equal(verdict(errada), 'wrong');
+});
+
+// ── calculateScoreBreakdown (#798: transparência da nota) ────────────────────
+
+/** Helper próprio dos testes de breakdown: questões de objectivas vs abertas. */
+const bq = (over: Partial<ResultQuestion> = {}): ResultQuestion => ({
+  questionId: 1,
+  number: 1,
+  text: 'Pergunta',
+  options: [],
+  maxScore: 2,
+  scoreObtained: 2,
+  isCorrect: true,
+  ...over,
+});
+
+const obj = (over: Partial<ResultQuestion> = {}): ResultQuestion =>
+  bq({ options: [{ id: 1, optionText: 'A', isCorrect: true }], ...over });
+
+test('calculateScoreBreakdown: only objective questions', () => {
+  const questions = [obj({ maxScore: 2, scoreObtained: 2 }), obj({ maxScore: 2, scoreObtained: 0 })];
+  const b = calculateScoreBreakdown(questions);
+  assert.equal(b.objectiveScore, 2);
+  assert.equal(b.objectiveMax, 4);
+  assert.equal(b.openScore, 0);
+  assert.equal(b.openMax, 0);
+  assert.equal(b.openPendingScore, 0);
+  assert.equal(b.openPendingMax, 0);
+  assert.equal(b.hasAiGraded, false);
+  assert.equal(b.hasSchoolOpsGraded, false);
+});
+
+test('calculateScoreBreakdown: objective + open graded by AI', () => {
+  const questions = [
+    obj({ maxScore: 2, scoreObtained: 2 }),
+    bq({ maxScore: 4, scoreObtained: 3, aiLevel: 'PARCIAL', aiFeedback: 'OK' }),
+  ];
+  const b = calculateScoreBreakdown(questions);
+  assert.equal(b.objectiveScore, 2);
+  assert.equal(b.objectiveMax, 2);
+  assert.equal(b.openScore, 3);
+  assert.equal(b.openMax, 4);
+  assert.equal(b.openPendingScore, 0);
+  assert.equal(b.openPendingMax, 0);
+  assert.equal(b.hasAiGraded, true);
+  assert.equal(b.hasSchoolOpsGraded, false);
+});
+
+test('calculateScoreBreakdown: open questions pending (no score)', () => {
+  const questions = [
+    obj({ maxScore: 2, scoreObtained: 2 }),
+    bq({ maxScore: 4, scoreObtained: null, isCorrect: null }),
+  ];
+  const b = calculateScoreBreakdown(questions);
+  assert.equal(b.objectiveScore, 2);
+  assert.equal(b.objectiveMax, 2);
+  assert.equal(b.openScore, 0);
+  assert.equal(b.openMax, 0);
+  assert.equal(b.openPendingScore, 0);
+  assert.equal(b.openPendingMax, 4);
+  assert.equal(b.hasAiGraded, false);
+  assert.equal(b.hasSchoolOpsGraded, false);
+});
+
+test('calculateScoreBreakdown: mixed graded and pending open', () => {
+  const questions = [
+    obj({ maxScore: 2, scoreObtained: 2 }),
+    bq({ maxScore: 4, scoreObtained: 3, aiLevel: 'TOTAL' }),
+    bq({ maxScore: 4, scoreObtained: null }),
+  ];
+  const b = calculateScoreBreakdown(questions);
+  assert.equal(b.openScore, 3);
+  assert.equal(b.openMax, 4);
+  assert.equal(b.openPendingScore, 0);
+  assert.equal(b.openPendingMax, 4);
+  assert.equal(b.hasAiGraded, true);
+});
+
+test('calculateScoreBreakdown: SchoolOps graded (feedback but no aiLevel)', () => {
+  const questions = [
+    obj({ maxScore: 2, scoreObtained: 2 }),
+    bq({ maxScore: 4, scoreObtained: 3, feedback: 'Bem', isCorrect: true }),
+  ];
+  const b = calculateScoreBreakdown(questions);
+  assert.equal(b.hasAiGraded, false);
+  assert.equal(b.hasSchoolOpsGraded, true);
+});
+
+test('calculateScoreBreakdown: maxScore null treated as 0', () => {
+  const questions = [obj({ maxScore: null, scoreObtained: 2 })];
+  const b = calculateScoreBreakdown(questions);
+  assert.equal(b.objectiveMax, 0);
+  assert.equal(b.objectiveScore, 2);
+});
+
+test('calculateScoreBreakdown: empty questions', () => {
+  const b = calculateScoreBreakdown([]);
+  assert.equal(b.objectiveScore, 0);
+  assert.equal(b.objectiveMax, 0);
+  assert.equal(b.openScore, 0);
+  assert.equal(b.openMax, 0);
+});
+
+test('calculateScoreBreakdown: undefined questions', () => {
+  const b = calculateScoreBreakdown(undefined);
+  assert.equal(b.objectiveScore, 0);
+  assert.equal(b.objectiveMax, 0);
 });
