@@ -178,12 +178,17 @@ test('o LocalDateTime do mock é a hora do servidor (+01:00), seja qual for o fu
 // O seed do #793 está corrigido; estes testes fixam a regra que o e2e usa para o
 // pôr por corrigir durante um teste e repor no fim, sem trocar o seed dos outros.
 
-test('a resposta a aguardar correção é a primeira aberta, ou a última', () => {
+test('a resposta a aguardar correção é a primeira aberta', () => {
   const escolha = answer({ id: 1, questionId: 1, selectedOptionId: 11, scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED' });
   const aberta = answer({ id: 2, questionId: 2, answerText: 'texto', scoreObtained: 4, isCorrect: true, reviewStatus: 'AI_GRADED' });
   assert.equal(openAnswerOf([escolha, aberta], [choice, open])?.id, 2);
-  // Sem abertas, a última — a rota não pode falhar num cenário só com escolhas.
-  assert.equal(openAnswerOf([escolha], [choice])?.id, 1);
+});
+
+test('sem pergunta aberta não há resposta para pôr a aguardar correção', () => {
+  // Uma escolha é corrigida pelo gabarito: marcá-la PENDING_REVIEW seria pedir
+  // revisão manual de uma resposta que não a tem. A rota devolve 400 e não mexe.
+  const escolha = answer({ id: 1, questionId: 1, selectedOptionId: 11, scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED' });
+  assert.equal(openAnswerOf([escolha], [choice]), undefined);
   assert.equal(openAnswerOf([], []), undefined);
 });
 
