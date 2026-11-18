@@ -162,7 +162,7 @@ Tipo: 4 objetivas (2 pts cada = 8) + 2 abertas (6 pts cada = 12)
 | 3 | b — 2^5 - 1 = 31 | 2 |
 | 4 | b — 3 (medida cromática do plano gráfico) | 2 |
 | 5 | Base: S(1) = 1 = 1*2/2 (ok); hipótese S(k) = k(k+1)/2; conclusão S(k+1) = k(k+1)/2 + (k+1) = (k+1)(k+2)/2 | 6 |
-| 6 | Recorrência T(n) = T(n-1) + (n-1); expandindo, T(n) = sum of (n-1)-k = n(n-1)/2 = O(n²) | 6 |
+| 6 | Recorrência T(n) = T(n-1) + (n-1); expandindo, T(n) = sum of (n-1)-k = n(n-1)/2 = O(n^2) | 6 |
 
 ---
 
