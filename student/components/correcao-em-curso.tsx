@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, Clock, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Bell, Check, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { tentarCorrecaoDeNovo } from '@/lib/correcao-actions';
+import { previsaoEmTexto, progressoEmTexto, situacaoDaEspera } from '@/lib/correcao-previsao';
 import { faseDaEspera, passosDaEspera, SEM_SAIDA_MS } from '@/lib/correcao-espera';
 import { formatScore } from '@/lib/result-rules';
-import type { MotivoDaFalha } from '@/lib/schoolops/correcao-rules';
+import type { MotivoDaFalha, ProgressoDoMotor } from '@/lib/schoolops/correcao-rules';
 
 /**
  * A prova entregue ainda está a ser corrigida (kixi#542). Não há erro nem desistência: o ecrã tranquiliza, mostra em que
@@ -21,17 +23,27 @@ import type { MotivoDaFalha } from '@/lib/schoolops/correcao-rules';
  * Nunca deixa o aluno sem saída (#787): passados 10 minutos, ou logo que o motor recusa o pedido ou a correção fica com um
  * incidente (`falha`), o ecrã mostra a nota das questões fechadas como provisória, diz que as abertas ficam por corrigir
  * e oferece «Tentar de novo», que volta a pedir a correção.
+ *
+ * Em qualquer momento da espera o aluno vê o que já está feito e uma previsão (#792): a nota das objectivas, como parcial,
+ * as respostas abertas já corrigidas e quanto falta. `progresso` e `previsaoSegundos` vêm do motor; sem eles estima-se
+ * pelo número de abertas da prova (`abertas`).
  */
 export function CorrecaoEmCurso({
   desdeMs = 0,
   simulationId,
   provisoria = null,
   falha,
+  abertas = 0,
+  progresso,
+  previsaoSegundos,
 }: {
   desdeMs?: number;
   simulationId: number;
   provisoria?: { pontos: number; maximo: number } | null;
   falha?: MotivoDaFalha;
+  abertas?: number;
+  progresso?: ProgressoDoMotor;
+  previsaoSegundos?: number;
 }) {
   const router = useRouter();
   const inicio = useRef(Date.now() - desdeMs);
@@ -67,6 +79,7 @@ export function CorrecaoEmCurso({
   const fase = faseDaEspera(decorrido);
   const passos = passosDaEspera();
   const semSaida = decorrido >= SEM_SAIDA_MS;
+  const situacao = situacaoDaEspera({ progresso, previsaoSegundos, abertas, decorridoMs: decorrido });
 
   if (falha) {
     return (
@@ -96,34 +109,68 @@ export function CorrecaoEmCurso({
         <p className="text-sm leading-relaxed text-muted-foreground">{fase.mensagem}</p>
       </div>
 
-      <ol className="flex w-full max-w-sm items-start justify-between gap-2" aria-label="Em que ponto está a correção">
-        {passos.map((p) => (
-          <li key={p.id} aria-current={p.estado === 'atual' ? 'step' : undefined} className="grid flex-1 justify-items-center gap-1.5">
-            <span
-              className={
-                'grid size-8 place-items-center rounded-full border text-xs font-bold ' +
-                (p.estado === 'feito'
-                  ? 'border-success bg-success text-white'
-                  : p.estado === 'atual'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-muted-foreground')
-              }
-            >
-              {p.estado === 'feito' ? <Check className="size-4" aria-hidden /> : p.estado === 'atual' ? <Spinner className="size-4" /> : null}
-            </span>
-            <span className={'text-xs ' + (p.estado === 'seguinte' ? 'text-muted-foreground' : 'font-semibold')}>
-              {p.rotulo}
-              <span className="sr-only">{p.estado === 'feito' ? ': feito' : p.estado === 'atual' ? ': agora' : ': a seguir'}</span>
-            </span>
-          </li>
-        ))}
-      </ol>
+      {provisoria ? (
+        <section
+          aria-label="Nota das questões objectivas"
+          data-testid="nota-parcial"
+          className="grid w-full max-w-md gap-1.5 rounded-xl border border-border bg-secondary/70 px-4 py-4 text-left"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold">Objectivas, já corrigidas</h3>
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">pelo gabarito</span>
+          </div>
+          <p className="tabular-nums">
+            <span className="text-3xl font-bold">{formatScore(provisoria.pontos)}</span>{' '}
+            <span className="text-muted-foreground">de {formatScore(provisoria.maximo)} valores</span>
+          </p>
+          <p className="text-sm text-muted-foreground">Nota parcial. A nota final junta as respostas abertas.</p>
+        </section>
+      ) : null}
 
-      <p className="flex max-w-md items-start gap-2 rounded-lg bg-secondary/70 px-4 py-3 text-left text-sm leading-relaxed">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+      {situacao ? (
+        <section aria-label="Respostas abertas" data-testid="progresso-abertas" data-origem={situacao.origem ?? 'sem-previsao'} className="grid w-full max-w-md gap-2 text-left">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-semibold">Respostas abertas</h3>
+            <p className="text-sm text-muted-foreground tabular-nums">
+              <b className="text-foreground">{situacao.corrigidas} de {situacao.total}</b> corrigidas
+            </p>
+          </div>
+          <Progress value={situacao.percentagem} aria-label={progressoEmTexto(situacao.corrigidas, situacao.total)} />
+          <p data-testid="previsao" className="text-sm text-muted-foreground">
+            {previsaoEmTexto(situacao.previsaoSegundos) ?? 'Estamos quase a acabar.'}
+          </p>
+        </section>
+      ) : null}
+
+      {!situacao && !provisoria ? (
+        <ol className="flex w-full max-w-sm items-start justify-between gap-2" aria-label="Em que ponto está a correção">
+          {passos.map((p) => (
+            <li key={p.id} aria-current={p.estado === 'atual' ? 'step' : undefined} className="grid flex-1 justify-items-center gap-1.5">
+              <span
+                className={
+                  'grid size-8 place-items-center rounded-full border text-xs font-bold ' +
+                  (p.estado === 'feito'
+                    ? 'border-success bg-success text-white'
+                    : p.estado === 'atual'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground')
+                }
+              >
+                {p.estado === 'feito' ? <Check className="size-4" aria-hidden /> : p.estado === 'atual' ? <Spinner className="size-4" /> : null}
+              </span>
+              <span className={'text-xs ' + (p.estado === 'seguinte' ? 'text-muted-foreground' : 'font-semibold')}>
+                {p.rotulo}
+                <span className="sr-only">{p.estado === 'feito' ? ': feito' : p.estado === 'atual' ? ': agora' : ': a seguir'}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+
+      <p className="flex w-full max-w-md items-start gap-3 rounded-xl border border-border px-4 py-3 text-left text-sm leading-relaxed">
+        <Bell className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <span>
-          <b>Não precisas de esperar aqui.</b> Podes sair deste ecrã e usar o Kixi à vontade: o resultado aparece nas tuas provas
-          assim que a correção terminar, e esta página também se atualiza sozinha.
+          <b>Podes sair deste ecrã.</b> Avisamos-te quando a nota estiver pronta, e esta página também se actualiza sozinha.
         </span>
       </p>
 
