@@ -675,15 +675,18 @@ test.describe('auditoria de UX do aluno', () => {
   });
 });
 
-/** O início (nova experiência, #729): começa logo nas publicações; o progresso vive no perfil e o calendário na coluna
- *  da direita (ecrã grande) ou no topo de Provas (telemóvel). */
+/** O início (nova experiência, #729): o progresso vive no perfil e o calendário na coluna
+ *  da direita (ecrã grande) ou no topo de Provas (telemóvel). No telemóvel o compositor
+ *  inline (#796) figura no topo, acima das publicações, em vez do botão flutuante. */
 test.describe('início sem blocos acima das publicações', () => {
-  test('no telemóvel o feed começa nas publicações e publicar é um botão', async ({ page }) => {
+  test('no telemóvel o compositor está no topo e publicar é um toque (#796)', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await alunoLogin(page);
     await page.goto('/aluno/inicio');
     await expect(page.getByTestId('mobile-progresso')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Criar publicação' })).toBeVisible();
+    // #796: o compositor está à vista (o FAB só existe com o compositor fora da viewport,
+    // o que depende do comprimento da lista — a conta actual difere da local).
+    await expect(page.getByRole('textbox', { name: 'Nova publicação' })).toBeVisible();
     await expect(page.getByRole('article').first()).toBeVisible();
     // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a
     // decorrer, caso em que /provas abriria nas Salas — e o Calendário só vive na aba dos

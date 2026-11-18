@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert } from '@/components/ui/alert';
+import { PostComposer } from '@/components/post-composer';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { RefreshError } from '@/components/refresh-error';
@@ -42,6 +43,8 @@ export function InicioFeed({
   // página 1, e o «Ver mais» só acrescenta o que ainda não está no ecrã.
   const [extra, setExtra] = useState<FeedPost[]>([]);
   const [moreAuthors, setMoreAuthors] = useState<Record<number, FeedAuthor>>({});
+  // Otimistas do compositor do telemóvel: entram no topo na mesma sessão (#796).
+  const [optimistic, setOptimistic] = useState<FeedPost[]>([]);
   const [page, setPage] = useState(1);
   const [end, setEnd] = useState(() => isLastFeedPage(posts.length));
   const [moreError, setMoreError] = useState<string | null>(null);
@@ -52,7 +55,21 @@ export function InicioFeed({
   const focusAfterDelete = useRef<{ deletedId: number; nextId: number | null } | null>(null);
 
   const loaded = mergeFeedPages(posts, extra);
-  const shown = loaded;
+  const shown = [...optimistic, ...loaded];
+
+  // O botão flutuante só existe quando o compositor do topo sai da viewport (#796, revisão):
+  // na parte de cima da página o campo já está vendo e tapar publicações é a queixa original.
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerVisible, setComposerVisible] = useState(true);
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) setComposerVisible(entry.isIntersecting);
+    }, { threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const pending = focusAfterDelete.current;
@@ -74,6 +91,7 @@ export function InicioFeed({
     if (seenFirstPage.current === firstPageIds) return;
     seenFirstPage.current = firstPageIds;
     setExtra([]);
+    setOptimistic([]);
     setPage(1);
     setEnd(isLastFeedPage(posts.length));
     setMoreError(null);
@@ -114,11 +132,17 @@ export function InicioFeed({
         </span>
       </Link>
       {classId && (
-        <Link href="/publicar" data-feed-composer className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
-          <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
-          <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
-          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
-        </Link>
+        <>
+          <Link href="/publicar" data-feed-composer className="hidden items-center gap-3 rounded-full md:flex border border-[#e9ebe7] bg-white px-3.5 py-3 text-[#121c15] no-underline">
+            <UserAvatar name={fullName(me) || 'Aluno'} src={photoUrl(me)} size={44} />
+            <span className="min-w-0 flex-1 truncate text-[15px] text-[#617066]">Partilha uma dúvida ou uma dica…</span>
+            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#1f5a2c] text-white"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg></span>
+          </Link>
+          {/* #796 no telemóvel: o campo «Partilha…» existe no topo, como no md+. */}
+          <div ref={composerRef} className="md:hidden" data-feed-composer tabIndex={-1} aria-label="Compositor de publicações">
+            <PostComposer classId={classId} onOptimistic={(post) => setOptimistic((current) => [post, ...current])} onOptimisticFailed={(post) => setOptimistic((current) => current.filter((p) => p.id !== post.id))} />
+          </div>
+        </>
       )}
 
       {feedError ? (
@@ -167,10 +191,12 @@ export function InicioFeed({
           </div>
         </>
       )}
-      {/* No telemóvel a porta para publicar é um botão por cima da barra inferior; o feed começa logo nas publicações. */}
-      {classId && (
-        <Link href="/publicar" aria-label="Criar publicação" data-press className="fixed right-4 bottom-[calc(84px+var(--ck-banner-h,0px))] z-20 flex size-14 items-center justify-center rounded-full bg-[#1f5a2c] text-white shadow-[0_6px_18px_rgba(18,28,21,.25)] md:hidden">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      {/* No telemóvel a porta para publicar do fundo existe quando o compositor sai do ecrã;
+          com rótulo visível para não ser mais um «+» mudo por cima das publicações. */}
+      {classId && !composerVisible && (
+        <Link href="/publicar" aria-label="Criar publicação" data-press className="fixed right-4 bottom-[calc(84px+var(--ck-banner-h,0px))] z-20 flex h-12 items-center gap-2 rounded-full bg-[#1f5a2c] px-4 text-[14px] font-semibold text-white shadow-[0_6px_18px_rgba(18,28,21,.25)] md:hidden">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          <span>Criar publicação</span>
         </Link>
       )}
     </div>
