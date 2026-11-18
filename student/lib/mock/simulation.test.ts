@@ -184,6 +184,14 @@ test('a resposta a aguardar correção é a primeira aberta', () => {
   assert.equal(openAnswerOf([escolha, aberta], [choice, open])?.id, 2);
 });
 
+test('uma resposta curta (short_answer) também espera correção', () => {
+  // Regressão: a prova 1 do seed tem a aberta como `short_answer`, não como
+  // `open`/`development`. O critério é o mesmo do gabarito: não ter opções.
+  const curta: MockQuestion = { ...open, id: 4, questionType: 'short_answer' };
+  const resposta = answer({ id: 3, questionId: 4, answerText: 'texto', reviewStatus: 'PENDING_REVIEW' });
+  assert.equal(openAnswerOf([resposta], [curta])?.id, 3);
+});
+
 test('sem pergunta aberta não há resposta para pôr a aguardar correção', () => {
   // Uma escolha é corrigida pelo gabarito: marcá-la PENDING_REVIEW seria pedir
   // revisão manual de uma resposta que não a tem. A rota devolve 400 e não mexe.

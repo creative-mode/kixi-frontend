@@ -123,14 +123,14 @@ export function finalScore(answers: MockAnswer[]): number {
 /** Os quatro estados que o backend deriva das respostas (kixi#609). */
 export type MockCorrectionStatus = 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'FAILED';
 
-/** A resposta que o e2e (#788) põe a aguardar correção: a primeira aberta. Sem
- *  abertas não há nada para aguardar — uma escolha corrigida pelo gabarito não pode
- *  ficar «por corrigir» (e a rota responde 400 em vez de a marcar). O seed do #793
- *  está corrigido, por isso o teste escolhe a resposta e repõe o estado no fim. */
+/** A resposta que o e2e (#788) põe a aguardar correção: a primeira que o gabarito não
+ *  corrige — sem opções, como `gradeAnswer` decide. Não é pelo nome do tipo: uma
+ *  `short_answer` também espera revisão. Sem nenhuma, devolve `undefined` e a rota
+ *  responde 400; uma escolha corrigida pelo gabarito nunca fica «por corrigir». */
 export function openAnswerOf(answers: readonly MockAnswer[], questions: readonly MockQuestion[]): MockAnswer | undefined {
   return answers.find((a) => {
     const pergunta = questions.find((q) => q.id === a.questionId);
-    return pergunta?.questionType === 'open' || pergunta?.questionType === 'development';
+    return pergunta != null && !isObjective(pergunta);
   });
 }
 
