@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { test } from 'node:test';
-import { assinaturaValida, previsaoValida, progressoValido, correcaoIdDoConflito, eSimulacaoLivre, escalaDaNota, notaProvisoria, pedidoDeCorrecao, vistaDaCorrecao, vistaDeUmaRecusa } from './correcao-rules.ts';
+import { assinaturaValida, estadoParaEspera, previsaoValida, progressoValido, correcaoIdDoConflito, eSimulacaoLivre, escalaDaNota, notaProvisoria, pedidoDeCorrecao, vistaDaCorrecao, vistaDeUmaRecusa } from './correcao-rules.ts';
 
 const me = { accountId: 3, first_name: 'Ana', last_name: 'Domingos', username: 'ana.domingos', school: { id: 1, name: 'Instituto', code: 'ITEL' } };
 
@@ -155,4 +155,11 @@ test('um progresso incoerente conta como «ainda não se sabe»', () => {
   assert.equal(previsaoValida(Number.NaN), null);
   assert.equal(previsaoValida(undefined), null);
   assert.equal(previsaoValida(41.6), 42);
+});
+
+test('a leitura leve leva à espera o progresso e a previsão, e nunca o resultado', () => {
+  assert.deepEqual(estadoParaEspera({ kind: 'a-corrigir', progresso: { corrigidas: 1, total: 4 }, previsaoSegundos: 30 }), { kind: 'a-corrigir', progresso: { corrigidas: 1, total: 4 }, previsaoSegundos: 30 });
+  assert.deepEqual(estadoParaEspera({ kind: 'a-corrigir' }), { kind: 'a-corrigir', progresso: null, previsaoSegundos: null });
+  assert.deepEqual(estadoParaEspera({ kind: 'falhou', motivo: 'incidente' }), { kind: 'falhou', motivo: 'incidente' });
+  assert.deepEqual(estadoParaEspera({ kind: 'corrigida', resultado: { nota: 15 } }), { kind: 'corrigida' });
 });

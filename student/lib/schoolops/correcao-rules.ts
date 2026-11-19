@@ -87,6 +87,16 @@ export function previsaoValida(segundos: number | null | undefined): number | nu
   return typeof segundos === 'number' && Number.isFinite(segundos) && segundos >= 0 ? Math.round(segundos) : null;
 }
 
+/**
+ * O que a rota leve de leitura devolve ao ecrã de espera (#794): o tipo da vista e, enquanto se corrige, o progresso e a
+ * previsão (#792). Nunca o resultado (pontos, justificações).
+ */
+export function estadoParaEspera(vista: VistaCorrecao): Record<string, unknown> {
+  if (vista.kind === 'falhou') return { kind: vista.kind, motivo: vista.motivo };
+  if (vista.kind === 'a-corrigir') return { kind: vista.kind, progresso: vista.progresso ?? null, previsaoSegundos: vista.previsaoSegundos ?? null };
+  return { kind: vista.kind };
+}
+
 /** O que o motor respondeu ao abrir a correcção (sem ser um 2xx). O 409 trata-se à parte (`correcaoIdDoConflito`). */
 export function vistaDeUmaRecusa(status: number): VistaCorrecao {
   // Um 4xx (menos 408 e 429) é o motor a recusar o pedido: repetir tal e qual não adianta e esperar para sempre é pior do que dizê-lo.
