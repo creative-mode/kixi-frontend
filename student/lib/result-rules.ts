@@ -240,3 +240,24 @@ export function calculateScoreBreakdown(questions: ResultQuestion[] | undefined)
     hasSchoolOpsGraded,
   };
 }
+
+/**
+ * Se o aluno pode partilhar o resultado com a turma, e se não, porquê (#789, hipótese 4).
+ * O feed é da turma. O ecrã de resultado só sabe a turma pelo perfil, e quando o perfil
+ * não carrega (falha transitória) o cartão de partilha desaparecia em silêncio, como se
+ * o resultado se tivesse perdido. Agora diz-se o que falta.
+ *  - `sem-nota`: nada para mostrar (por corrigir);
+ *  - `sem-perfil`: não deu para confirmar a turma agora, recarregar resolve;
+ *  - `sem-turma`: o perfil carregou e não tem turma (o layout manda o aluno para o onboarding).
+ */
+export type Partilha = 'pode' | 'sem-turma' | 'sem-perfil' | 'sem-nota';
+
+export function partilha(
+  classId: number | null | undefined,
+  finalScore: number | null | undefined,
+  perfilConhecido: boolean,
+): Partilha {
+  if (finalScore == null) return 'sem-nota';
+  if (classId != null) return 'pode';
+  return perfilConhecido ? 'sem-turma' : 'sem-perfil';
+}

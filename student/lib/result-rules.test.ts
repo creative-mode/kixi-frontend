@@ -9,6 +9,7 @@ import {
   givenAnswers,
   inOrder,
   observation,
+  partilha,
   optionTag,
   toReview,
   verdict,
@@ -270,4 +271,13 @@ test('calculateScoreBreakdown: undefined questions', () => {
   const b = calculateScoreBreakdown(undefined);
   assert.equal(b.objectiveScore, 0);
   assert.equal(b.objectiveMax, 0);
+});
+test('quando o cartão de partilha não aparece, diz-se porquê em vez de desaparecer (#789)', () => {
+  assert.equal(partilha(12, 16.4, true), 'pode');
+  // O perfil não carregou: a turma é desconhecida, não inexistente. Era o caso silencioso.
+  assert.equal(partilha(null, 16.4, false), 'sem-perfil');
+  assert.equal(partilha(null, 16.4, true), 'sem-turma');
+  // Sem nota (por corrigir) não há o que partilhar, tenha o aluno turma ou não.
+  assert.equal(partilha(12, null, true), 'sem-nota');
+  assert.equal(partilha(null, null, false), 'sem-nota');
 });
