@@ -8,19 +8,19 @@
 
 | Dimensão | Escolha |
 |---|---|
-| Escola | **ITEL** — Escola Técnica de Laboratório(?): no seed do Kixi, instituição `ITEL` (id 1) |
-| Curso | **Técnico de Laboratório de Informática** (`TLP-ITEL`, id 3) |
-| Ano/classe | 12.ª classe (turma 12A, id 2; a demo original usou a turma 12B como ingresse de exemplo) |
+| Escola | **ITEL** — Instituto de Telecomunicações, instituição `ITEL` (id 1 no seed do Kixi/frontend) |
+| Curso | **Técnico de Informática e Sistemas Multimédia** (`TISM`, id 1 no seed) |
+| Ano/classe | 12.ª classe (turma 12A, id 2) — o seed do mock do frontend associa `courseId: 1` à 12A, ou seja ao TISM |
 | Ano letivo | 2025/2026 |
 | Disciplinas | Redes de Computadores, Sistemas Operativos, Matemática Discreta |
 | Enunciados | Um por disciplina, abaixo — cada um com gabarito |
 
-As três disciplinas já estão no catálogo do seed do Kixi (`RED`, `SO`, `MD`), com a sala de prova e as salas de exam-rooms configuradas — a demo 13/11/2026 já as usou. A entrega pode ser feita agora como «enunciado de demonstração» uma vez o pagamento do plano de infra e cloud autorizado.
+As três disciplinas já estão no catálogo do seed do Kixi (`RED`, `SO`, `MD`). O seed do frontend (`student/lib/mock/store.ts`) — que espelha a estrutura do backend — atribui ao **TISM** (id 1) as turmas `12B` (id 1), `12A` (id 2) e `11B` (id 3) e ao **TLP-ITEL** (id 3) apenas `11A` (id 5, grade 11): **não há turma de 12.ª classe no TLP-ITEL no seed**, daí a citação certa ser TISM/12A e não TLP-ITEL/12A. A entrega pode ser feita agora como «enunciado de demonstração» uma vez o pagamento do plano de infra e cloud autorizado.
 
 ## Inscrição para a demo (depois do pagamento do plano)
 
-1. Registar o tenant do cliente com os dados do ITEL e o curso TLP-ITEL pela administração do Kixi/SchoolOps;
-2. Registar os utilizadores da school (turma-alvo), a SO-alvo, MD-alvo, RED-alvo da conta administrativa ITEL;
+1. Registar o tenant do cliente com os dados do ITEL e o curso **TISM** (id 1, escola ITEL, schoolYear 2025/2026 id 1) e a turma **12A** (id 2) pela administração do Kixi/SchoolOps;
+2. Registar os utilizadores da turma (12A), e a conta administrativa que introduz os enunciados;
 3. Introduzir os três enunciados pelo `/gestor` (new question block), associados ao curso, à classe e à disciplina acima;
 4. Verificar com o self-walkthrough (demo smoke) que a prova abre, que há respostas e que o resultado aparece com a prova corrigida pela gabarito.
 
