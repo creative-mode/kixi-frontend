@@ -95,9 +95,9 @@ export const summaryOf = (s: MockSheet) => ({ ...Object.fromEntries(Object.entri
 
 const has = (roles: Roles, ...r: string[]) => r.some((x) => roles.includes(x));
 
-/** O contrato: ADMIN todas; TEACHER as pautas da turma e disciplina que lecciona; STUDENT nenhuma por aqui (só `/me/term-sheets`). */
+/** O contrato: ADMIN e COORDINATOR todas; TEACHER as pautas da turma e disciplina que lecciona; STUDENT nenhuma por aqui (só `/me/term-sheets`). */
 export function canReadSheet(v: Viewer, s: Pick<MockSheet, 'classId' | 'subjectId'>): boolean {
-  if (has(v.roles, 'ADMIN')) return true;
+  if (has(v.roles, 'ADMIN') || has(v.roles, 'COORDINATOR')) return true;
   if (!has(v.roles, 'TEACHER') || v.teacherId == null) return false;
   return v.assignments.some((a) => a.teacherId === v.teacherId && a.classId === s.classId && a.subjectId === s.subjectId);
 }
@@ -113,7 +113,7 @@ export const visibleSheets = (v: Viewer, sheets: readonly MockSheet[]) => sheets
  */
 export function lookupSheet(v: Viewer, sheets: readonly MockSheet[], sheetId: string): { sheet: MockSheet } | { status: 403 | 404 } {
   const found = sheets.find((s) => s.sheetId === sheetId && isListable(s));
-  if (has(v.roles, 'ADMIN')) return found ? { sheet: found } : { status: 404 };
+  if (has(v.roles, 'ADMIN') || has(v.roles, 'COORDINATOR')) return found ? { sheet: found } : { status: 404 };
   return found && canReadSheet(v, found) ? { sheet: found } : { status: 403 };
 }
 

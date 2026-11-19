@@ -22,7 +22,7 @@ const failed = <T,>(message = 'Não foi possível carregar. Tente novamente.'): 
 /**
  * As pautas do trimestre: a lista do que o utilizador pode ver (o backend aplica o âmbito: o ADMIN todas, o
  * professor as das suas turmas e disciplinas) e, ao escolher uma, a tabela por aluno. Quem pode exportar (`canExport`) tem o
- * PDF da pauta em cada cartão e, no detalhe, também o resultado de cada prova (kixi-frontend#808).
+ * PDF da pauta em cada cartão e, no detalhe, a pauta da turma e o resultado de cada prova (kixi-frontend#808, kixi#627).
  */
 export function TermSheetsView({ canExport = false }: { canExport?: boolean }) {
   const [sheets, setSheets] = useState<Section<TermSheetSummary[]> | null>(null);
@@ -185,13 +185,24 @@ export function TermSheetsView({ canExport = false }: { canExport?: boolean }) {
                     </p>
                   </div>
                   {canExport ? (
-                    <ExportPdfButton
-                      sheetId={d.sheetId}
-                      label="Exportar pauta em PDF"
-                      size="default"
-                      provisional={isProvisional(d)}
-                      disabledReason={exportBlockedReason(d)}
-                    />
+                    <div className="flex flex-wrap items-start gap-3">
+                      <ExportPdfButton
+                        sheetId={d.sheetId}
+                        label="Exportar pauta em PDF"
+                        size="default"
+                        provisional={isProvisional(d)}
+                        disabledReason={exportBlockedReason(d)}
+                      />
+                      <ExportPdfButton
+                        sheetId={d.sheetId}
+                        classSheet
+                        label="Exportar pauta da turma"
+                        accessibleName="Exportar PDF da pauta da turma"
+                        size="default"
+                        provisional={isProvisional(d)}
+                        disabledReason={exportBlockedReason(d)}
+                      />
+                    </div>
                   ) : null}
                 </div>
                 {canExport && !exportBlockedReason(d) ? <ResultExports sheetId={d.sheetId} provisional={isProvisional(d)} exports={exports} /> : null}
@@ -225,7 +236,7 @@ function ResultExports({ sheetId, provisional, exports }: { sheetId: string; pro
       ) : !exports.ok ? (
         <p className="text-sm text-muted-foreground">{exports.error}</p>
       ) : exports.data.assessments.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma prova desta pauta tem enunciado ligado, por isso não há resultados para exportar.</p>
+        <p className="text-sm text-muted-foreground">Nenhuma prova desta pauta tem resultado corrigido para exportar.</p>
       ) : (
         <ul className="flex flex-wrap gap-x-4 gap-y-2" aria-label="Provas">
           {exports.data.assessments.map((a) => (

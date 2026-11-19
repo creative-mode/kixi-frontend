@@ -78,6 +78,9 @@ export function exportFileName(sheet: NameSheet, assessment?: { title: string } 
   return `${parts.filter(Boolean).join('-')}.pdf`;
 }
 
+/** A pauta da turma (kixi#627) é outro documento: o nome diz que é da turma, não da disciplina da pauta selecionada. */
+export const exportClassFileName = (sheet: NameSheet): string => exportFileName(sheet).replace(/^pauta-/, 'pauta-turma-');
+
 /** `Content-Disposition` com o nome em ASCII (o slug já o é) e em UTF-8, para os browsers que leem um ou o outro. */
 export const attachmentHeader = (fileName: string): string => `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 
@@ -100,6 +103,7 @@ export const NO_PLAN = 'Esta pauta ainda não está ligada a um plano do trimest
 export const NO_PDF_YET = 'O PDF desta pauta ainda não existe. Volte a tentar depois de a pauta ser homologada.';
 export const NO_STATEMENT = 'Esta prova ainda não tem enunciado, por isso não há resultado para exportar.';
 export const NO_RESULT = 'Esta prova ainda não foi corrigida, por isso não há resultado para exportar.';
+export const NO_CLASS_SHEET = 'Ainda não há pautas desta turma e trimestre. Exporte de novo depois de o professor fechar as provas.';
 export const ENGINE_DOWN = 'O motor das pautas está indisponível neste momento. Tente mais tarde.';
 export const BAD_LINK = 'O motor devolveu uma ligação inválida ou já expirada. Exporte de novo.';
 
@@ -113,6 +117,7 @@ export function exportErrorMessage(status: number, body = ''): string {
   if (status === 404) return 'Pauta ou prova não encontrada.';
   if (status === 409) {
     if (/no statement/i.test(body)) return NO_STATEMENT;
+    if (/pautas desta turma|no class sheet/i.test(body)) return NO_CLASS_SHEET;
     return NO_PDF_YET;
   }
   if (status === 502) return BAD_LINK;

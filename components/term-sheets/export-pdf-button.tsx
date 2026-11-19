@@ -12,12 +12,13 @@ type State = { kind: 'idle' } | { kind: 'loading' } | { kind: 'done' } | { kind:
 const CLIENT_TIMEOUT_MS = 60_000;
 
 /**
- * Descarrega o PDF da pauta, ou do resultado de uma prova, pela rota do gestor (`/api/pautas/{id}/pdf`): o browser nunca fala
- * com o motor. O PDF passa pela memória só o tempo de o entregar ao browser e não fica guardado em lado nenhum.
+ * Descarrega o PDF da pauta, da pauta da turma ou do resultado de uma prova pela rota do gestor (`/api/pautas/{id}/pdf`):
+ * o browser nunca fala com o motor. O PDF passa pela memória só o tempo de o entregar ao browser e não fica guardado.
  */
 export function ExportPdfButton({
   sheetId,
   assessmentId,
+  classSheet = false,
   label = 'Exportar PDF',
   accessibleName,
   provisional = false,
@@ -26,6 +27,8 @@ export function ExportPdfButton({
 }: {
   sheetId: string;
   assessmentId?: number;
+  /** A pauta da turma é o relatório de todas as disciplinas (kixi#627), não a mini-pauta desta disciplina. */
+  classSheet?: boolean;
   label?: string;
   /** O nome para o leitor de ecrã quando há vários botões iguais na página («Exportar PDF da pauta de Redes…»). */
   accessibleName?: string;
@@ -41,7 +44,7 @@ export function ExportPdfButton({
     busy.current = true;
     setState({ kind: 'loading' });
     try {
-      const query = assessmentId === undefined ? '' : `?prova=${assessmentId}`;
+      const query = classSheet ? '?tipo=class' : assessmentId === undefined ? '' : `?prova=${assessmentId}`;
       const res = await fetch(`${BASE_PATH}/api/pautas/${encodeURIComponent(sheetId)}/pdf${query}`, {
         cache: 'no-store',
         signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
@@ -73,7 +76,7 @@ export function ExportPdfButton({
   }
 
   const loading = state.kind === 'loading';
-  const reasonId = `pdf-motivo-${sheetId}-${assessmentId ?? 'pauta'}`;
+  const reasonId = `pdf-motivo-${sheetId}-${classSheet ? 'turma' : assessmentId ?? 'pauta'}`;
   return (
     <div className="flex flex-col items-start gap-1" data-testid="exportar-pdf">
       <Button

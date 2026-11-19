@@ -6,6 +6,7 @@ import { test, expect, type Page } from '@playwright/test';
  */
 const PASSWORD = process.env.E2E_PASSWORD ?? 'Kixi1234!';
 const TEACHER = process.env.E2E_TEACHER_USERNAME ?? 'professor@kixi.ao';
+const COORDINATOR = process.env.E2E_COORDINATOR_USERNAME ?? 'coordenador@kixi.ao';
 
 test.setTimeout(120_000);
 
@@ -15,6 +16,14 @@ async function professorLogin(page: Page) {
   await page.locator('#password').fill(PASSWORD);
   await page.getByTestId('gestor-entrar-submeter').click();
   await expect(page).toHaveURL(/\/manager\/professor\/?$/);
+}
+
+async function coordenadorLogin(page: Page) {
+  await page.goto('/manager/login');
+  await page.getByLabel('Nome de utilizador ou e-mail').fill(COORDINATOR);
+  await page.locator('#password').fill(PASSWORD);
+  await page.getByTestId('gestor-entrar-submeter').click();
+  await expect(page).not.toHaveURL(/\/manager\/login/, { timeout: 60_000 });
 }
 
 /** O cartão da pauta de Redes da 12B no trimestre pedido. */
@@ -68,6 +77,34 @@ test('professor: descarrega o resultado de cada prova com enunciado, e só dessa
   const next = page.waitForEvent('download');
   await results.getByRole('button', { name: 'Exportar PDF do resultado da P1' }).click();
   expect((await next).suggestedFilename()).toMatch(/^resultado-p1-redes-de-computadores-12b-1t-/);
+});
+
+test('professor: descarrega a pauta da turma no detalhe (#627)', async ({ page }) => {
+  await professorLogin(page);
+  await page.goto('/manager/pautas');
+  await sheetCard(page, 1).getByRole('button', { name: /^Redes de Computadores/ }).click();
+
+  const detail = page.getByRole('region', { name: 'Detalhe da pauta' });
+  const next = page.waitForEvent('download');
+  await detail.getByRole('button', { name: 'Exportar PDF da pauta da turma' }).click();
+  const download = await next;
+  expect(download.suggestedFilename()).toMatch(/^pauta-turma-redes-de-computadores-12b-1t-\d{4}-\d{4}\.pdf$/);
+  const bytes = await (await download.createReadStream()).toArray();
+  expect(Buffer.concat(bytes).subarray(0, 5).toString()).toBe('%PDF-');
+});
+
+test('coordenador: também tem a pauta, a pauta da turma e os resultados (#808)', async ({ page }) => {
+  await coordenadorLogin(page);
+  await page.goto('/manager/pautas');
+  const card = sheetCard(page, 1);
+  const next = page.waitForEvent('download');
+  await card.getByRole('button', { name: /Exportar PDF da pauta de Redes/ }).click();
+  expect((await next).suggestedFilename()).toMatch(/^pauta-redes-de-computadores-12b-1t-/);
+
+  await card.getByRole('button', { name: /^Redes de Computadores/ }).click();
+  const detail = page.getByRole('region', { name: 'Detalhe da pauta' });
+  await expect(detail.getByRole('button', { name: 'Exportar PDF da pauta da turma' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'Exportar PDF do resultado da P1' })).toBeVisible();
 });
 
 test('professor: a pauta ainda não homologada diz porque não há PDF', async ({ page }) => {

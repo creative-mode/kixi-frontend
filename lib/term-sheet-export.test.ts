@@ -6,11 +6,13 @@ import {
   canExportSheets,
   exportableAssessments,
   exportBlockedReason,
+  exportClassFileName,
   exportErrorMessage,
   exportFileName,
   fileNameFrom,
   hasAssessmentResult,
   isProvisional,
+  NO_CLASS_SHEET,
   NO_PDF_YET,
   NO_RESULT,
   NO_STATEMENT,
@@ -79,6 +81,7 @@ test('o nome do ficheiro diz disciplina, turma, trimestre e ano, sem acentos', (
   assert.equal(slug('Educação Física  & Saúde'), 'educacao-fisica-saude');
   assert.equal(exportFileName(sheet), 'pauta-redes-de-computadores-12b-1t-2025-2026.pdf');
   assert.equal(exportFileName(sheet, { title: 'P1' }), 'resultado-p1-redes-de-computadores-12b-1t-2025-2026.pdf');
+  assert.equal(exportClassFileName(sheet), 'pauta-turma-redes-de-computadores-12b-1t-2025-2026.pdf');
   assert.equal(exportFileName({ ...sheet, className: '12B' }), 'pauta-redes-de-computadores-12b-1t-2025-2026.pdf', 'a classe não se repete');
 });
 
@@ -101,6 +104,7 @@ test('cada recusa do backend tem uma frase clara, sem o texto do motor', () => {
   assert.equal(exportErrorMessage(409, '{"detail":"This plan has no pauta at the motor yet."}'), NO_PDF_YET);
   assert.equal(exportErrorMessage(409, '{"detail":"The motor has no PDF for this report yet."}'), NO_PDF_YET);
   assert.equal(exportErrorMessage(409, '{"detail":"This assessment has no statement yet, so there is no result to export."}'), NO_STATEMENT);
+  assert.equal(exportErrorMessage(409, '{"detail":"Ainda não há pautas desta turma e trimestre: exporta depois de o professor fechar as provas."}'), NO_CLASS_SHEET);
   assert.match(exportErrorMessage(502, 'The motor returned a report link outside its own address.'), /ligação inválida/);
   assert.match(exportErrorMessage(503, 'The motor is unreachable.'), /indisponível/);
   const other = exportErrorMessage(500, 'stack trace at http://motor.internal:9000');

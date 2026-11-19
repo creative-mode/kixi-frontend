@@ -101,7 +101,7 @@ function viewer(auth: any) {
 
 export async function termPlanRoutes({ method, path, url, auth, readBody }: MockContext): Promise<Response | undefined> {
   // A exportação em PDF (kixi#622): as mesmas respostas do backend, com o motor fingido aqui.
-  const report = path.match(/^\/api\/v1\/term-plans\/(\d+)\/(?:reports\/mini-pauta|assessments\/(\d+)\/reports\/result)$/);
+  const report = path.match(/^\/api\/v1\/term-plans\/(\d+)\/(?:reports\/(mini-pauta|class)|assessments\/(\d+)\/reports\/result)$/);
   if (report) {
     if (method !== 'GET') return problem(405, 'Method Not Allowed');
     seedSheetPlans();
@@ -110,8 +110,10 @@ export async function termPlanRoutes({ method, path, url, auth, readBody }: Mock
     if (!plan) return problem(404, 'Term plan not found');
     if (!(who.admin || who.coordinator || who.teaches(plan.classId, plan.subjectId))) return problem(403, 'Not allowed to read this term plan');
     if (!plan.pautaRef) return problem(409, 'This plan has no pauta at the motor yet.');
-    if (report[2]) {
-      const assessment = plan.assessments.find((a: any) => a.id === Number(report[2]));
+    // A pauta da turma sai do registo escolar, não da pauta da disciplina: kixi#627.
+    if (report[2] === 'class') return pdf(`pauta-turma-${plan.id}`);
+    if (report[3]) {
+      const assessment = plan.assessments.find((a: any) => a.id === Number(report[3]));
       if (!assessment) return problem(404, 'Assessment not found in this plan');
       if (!assessment.statementId) return problem(409, 'This assessment has no statement yet, so there is no result to export.');
       return pdf(`resultado-${plan.id}-${assessment.id}`);
