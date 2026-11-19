@@ -2466,7 +2466,9 @@ test.describe('cartão de prova no feed (#602)', () => {
       await mostrarNota.click();
       await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
     } finally {
-      await forcar(false);
+      // A reposição também tem de ser confirmada: se falhar em silêncio, a tentativa 1
+      // fica `PENDING` e contamina os testes seguintes (#826).
+      expect((await forcar(false)).ok()).toBe(true);
     }
   });
 
@@ -2550,7 +2552,9 @@ test.describe('cartão de prova no feed (#602)', () => {
       await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
       await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
     } finally {
-      await forcar(false);
+      // A reposição também tem de ser confirmada: se falhar em silêncio, a tentativa 1
+      // fica `PENDING` e contamina os testes seguintes (#826).
+      expect((await forcar(false)).ok()).toBe(true);
     }
   });
 
