@@ -37,6 +37,7 @@ import {
   inOrder,
   observation,
   optionTag,
+  partilha,
   verdict,
   type ResultQuestion,
   showsContext,
@@ -359,6 +360,12 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             </ul>
           )}
         </Card>
+
+        {partilha(classId, result.finalScore, me != null) === 'sem-perfil' && (
+          <p data-testid="resultado-sem-perfil" className="rounded-xl border border-dashed px-5 py-4 text-sm text-muted-foreground">
+            Não conseguimos confirmar a tua turma agora, por isso o botão de partilhar não aparece. O resultado está guardado: recarrega a página para o partilhares com a turma.
+          </p>
+        )}
 
         {classId != null && result.finalScore != null && (
           <PublishResult
