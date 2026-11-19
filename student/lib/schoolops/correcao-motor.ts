@@ -31,14 +31,17 @@ async function lerEstado(cfg: ConfigDoMotor, correcaoId: string, fetcher: typeof
   return chamar<CorrecaoEstado>(cfg, `/v1/correcoes/${encodeURIComponent(correcaoId)}`, {}, fetcher);
 }
 
-/** Abre a correcção (idempotente no motor, por simulação) e devolve o que se pode mostrar já. */
-export async function abrirCorrecao(args: {
+/** O que a abertura deixa ao ecrã: o que mostrar já e o id para a espera ler só o estado (#794). */
+export type Abertura = { vista: VistaCorrecao; correcaoId: string | null };
+
+/** Abre a correcção (idempotente no motor, por simulação) e devolve a vista e o id. */
+export async function abrirCorrecaoComId(args: {
   cfg: ConfigDoMotor;
   pedido: Pedido;
   simulationId: number;
   fetcher?: typeof fetch;
   registar?: Registo;
-}): Promise<VistaCorrecao> {
+}): Promise<Abertura> {
   const { cfg, pedido, simulationId } = args;
   const fetcher = args.fetcher ?? fetch;
   const registar = args.registar ?? ((m, c) => console.error(m, c));
@@ -51,20 +54,72 @@ export async function abrirCorrecao(args: {
       const correcaoId = correcaoIdDoConflito(aberta.texto);
       if (correcaoId) {
         const estado = await lerEstado(cfg, correcaoId, fetcher);
-        if (estado.ok) return vistaLida(estado.corpo, simulationId, registar);
+        if (estado.ok) return { vista: vistaLida(estado.corpo, simulationId, registar), correcaoId };
         registar('[SchoolOps] 409 e o estado não se leu', { status: estado.status, correcaoId, simulationId });
-        return { kind: 'a-corrigir' };
+        return { vista: { kind: 'a-corrigir' }, correcaoId };
       }
       registar('[SchoolOps] 409 sem identificador da correcção', { status: 409, simulationId });
-      return { kind: 'falhou', motivo: 'conflito' };
+      return { vista: { kind: 'falhou', motivo: 'conflito' }, correcaoId: null };
     }
     const vista = vistaDeUmaRecusa(aberta.status);
     if (vista.kind === 'falhou') registar('[SchoolOps] pedido de correcção recusado', { status: aberta.status, simulationId });
-    return vista;
+    return { vista, correcaoId: null };
   }
 
   const estado = await lerEstado(cfg, aberta.corpo.correcaoId, fetcher);
-  return vistaLida(estado.ok ? estado.corpo : { correcaoId: aberta.corpo.correcaoId, estado: 'ACTIVE' }, simulationId, registar);
+  return {
+    vista: vistaLida(estado.ok ? estado.corpo : { correcaoId: aberta.corpo.correcaoId, estado: 'ACTIVE' }, simulationId, registar),
+    correcaoId: aberta.corpo.correcaoId,
+  };
+}
+
+/** Como `abrirCorrecaoComId`, só a vista: para quem não precisa de continuar a ler o estado. */
+export async function abrirCorrecao(args: {
+  cfg: ConfigDoMotor;
+  pedido: Pedido;
+  simulationId: number;
+  fetcher?: typeof fetch;
+  registar?: Registo;
+}): Promise<VistaCorrecao> {
+  return (await abrirCorrecaoComId(args)).vista;
+}
+
+/** Inicia a correcção (POST /v1/correcoes?aguardar=0) e devolve o correcaoId, sem ler o estado.
+ *  Usado na entrega (#794): o aluno segue para o ecrã de espera e a espera lê o estado pela rota leve. */
+export async function iniciarAbertura(args: {
+  cfg: ConfigDoMotor;
+  pedido: Pedido;
+  simulationId: number;
+  fetcher?: typeof fetch;
+  registar?: Registo;
+}): Promise<{ correcaoId: string } | null> {
+  const { cfg, pedido, simulationId } = args;
+  const fetcher = args.fetcher ?? fetch;
+  const registar = args.registar ?? ((m, c) => console.error(m, c));
+
+  const aberta = await chamar<{ correcaoId: string }>(cfg, '/v1/correcoes?aguardar=0', { method: 'POST', body: JSON.stringify(pedido) }, fetcher);
+  if (!aberta.ok) {
+    if (aberta.status === 409) {
+      const correcaoId = correcaoIdDoConflito(aberta.texto);
+      if (correcaoId) return { correcaoId };
+      registar('[SchoolOps] 409 sem identificador da correcção (na entrega)', { status: 409, simulationId });
+    } else if (aberta.status >= 400 && aberta.status < 500 && aberta.status !== 408 && aberta.status !== 429) {
+      registar('[SchoolOps] pedido de correcção recusado (na entrega)', { status: aberta.status, simulationId });
+    }
+    return null;
+  }
+  return { correcaoId: aberta.corpo.correcaoId };
+}
+
+/** Lê o estado de uma correcção existente pelo ID (para polling leve na espera). A falha traz o estado HTTP:
+ *  um 404 do motor é "não existe"; um 0/5xx é "não sei agora" e quem espera volta a ler em vez de desistir (#794). */
+export type EstadoLido = { ok: true; vista: VistaCorrecao } | { ok: false; status: number };
+
+export async function consultarEstado(cfg: ConfigDoMotor, correcaoId: string, fetcher?: typeof fetch): Promise<EstadoLido> {
+  const f = fetcher ?? fetch;
+  const estado = await lerEstado(cfg, correcaoId, f);
+  if (!estado.ok) return { ok: false, status: estado.status };
+  return { ok: true, vista: vistaDaCorrecao(estado.corpo) };
 }
 
 function vistaLida(estado: CorrecaoEstado, simulationId: number, registar: Registo): VistaCorrecao {

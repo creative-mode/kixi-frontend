@@ -1,5 +1,6 @@
 'use server';
 
+import { after } from 'next/server';
 import { forgetVisitedPages } from './refresh';
 import { requireStudent } from './guard';
 import { getMe } from './me';
@@ -8,6 +9,9 @@ import { getStudentView } from './exam-room';
 import { answerRequest, isTransient, translateError, type ExamQuestion } from './exam-rules';
 import { isIntegrityKind, type IntegrityKind } from './integrity';
 import { redirectFromAction } from './action-redirect';
+import { apiGet } from './api';
+import { eSimulacaoLivre } from './schoolops/correcao-rules';
+import { iniciarCorrecao } from './schoolops/correcao';
 import type { MatrixPick } from './training';
 
 /** What the room sends to save one answer. Plain values, not a FormData: the save
@@ -139,6 +143,27 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   // 409 é "já entregue": a prova está corrigida, o aluno não está a perder nada
   // por acidentalmente carregar em Entregar duas vezes.
   if (!result.ok && result.status !== 409) return { error: translateError(result.message) };
+
+  // Se a entrega foi bem sucedida (ou já entregue), a correcção do SchoolOps arranca
+  // **depois da resposta** (`after`), para o aluno não esperar pelo motor (#794): a
+  // entrega já está guardada e o ecrã de resultado aparece de imediato. Se isto
+  // falhar, nada quebra — o resultado volta a pedir a correcção (idempotente no motor).
+  if (result.ok) {
+    after(async () => {
+      try {
+        const me = await getMe(); // já lido durante a entrega: o cache da requisição devolve o mesmo
+        const simulacao = await apiGet<{ statement?: { id?: number | null } | null }>(`/simulations/${simulationId}`);
+        const statementId = simulacao.ok ? simulacao.data.statement?.id : null;
+        if (!me || statementId == null) return;
+        // Uma prova de sala não é corrigida pelo motor; o cartão dela vem da pauta.
+        const salas = await apiGet<Array<{ simulationId: number | null }>>('/exam-rooms/mine');
+        if (!salas.ok || !eSimulacaoLivre(simulationId, salas.data)) return;
+        await iniciarCorrecao({ me, simulationId, statementId });
+      } catch {
+        // o resultado volta a pedir a correcção ao abrir (idempotente)
+      }
+    });
+  }
 
   // `submetida=1` é o sinal de uso único do kixi-frontend#219 ("prova submetida"): o
   // resultado é revisitado depois, para o aluno ver a nota de novo.

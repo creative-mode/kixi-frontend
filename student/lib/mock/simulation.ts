@@ -123,6 +123,45 @@ export function finalScore(answers: MockAnswer[]): number {
 /** Os quatro estados que o backend deriva das respostas (kixi#609). */
 export type MockCorrectionStatus = 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'FAILED';
 
+/** A resposta que o e2e (#788) põe a aguardar correção: a primeira aberta; sem
+ *  abertas, a última. O seed do #793 está corrigido, por isso o teste precisa de
+ *  escolher uma resposta e repor o estado, sem trocar o seed dos outros testes. */
+export function openAnswerOf(answers: readonly MockAnswer[], questions: readonly MockQuestion[]): MockAnswer | undefined {
+  return (
+    answers.find((a) => {
+      const pergunta = questions.find((q) => q.id === a.questionId);
+      return pergunta?.questionType === 'open' || pergunta?.questionType === 'development';
+    }) ?? answers[answers.length - 1]
+  );
+}
+
+/** O que a resposta tinha antes de ir a aguardar correção. */
+export type ReviewBackup = Pick<MockAnswer, 'id' | 'reviewStatus' | 'scoreObtained' | 'isCorrect'>;
+
+export function backupOf(answer: MockAnswer): ReviewBackup {
+  return {
+    id: answer.id,
+    reviewStatus: answer.reviewStatus,
+    scoreObtained: answer.scoreObtained,
+    isCorrect: answer.isCorrect,
+  };
+}
+
+/** Aguardar correção: a nota e o veredicto saem, como numa aberta acabada de entregar. */
+export function withPendingReview(answer: MockAnswer): MockAnswer {
+  return { ...answer, reviewStatus: 'PENDING_REVIEW', scoreObtained: null, isCorrect: null };
+}
+
+/** Repor o que o backup guardou (o teste não pode deixar o próximo com o seed trocado). */
+export function withReviewBackup(answer: MockAnswer, backup: ReviewBackup): MockAnswer {
+  return {
+    ...answer,
+    reviewStatus: backup.reviewStatus,
+    scoreObtained: backup.scoreObtained,
+    isCorrect: backup.isCorrect,
+  };
+}
+
 /**
  * O estado da correção e se houve alguma resposta aberta corrigida (para saber se
  * `correctedAt` faz sentido). Nenhuma aberta por corrigir é `DONE`, o mesmo caso das

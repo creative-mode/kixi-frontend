@@ -9,13 +9,17 @@ import assert from 'node:assert/strict';
 import { parseServerTime } from '../exam-rules.ts';
 import {
   TOLERANCE_SECONDS,
+  backupOf,
   correctionSummary,
   deadlineFor,
   expired,
   finalScore,
   gradeAnswer,
   isObjective,
+  openAnswerOf,
   toLocalDateTime,
+  withPendingReview,
+  withReviewBackup,
   type MockAnswer,
   type MockQuestion,
 } from './simulation.ts';
@@ -168,4 +172,29 @@ test('o LocalDateTime do mock é a hora do servidor (+01:00), seja qual for o fu
   // Ida e volta: o prazo calculado lê-se de volta no mesmo instante.
   const deadline = deadlineFor('2026-10-11T10:00:00', 1, false);
   assert.equal(deadline, '2026-10-11T10:01:10');
+});
+
+// ── e2e do cartão «A corrigir» (#788) ──────────────────────────────────────────
+// O seed do #793 está corrigido; estes testes fixam a regra que o e2e usa para o
+// pôr por corrigir durante um teste e repor no fim, sem trocar o seed dos outros.
+
+test('a resposta a aguardar correção é a primeira aberta, ou a última', () => {
+  const escolha = answer({ id: 1, questionId: 1, selectedOptionId: 11, scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED' });
+  const aberta = answer({ id: 2, questionId: 2, answerText: 'texto', scoreObtained: 4, isCorrect: true, reviewStatus: 'AI_GRADED' });
+  assert.equal(openAnswerOf([escolha, aberta], [choice, open])?.id, 2);
+  // Sem abertas, a última — a rota não pode falhar num cenário só com escolhas.
+  assert.equal(openAnswerOf([escolha], [choice])?.id, 1);
+  assert.equal(openAnswerOf([], []), undefined);
+});
+
+test('aguardar correção tira a nota e o veredicto, e o backup repõe-nos', () => {
+  const aberta = answer({ id: 2, questionId: 2, answerText: 'texto', scoreObtained: 4, isCorrect: true, reviewStatus: 'AI_GRADED' });
+  const antes = backupOf(aberta);
+  const pendente = withPendingReview(aberta);
+  assert.equal(pendente.reviewStatus, 'PENDING_REVIEW');
+  assert.equal(pendente.scoreObtained, null);
+  assert.equal(pendente.isCorrect, null);
+  // O mesmo `answerText` fica: só a correção é que ainda não aconteceu.
+  assert.equal(pendente.answerText, 'texto');
+  assert.deepEqual(withReviewBackup(pendente, antes), aberta);
 });
