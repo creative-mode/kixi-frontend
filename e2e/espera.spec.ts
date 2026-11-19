@@ -42,8 +42,8 @@ test.describe('espera pela correcção com progresso e previsão (#792)', () => 
     const espera = page.getByTestId('correcao-em-curso');
     await expect(espera).toBeVisible();
     const parcial = page.getByTestId('nota-parcial');
-    await expect(parcial.getByText('Objectivas, já corrigidas')).toBeVisible();
-    await expect(parcial.getByText('Nota parcial. A nota final junta as respostas abertas.')).toBeVisible();
+    await expect(parcial.getByText('Objectivas')).toBeVisible();
+    await expect(parcial.getByText('· nota parcial')).toBeVisible();
     // O valor vem do backend (as fechadas já foram pontuadas na entrega), nunca da correcção do motor.
     await expect(parcial).toContainText(/\d+(,\d+)? de \d+(,\d+)? valores/);
 

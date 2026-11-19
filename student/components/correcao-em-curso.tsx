@@ -13,7 +13,7 @@ import { previsaoEmTexto, progressoEmTexto, situacaoDaEspera } from '@/lib/corre
 import { faseDaEspera, passosDaEspera, SEM_SAIDA_MS } from '@/lib/correcao-espera';
 import { passoDepoisDaLeitura } from '@/lib/correcao-polling';
 import { formatScore } from '@/lib/result-rules';
-import type { MotivoDaFalha, ProgressoDoMotor } from '@/lib/schoolops/correcao-rules';
+import { previsaoValida, progressoValido, type MotivoDaFalha, type ProgressoDoMotor } from '@/lib/schoolops/correcao-rules';
 
 /**
  * A prova entregue ainda está a ser corrigida (kixi#542). Não há erro nem desistência: o ecrã tranquiliza, mostra em que
@@ -56,6 +56,8 @@ export function CorrecaoEmCurso({
   const inicio = useRef(Date.now() - desdeMs);
   const [decorrido, setDecorrido] = useState(desdeMs);
   const [erroPoll, setErroPoll] = useState<string | null>(null);
+  // O que a leitura leve trouxe do motor (#792): sobrepõe-se ao que a página trouxe ao abrir, para a barra andar sem recarregar.
+  const [lido, setLido] = useState<{ progresso?: ProgressoDoMotor; previsaoSegundos?: number } | null>(null);
 
   // Polling do estado da correção: rota leve quando há correcaoId (#794), router.refresh() como fallback.
   useEffect(() => {
@@ -75,8 +77,9 @@ export function CorrecaoEmCurso({
             { cache: 'no-store', signal: controller.signal },
           );
           if (res.ok) {
-            const data = (await res.json()) as { kind: string };
+            const data = (await res.json()) as { kind: string; progresso?: ProgressoDoMotor | null; previsaoSegundos?: number | null };
             setErroPoll(null);
+            if (data.kind === 'a-corrigir') setLido({ progresso: progressoValido(data.progresso) ?? undefined, previsaoSegundos: previsaoValida(data.previsaoSegundos) ?? undefined });
             // Se a correção terminou (corrigida, incompleta ou falhou), recarrega a página
             // uma vez para mostrar o resultado; enquanto "a-corrigir" continua a ler.
             if (passoDepoisDaLeitura(data.kind) === 'terminar') {
@@ -138,7 +141,12 @@ export function CorrecaoEmCurso({
   const fase = faseDaEspera(decorrido);
   const passos = passosDaEspera();
   const semSaida = decorrido >= SEM_SAIDA_MS;
-  const situacao = situacaoDaEspera({ progresso, previsaoSegundos, abertas, decorridoMs: decorrido });
+  const situacao = situacaoDaEspera({
+    progresso: lido ? lido.progresso : progresso,
+    previsaoSegundos: lido ? lido.previsaoSegundos : previsaoSegundos,
+    abertas,
+    decorridoMs: decorrido,
+  });
 
   if (falha) {
     return (
@@ -165,24 +173,23 @@ export function CorrecaoEmCurso({
 
       <div className="grid max-w-md gap-2">
         <h2 className="text-lg font-bold leading-snug">{fase.titulo}</h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">{fase.mensagem}</p>
+        {/* Com a nota parcial ou o progresso à vista, a frase de cada fase só repete o que o ecrã já mostra. */}
+        {situacao || provisoria ? null : <p className="text-sm leading-relaxed text-muted-foreground">{fase.mensagem}</p>}
       </div>
 
       {provisoria ? (
         <section
           aria-label="Nota das questões objectivas"
           data-testid="nota-parcial"
-          className="grid w-full max-w-md gap-1.5 rounded-xl border border-border bg-secondary/70 px-4 py-4 text-left"
+          className="flex w-full max-w-md items-baseline justify-between gap-3 rounded-xl border border-border bg-secondary/70 px-4 py-3 text-left"
         >
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold">Objectivas, já corrigidas</h3>
-            <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">pelo gabarito</span>
-          </div>
-          <p className="tabular-nums">
-            <span className="text-3xl font-bold">{formatScore(provisoria.pontos)}</span>{' '}
-            <span className="text-muted-foreground">de {formatScore(provisoria.maximo)} valores</span>
+          <h3 className="text-sm font-semibold">
+            Objectivas <span className="font-normal text-muted-foreground">· nota parcial</span>
+          </h3>
+          <p className="shrink-0 tabular-nums">
+            <span className="text-2xl font-bold">{formatScore(provisoria.pontos)}</span>{' '}
+            <span className="text-sm text-muted-foreground">de {formatScore(provisoria.maximo)} valores</span>
           </p>
-          <p className="text-sm text-muted-foreground">Nota parcial. A nota final junta as respostas abertas.</p>
         </section>
       ) : null}
 
@@ -226,10 +233,10 @@ export function CorrecaoEmCurso({
         </ol>
       ) : null}
 
-      <p className="flex w-full max-w-md items-start gap-3 rounded-xl border border-border px-4 py-3 text-left text-sm leading-relaxed">
-        <Bell className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+      <p className="flex max-w-md items-center gap-2 text-left text-sm text-muted-foreground">
+        <Bell className="size-4 shrink-0 text-primary" aria-hidden />
         <span>
-          <b>Podes sair deste ecrã.</b> Avisamos-te quando a nota estiver pronta, e esta página também se actualiza sozinha.
+          <b className="text-foreground">Podes sair deste ecrã.</b> Avisamos-te quando a nota estiver pronta.
         </span>
       </p>
 
