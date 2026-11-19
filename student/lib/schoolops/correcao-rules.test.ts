@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { test } from 'node:test';
-import { assinaturaValida, correcaoIdDoConflito, eSimulacaoLivre, escalaDaNota, notaProvisoria, pedidoDeCorrecao, vistaDaCorrecao, vistaDeUmaRecusa } from './correcao-rules.ts';
+import { assinaturaValida, estadoParaEspera, previsaoValida, progressoValido, correcaoIdDoConflito, eSimulacaoLivre, escalaDaNota, notaProvisoria, pedidoDeCorrecao, vistaDaCorrecao, vistaDeUmaRecusa } from './correcao-rules.ts';
 
 const me = { accountId: 3, first_name: 'Ana', last_name: 'Domingos', username: 'ana.domingos', school: { id: 1, name: 'Instituto', code: 'ITEL' } };
 
@@ -133,4 +133,33 @@ test('a nota provisória soma só as questões fechadas já pontuadas e nunca in
   assert.equal(com([q('PENDING_REVIEW', null, 6)]), null);
   assert.equal(com([]), null);
   assert.equal(com(undefined), null);
+});
+
+test('o progresso e a previsão do motor passam para a espera quando fazem sentido (schoolops#59)', () => {
+  assert.deepEqual(
+    vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 63 }),
+    { kind: 'a-corrigir', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 63 },
+  );
+  // Motor antigo, ou ainda sem amostras: nada a mostrar além da espera, e nunca um zero inventado.
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', progresso: null, previsaoSegundos: null }), { kind: 'a-corrigir' });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', progresso: { corrigidas: 0, total: 5 } }), { kind: 'a-corrigir', progresso: { corrigidas: 0, total: 5 } });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', previsaoSegundos: 0 }), { kind: 'a-corrigir', previsaoSegundos: 0 });
+});
+
+test('um progresso incoerente conta como «ainda não se sabe»', () => {
+  assert.equal(progressoValido({ corrigidas: 6, total: 5 }), null);
+  assert.equal(progressoValido({ corrigidas: -1, total: 5 }), null);
+  assert.equal(progressoValido({ corrigidas: 0, total: 0 }), null);
+  assert.equal(progressoValido({ corrigidas: 1.5, total: 5 }), null);
+  assert.equal(previsaoValida(-3), null);
+  assert.equal(previsaoValida(Number.NaN), null);
+  assert.equal(previsaoValida(undefined), null);
+  assert.equal(previsaoValida(41.6), 42);
+});
+
+test('a leitura leve leva à espera o progresso e a previsão, e nunca o resultado', () => {
+  assert.deepEqual(estadoParaEspera({ kind: 'a-corrigir', progresso: { corrigidas: 1, total: 4 }, previsaoSegundos: 30 }), { kind: 'a-corrigir', progresso: { corrigidas: 1, total: 4 }, previsaoSegundos: 30 });
+  assert.deepEqual(estadoParaEspera({ kind: 'a-corrigir' }), { kind: 'a-corrigir', progresso: null, previsaoSegundos: null });
+  assert.deepEqual(estadoParaEspera({ kind: 'falhou', motivo: 'incidente' }), { kind: 'falhou', motivo: 'incidente' });
+  assert.deepEqual(estadoParaEspera({ kind: 'corrigida', resultado: { nota: 15 } }), { kind: 'corrigida' });
 });

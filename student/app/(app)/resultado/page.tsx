@@ -19,9 +19,10 @@ import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
 import { getLeaderboard } from '@/lib/ranking';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
+import { abertasDaProva } from '@/lib/correcao-previsao';
 import { listInvitations } from '@/lib/exam-room';
 import { comCorrecao, eSimulacaoLivre, escalaDaNota, notaProvisoria } from '@/lib/schoolops/correcao-rules';
-import { correcaoDaSimulacaoComId, consultarEstadoCorrecao, correcaoLigada } from '@/lib/schoolops/correcao';
+import { correcaoDaSimulacaoComId, consultarEstadoCorrecao, correcaoLigada, correcaoSimulada } from '@/lib/schoolops/correcao';
 import { getQuestionImagesBatch, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { MathText } from '@/lib/shared/math-text';
@@ -161,7 +162,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   let result = resultadoDoBackend;
   // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
   // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
-  if (correcaoLigada() && me && statementId != null) {
+  if ((correcaoLigada() || correcaoSimulada(resultadoDoBackend.simulationId)) && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
       // Com correcaoId (entrega #794): lê o estado pela rota leve, sem reabrir a correcção.
@@ -188,6 +189,9 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                     correcaoId={idDaEspera}
                     simulationId={resultadoDoBackend.simulationId}
                     provisoria={notaProvisoria(resultadoDoBackend)}
+                    abertas={abertasDaProva(resultadoDoBackend.questions)}
+                    progresso={correcao.progresso}
+                    previsaoSegundos={correcao.previsaoSegundos}
                   />
                 )}
                 {correcao.kind === 'incompleta' && (

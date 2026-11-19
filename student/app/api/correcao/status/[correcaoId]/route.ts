@@ -1,5 +1,6 @@
 import { getMe } from '@/lib/me';
 import { consultarEstadoCorrecao } from '@/lib/schoolops/correcao';
+import { estadoParaEspera } from '@/lib/schoolops/correcao-rules';
 import { listSimulationsResult } from '@/lib/exam';
 
 // Rota leve de polling (#794): o ecrã de espera lê o estado da correcção sem
@@ -43,9 +44,9 @@ export async function GET(
     }
     return new Response(JSON.stringify({ error: 'Serviço temporariamente indisponível' }), { status: 503 });
   }
-  // Só o estado: nunca o resultado completo (pontos, justificações) nem dados de outro aluno.
-  const vista = estado.vista;
-  return Response.json(vista.kind === 'falhou' ? { kind: vista.kind, motivo: vista.motivo } : { kind: vista.kind }, {
+  // Só o estado e, enquanto se corrige, o progresso e a previsão: nunca o resultado completo (pontos, justificações)
+  // nem dados de outro aluno.
+  return Response.json(estadoParaEspera(estado.vista), {
     headers: { 'Cache-Control': 'no-store' },
   });
 }

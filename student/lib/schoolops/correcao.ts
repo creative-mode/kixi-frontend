@@ -2,8 +2,9 @@ import 'server-only';
 
 import { BASE_PATH } from '../base-path';
 import type { Me } from '../types';
+import { motorSimulado } from '../mock/motor';
 import { abrirCorrecaoComId, iniciarAbertura, consultarEstado, type Abertura, type EstadoLido } from './correcao-motor';
-import { pedidoDeCorrecao, type VistaCorrecao } from './correcao-rules';
+import { pedidoDeCorrecao, vistaDaCorrecao, type VistaCorrecao } from './correcao-rules';
 
 // Cliente do SchoolOps para as simulações do aluno: a correcção corre no motor (objectivas pelo gabarito, dissertativas
 // por proximidade ao gabarito) e o aluno só vê a nota quando está feita. Só corre no servidor: the token do cliente nunca
@@ -18,6 +19,9 @@ function config(): { url: string; token: string; callback: string } | null {
 }
 
 export const correcaoLigada = (): boolean => config() !== null;
+
+/** Só no modo de demonstração: a simulação tem um estado do motor combinado à mão (`lib/mock/motor.ts`). */
+export const correcaoSimulada = (simulationId: number): boolean => motorSimulado(simulationId) !== null;
 
 /** Abre a correcção (idempotente no motor, por simulação) e devolve o que se pode mostrar já. */
 export async function correcaoDaSimulacao(args: {
@@ -36,6 +40,9 @@ export async function correcaoDaSimulacaoComId(args: {
   simulationId: number;
   statementId: number;
 }): Promise<Abertura | null> {
+  // Só no modo de demonstração (#792): o estado do motor combinado à mão. Sem id, a espera relê a página inteira.
+  const simulado = motorSimulado(args.simulationId);
+  if (simulado) return { vista: vistaDaCorrecao(simulado), correcaoId: null };
   const cfg = config();
   if (!cfg) return null;
   const pedido = pedidoDeCorrecao({ ...args, callbackUrl: cfg.callback });
