@@ -130,3 +130,11 @@ html[data-reduce-motion='true'] *::after {
 .st.apr { border: 2.5px solid #d49a00; border-right-color: #f0e2bd; border-bottom-color: #f0e2bd; }
 .st.fra { border: 2.5px solid #c2383e; }
 .st.nov { border: 2px solid #cdd6c9; background: white; }
+
+/* #820: o enunciado e a comunidade abrem a pedido no ecrã; no papel saem inteiros.
+   O `details` fechado esconde o conteúdo no slot `::details-content` do browser. */
+@media print {
+  details::details-content { content-visibility: visible !important; display: block !important; }
+  details > summary { list-style: none; }
+  details > summary svg { display: none; }
+}

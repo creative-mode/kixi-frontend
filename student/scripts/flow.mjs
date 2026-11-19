@@ -373,7 +373,8 @@ async function main() {
     // A prova 1 é a que o aluno tem tentativa corrigida, a 3 é a que nunca fez.
     await passo('o detalhe mostra o resumo e os dois modos', 'GET', '/aluno/prova/1/detalhe', {}, async (r) => {
       const html = await r.text();
-      const falta = ['Redes de Computadores', 'Como queres estudar', 'Simular', 'Estudo assistido']
+      // #820: o ecrã passou a ter a ação e as tentativas à vista e o resto a pedido.
+      const falta = ['Redes de Computadores', 'Começar a simulação', 'Estudar com o tutor', 'As tuas tentativas']
         .find((t) => !html.includes(t));
       return falta ? `não encontrei "${falta}"` : null;
     });
@@ -383,7 +384,8 @@ async function main() {
       // registar-se) nunca fez esta prova - mostrá-la sem nota própria era um
       // ecrã a comparar o aluno com ninguém.
       const html = await r.text();
-      return html.includes('Comunidade') ? 'a secção da comunidade está visível' : null;
+      // #820: a entrada passou a chamar-se «Estatísticas da turma» e fica fechada.
+      return html.includes('Comunidade') || html.includes('Estatísticas da turma') ? 'a secção da comunidade está visível' : null;
     });
 
     // A conta deste fluxo acabou de registar-se, por isso não tem tentativas: o que se

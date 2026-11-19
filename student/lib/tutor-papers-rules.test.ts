@@ -78,3 +78,11 @@ test('«Para rever» mantém a ordem do mais fraco para o mais forte e mostra a 
     { statementId: 3, title: 'Matemática', note: '80%' },
   ]);
 });
+
+test('quando a nota é a do motor, o tutor diz «Corrigida» em vez de um número de pontos', () => {
+  // 17,75 de 25 pontos no Kixi; o resultado mostra 14,2/20 do motor (#820).
+  const [paper] = recentPapers([
+    sim(1, 7, 'FINISHED', { finalScore: 17.75, correctionStatus: 'DONE', notaDoMotor: true }),
+  ], 0);
+  assert.equal(paper.note, 'Concluída · Corrigida');
+});

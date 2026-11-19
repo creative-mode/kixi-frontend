@@ -1,11 +1,11 @@
 import type { MatrixPick, TrainingPlan } from './training';
 import 'server-only';
 
+import { cache } from 'react';
+
 import { apiGet, apiPost, apiPut, type Result } from './api';
 import { TtlCache } from './ttl-cache';
 import { getMe } from './me';
-import { correcaoLigada } from './schoolops/correcao';
-import { semNotaDasSimulacoes } from './schoolops/correcao-rules';
 import type { PaperMeta } from './folha-da-prova';
 import {
   answeredQuestionIds,
@@ -100,20 +100,20 @@ export async function listSimulations(): Promise<SimulationSummary[]> {
 /** Like `listSimulations`, but keeps the failure. The tutor's block (#192) must not
  *  read a failed request as "no attempt": that would fail open during a backend
  *  outage and let the student leave the paper. Callers that can degrade to an empty
- *  list keep using `listSimulations`. */
-export async function listSimulationsResult(): Promise<Result<SimulationSummary[]>> {
+ *  list keep using `listSimulations`.
+ *
+ *  A nota sai como o backend a manda, mas quem a mostra passa-a por `nota-da-simulacao`:
+ *  uma simulação livre ainda por corrigir traz a nota parcial (só as fechadas), e essa
+ *  não é a nota do resultado (#791). Já não se esconde a nota aqui — era essa a segunda
+ *  leitura que obrigava a pedir `/exam-rooms/mine` em cada página. */
+export const listSimulationsResult = cache(async (): Promise<Result<SimulationSummary[]>> => {
   const result = await apiGet<Simulation[]>('/simulations');
   if (!result.ok) return result;
   if (!Array.isArray(result.data)) {
     return { ok: false, status: 0, message: 'O servidor devolveu uma resposta inesperada.' };
   }
-  // Com a correcção do SchoolOps ligada a nota de uma simulação só aparece no resultado, depois de corrigida.
-  if (correcaoLigada()) {
-    const salas = await apiGet<Array<{ simulationId: number | null }>>('/exam-rooms/mine');
-    return { ok: true, data: semNotaDasSimulacoes(result.data, salas.ok && Array.isArray(salas.data) ? salas.data : null) };
-  }
   return { ok: true, data: result.data };
-}
+});
 
 /** Starts an attempt. The server starts the clock itself (SimulationService.java:95),
  *  so the body carries the account, the statement and the statement's school year:

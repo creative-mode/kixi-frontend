@@ -738,7 +738,7 @@ test.describe('jornadas críticas do Kixi', () => {
     // #494: o enunciado da escola abre o detalhe, como no catálogo, e não a sala.
     await page.getByRole('tabpanel').getByRole('link').first().click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+\/detalhe/);
-    await expect(page.getByRole('heading', { name: 'Como é esta prova' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'As tuas tentativas' })).toBeVisible();
     // E o «Voltar» do detalhe leva às provas, de onde se abre o catálogo.
     await page.getByRole('link', { name: 'Voltar às provas' }).click();
     await expect(page).toHaveURL(/\/aluno\/provas/);
@@ -958,12 +958,17 @@ test.describe('jornadas críticas do Kixi', () => {
     // not assume a fixed class-to-statement mapping.
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    // #820: no ecrã a folha abre a pedido, para a página não ser uma parede de conteúdo.
+    await expect(page.locator('[aria-label="A prova"]')).toBeHidden();
+    // No papel sai inteira, mesmo fechada: o CSS de impressão abre o `details`.
     await page.emulateMedia({ media: 'print' });
     await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
     await assertPrintablePdf(page);
     await page.emulateMedia({ media: 'screen' });
-    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    // E o resumo continua a abri-la para quem quer ler no ecrã.
+    await page.locator('summary', { hasText: 'Ver o enunciado' }).click();
+    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     // O cabeçalho passou a ser "Questão 2 (1 de 12)": o número de exibição e o
@@ -1066,7 +1071,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
@@ -1109,7 +1114,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();

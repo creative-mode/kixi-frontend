@@ -11,6 +11,7 @@ import {
   inProgress,
   isFinished,
   labelOf,
+  scoreOf,
   settled,
   sinceLabel,
   type Attempt,
@@ -48,6 +49,18 @@ test('o histórico não mexe na lista que recebeu', () => {
   const original = [done(1), done(2)];
   history(original);
   assert.deepEqual(original.map((a) => a.id), [1, 2]);
+});
+
+test('a nota de uma tentativa por corrigir é o estado, não a parcial do backend', () => {
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'PENDING' }), undefined);
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'FAILED' }), undefined);
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 14.5, correctionStatus: 'DONE' }), '14,5');
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 12 }), '12');
+  // A nota é a do motor e só o resultado a mostra (#820): 17,75 de 25 não é 17,75/20.
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 17.75, correctionStatus: 'DONE', notaDoMotor: true }), undefined);
+  // Um estado novo não é uma nota: diz-se «A corrigir», não se inventa o número.
+  assert.equal(scoreOf({ id: 1, status: 'FINISHED', finalScore: 11, correctionStatus: 'OUTRO' }), undefined);
+  assert.equal(labelOf({ id: 1, status: 'FINISHED', finalScore: 11, correctionStatus: 'OUTRO' }), 'correcting');
 });
 
 test('uma nota de zero é uma nota', () => {
