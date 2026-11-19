@@ -65,6 +65,13 @@ test('o professor só vê a turma e a disciplina que lecciona', () => {
   assert.equal(canReadSheet(carlos, sheets.find((s) => s.classId === 1)!), false);
 });
 
+test('o coordenador vê as pautas da instituição para exportar (#808)', () => {
+  const coordenador: Viewer = { accountId: 9, roles: ['COORDINATOR'], assignments };
+  assert.equal(visibleSheets(coordenador, sheets).length, sheets.filter((s) => s.status !== 'ANULADA').length);
+  const propria = sheets.find((s) => s.status === 'FECHADA')!;
+  assert.deepEqual(lookupSheet(coordenador, sheets, propria.sheetId), { sheet: propria });
+});
+
 test('o aluno não lê pautas por /term-sheets', () => assert.equal(visibleSheets(aluno, sheets).length, 0));
 
 test('o aluno vê só a sua linha, só de pautas fechadas e só da sua turma', () => {
