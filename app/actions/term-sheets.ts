@@ -51,7 +51,7 @@ export async function getTermSheet(sheetId: string): Promise<Section<TermSheetDe
   return section<TermSheetDetail>(`/${encodeURIComponent(sheetId)}`, true, parseDetail);
 }
 
-/** As provas da pauta com resultado para exportar em PDF (kixi-frontend#808): as do plano do trimestre com enunciado. */
+/** As provas da pauta com resultado para exportar em PDF (kixi-frontend#808): corrigidas e com enunciado, do plano do trimestre. */
 export async function getSheetExports(sheetId: string): Promise<Section<SheetExports>> {
   const resolved = await resolveSheetPlan(sheetId);
   if (!resolved.ok) return { ok: false, error: resolved.error };

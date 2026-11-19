@@ -3,7 +3,7 @@ import { call } from '@/lib/crud/http';
 import { normalizeRoles } from '@/lib/roles';
 import { isTimeout, timeoutSignal, TIMEOUT_MESSAGE } from '@/lib/timeout';
 import { resolveSheetPlan } from '@/lib/term-sheet-export.server';
-import { attachmentHeader, canExportSheets, exportErrorMessage, exportFileName } from '@/lib/term-sheet-export';
+import { attachmentHeader, canExportSheets, exportErrorMessage, exportFileName, hasAssessmentResult, NO_RESULT } from '@/lib/term-sheet-export';
 
 // O PDF da pauta (ou do resultado de uma prova) para o professor, o coordenador e o ADMIN (kixi-frontend#808). O browser não
 // fala com o backend nem com o motor: esta rota junta o token do cookie, pede o PDF ao Kixi (que pede ao motor uma ligação
@@ -31,6 +31,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ shee
 
   const assessment = prova === null ? null : plan.assessments.find((a) => a.id === Number(prova));
   if (prova !== null && !assessment) return refuse(404, 'Esta prova não pertence a esta pauta.');
+  // A barreira do motor (409) continua a valer, mas uma prova sem nota nem devia chegar lá (#823).
+  if (assessment && !hasAssessmentResult(assessment.status)) return refuse(409, NO_RESULT);
   const path = assessment
     ? `/api/v1/term-plans/${plan.id}/assessments/${assessment.id}/reports/result`
     : `/api/v1/term-plans/${plan.id}/reports/mini-pauta`;

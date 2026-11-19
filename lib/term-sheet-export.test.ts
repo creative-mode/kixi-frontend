@@ -9,8 +9,10 @@ import {
   exportErrorMessage,
   exportFileName,
   fileNameFrom,
+  hasAssessmentResult,
   isProvisional,
   NO_PDF_YET,
+  NO_RESULT,
   NO_STATEMENT,
   planForSheet,
   slug,
@@ -51,10 +53,26 @@ test('na dúvida não se adivinha: dois planos do mesmo trimestre sem pautaRef d
   assert.equal(planForSheet(sheet, []), null);
 });
 
-test('só as provas com enunciado e não dispensadas têm resultado, MAC primeiro e depois P1 e P2', () => {
+test('só as provas corrigidas com enunciado têm resultado, MAC primeiro e depois P1 e P2', () => {
   const a = (kind: 'P1' | 'P2' | 'MAC', seq: number, statementId: number | null, status = 'GRADED') => ({ kind, seq, statementId, status }) as never;
-  const out = exportableAssessments([a('P2', 1, 9), a('MAC', 2, 4), a('P1', 1, 8), a('MAC', 1, 3), a('MAC', 3, null), a('P1', 2, 5, 'DISPENSED')]);
+  const out = exportableAssessments([
+    a('P2', 1, 9), a('MAC', 2, 4, 'DONE'), a('P1', 1, 8), a('MAC', 1, 3), a('MAC', 3, null),
+    a('P1', 2, 5, 'DISPENSED'), a('P2', 2, 11, 'ROOM_OPEN'),
+  ]);
   assert.deepEqual(out.map((x: { kind: string; seq: number }) => `${x.kind}${x.seq}`), ['MAC1', 'MAC2', 'P11', 'P21']);
+});
+
+test('sem correção não há resultado para oferecer nem para pedir ao motor (#823)', () => {
+  const a = (status: string) => ({ kind: 'P1' as const, seq: 1, statementId: 7, status }) as never;
+  assert.equal(hasAssessmentResult('DONE'), true);
+  assert.equal(hasAssessmentResult('GRADED'), true);
+  for (const status of ['PLANNED', 'STATEMENT_READY', 'ROOM_OPEN', 'DISPENSED'] as const) {
+    assert.equal(hasAssessmentResult(status), false, status);
+    assert.equal(exportableAssessments([a(status)]).length, 0, `${status} não tem nota`);
+  }
+  assert.equal(exportableAssessments([a('DONE')]).length, 1);
+  assert.equal(exportableAssessments([a('GRADED')]).length, 1);
+  assert.match(NO_RESULT, /corrigida/);
 });
 
 test('o nome do ficheiro diz disciplina, turma, trimestre e ano, sem acentos', () => {

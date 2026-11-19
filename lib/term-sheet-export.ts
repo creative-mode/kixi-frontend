@@ -1,5 +1,5 @@
 import type { Role } from '@/lib/roles';
-import type { Assessment, TermPlan } from '@/types/term-plans';
+import type { Assessment, AssessmentStatus, TermPlan } from '@/types/term-plans';
 import type { TermSheetSummary } from '@/types/term-sheets';
 
 /**
@@ -35,11 +35,17 @@ export function planForSheet<P extends PlanKey>(sheet: Pick<TermSheetSummary, 's
   return byTerm.length === 1 ? byTerm[0] : null;
 }
 
-/** As provas com resultado para exportar: as que têm enunciado (o motor conhece-as por ele) e não foram dispensadas. */
+/**
+ * Só há resultado para exportar depois da correção: `DONE` e `GRADED`. Com enunciado mas sem nota (`STATEMENT_READY`,
+ * `ROOM_OPEN`, `PLANNED`) não há PDF de resultado, e a escolha não deve ser oferecida nem pedida ao motor.
+ */
+export const hasAssessmentResult = (status: AssessmentStatus): boolean => status === 'DONE' || status === 'GRADED';
+
+/** As provas com resultado para exportar: corrigidas e com enunciado (o motor conhece-as por ele). */
 export function exportableAssessments<A extends Pick<Assessment, 'kind' | 'seq' | 'statementId' | 'status'>>(assessments: readonly A[]): A[] {
   const order: Record<string, number> = { MAC: 0, P1: 1, P2: 2 };
   return assessments
-    .filter((a) => a.statementId !== null && a.status !== 'DISPENSED')
+    .filter((a) => a.statementId !== null && hasAssessmentResult(a.status))
     .sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9) || a.seq - b.seq);
 }
 
@@ -93,6 +99,7 @@ export function fileNameFrom(disposition: string | null, fallback: string): stri
 export const NO_PLAN = 'Esta pauta ainda não está ligada a um plano do trimestre: não há PDF para exportar.';
 export const NO_PDF_YET = 'O PDF desta pauta ainda não existe. Volte a tentar depois de a pauta ser homologada.';
 export const NO_STATEMENT = 'Esta prova ainda não tem enunciado, por isso não há resultado para exportar.';
+export const NO_RESULT = 'Esta prova ainda não foi corrigida, por isso não há resultado para exportar.';
 export const ENGINE_DOWN = 'O motor das pautas está indisponível neste momento. Tente mais tarde.';
 export const BAD_LINK = 'O motor devolveu uma ligação inválida ou já expirada. Exporte de novo.';
 
