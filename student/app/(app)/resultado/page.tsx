@@ -19,10 +19,11 @@ import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
 import { getLeaderboard } from '@/lib/ranking';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
+import { abertasDaProva } from '@/lib/correcao-previsao';
 import { listInvitations } from '@/lib/exam-room';
 import { comCorrecao, eSimulacaoLivre, escalaDaNota, notaProvisoria } from '@/lib/schoolops/correcao-rules';
-import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
-import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
+import { correcaoDaSimulacaoComId, consultarEstadoCorrecao, correcaoLigada, correcaoSimulada } from '@/lib/schoolops/correcao';
+import { getQuestionImagesBatch, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { MathText } from '@/lib/shared/math-text';
 import { PedirRevisaoButton } from '@/components/pedir-revisao';
@@ -133,9 +134,12 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
   );
 }
 
-export default async function Resultado({ searchParams }: { searchParams: Promise<{ prova?: string | string[] }> }) {
-  const raw = (await searchParams).prova;
+export default async function Resultado({ searchParams }: { searchParams: Promise<{ prova?: string | string[]; correcaoId?: string | string[] }> }) {
+  const params = await searchParams;
+  const raw = params.prova;
   const id = Number(Array.isArray(raw) ? raw[0] : raw);
+  const correcaoIdRaw = params.correcaoId;
+  const correcaoId = Array.isArray(correcaoIdRaw) ? correcaoIdRaw[0] : correcaoIdRaw ?? null;
   // Sem tentativa não há resultado para mostrar: a lista de provas é onde se escolhe.
   if (!Number.isInteger(id) || id <= 0) redirect('/provas');
 
@@ -158,11 +162,21 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   let result = resultadoDoBackend;
   // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
   // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
-  if (correcaoLigada() && me && statementId != null) {
+  if ((correcaoLigada() || correcaoSimulada(resultadoDoBackend.simulationId)) && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
-      const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId });
-      if (correcao && correcao.kind !== 'corrigida') {
+      // Com correcaoId (entrega #794): lê o estado pela rota leve, sem reabrir a correcção.
+      // Sem correcaoId (ecrã aberto antes da entrega, ou utilizador voltou mais tarde): abre a correcção (idempotente).
+      // Se o motor estiver em baixo com correcaoId, não se mostra a nota do backend como se
+      // fosse final: fica "a corrigir" e a espera volta a ler.
+      const lida = correcaoId ? await consultarEstadoCorrecao(correcaoId) : null;
+      const abertura = correcaoId ? null : await correcaoDaSimulacaoComId({ me, simulationId: resultadoDoBackend.simulationId, statementId });
+      const correcao =
+        (correcaoId ? (lida?.ok ? lida.vista : { kind: 'a-corrigir' as const }) : abertura?.vista) ??
+        { kind: 'a-corrigir' as const };
+      // O id para a espera ler só o estado: o da URL, ou o que a abertura acabou de devolver (#794).
+      const idDaEspera = correcaoId ?? abertura?.correcaoId ?? null;
+      if (correcao.kind !== 'corrigida') {
         return (
           <Page>
             <FireEventOnce param="submetida" event="exam_submitted" />
@@ -171,7 +185,14 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
               <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
                 {correcao.kind === 'a-corrigir' && (
-                  <CorrecaoEmCurso simulationId={resultadoDoBackend.simulationId} provisoria={notaProvisoria(resultadoDoBackend)} />
+                  <CorrecaoEmCurso
+                    correcaoId={idDaEspera}
+                    simulationId={resultadoDoBackend.simulationId}
+                    provisoria={notaProvisoria(resultadoDoBackend)}
+                    abertas={abertasDaProva(resultadoDoBackend.questions)}
+                    progresso={correcao.progresso}
+                    previsaoSegundos={correcao.previsaoSegundos}
+                  />
                 )}
                 {correcao.kind === 'incompleta' && (
                   <p role="status" className="text-sm">
@@ -183,7 +204,12 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                 {/* O motor recusou o pedido ou a correção ficou com um incidente: não se espera, dá-se a nota das fechadas
                     como provisória e uma nova tentativa (#787). */}
                 {correcao.kind === 'falhou' && (
-                  <CorrecaoEmCurso simulationId={resultadoDoBackend.simulationId} provisoria={notaProvisoria(resultadoDoBackend)} falha={correcao.motivo} />
+                  <CorrecaoEmCurso
+                    correcaoId={idDaEspera}
+                    simulationId={resultadoDoBackend.simulationId}
+                    provisoria={notaProvisoria(resultadoDoBackend)}
+                    falha={correcao.motivo}
+                  />
                 )}
               </Card>
               <div className="flex flex-wrap items-start gap-2.5">
@@ -194,7 +220,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           </Page>
         );
       }
-      if (correcao?.kind === 'corrigida') {
+      if (correcao.kind === 'corrigida') {
         result = comCorrecao(resultadoDoBackend, correcao.resultado);
         // A nota do motor é 0–20: o denominador é a escala, não a cotação em pontos da prova (#60).
         totalMax = escalaDaNota(correcao.resultado);
@@ -237,7 +263,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   // molde em branco e a revisão questão a questão, mais abaixo, continua a ser a fonte de tudo.
   const statement = statementId != null ? await getStatementFull(statementId, { cached: true }) : null;
   const paperMeta = statement?.ok ? await loadPaperMeta(statement.data) : { kind: 'Prova', totalMaxScore: totalMax };
-  const figures = Object.fromEntries(await Promise.all(questions.map(async (q) => [q.questionId, await getQuestionImages(q.questionId)] as const)));
+  const figures = await getQuestionImagesBatch(questions.map((q) => q.questionId));
   const stamp = stampOf(result.finalScore, totalMax, pending);
 
   return (

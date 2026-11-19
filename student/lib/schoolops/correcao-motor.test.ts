@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { abrirCorrecao, type Registo } from './correcao-motor.ts';
+import { abrirCorrecao, consultarEstado, type Registo } from './correcao-motor.ts';
 
 // O motor falso responde, por caminho, o que o teste combinar. Sem rede e sem relógio.
 type Rota = { status: number; corpo?: unknown };
@@ -101,4 +101,30 @@ test('o motor em baixo, lento ou sobrecarregado é atraso: espera-se e não se r
 test('aberta e corrigida: devolve a nota', async () => {
   const { fetcher } = motor({ post: { status: 202, corpo: { correcaoId: 'CR-0A5ECDCA54339EB3' } }, get: { '/v1/correcoes/CR-0A5ECDCA54339EB3': { status: 200, corpo: corrigida } } });
   assert.equal((await abrirCorrecao({ cfg, pedido, simulationId: 9, fetcher })).kind, 'corrigida');
+});
+
+test('o progresso e a previsão do motor chegam à vista de quem espera (schoolops#59)', async () => {
+  const { fetcher } = motor({
+    post: { status: 200, corpo: { correcaoId: 'CR-0A5ECDCA54339EB3' } },
+    get: { '/v1/correcoes/CR-0A5ECDCA54339EB3': { status: 200, corpo: { correcaoId: 'CR-0A5ECDCA54339EB3', estado: 'ABERTA', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 55 } } },
+  });
+  assert.deepEqual(await abrirCorrecao({ cfg, pedido, simulationId: 9, fetcher }), { kind: 'a-corrigir', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 55 });
+});
+
+test('a leitura do estado distingue "não existe" de "não sei agora" (#794)', async () => {
+  const cfg = { url: 'http://motor', token: 't' };
+  const corrigidaAgora = { correcaoId: 'CR-1', estado: 'CONCLUIDA', resultado: { estado: 'FULLY_GRADED', nota: 14.5 } };
+
+  const ok = motor({ post: { status: 202 }, get: { '/v1/correcoes/CR-1': { status: 200, corpo: corrigidaAgora } } });
+  const lido = await consultarEstado(cfg, 'CR-1', ok.fetcher);
+  assert.equal(lido.ok && lido.vista.kind, 'corrigida');
+
+  const naoExiste = motor({ post: { status: 202 }, get: { '/v1/correcoes/CR-1': { status: 404, corpo: {} } } });
+  assert.deepEqual(await consultarEstado(cfg, 'CR-1', naoExiste.fetcher), { ok: false, status: 404 });
+
+  const emBaixo = motor({ post: { status: 202 }, get: { '/v1/correcoes/CR-1': { status: 503, corpo: {} } } });
+  assert.deepEqual(await consultarEstado(cfg, 'CR-1', emBaixo.fetcher), { ok: false, status: 503 });
+
+  const semRede = (async () => { throw new Error('rede'); }) as unknown as typeof fetch;
+  assert.deepEqual(await consultarEstado(cfg, 'CR-1', semRede), { ok: false, status: 0 });
 });

@@ -62,3 +62,23 @@ test('duas provas com o mesmo título continuam a ser duas, com ids diferentes',
   ]);
   assert.deepEqual(p.mastery.map((m) => m.id), [1, 2]);
 });
+
+test('uma livre por corrigir não entra no desempenho, mesmo com a nota parcial do backend', () => {
+  const p = buildPerformance([
+    { id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'PENDING', finishedAt: '2026-10-01T10:00:00', statement: { id: 1, title: 'P1', totalMaxScore: 20 } },
+    { id: 2, status: 'FINISHED', finalScore: 14.2, correctionStatus: 'DONE', finishedAt: '2026-10-02T10:00:00', statement: { id: 2, title: 'P2', totalMaxScore: 20 } },
+  ]);
+  assert.deepEqual(p.activity.map((a) => a.score), [14.2]);
+  assert.deepEqual(p.mastery, [{ id: 2, label: 'P2', value: 71 }]);
+  assert.equal(percentOf({ id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'IN_PROGRESS', statement: { totalMaxScore: 20 } }), null);
+});
+
+test('a percentagem continua sobre a cotação quando a nota é a do motor', () => {
+  // 17,75/25 = 71%, a mesma percentagem que o resultado mostra (14,2/20).
+  const prova = { ...sim(1, 1, 17.75, 25, '2026-10-01T10:00:00'), correctionStatus: 'DONE', notaDoMotor: true };
+  assert.equal(percentOf(prova), 71);
+  const p = buildPerformance([prova]);
+  // A lista do perfil sabe que não pode mostrar o número; a barra de domínio mantém-se.
+  assert.equal(p.activity[0].notaDoMotor, true);
+  assert.equal(p.activity[0].score, 17.75);
+});

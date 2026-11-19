@@ -11,6 +11,7 @@
 
 import { isItem, topNumber } from './question-number.ts';
 import type { MathContentFields } from './shared/math-types.ts';
+import { notaFinal } from './nota-da-simulacao.ts';
 
 export interface ResultOption {
   id: number;
@@ -147,6 +148,8 @@ export interface AttemptScore {
   id: number;
   status?: string | null;
   finalScore?: number | null;
+  /** kixi#609: uma tentativa por corrigir não entra na comparação (#791). */
+  correctionStatus?: string | null;
 }
 
 export interface Comparison {
@@ -165,13 +168,16 @@ export function compareWithPrevious(
   attempts: AttemptScore[],
 ): Comparison | null {
   if (currentScore == null) return null;
+  // Só uma tentativa com nota final conta como comparação: a parcial de uma livre por
+  // corrigir não é uma nota e faria a diferença mentir (#791).
   const previous = attempts
-    .filter((a) => a.id < currentId && (a.status ?? '').toUpperCase() === 'FINISHED' && a.finalScore != null)
+    .filter((a) => a.id < currentId && (a.status ?? '').toUpperCase() === 'FINISHED' && notaFinal(a) != null)
     .sort((a, b) => b.id - a.id)[0];
-  if (!previous || previous.finalScore == null) return null;
+  const anterior = previous ? notaFinal(previous) : null;
+  if (anterior == null) return null;
   return {
-    previousScore: previous.finalScore,
-    delta: Math.round((currentScore - previous.finalScore) * 10) / 10,
+    previousScore: anterior,
+    delta: Math.round((currentScore - anterior) * 10) / 10,
   };
 }
 

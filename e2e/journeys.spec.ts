@@ -738,7 +738,7 @@ test.describe('jornadas críticas do Kixi', () => {
     // #494: o enunciado da escola abre o detalhe, como no catálogo, e não a sala.
     await page.getByRole('tabpanel').getByRole('link').first().click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+\/detalhe/);
-    await expect(page.getByRole('heading', { name: 'Como é esta prova' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'As tuas tentativas' })).toBeVisible();
     // E o «Voltar» do detalhe leva às provas, de onde se abre o catálogo.
     await page.getByRole('link', { name: 'Voltar às provas' }).click();
     await expect(page).toHaveURL(/\/aluno\/provas/);
@@ -958,12 +958,17 @@ test.describe('jornadas críticas do Kixi', () => {
     // not assume a fixed class-to-statement mapping.
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    // #820: no ecrã a folha abre a pedido, para a página não ser uma parede de conteúdo.
+    await expect(page.locator('[aria-label="A prova"]')).toBeHidden();
+    // No papel sai inteira, mesmo fechada: o CSS de impressão abre o `details`.
     await page.emulateMedia({ media: 'print' });
     await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
     await assertPrintablePdf(page);
     await page.emulateMedia({ media: 'screen' });
-    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    // E o resumo continua a abri-la para quem quer ler no ecrã.
+    await page.locator('summary', { hasText: 'Ver o enunciado' }).click();
+    await expect(page.locator('[aria-label="A prova"] .katex')).toBeVisible();
+    await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     // O cabeçalho passou a ser "Questão 2 (1 de 12)": o número de exibição e o
@@ -1065,7 +1070,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
@@ -1106,7 +1111,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
@@ -1197,7 +1202,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
 
     await page.goto('/aluno/provas');
     await page.getByRole('link', { name: 'Ver a prova' }).first().click();
-    await page.getByRole('link', { name: 'Começar', exact: true }).click();
+    await page.getByRole('link', { name: 'Começar a simulação', exact: true }).click();
     await expect(page).toHaveURL(/\/aluno\/prova\/\d+/);
     await page.getByRole('button', { name: 'Começar', exact: true }).click();
     await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
@@ -2516,9 +2521,13 @@ test.describe('cartão de prova no feed (#602)', () => {
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    const pendentes = (count: number | null) => page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, pendingReviewCount: count } });
-    expect((await pendentes(1)).ok()).toBe(true);
+    // O seed da simulação 1 está corrigido (#793), porque é ele que faz a nota
+    // chegar ao sino; aqui põe-se a aberta a aguardar correção só durante o teste.
+    const forcar = (pending: boolean) =>
+      page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status: pending ? 'PENDING' : '', pending } });
     try {
+      expect((await forcar(true)).ok()).toBe(true);
+
       await page.goto('/aluno/resultado?prova=1');
       const previa = page.getByLabel('Publicar o resultado no feed');
       await expect(previa).toBeVisible();
@@ -2527,7 +2536,7 @@ test.describe('cartão de prova no feed (#602)', () => {
 
       const mostrarNota = previa.getByRole('switch', { name: 'Mostrar a nota' });
       await expect(mostrarNota).toBeChecked();
-      // A simulação 1 está forçada com uma aberta por corrigir: a nota parcial nunca
+      // A simulação 1 tem uma resposta aberta por corrigir: a nota parcial nunca
       // aparece como final na pré-visualização (kixi#788).
       await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
       await expect(previa.getByText('1 resposta aberta por corrigir', { exact: true })).toBeVisible();
@@ -2545,7 +2554,9 @@ test.describe('cartão de prova no feed (#602)', () => {
       await mostrarNota.click();
       await expect(previa.getByText('A corrigir', { exact: true })).toBeVisible();
     } finally {
-      await pendentes(null);
+      // A reposição também tem de ser confirmada: se falhar em silêncio, a tentativa 1
+      // fica `PENDING` e contamina os testes seguintes (#826).
+      expect((await forcar(false)).ok()).toBe(true);
     }
   });
 
@@ -2591,11 +2602,15 @@ test.describe('cartão de prova no feed (#602)', () => {
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
 
-    const pendentes = (count: number | null) => page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, pendingReviewCount: count } });
-    expect((await pendentes(1)).ok()).toBe(true);
+    // A simulação 1 do seed está corrigida desde o #793; o cartão «A corrigir»
+    // precisa dela por corrigir, só durante este teste.
+    const forcar = (pending: boolean) =>
+      page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status: pending ? 'PENDING' : '', pending } });
     try {
-      // O cenário força uma aberta por corrigir: o resultado já avisa disso, e a
-      // pré-visualização não pode estampar 16,4 como nota final.
+      expect((await forcar(true)).ok()).toBe(true);
+
+      // A simulação 1 tem uma resposta aberta por corrigir: o ecrã de resultado já
+      // avisa disso, e a pré-visualização não pode estampar 16,4 como nota final.
       await page.goto('/aluno/resultado?prova=1');
       await expect(page.getByText(/1 resposta aberta ainda está a ser corrigida/)).toBeVisible();
       const previa = page.getByLabel('Publicar o resultado no feed');
@@ -2625,7 +2640,9 @@ test.describe('cartão de prova no feed (#602)', () => {
       await cartao.getByRole('link', { name: /Ver a prova corrigida/ }).click();
       await expect(page).toHaveURL(/\/aluno\/resultado\?prova=1/);
     } finally {
-      await pendentes(null);
+      // A reposição também tem de ser confirmada: se falhar em silêncio, a tentativa 1
+      // fica `PENDING` e contamina os testes seguintes (#826).
+      expect((await forcar(false)).ok()).toBe(true);
     }
   });
 

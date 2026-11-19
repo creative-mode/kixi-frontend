@@ -3,6 +3,9 @@ import 'server-only';
 import { apiGet, viewerKey } from './api';
 import { TtlCache } from './ttl-cache';
 import { currentAttempt, formatScore, isFinished, type Attempt } from './attempt-history';
+import { estadoDaNotaEmPalavras, notaDaSimulacao } from './nota-da-simulacao';
+import { listSimulationsResult } from './exam';
+import { marcarNotaDoMotor } from './nota-do-motor';
 
 /** Item do catálogo como o backend devolve (StatementSummary): só ids, sem nomes.
  *  Os nomes vêm de /subjects, /school-years e /institutions, carregados uma vez. */
@@ -14,6 +17,7 @@ export interface CatalogStatement {
   schoolYearId?: number | null;
   institutionId?: number | null;
   classId?: number | null;
+  totalMaxScore?: number | null;
 }
 
 export interface CatalogPage {
@@ -42,6 +46,10 @@ export interface CatalogItem {
   year: string;
   state: ExamState;
   score?: string;
+  /** «A corrigir» / «Corrigida» / «Correção falhou» (#791/#820). */
+  correction?: string;
+  /** A cotação da prova: a percentagem de `provas-temas` divide por ela, não por 20. */
+  maxScore?: number;
 }
 
 export interface CatalogFilters {
@@ -129,10 +137,13 @@ export async function getCatalog(
   const yearById = new Map(names.years.map((y) => [y.id, y.label]));
   const schoolById = new Map(names.schools.map((s) => [s.id, s.name]));
 
-  const simulations = await apiGet<CatalogSimulation[]>('/simulations');
+  // A mesma leitura que o histórico, as notificações e o desempenho (#791): uma por pedido.
+  const simulations = await listSimulationsResult();
   const attempts = new Map<number, CatalogSimulation[]>();
-  if (simulations.ok && Array.isArray(simulations.data)) {
-    for (const sim of simulations.data) {
+  if (simulations.ok) {
+    // A nota de uma simulação livre `DONE` é a do motor (0–20) e só o resultado a
+    // conhece: a regra única esconde o número e mostra «Corrigida» (#820).
+    for (const sim of await marcarNotaDoMotor(simulations.data)) {
       const id = Number(sim.statement?.id);
       if (!Number.isInteger(id)) continue;
       const list = attempts.get(id) ?? [];
@@ -147,6 +158,7 @@ export async function getCatalog(
     // CANCELLED: o cartão dizia «Ver resultado» e o detalhe «Em curso». Uma regra só.
     const attempt = currentAttempt((attempts.get(Number(s.id)) ?? []) as Attempt[]);
     const finished = attempt ? isFinished(attempt) : false;
+    const nota = attempt ? notaDaSimulacao(attempt) : ({ kind: 'sem-nota' } as const);
     return {
       id: String(s.id),
       kind: s.examType || 'Prova',
@@ -155,7 +167,10 @@ export async function getCatalog(
       school: s.institutionId == null ? '' : (schoolById.get(s.institutionId) ?? ''),
       year: s.schoolYearId == null ? '' : (yearById.get(s.schoolYearId) ?? ''),
       state: !attempt ? 'new' : finished ? 'done' : 'progress',
-      score: finished ? formatScore(attempt?.finalScore) : undefined,
+      // A nota só é nota quando a correcção está feita; até lá mostra-se o estado (#791).
+      score: finished && nota.kind === 'nota' ? formatScore(nota.nota) : undefined,
+      correction: finished && attempt ? estadoDaNotaEmPalavras(attempt) ?? undefined : undefined,
+      maxScore: s.totalMaxScore ?? undefined,
     } satisfies CatalogItem;
   });
 

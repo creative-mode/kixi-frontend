@@ -366,7 +366,8 @@ test.describe('aviso de correção (#793)', () => {
       expect((await forcar('FAILED')).ok()).toBe(true);
       await page.goto('/aluno/prova/1/detalhe');
       const falhada = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
-      await expect(falhada).toContainText('A corrigir');
+      // O badge e o texto dizem o mesmo que `/provas`: a correção falhou, não é uma espera (#820).
+      await expect(falhada).toContainText('Correção falhou');
       await expect(falhada).toContainText('a correção falhou, fala com o professor');
       await expect(falhada).not.toContainText('a nota chega pelo sino');
       await page.goto('/aluno/inicio');
@@ -374,7 +375,10 @@ test.describe('aviso de correção (#793)', () => {
 
       expect((await forcar('DONE')).ok()).toBe(true);
       await page.goto('/aluno/prova/1/detalhe');
-      await expect(page.getByRole('listitem').filter({ hasText: 'Prova corrigida' })).toContainText('16,4 valores');
+      // A nota vive no círculo, com nome acessível: o texto já não a repete na
+      // linha (#820), por isso a asserção passa a olhar para o círculo.
+      const corrigida = page.getByRole('listitem').filter({ hasText: 'Prova corrigida' });
+      await expect(corrigida.getByRole('img', { name: 'Nota 16,4 valores' })).toBeVisible();
     } finally {
       await forcar('');
     }

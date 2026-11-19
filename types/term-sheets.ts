@@ -55,3 +55,8 @@ export interface TermSheetDetailResponse {
 export interface TermSheetDetail extends TermSheetSummary {
   rows: TermSheetRow[];
 }
+
+/** O que se pode exportar do detalhe de uma pauta, além da própria pauta: o resultado de cada prova com enunciado. */
+export interface SheetExports {
+  assessments: { id: number; kind: 'P1' | 'P2' | 'MAC'; title: string }[];
+}

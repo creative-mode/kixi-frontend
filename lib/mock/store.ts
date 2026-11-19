@@ -82,11 +82,14 @@ if (!G.__kixiMock.seeded) {
 for (const [name, description] of [
   ['ADMIN', 'System administrator with full access'],
   ['TEACHER', 'Teacher with access to create and manage statements'],
+  ['COORDINATOR', 'Coordinator with access to plans, term sheets and approval tasks'],
   ['STUDENT', 'Student with access to view statements and take simulations'],
 ]) add('roles', { name, description });
 
 seedAccount('admin', 'admin@kixi.ao', 'ADMIN', 'Administrador', 'Kixi');
 seedAccount('professor', 'professor@kixi.ao', 'TEACHER', 'Helena', 'Gomes');
+// #808: um coordenador de verdade (sem papel de professor) para cobrir o exportar PDF também no e2e.
+seedAccount('coordenador', 'coordenador@kixi.ao', 'COORDINATOR', 'Ana', 'Coordenadora');
 const student = seedAccount('12345', 'aluno@kixi.ao', 'STUDENT', 'Abner', 'Ede');
 const teacherAcc = db.accounts.find((a) => a.username === 'professor');
 

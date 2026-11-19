@@ -62,6 +62,13 @@ export interface SimulationSummary {
   status?: string | null;
   deadline?: string | null;
   finalScore?: number | null;
+  finishedAt?: string | null;
+  /** kixi#609: PENDING, IN_PROGRESS, DONE ou FAILED. Calculado para qualquer
+   *  simulação entregue, sala incluída. */
+  correctionStatus?: string | null;
+  correctedAt?: string | null;
+  /** A nota é a do motor (0–20): só o resultado a mostra (#820). */
+  notaDoMotor?: boolean;
   statement?: { id?: number | null; title?: string | null } | null;
 }
 

@@ -4,7 +4,7 @@ import { cache } from 'react';
 import { apiGet, apiPost, viewerKey, type Result } from './api';
 import { TtlCache } from './ttl-cache';
 import {
-  getQuestionImages,
+  getQuestionImagesBatch,
   getStatementFull,
   listAnswers,
   loadPaperMeta,
@@ -113,8 +113,7 @@ export async function getControlledRoom(roomId: number): Promise<ControlledRoom>
     const found = savedAnswerFor(answers, simulationId, question.id);
     if (found) saved[question.id] = { answerId: found.id, optionId: Number(found.selectedOptionId) || null, text: found.answerText ?? '' };
   }
-  const images: RoomData['images'] = {};
-  await Promise.all(questions.map(async (q) => { images[q.id] = await getQuestionImages(q.id); }));
+  const images = await getQuestionImagesBatch(questions.map((q) => q.id));
 
   return {
     kind: 'open',

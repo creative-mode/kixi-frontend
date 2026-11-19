@@ -9,13 +9,17 @@ import assert from 'node:assert/strict';
 import { parseServerTime } from '../exam-rules.ts';
 import {
   TOLERANCE_SECONDS,
+  backupOf,
   correctionSummary,
   deadlineFor,
   expired,
   finalScore,
   gradeAnswer,
   isObjective,
+  openAnswerOf,
   toLocalDateTime,
+  withPendingReview,
+  withReviewBackup,
   type MockAnswer,
   type MockQuestion,
 } from './simulation.ts';
@@ -168,4 +172,42 @@ test('o LocalDateTime do mock é a hora do servidor (+01:00), seja qual for o fu
   // Ida e volta: o prazo calculado lê-se de volta no mesmo instante.
   const deadline = deadlineFor('2026-10-11T10:00:00', 1, false);
   assert.equal(deadline, '2026-10-11T10:03:00');
+});
+
+// ── e2e do cartão «A corrigir» (#788) ──────────────────────────────────────────
+// O seed do #793 está corrigido; estes testes fixam a regra que o e2e usa para o
+// pôr por corrigir durante um teste e repor no fim, sem trocar o seed dos outros.
+
+test('a resposta a aguardar correção é a primeira aberta', () => {
+  const escolha = answer({ id: 1, questionId: 1, selectedOptionId: 11, scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED' });
+  const aberta = answer({ id: 2, questionId: 2, answerText: 'texto', scoreObtained: 4, isCorrect: true, reviewStatus: 'AI_GRADED' });
+  assert.equal(openAnswerOf([escolha, aberta], [choice, open])?.id, 2);
+});
+
+test('uma resposta curta (short_answer) também espera correção', () => {
+  // Regressão: a prova 1 do seed tem a aberta como `short_answer`, não como
+  // `open`/`development`. O critério é o mesmo do gabarito: não ter opções.
+  const curta: MockQuestion = { ...open, id: 4, questionType: 'short_answer' };
+  const resposta = answer({ id: 3, questionId: 4, answerText: 'texto', reviewStatus: 'PENDING_REVIEW' });
+  assert.equal(openAnswerOf([resposta], [curta])?.id, 3);
+});
+
+test('sem pergunta aberta não há resposta para pôr a aguardar correção', () => {
+  // Uma escolha é corrigida pelo gabarito: marcá-la PENDING_REVIEW seria pedir
+  // revisão manual de uma resposta que não a tem. A rota devolve 400 e não mexe.
+  const escolha = answer({ id: 1, questionId: 1, selectedOptionId: 11, scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED' });
+  assert.equal(openAnswerOf([escolha], [choice]), undefined);
+  assert.equal(openAnswerOf([], []), undefined);
+});
+
+test('aguardar correção tira a nota e o veredicto, e o backup repõe-nos', () => {
+  const aberta = answer({ id: 2, questionId: 2, answerText: 'texto', scoreObtained: 4, isCorrect: true, reviewStatus: 'AI_GRADED' });
+  const antes = backupOf(aberta);
+  const pendente = withPendingReview(aberta);
+  assert.equal(pendente.reviewStatus, 'PENDING_REVIEW');
+  assert.equal(pendente.scoreObtained, null);
+  assert.equal(pendente.isCorrect, null);
+  // O mesmo `answerText` fica: só a correção é que ainda não aconteceu.
+  assert.equal(pendente.answerText, 'texto');
+  assert.deepEqual(withReviewBackup(pendente, antes), aberta);
 });

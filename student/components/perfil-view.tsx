@@ -100,7 +100,7 @@ export function PerfilView({
             {recent.map((a) => (
               <li key={a.id} className="min-w-0">
                 <Link prefetch={false} href={`/resultado?prova=${a.id}`} className="flex h-full flex-col gap-1.5 rounded-[14px] bg-[#f5f6f4] px-3.5 py-4 text-[#121c15] no-underline">
-                  <strong className="text-xl leading-none tabular-nums">{formatAverage(a.score)}</strong>
+                  <strong className="text-[15px] leading-tight tabular-nums">{a.notaDoMotor ? 'Corrigida' : formatAverage(a.score)}</strong>
                   <span className={`${mut} line-clamp-2`}>{shortTitle(a.title, 32)}</span>
                 </Link>
               </li>
@@ -173,7 +173,7 @@ export function PerfilView({
             ) : history.map((item, i) => (
               <div key={item.id} className="flex items-center justify-between gap-3 border-[#eef0ec] py-3.5" style={{ borderTopWidth: i === 0 ? 0 : 1 }}>
                 <div><strong className="block text-[15px]">{item.kind} · {item.title}</strong><span className={mut}>{[item.subject, item.school].filter(Boolean).join(' · ')}</span></div>
-                <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c] tabular-nums">{item.score}</span>
+                <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c] tabular-nums">{item.score ?? item.correction ?? '—'}</span>
               </div>
             ))}
           </section>
