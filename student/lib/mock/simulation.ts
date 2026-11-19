@@ -19,7 +19,7 @@
 import { parseServerTime } from '../exam-rules.ts';
 
 /** SimulationTimeLimitProperties.toleranceSeconds. */
-export const TOLERANCE_SECONDS = 10;
+export const TOLERANCE_SECONDS = 120;
 
 const SECONDS_PER_MINUTE = 60;
 /** 1.25 * 60, in whole seconds. */

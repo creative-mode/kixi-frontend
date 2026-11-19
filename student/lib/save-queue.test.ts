@@ -73,6 +73,26 @@ test('uma falha de rede é repetida, e o mapa só confia no que o servidor confi
   assert.notEqual(queue.confirmed(1), null);
 });
 
+test('não inicia retries depois de a sala deixar de aceitar respostas', async () => {
+  let calls = 0;
+  let canSend = true;
+  const queue = createSaveQueue({
+    send: async () => {
+      calls += 1;
+      canSend = false;
+      return { ok: false, message: 'rede', transient: true };
+    },
+    canSend: () => canSend,
+    wait: async () => {},
+  });
+
+  await queue.request(1, A);
+
+  assert.equal(calls, 1);
+  assert.equal(queue.status(1).error, 'O tempo desta prova terminou.');
+  assert.deepEqual(queue.rejected(), []);
+});
+
 test('esgotadas as tentativas fica em erro, e retry volta a tentar', async () => {
   let up = false;
   const queue = createSaveQueue({
@@ -100,6 +120,7 @@ test('uma recusa definitiva não é repetida', async () => {
   await queue.request(1, A);
   assert.equal(calls, 1);
   assert.equal(queue.status(1).status, 'error');
+  assert.deepEqual(queue.rejected(), [1]);
 });
 
 test('uma excepção do envio conta como falha transitória', async () => {

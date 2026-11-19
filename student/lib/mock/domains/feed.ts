@@ -3,7 +3,7 @@ import { toLocalDateTime } from '../simulation';
 import { acceptAnswer, conversation } from '../feed-comments';
 import { deleteComment, deletePost, editComment, editPost } from '../feed-edit';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../../post-blocks';
-import { MockPost, json, maskedName, meResponse, problem } from '../store';
+import { MockPost, json, maskedName, meResponse, pendingReviewCountOf, problem } from '../store';
 import type { MockCtx } from '../store';
 
 /** Rotas do domínio «feed» do mock; devolve `undefined` quando o pedido não é deste domínio. */
@@ -90,7 +90,7 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
         variant: statement?.variant ?? null,
         finalScore: sim.finalScore, maxScore: statement?.totalMaxScore ?? null,
         correctAnswers: null, totalQuestions: null, timeSpentSeconds: sim.timeSpentSeconds,
-        pendingReviewCount: db.answers.filter((a) => a.simulationId === sim.id && a.reviewStatus === 'PENDING_REVIEW').length,
+        pendingReviewCount: pendingReviewCountOf(db, sim),
       };
     }
     const now = toLocalDateTime(new Date());

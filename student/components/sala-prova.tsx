@@ -6,18 +6,21 @@ import { unstable_rethrow } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Clock, FileText, Flag, ListChecks, Loader2, RefreshCw, ShieldAlert, TriangleAlert, WifiOff } from 'lucide-react';
 import { guardarAction, submeterAction } from '@/lib/exam-actions';
 import { createSaveQueue, type SaveQueue, type Snapshot } from '@/lib/save-queue';
-import { aRecuperar, guardarRascunho, lerRascunho, limparRascunho, type Armazem } from '@/lib/draft-store';
+import { aRecuperar, guardarRascunho, lerRascunho, type Armazem } from '@/lib/draft-store';
 import { guardarMarcadas, lerMarcadas, limparMarcadas } from '@/lib/flag-store';
 import { PASTE_NOTICE, pasteBlocked } from '@/lib/integrity';
 import { useIntegrity } from '@/components/use-integrity';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  acceptsAnswers,
   backoffMs,
   cellState,
   displayRemainingMs,
   formatClock,
+  GRACE_MS,
   isChoice,
   remainingMs,
+  shouldPeriodicallyFlush,
   timer,
   urgencyOf,
   type CellState,
@@ -322,9 +325,8 @@ function MapaQuestoes({
 /** Debounce of an open answer: long enough not to send a request per keystroke,
  *  short enough that closing the lid right after typing loses little. */
 const TEXT_DEBOUNCE_MS = 800;
-/** Flush of everything still unsent when this much time is left, so the last words
- *  typed reach the server before the deadline closes the room. */
-const FLUSH_BEFORE_END_MS = 4000;
+/** Re-send pending answers throughout the final minute and server grace period. */
+const FLUSH_INTERVAL_MS = 5000;
 /** Texto único do aviso de rede: o mesmo que o aluno lê na faixa e o teste procura. */
 const OFFLINE_BANNER = 'Sem ligação. As respostas ficam neste aparelho e seguem quando voltares.';
 const OFFLINE_DELIVERY = 'Sem ligação. As respostas continuam neste aparelho. Tenta entregar quando voltares a ter rede.';
@@ -394,6 +396,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
         }),
       onChange: () => rerender((n) => n + 1),
       wait: (attempt) => new Promise((resolve) => setTimeout(resolve, backoffMs(attempt))),
+      canSend: () => acceptsAnswers(data, Date.now()),
     });
     for (const [questionId, saved] of Object.entries(data.saved)) {
       created.seed(Number(questionId), saved.answerId, { optionId: saved.optionId, text: saved.text });
@@ -417,9 +420,14 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
    *  deadline as "no limit" — which is what SimulationDeadlineService.java:89 means by
    *  a null deadline. Before the clock starts there is no reason to lock the form, so
    *  the room stays open. */
+  const acceptsWritesNow = now !== null && acceptsAnswers(data, now);
   const closed =
     (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' ||
-    (now !== null && left !== null && left <= 0);
+    (now !== null && !acceptsWritesNow);
+  const canAutomaticallyFlush = acceptsWritesNow;
+  const periodicFlushActive = now !== null && shouldPeriodicallyFlush(data, now);
+  const nominalDeadlineReached = left !== null && left <= GRACE_MS;
+  const lockedForAnswering = closed || nominalDeadlineReached;
 
   /** O modo de avaliação (#192): regista o que o browser vê — separador escondido,
    *  janela sem foco, o regresso — e avisa o aluno ao voltar. Só com a tentativa a
@@ -466,7 +474,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     const sync = () => setOnline(navigator.onLine);
     const onOnline = () => {
       setOnline(true);
-      void flushAll();
+      if (canAutomaticallyFlush) void flushAll();
     };
     sync();
     window.addEventListener('online', onOnline);
@@ -475,13 +483,17 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', sync);
     };
-  }, [flushAll]);
+  }, [canAutomaticallyFlush, flushAll]);
 
   // O que ainda não saiu não pode ficar só neste separador: ao esconder ou fechar a
   // página, e pouco antes de o tempo acabar, tudo o que está por enviar é enviado.
   useEffect(() => {
-    const onHide = () => { if (document.visibilityState === 'hidden') void flushAll(); };
-    const onPageHide = () => void flushAll();
+    const onHide = () => {
+      if (canAutomaticallyFlush && document.visibilityState === 'hidden') void flushAll();
+    };
+    const onPageHide = () => {
+      if (canAutomaticallyFlush) void flushAll();
+    };
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', onPageHide);
     return () => {
@@ -489,15 +501,14 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
       window.removeEventListener('pagehide', onPageHide);
       for (const timer of timers.current.values()) clearTimeout(timer);
     };
-  }, [flushAll]);
+  }, [canAutomaticallyFlush, flushAll]);
 
-  const flushedAtEnd = useRef(false);
   useEffect(() => {
-    if (left !== null && left <= FLUSH_BEFORE_END_MS && !flushedAtEnd.current) {
-      flushedAtEnd.current = true;
-      void flushAll();
-    }
-  }, [left, flushAll]);
+    if (!periodicFlushActive) return;
+    const timer = window.setInterval(() => void flushAll(), FLUSH_INTERVAL_MS);
+    void flushAll();
+    return () => window.clearInterval(timer);
+  }, [periodicFlushActive, flushAll]);
 
   // Avisos falados aos 5 e a 1 minuto: o cronómetro visual não chega a quem usa
   // leitor de ecrã, e `role="timer"` não anuncia por si. Os limiares leem-se do
@@ -532,7 +543,9 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     questions.filter((q) => !unsaved.has(q.id) && isAnswered(q, drafts[q.id])).map((q) => q.id),
   );
   const failed = queue.failed();
+  const rejected = new Set(queue.rejected());
   const saving = queue.busy() || unsaved.size > 0;
+  const pendingAnswers = [...unsaved].some((id) => !rejected.has(id));
   /** O aviso nativo só faz sentido quando há mesmo algo por chegar ao servidor:
    *  uma resposta em voo, uma que falhou ou uma que ainda não foi pedida. */
   const haRespostasPorGuardar = queue.busy() || failed.length > 0 || unsaved.size > 0;
@@ -547,28 +560,25 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
     jaRestaurou.current = true;
     const armazem = armazemLocal();
     if (armazem) {
-      const restante = remainingMs(data.deadline, Date.now());
-      const terminada = (data.status ?? '').toUpperCase() !== 'IN_PROGRESS' || (restante !== null && restante <= 0);
-      if (terminada) {
-        limparRascunho(armazem, data.simulationId); // já não se responde: um rascunho antigo não pode ressuscitar
-        limparMarcadas(armazem, data.simulationId);
-      } else {
-        // As marcas (#486) são do aluno e sobrevivem a sair/voltar; só se aceitam
-        // ids de questões que ainda existem nesta prova.
-        const existentes = new Set(data.questions.map((q) => q.id));
-        const marcadas = new Set([...lerMarcadas(armazem, data.simulationId)].filter((id) => existentes.has(id)));
-        if (marcadas.size > 0) setFlagged(marcadas);
-        const guardadoNoServidor = Object.fromEntries(Object.entries(data.saved).map(([id, v]) => [Number(id), { optionId: v.optionId, text: v.text }]));
-        const restaurar = aRecuperar(lerRascunho(armazem, data.simulationId), data.questions.map((q) => q.id), guardadoNoServidor);
-        const ids = Object.keys(restaurar).map(Number);
-        if (ids.length > 0) {
-          const next = { ...draftsRef.current };
-          for (const id of ids) next[id] = restaurar[id];
-          draftsRef.current = next;
-          setDrafts(next);
+      const terminada = (data.status ?? '').toUpperCase() !== 'IN_PROGRESS';
+      if (terminada) limparMarcadas(armazem, data.simulationId);
+      // As marcas (#486) são do aluno e sobrevivem a sair/voltar; só se aceitam
+      // ids de questões que ainda existem nesta prova.
+      const existentes = new Set(data.questions.map((q) => q.id));
+      const marcadas = new Set([...lerMarcadas(armazem, data.simulationId)].filter((id) => existentes.has(id)));
+      if (marcadas.size > 0) setFlagged(marcadas);
+      const guardadoNoServidor = Object.fromEntries(Object.entries(data.saved).map(([id, v]) => [Number(id), { optionId: v.optionId, text: v.text }]));
+      const restaurar = aRecuperar(lerRascunho(armazem, data.simulationId), data.questions.map((q) => q.id), guardadoNoServidor);
+      const ids = Object.keys(restaurar).map(Number);
+      if (ids.length > 0) {
+        const next = { ...draftsRef.current };
+        for (const id of ids) next[id] = restaurar[id];
+        draftsRef.current = next;
+        setDrafts(next);
+        if (acceptsAnswers(data, Date.now())) {
           for (const id of ids) guardar(id);
-          setRecuperadas(ids.length);
         }
+        setRecuperadas(ids.length);
       }
     }
     setEstadoLocalArmado(true); // só depois de restaurar: antes disso uma lista vazia apagaria o que está no browser
@@ -693,6 +703,11 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
    *  JavaScript (o fluxo testa-o) e para o `<form>` não ficar só no cliente. */
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pendingAnswers) {
+      void flushAll();
+      setDeliveryError('Ainda estamos a tentar guardar respostas neste aparelho. Volta a entregar quando forem confirmadas ou recusadas pelo servidor.');
+      return;
+    }
     const form = event.currentTarget;
     setDeliveryError('');
     startDelivery(async () => {
@@ -772,7 +787,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             variant={urgencia === 'critico' ? 'default' : 'outline'}
             size="sm"
             onClick={openConfirm}
-            disabled={closed}
+            disabled={lockedForAnswering}
           >
             Entregar
           </Button>
@@ -917,17 +932,27 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             />
           )}
 
-          {closed && (
+          {(closed || nominalDeadlineReached) && (
             <Card className="gap-1 border-destructive/40 bg-destructive/5 p-4" role="status">
               <p className="text-[15px] font-bold text-destructive">O tempo desta prova terminou</p>
               <p className="text-sm text-muted-foreground">
-                O servidor já não aceita respostas. Entrega o que está guardado para veres a nota.
-                {unsaved.size > 0 && ` ${unsaved.size === 1 ? '1 resposta' : `${unsaved.size} respostas`} não chegou ao servidor e vai ficar de fora.`}
+                {closed
+                  ? 'O servidor já não aceita novas respostas.'
+                  : pendingAnswers
+                    ? 'Estamos a tentar enviar as respostas que ficaram neste aparelho.'
+                    : 'As respostas confirmadas estão guardadas. Podes entregar a prova.'}
+                {rejected.size > 0 && ` O servidor recusou ${rejected.size === 1 ? '1 resposta' : `${rejected.size} respostas`}; estas não serão incluídas.`}
+                {pendingAnswers && ' As respostas ainda sem confirmação não serão descartadas; a entrega fica disponível quando forem confirmadas ou recusadas.'}
               </p>
+              {failed.some((id) => !rejected.has(id)) && (
+                <Button type="button" variant="outline" size="sm" onClick={retryAll} disabled={!online || queue.busy()}>
+                  Tentar guardar novamente
+                </Button>
+              )}
               {submitError && (
                 <p role="alert" className="text-[13px] font-medium text-destructive">{submitError}</p>
               )}
-              <Button type="submit" form={SUBMIT_FORM} size="sm" className="mt-2 justify-self-start" disabled={submitPending}>
+              <Button type="submit" form={SUBMIT_FORM} size="sm" className="mt-2 justify-self-start" disabled={submitPending || pendingAnswers}>
                 Entregar o que está guardado
               </Button>
             </Card>
@@ -952,7 +977,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
             </p>
 
             {isChoice(current) ? (
-              <fieldset className="grid gap-2.5" aria-labelledby="q-text" disabled={closed}>
+              <fieldset className="grid gap-2.5" aria-labelledby="q-text" disabled={lockedForAnswering}>
                 {current.options.map((option, i) => (
                   <label
                     key={option.id}
@@ -982,7 +1007,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
                   id={`texto-${current.id}`}
                   rows={5}
                   value={drafts[current.id]?.text ?? ''}
-                  disabled={closed}
+                  disabled={lockedForAnswering}
                   onChange={(e) => {
                     setPasteNotice(false);
                     writeText(current.id, e.target.value);
@@ -1007,7 +1032,7 @@ export function SalaProva({ data, extraTime }: { data: RoomData; extraTime: bool
               </div>
             )}
 
-            {!data.roomId && isChoice(current) && !closed && (
+            {!data.roomId && isChoice(current) && !lockedForAnswering && (
               <TreinoCorrecao
                 key={`${current.id}-${drafts[current.id]?.optionId ?? 'x'}`}
                 simulationId={data.simulationId}

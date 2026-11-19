@@ -59,6 +59,21 @@ export function setMockCorrection(simulationId: number, status: string): boolean
   return true;
 }
 
+/** Só para o e2e: faz o resultado transportar abertas por corrigir sem alterar a
+ * semente que representa uma prova já corrigida. `null` repõe o valor calculado
+ * pelas respostas, para o cenário não contaminar o teste seguinte. */
+export function setMockPendingReviewCount(simulationId: number, count: unknown): boolean {
+  const row = store().simulations.find((s) => s.id === simulationId);
+  if (!row) return false;
+  if (count === null) {
+    delete row.pendingReviewCountOverride;
+    return true;
+  }
+  if (!Number.isInteger(count) || Number(count) < 0) return false;
+  row.pendingReviewCountOverride = Number(count);
+  return true;
+}
+
 /** O que estava na resposta aberta antes de o e2e a pôr a aguardar correção. */
 const previousReview = new Map<number, ReviewBackup>();
 
@@ -170,6 +185,8 @@ export type SimulationRow = {
    *  o override só existe para o e2e forçar uma prova por corrigir sem depender do relógio. */
   correctionOverride?: MockCorrectionStatus;
   correctedAt?: string | null;
+  /** Fixture transitório do e2e para uma correção aberta; não existe no contrato. */
+  pendingReviewCountOverride?: number;
 };
 
 export type Store = {
@@ -954,7 +971,7 @@ export function closeSimulation(db: Store, row: SimulationRow): void {
 export function simulationResult(db: Store, row: SimulationRow) {
   const answers = db.answers.filter((a) => a.simulationId === row.id);
   const questions = db.questions.filter((q) => answers.some((a) => a.questionId === q.id));
-  const pending = answers.filter((a) => a.reviewStatus === 'PENDING_REVIEW').length;
+  const pending = pendingReviewCountOf(db, row);
 
   return {
     simulationId: row.id,
@@ -994,6 +1011,12 @@ export function simulationResult(db: Store, row: SimulationRow) {
       };
     }),
   };
+}
+
+/** O resultado e o instantâneo do feed têm de transportar a mesma contagem. */
+export function pendingReviewCountOf(db: Store, row: SimulationRow): number {
+  return row.pendingReviewCountOverride
+    ?? db.answers.filter((answer) => answer.simulationId === row.id && answer.reviewStatus === 'PENDING_REVIEW').length;
 }
 
 /** Resolves the class list the way ClassService.toResponse does: the nested course and

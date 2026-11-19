@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { MOCK, setMockCorrection, setMockPendingReview } from '@/lib/mock/backend';
+import { MOCK, setMockCorrection, setMockPendingReview, setMockPendingReviewCount } from '@/lib/mock/backend';
 import { setMotorSimulado } from '@/lib/mock/motor';
 
 /** Com `motor` em vez de `status`, combina o estado que o SchoolOps daria à simulação
@@ -14,7 +14,7 @@ import { setMotorSimulado } from '@/lib/mock/motor';
  *  Só existe com o mock ligado: em produção é um 404, como se a rota não existisse. */
 export async function POST(req: Request) {
   if (!MOCK) return new NextResponse(null, { status: 404 });
-  const body = (await req.json().catch(() => ({}))) as { simulationId?: unknown; status?: unknown; pending?: unknown; motor?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { simulationId?: unknown; status?: unknown; pending?: unknown; pendingReviewCount?: unknown; motor?: unknown };
   if ('motor' in body) {
     const id = Number(body.simulationId);
     const motor = body.motor as { estado?: unknown } | null;
@@ -25,8 +25,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
   const simulationId = Number(body.simulationId);
+  // `pendingReviewCount` força o número que o resultado traz (#790); `pending` põe a resposta aberta por corrigir (#788).
+  const countOk = Object.hasOwn(body, 'pendingReviewCount') ? setMockPendingReviewCount(simulationId, body.pendingReviewCount) : true;
   const reviewOk = typeof body.pending === 'boolean' ? setMockPendingReview(simulationId, body.pending) : true;
-  const statusOk = setMockCorrection(simulationId, typeof body.status === 'string' ? body.status : '');
-  const ok = reviewOk && statusOk;
+  const statusOk = Object.hasOwn(body, 'pendingReviewCount') && !Object.hasOwn(body, 'status') ? true : setMockCorrection(simulationId, typeof body.status === 'string' ? body.status : '');
+  const ok = countOk && reviewOk && statusOk;
   return NextResponse.json({ ok }, { status: ok ? 200 : 400 });
 }

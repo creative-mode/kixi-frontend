@@ -41,6 +41,7 @@ interface Entry {
   running: boolean;
   status: SaveStatus;
   error: string | null;
+  rejected: boolean;
 }
 
 export const keyOf = (snapshot: Snapshot): string =>
@@ -55,17 +56,19 @@ export interface SaveQueueOptions {
   onChange?: () => void;
   /** Wait before retry `attempt`; injected so tests do not sleep. */
   wait?: (attempt: number) => Promise<void>;
+  /** Stops queued retries once the room can no longer accept an answer. */
+  canSend?: () => boolean;
   maxAttempts?: number;
 }
 
-export function createSaveQueue({ send, onChange, wait, maxAttempts = 4 }: SaveQueueOptions) {
+export function createSaveQueue({ send, onChange, wait, canSend, maxAttempts = 4 }: SaveQueueOptions) {
   const entries = new Map<number, Entry>();
   const idle = new Set<() => void>();
 
   const entry = (id: number): Entry => {
     let found = entries.get(id);
     if (!found) {
-      found = { answerId: null, saved: null, wanted: null, running: false, status: 'idle', error: null };
+      found = { answerId: null, saved: null, wanted: null, running: false, status: 'idle', error: null, rejected: false };
       entries.set(id, found);
     }
     return found;
@@ -85,6 +88,7 @@ export function createSaveQueue({ send, onChange, wait, maxAttempts = 4 }: SaveQ
     e.running = true;
     e.status = 'saving';
     e.error = null;
+    e.rejected = false;
     notify();
 
     try {
@@ -93,6 +97,11 @@ export function createSaveQueue({ send, onChange, wait, maxAttempts = 4 }: SaveQ
         let attempt = 0;
         let done = false;
         while (!done) {
+          if (canSend && !canSend()) {
+            e.status = 'error';
+            e.error = 'O tempo desta prova terminou.';
+            return;
+          }
           attempt += 1;
           let result: SendResult;
           try {
@@ -104,12 +113,14 @@ export function createSaveQueue({ send, onChange, wait, maxAttempts = 4 }: SaveQ
           if (result.ok) {
             e.answerId = result.answerId;
             e.saved = keyOf(snapshot);
+            e.rejected = false;
             done = true;
           } else if (result.transient && attempt < maxAttempts) {
             await (wait ? wait(attempt) : Promise.resolve());
           } else {
             e.status = 'error';
             e.error = result.message;
+            e.rejected = !result.transient;
             return;
           }
         }
@@ -164,6 +175,10 @@ export function createSaveQueue({ send, onChange, wait, maxAttempts = 4 }: SaveQ
     },
     failed(): number[] {
       return [...entries].filter(([, e]) => e.status === 'error').map(([id]) => id);
+    },
+    /** Definitive server refusal, distinct from a retryable network failure. */
+    rejected(): number[] {
+      return [...entries].filter(([, e]) => e.rejected).map(([id]) => id);
     },
     /** Resolves once nothing is in flight. */
     settled(): Promise<void> {

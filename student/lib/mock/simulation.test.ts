@@ -171,7 +171,7 @@ test('o LocalDateTime do mock é a hora do servidor (+01:00), seja qual for o fu
   assert.equal(toLocalDateTime(new Date('2026-10-11T09:30:00Z')), '2026-10-11T10:30:00');
   // Ida e volta: o prazo calculado lê-se de volta no mesmo instante.
   const deadline = deadlineFor('2026-10-11T10:00:00', 1, false);
-  assert.equal(deadline, '2026-10-11T10:01:10');
+  assert.equal(deadline, '2026-10-11T10:03:00');
 });
 
 // ── e2e do cartão «A corrigir» (#788) ──────────────────────────────────────────
