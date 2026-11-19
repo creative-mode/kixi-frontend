@@ -7,18 +7,23 @@ import { AlertTriangle, Bell, Check, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
+import { BASE_PATH } from '@/lib/base-path';
 import { tentarCorrecaoDeNovo } from '@/lib/correcao-actions';
 import { previsaoEmTexto, progressoEmTexto, situacaoDaEspera } from '@/lib/correcao-previsao';
 import { faseDaEspera, passosDaEspera, SEM_SAIDA_MS } from '@/lib/correcao-espera';
+import { passoDepoisDaLeitura } from '@/lib/correcao-polling';
 import { formatScore } from '@/lib/result-rules';
 import type { MotivoDaFalha, ProgressoDoMotor } from '@/lib/schoolops/correcao-rules';
 
 /**
  * A prova entregue ainda está a ser corrigida (kixi#542). Não há erro nem desistência: o ecrã tranquiliza, mostra em que
  * ponto está (entregue, a corrigir, resultado) e diz que o aluno pode sair; o resultado aparece nas provas assim que
- * estiver pronto. Enquanto o ecrã está à vista volta a ler o resultado, cada vez mais devagar, e pára quando está escondido.
+ * estiver pronto. Enquanto o ecrã está à vista volta a ler o estado da correcção, cada vez mais devagar, e pára quando está escondido.
  *
  * `desdeMs`: o tempo que já passou quando o ecrã abre (uma correção que o motor atrasou abre já na fase calma e longa).
+ *
+ * `correcaoId`: quando presente, a espera lê o estado pela rota leve `/api/correcao/status/{id}` em vez de
+ * `router.refresh()` (uma chamada de rede por leitura, resposta em menos de 1 s — #794).
  *
  * Nunca deixa o aluno sem saída (#787): passados 10 minutos, ou logo que o motor recusa o pedido ou a correção fica com um
  * incidente (`falha`), o ecrã mostra a nota das questões fechadas como provisória, diz que as abertas ficam por corrigir
@@ -31,6 +36,7 @@ import type { MotivoDaFalha, ProgressoDoMotor } from '@/lib/schoolops/correcao-r
 export function CorrecaoEmCurso({
   desdeMs = 0,
   simulationId,
+  correcaoId,
   provisoria = null,
   falha,
   abertas = 0,
@@ -39,6 +45,7 @@ export function CorrecaoEmCurso({
 }: {
   desdeMs?: number;
   simulationId: number;
+  correcaoId?: string | null;
   provisoria?: { pontos: number; maximo: number } | null;
   falha?: MotivoDaFalha;
   abertas?: number;
@@ -48,33 +55,85 @@ export function CorrecaoEmCurso({
   const router = useRouter();
   const inicio = useRef(Date.now() - desdeMs);
   const [decorrido, setDecorrido] = useState(desdeMs);
+  const [erroPoll, setErroPoll] = useState<string | null>(null);
 
+  // Polling do estado da correção: rota leve quando há correcaoId (#794), router.refresh() como fallback.
   useEffect(() => {
     if (falha) return; // o motor já disse que não corrige: não há nada para ler; a saída é «Tentar de novo»
     let timer: ReturnType<typeof setTimeout> | undefined;
     let parado = false;
+    let terminou = false;
+    const controller = new AbortController();
+
+    const consultar = async () => {
+      if (parado) return;
+      if (correcaoId) {
+        try {
+          // BASE_PATH: a app serve em /aluno; um fetch do browser não o recebe de graça.
+          const res = await fetch(
+            `${BASE_PATH}/api/correcao/status/${encodeURIComponent(correcaoId)}?simulationId=${simulationId}`,
+            { cache: 'no-store', signal: controller.signal },
+          );
+          if (res.ok) {
+            const data = (await res.json()) as { kind: string };
+            setErroPoll(null);
+            // Se a correção terminou (corrigida, incompleta ou falhou), recarrega a página
+            // uma vez para mostrar o resultado; enquanto "a-corrigir" continua a ler.
+            if (passoDepoisDaLeitura(data.kind) === 'terminar') {
+              // Uma recarga só: para o ciclo e ignora uma leitura que ainda esteja em voo.
+              if (terminou) return;
+              terminou = true;
+              parado = true;
+              clearTimeout(timer);
+              router.refresh();
+              return;
+            }
+          } else if (res.status === 404 || res.status === 403) {
+            // 404/403: a correção não é nossa ou já não existe; não insistir.
+            setErroPoll('Não foi possível confirmar o estado da correcção.');
+            return;
+          } else {
+            // 5xx/503: motor ou backend em baixo; continua a tentar.
+            setErroPoll('O servidor está a demorar a responder.');
+          }
+        } catch (e) {
+          if ((e as Error).name === 'AbortError') return;
+          setErroPoll('Sem ligação ao servidor.');
+        }
+      } else {
+        // Sem correcaoId (ex.: ecrã aberto antes da entrega): recorre ao router.refresh() da página inteira.
+        router.refresh();
+      }
+    };
+
     const passo = () => {
       if (parado) return;
       const agora = Date.now() - inicio.current;
       setDecorrido(agora);
-      // Escondido (outro separador): não gasta leituras; volta a ler quando o aluno regressa.
-      if (!document.hidden) router.refresh();
+      if (!document.hidden) {
+        consultar();
+      }
       timer = setTimeout(passo, faseDaEspera(agora).intervaloMs);
     };
+
     const aoVoltar = () => {
       if (!document.hidden && !parado) {
         clearTimeout(timer);
         passo();
       }
     };
+
+    // Consulta inicial imediata
+    consultar();
     timer = setTimeout(passo, faseDaEspera(Date.now() - inicio.current).intervaloMs);
     document.addEventListener('visibilitychange', aoVoltar);
     return () => {
       parado = true;
+      controller.abort();
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', aoVoltar);
     };
-  }, [router, falha]);
+  }, [router, falha, correcaoId, simulationId]);
 
   const fase = faseDaEspera(decorrido);
   const passos = passosDaEspera();
@@ -175,6 +234,12 @@ export function CorrecaoEmCurso({
       </p>
 
       {fase.conselho ? <p className="max-w-md text-sm text-muted-foreground">{fase.conselho}</p> : null}
+
+      {erroPoll ? (
+        <p role="status" className="max-w-md rounded-lg bg-warning/10 px-4 py-2 text-sm text-warning">
+          {erroPoll}
+        </p>
+      ) : null}
 
       {semSaida ? (
         <Saida simulationId={simulationId} provisoria={provisoria} />

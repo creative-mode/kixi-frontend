@@ -2,8 +2,10 @@ import 'server-only';
 
 import { apiGet } from './api';
 import { getCatalogNames, type Named } from './catalog';
-import { correctionFailed, currentAttempt, formatScore, history, labelOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
-import { getStatementFull } from './exam';
+import { correctionFailed, currentAttempt, history, labelOf, scoreOf, sinceLabel, type Attempt, type AttemptLabel } from './attempt-history';
+import { getStatementFull, listSimulationsResult } from './exam';
+import { marcarNotaDoMotor } from './nota-do-motor';
+import { estadoDaNotaEmPalavras } from './nota-da-simulacao';
 import { isItem } from './question-number';
 import type { PaperQuestion } from './tutor-rules';
 
@@ -44,6 +46,8 @@ export interface AttemptRow {
   /** 'corrected' | 'correcting' | 'unfinished' | 'cancelled' — from `labelOf`, the same rule the card uses. */
   label: AttemptLabel;
   score?: string;
+  /** «A corrigir» / «Correção falhou» quando a tentativa está entregue mas ainda não há nota (#791). */
+  correction?: string;
   since?: string;
   /** A correção falhou: não há nota a chegar pelo sino (#793). */
   failed?: boolean;
@@ -72,10 +76,12 @@ function toRow(attempt: Attempt): AttemptRow {
     id: attempt.id,
     label,
     // Uma nota de zero é uma nota: só a ausente é ausente. E uma tentativa cancelada
-    // nunca tem nota, porque nunca foi corrigida.
-    score: label === 'corrected' ? formatScore(attempt.finalScore) : undefined,
-    since: sinceLabel(attempt.startedAt),
+    // nunca tem nota, porque nunca foi corrigida. Uma livre por corrigir tem a nota
+    // parcial no backend, que não é a nota do resultado (#791): mostra-se o estado.
+    score: scoreOf(attempt),
+    correction: estadoDaNotaEmPalavras(attempt) ?? undefined,
     failed: correctionFailed(attempt),
+    since: sinceLabel(attempt.startedAt),
   };
 }
 
@@ -92,7 +98,7 @@ export async function getStatementDetail(id: number): Promise<StatementDetailRes
 
   const [statement, simulations, names] = await Promise.all([
     apiGet<StatementDetail>(`/statements/${id}`),
-    apiGet<(Attempt & { statement?: { id?: number | null } | null })[]>('/simulations'),
+    listSimulationsResult(),
     getCatalogNames(),
   ]);
 
@@ -121,11 +127,14 @@ export async function getStatementDetail(id: number): Promise<StatementDetailRes
   const mine = Array.isArray(simulations.data)
     ? simulations.data.filter((x) => Number(x.statement?.id) === id)
     : [];
+  // A mesma regra do catálogo: uma livre `DONE` é corrigida pelo motor, e a nota 0–20
+  // só existe no resultado (#820).
+  const marcadas = await marcarNotaDoMotor(mine);
   return {
     kind: 'ok',
     summary,
-    attempts: history(mine).map(toRow),
-    current: mine.length > 0 ? toRow(currentAttempt(mine)!) : null,
+    attempts: history(marcadas).map(toRow),
+    current: marcadas.length > 0 ? toRow(currentAttempt(marcadas)!) : null,
   };
 }
 

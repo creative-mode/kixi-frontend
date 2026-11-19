@@ -3,7 +3,7 @@ import { countLeafQuestions } from './leaf-count';
 import { resolveSchoolId } from './school';
 import * as friends from './friends';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
-import { correctionSummary, deadlineFor, expired, finalScore, gradeAnswer, toLocalDateTime, type MockAnswer, type MockCorrectionStatus, type MockQuestion } from './simulation';
+import { backupOf, correctionSummary, deadlineFor, expired, finalScore, gradeAnswer, openAnswerOf, toLocalDateTime, withPendingReview, withReviewBackup, type MockAnswer, type MockCorrectionStatus, type MockQuestion, type ReviewBackup } from './simulation';
 import crypto from 'node:crypto';
 import { getJwtSecretValue, isMockEnabled } from '../dev-secret';
 import { roomDeadline, type MockParticipant, type MockRoom } from './exam-rooms';
@@ -56,6 +56,33 @@ export function setMockCorrection(simulationId: number, status: string): boolean
   if (!CORRECTION_STATUSES.has(status as MockCorrectionStatus)) return false;
   row.correctionOverride = status as MockCorrectionStatus;
   row.correctedAt = status === 'DONE' ? toLocalDateTime(new Date()) : null;
+  return true;
+}
+
+/** O que estava na resposta aberta antes de o e2e a pôr a aguardar correção. */
+const previousReview = new Map<number, ReviewBackup>();
+
+/** Só para o e2e (#788): põe uma resposta aberta da simulação a aguardar correção (e
+ *  volta a pô-la como estava). O seed da simulação 1 está corrigido (#793), porque é
+ *  ele que faz a nota chegar ao sino; os testes do cartão «A corrigir» precisam do
+ *  mesmo seed no estado anterior, sem o trocar debaixo dos outros testes. */
+export function setMockPendingReview(simulationId: number, pending: boolean): boolean {
+  const db = store();
+  const answers = db.answers.filter((a) => a.simulationId === simulationId);
+  const aberta = openAnswerOf(answers, db.questions);
+  if (!aberta) return false;
+
+  if (!pending) {
+    const antes = previousReview.get(simulationId);
+    if (!antes) return true;
+    const resposta = db.answers.find((a) => a.id === antes.id);
+    if (resposta) Object.assign(resposta, withReviewBackup(resposta, antes));
+    previousReview.delete(simulationId);
+    return true;
+  }
+
+  if (!previousReview.has(simulationId)) previousReview.set(simulationId, backupOf(aberta));
+  Object.assign(aberta, withPendingReview(aberta));
   return true;
 }
 

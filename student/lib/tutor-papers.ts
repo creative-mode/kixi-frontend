@@ -3,6 +3,7 @@ import 'server-only';
 import { listSimulationsResult } from './exam';
 import { getPerformance } from './performance';
 import { recentPapers, reviewPapers, type TutorPaper } from './tutor-papers-rules';
+import { marcarNotaDoMotor } from './nota-do-motor';
 
 /** O que o tutor mostra quando abre sem prova (#491): as últimas provas e as mais fracas. */
 export type TutorLists =
@@ -23,7 +24,7 @@ export async function loadTutorPapers(now = Date.now()): Promise<TutorLists> {
   if (!simulations.ok) {
     return { kind: 'error', status: simulations.status, message: simulations.message };
   }
-  const recent = recentPapers(simulations.data, now);
+  const recent = recentPapers(await marcarNotaDoMotor(simulations.data), now);
   // Uma prova já listada em «últimas» não se repete em «Para rever»: a mesma linha
   // duas vezes no mesmo ecrã parece um erro, não uma prioridade.
   const shown = new Set(recent.map((paper) => paper.statementId));

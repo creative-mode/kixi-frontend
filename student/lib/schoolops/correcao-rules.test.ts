@@ -92,17 +92,6 @@ test('o anel usa a escala da nota (20), nunca a cotação em pontos da prova', (
   assert.equal(escalaDaNota({ escala: -5 }), 20);
 });
 
-import { semNotaDasSimulacoes } from './correcao-rules.ts';
-
-test('a nota das simulações livres sai das outras páginas; a das salas fica', () => {
-  const sims = [{ id: 1, finalScore: 14 }, { id: 2, finalScore: 18 }, { id: '3', finalScore: null }];
-  assert.deepEqual(semNotaDasSimulacoes(sims, [{ simulationId: 2 }]), [{ id: 1, finalScore: null }, { id: 2, finalScore: 18 }, { id: '3', finalScore: null }]);
-});
-
-test('se a lista de salas falhou, não se arrisca: sai a nota de todas', () => {
-  assert.deepEqual(semNotaDasSimulacoes([{ id: 2, finalScore: 18 }], null), [{ id: 2, finalScore: null }]);
-});
-
 test('sem gabarito numa questão aberta diz-se, em vez de culpar a leitura das respostas', () => {
   const v = vistaDaCorrecao({
     correcaoId: 'c',

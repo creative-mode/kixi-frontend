@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, BookOpen, Clock, FileText, History, Play, Target, Users } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronDown, History, Users } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,13 @@ import type { CommunityStats, SharedSolution } from '@/lib/community';
 import type { Named } from '@/lib/catalog';
 
 /** The detail screen: what this paper is, what the student already did with it, and
- *  the ways into it. */
+ *  the ways into it.
+ *
+ *  A ordem segue o que se vem cá fazer (#820): a ação (ver o resultado, continuar, ou
+ *  começar) e as tentativas — com a nota — ficam à vista; a comunidade e o enunciado,
+ *  que são consulta e não decisão, abrem só quando o aluno os pede. Antes disto eram
+ *  quatro cartões e a folha inteira de uma vez, e no telemóvel não se via a nota sem
+ *  rolar duas ecrãs. */
 export function StatementDetailView({
   summary,
   attempts,
@@ -33,10 +39,16 @@ export function StatementDetailView({
   const id = summary.id;
   const duration = summary.durationMinutes;
   const list = attempts ?? [];
+  // Tipo, cotação, duração e escola numa linha: era um cartão de quatro caixas para
+  // dizer o mesmo, e empurrava a nota para fora do primeiro ecrã.
+  // Só o que o cabeçalho ainda não diz: o tipo está no kicker, a escola e o ano na
+  // descrição. Repeti-los era ruído com aparência de informação.
+  const meta = [summary.totalMaxScore != null ? `${summary.totalMaxScore} valores` : null,
+    duration != null ? `${duration} min` : null].filter((item): item is string => Boolean(item)).join(' · ');
 
   return (
     <Page>
-      <Column className="gap-5">
+      <Column>
         <Button asChild variant="ghost" size="sm" className="-ml-2 self-start text-muted-foreground">
           <Link href="/provas"><ArrowLeft aria-hidden />Voltar às provas</Link>
         </Button>
@@ -44,65 +56,36 @@ export function StatementDetailView({
         <PageHeader
           kicker={summary.kind}
           title={summary.title}
-          description={[summary.subject, summary.school, summary.year].filter(Boolean).join(' · ')}
+          // A disciplina às vezes é o próprio título («Redes de Computadores»); repeti-la
+          // logo abaixo fazia a linha parecer um erro.
+          description={[summary.subject !== summary.title ? summary.subject : null, summary.school, summary.year]
+            .filter(Boolean).join(' · ')}
         />
 
-        <Card>
-          <CardHeader><h2 className="text-[17px] leading-none font-bold tracking-tight">Como é esta prova</h2></CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            <Fact icon={FileText} label="Tipo" value={summary.kind} />
-            <Fact icon={Target} label="Cotação" value={summary.totalMaxScore != null ? `${summary.totalMaxScore} valores` : undefined} />
-            <Fact icon={Clock} label="Duração" value={duration != null ? `${duration} min` : undefined} />
-            <Fact icon={Users} label="Escola" value={summary.school} />
-          </CardContent>
-          {/* The question count is not here: neither StatementSummary nor the catalog
-              carries one — it is being added in kixi#178. Fetching /full to count a
-              number would pull the whole paper into the browser for it. */}
+        {meta && <p className="-mt-1 text-[13px] text-muted-foreground">{meta}</p>}
+        {/* The question count is not here: neither StatementSummary nor the catalog
+            carries one — it is being added in kixi#178. Fetching /full to count a
+            number would pull the whole paper into the browser for it. */}
+
+        {/* Uma escolha, não dois cartões: a ação principal e a alternativa lado a lado. */}
+        <Card className="gap-3 p-4">
+          <div className="flex flex-wrap gap-2">
+            {current?.label === 'corrected' || current?.label === 'correcting' ? (
+              <VerResultado simulationId={current.id} variant="default" className="flex-1 sm:flex-none" />
+            ) : (
+              <Button asChild className={`${ACTION_LABEL} flex-1 sm:flex-none`}>
+                <Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar a prova' : 'Começar a simulação'}</Link>
+              </Button>
+            )}
+            <Button asChild variant="outline" className="flex-1 sm:flex-none">
+              <Link href={`/tutor?statementId=${id}`}><BookOpen aria-hidden />Estudar com o tutor</Link>
+            </Button>
+          </div>
+          <p className="text-[13px] leading-snug text-muted-foreground">
+            A simulação segue o tempo do enunciado. O tutor usa esta prova como contexto.
+          </p>
         </Card>
 
-        <Card className="gap-4 p-5">
-          <div>
-            <h2 className="text-[17px] font-bold tracking-tight">Como queres estudar esta prova?</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Podes simular, ou estudar com o tutor a falar desta prova.</p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Card className="gap-3 p-4">
-              <div className="flex items-start gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"><Play aria-hidden /></span>
-                <div className="min-w-0">
-                  <b className="block">Simular</b>
-                  <span className="text-[13px] text-muted-foreground">
-                    {duration != null ? `Fazes a prova em ${duration} minutos, com o tempo do enunciado.` : 'Fazes a prova com o tempo do enunciado.'}
-                  </span>
-                </div>
-              </div>
-              {/* Uma tentativa terminada não abre a sala outra vez (a sala manda-a para o
-                  resultado). Mesmo com a correção por acabar, o resultado é o sítio onde
-                  o aluno vê o ecrã de espera e recebe a nota pelo sino (#793). */}
-              {current?.label === 'corrected' || current?.label === 'correcting' ? (
-                <VerResultado simulationId={current.id} variant="default" className="w-full" />
-              ) : (
-                <Button asChild className={`${ACTION_LABEL} w-full`}>
-                  <Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar' : 'Começar'}</Link>
-                </Button>
-              )}
-            </Card>
-
-            <Card className="gap-3 p-4">
-              <div className="flex items-start gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"><BookOpen aria-hidden /></span>
-                <div className="min-w-0">
-                  <b className="block">Estudo assistido</b>
-                  <span className="text-[13px] text-muted-foreground">Abre o tutor com esta prova como contexto.</span>
-                </div>
-              </div>
-              <Button asChild variant="outline" className="w-full"><Link href={`/tutor?statementId=${id}`}>Abrir o tutor</Link></Button>
-            </Card>
-
-          </div>
-        </Card>
-
-        {community && current && <StatementCommunity statementId={id} simulationId={current.id} stats={community.stats} solutions={community.solutions} schools={community.schools} locked={community.locked} />}
 
         {/* `py-0` no cartão para a lista encostar ao fundo; o cabeçalho é que traz o
             espaço de cima (#761), senão o título ficava colado à borda. */}
@@ -132,13 +115,18 @@ export function StatementDetailView({
                   <li key={a.id} className="flex items-center gap-3.5 px-5 py-3.5">
                     {/* A nota é curta e cabe num círculo; «Em curso» não cabia e
                         transbordava. O estado agora vive num badge, que cresce. */}
-                    {a.label === 'corrected' ? (
-                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-sm font-bold text-success tabular-nums">
-                        {a.score ?? '—'}
+                    {a.label === 'corrected' && a.score != null ? (
+                      <span role="img" aria-label={`Nota ${a.score} valores`}
+                        className="grid size-9 shrink-0 place-items-center rounded-full bg-success-soft text-sm font-bold text-success tabular-nums">
+                        {a.score}
                       </span>
+                    ) : a.label === 'corrected' ? (
+                      // A nota é a do motor (0–20) e só o resultado a mostra (#820): o
+                      // cartão diz que está corrigida e leva lá, em vez de inventar um número.
+                      <Badge variant="secondary">{a.correction ?? 'Corrigida'}</Badge>
                     ) : (
                       <Badge variant={a.label === 'cancelled' ? 'secondary' : 'warning'}>
-                        {a.label === 'cancelled' ? 'Cancelada' : a.label === 'correcting' ? 'A corrigir' : 'Em curso'}
+                        {a.label === 'cancelled' ? 'Cancelada' : a.label === 'correcting' ? (a.failed ? 'Correção falhou' : 'A corrigir') : 'Em curso'}
                       </Badge>
                     )}
                     <div className="min-w-0 flex-1 leading-snug">
@@ -147,7 +135,8 @@ export function StatementDetailView({
                       </b>
                       <span className="text-[13px] text-muted-foreground">
                         {a.since ?? 'sem data'}
-                        {a.label === 'corrected' && a.score != null ? ` · ${a.score} valores` : ''}
+                        {/* A nota já está no círculo: repeti-la aqui só fazia a linha quebrar
+                            no telemóvel. */}
                         {a.label === 'cancelled' ? ' · não foi corrigida' : ''}
                         {/* #793: FAILED quer dizer que o motor não vai corrigir sozinho;
                             prometer a nota pelo sino aqui seria uma mentira. */}
@@ -156,8 +145,9 @@ export function StatementDetailView({
                       </span>
                     </div>
                     {/* Uma tentativa cancelada não tem nada para continuar; uma por corrigir
-                        ainda não tem resultado para ver — a nota aparece no sino (#793). */}
-                    {a.label === 'corrected' && (
+                        ainda não tem resultado para ver — a nota aparece no sino (#793).
+                        A tentativa que já é a ação do topo não repete o botão aqui. */}
+                    {a.label === 'corrected' && a.id !== current?.id && (
                       <VerResultado simulationId={a.id} size="sm" />
                     )}
                     {a.label === 'unfinished' && (
@@ -169,19 +159,29 @@ export function StatementDetailView({
             )}
           </CardContent>
         </Card>
+
+        {/* Consulta, não decisão: as estatísticas abrem a pedido. O componente traz o
+            seu próprio cartão, por isso a divulgação é só a moldura. */}
+        {community && current && (
+          <details className="group rounded-xl border bg-card text-card-foreground">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2.5 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
+              <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="text-[15px] font-bold tracking-tight">Estatísticas da turma</span>
+              <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t p-3 sm:p-4">
+              <StatementCommunity
+                statementId={id}
+                simulationId={current.id}
+                stats={community.stats}
+                solutions={community.solutions}
+                schools={community.schools}
+                locked={community.locked}
+              />
+            </div>
+          </details>
+        )}
       </Column>
     </Page>
-  );
-}
-
-function Fact({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value?: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-lg border px-4 py-3">
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground"><Icon className="size-[18px]" aria-hidden /></span>
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="font-semibold">{value ?? <span className="text-muted-foreground">—</span>}</p>
-      </div>
-    </div>
   );
 }

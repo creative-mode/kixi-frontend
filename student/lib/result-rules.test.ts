@@ -57,6 +57,14 @@ test('o tempo gasto é legível', () => {
   assert.equal(formatDuration(null), null);
 });
 
+test('uma tentativa por corrigir não serve de comparação', () => {
+  const attempts = [
+    { id: 1, status: 'FINISHED', finalScore: 9.5, correctionStatus: 'PENDING' },
+    { id: 2, status: 'FINISHED', finalScore: 14.2, correctionStatus: 'DONE' },
+  ];
+  assert.deepEqual(compareWithPrevious(3, 16.4, attempts), { previousScore: 14.2, delta: 2.2 });
+});
+
 test('compara com a tentativa terminada imediatamente anterior', () => {
   const attempts = [
     { id: 1, status: 'FINISHED', finalScore: 14.2 },
