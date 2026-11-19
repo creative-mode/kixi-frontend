@@ -561,10 +561,13 @@ export function seed(): Store {
       // Tentativa 8: a prova está entregue e a resposta aberta continua por corrigir.
       // As suítes de #801 e #788 precisam de um estado «A corrigir» determinístico;
       // sem esta tentativa, qualquer teste que dependa de PENDING_REVIEW quebra com a #793.
+      // As horas são anteriores às da tentativa 1 (72 h) para esta não ficar no topo de
+      // «Provas entregues»: os testes que continuam a fixar a lista como vinha antes
+      // querem a tentativa 1 à frente.
       {
         id: 8, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4,
-        startedAt: toLocalDateTime(new Date(Date.now() - 6 * 3600 * 1000)),
-        finishedAt: toLocalDateTime(new Date(Date.now() - 5 * 3600 * 1000)),
+        startedAt: toLocalDateTime(new Date(Date.now() - 80 * 3600 * 1000)),
+        finishedAt: toLocalDateTime(new Date(Date.now() - 79 * 3600 * 1000)),
         timeSpentSeconds: 2950,
       },
       // Duas tentativas de outras contas na mesma prova (#119/#32): sem elas a
