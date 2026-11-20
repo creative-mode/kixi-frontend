@@ -150,4 +150,36 @@ test.describe('analítica ligada aos ecrãs (#714)', () => {
     await page.waitForLoadState('networkidle');
     expect(de('login_success'), 'recarregar não repete').toHaveLength(1);
   });
+
+  test('aluno: abrir as pautas pelo menu mede a origem e o tempo dentro da página (#802)', async ({ page }) => {
+    const { de } = await apanharEventos(page, 'all');
+    await page.goto('/aluno/entrar');
+    await page.getByLabel('Utilizador ou email').fill('12345');
+    await page.locator('#password').fill(PASSWORD);
+    await page.getByTestId('aluno-entrar-submeter').click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+    await page.getByRole('button', { name: /Conta de/ }).click();
+    await page.getByRole('menuitem', { name: 'Minhas pautas' }).click();
+    await expect(page).toHaveURL(/\/aluno\/pautas$/);
+    await expect.poll(() => de('pautas_aberta').length).toBe(1);
+    expect(de('pautas_aberta')[0]).toMatchObject({ origem: 'menu-conta' });
+    await expect.poll(() => de('page_view').map((p) => p.page)).toContain('pautas');
+
+    await page.waitForTimeout(1200);
+    await page.locator('nav[aria-label="Principal"]:visible').first().getByRole('link', { name: 'Início' }).click();
+    await expect(page).toHaveURL(/\/aluno\/inicio/);
+    await expect.poll(() => de('pautas_tempo').length).toBe(1);
+    expect(de('pautas_tempo')[0]).toMatchObject({ page: 'pautas', page_referrer: '' });
+    expect(Number(de('pautas_tempo')[0].segundos)).toBeGreaterThanOrEqual(1);
+    expect(de('pautas_tempo'), 'uma visita, um evento').toHaveLength(1);
+
+    // O caminho antigo nas Definições do perfil continua a diferenciar a origem (#802).
+    await page.goto('/aluno/perfil');
+    await page.getByRole('tab', { name: 'Definições' }).click();
+    await page.getByRole('link', { name: /As minhas pautas/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/pautas$/);
+    await expect.poll(() => de('pautas_aberta').length).toBe(2);
+    expect(de('pautas_aberta')[1]).toMatchObject({ origem: 'perfil' });
+  });
 });

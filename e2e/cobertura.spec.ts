@@ -225,3 +225,19 @@ test('aluno: «Doar um enunciado» no cartão de /provas e no menu da conta (#76
   await expect(noMenu).toBeVisible();
   await expect(noMenu).toHaveAttribute('href', /\/doar$/);
 });
+
+test('aluno: «Minhas pautas» no menu da conta abre as pautas (#802)', async ({ page }) => {
+  await page.goto('/aluno/entrar');
+  await page.getByLabel('Utilizador ou email').fill('12345');
+  await page.locator('#password').fill(PASSWORD);
+  await page.getByTestId('aluno-entrar-submeter').click();
+  await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+  await page.getByRole('button', { name: /Conta de/ }).click();
+  const pautas = page.getByRole('menuitem', { name: 'Minhas pautas' });
+  await expect(pautas).toBeVisible();
+  await expect(pautas).toHaveAttribute('href', /\/aluno\/pautas$/);
+  await pautas.click();
+  await expect(page).toHaveURL(/\/aluno\/pautas$/);
+  await expect(page.getByRole('heading', { name: 'As minhas pautas' })).toBeVisible();
+});
