@@ -8,6 +8,7 @@ import { Ico } from '@/components/ui/ico';
 import { DonateLink } from '@/components/donate-link';
 import { UserAvatar } from '@/components/user-avatar';
 import { sairAction } from '@/lib/auth-actions';
+import { track } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 /**
@@ -103,6 +104,19 @@ export function AccountMenu({ name, photo, placement, landingOrigin, subtitle }:
     <>
       <Link role="menuitem" tabIndex={-1} href="/perfil" className={item} onClick={() => setOpen(false)}>
         <Ico name="user" size={22} />O meu perfil
+      </Link>
+      {/* #802: as pautas ficam ao lado do perfil, com origem própria na analítica. */}
+      <Link
+        role="menuitem"
+        tabIndex={-1}
+        href="/pautas"
+        className={item}
+        onClick={() => {
+          track('pautas_aberta', { origem: 'menu-conta' });
+          setOpen(false);
+        }}
+      >
+        <Ico name="award" size={22} />Minhas pautas
       </Link>
       {/* #797: o tutor precisa de entrada própria — chegava-se lá pelos resultados ou pela prova, nunca daqui. */}
       <Link role="menuitem" tabIndex={-1} href="/tutor" className={item} onClick={() => setOpen(false)}>

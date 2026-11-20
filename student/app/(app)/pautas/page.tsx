@@ -1,6 +1,7 @@
 import { Column, Page, PageHeader } from '@/components/page';
 import { EmptyState, ErrorState } from '@/components/states';
 import { PautasView } from '@/components/pautas-view';
+import { PautasTracker } from '@/components/analytics/pautas-tracker';
 import { getMyTermSheets } from '@/lib/pautas';
 
 export const metadata = { title: 'Pautas · Kixi' };
@@ -10,6 +11,7 @@ export default async function PautasPage() {
   const result = await getMyTermSheets();
   return (
     <Page>
+      <PautasTracker />
       <Column>
         <PageHeader title="As minhas pautas" description="As tuas notas de cada trimestre, depois de a escola fechar a pauta." />
         {!result.ok ? (

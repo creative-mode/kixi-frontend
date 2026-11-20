@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEvent, type AnalyticsApp, attributionFromSearch, donationField, donationStep, scrollDepthsReached, signupField } from './analytics.ts';
+import { createAnalyticsQueue, safePageLocation, sanitizeAttribution, sanitizeEvent, type AnalyticsApp, attributionFromSearch, donationField, donationStep, pageForPath, pautasSeconds, scrollDepthsReached, signupField } from './analytics.ts';
 
 test('fila: envia eventos quando gtag está disponível e mantém o schema privado', () => {
   const calls: unknown[][] = [];
@@ -167,6 +167,33 @@ test('cta_clique leva só a origem do CTA da landing (#512), como o CtaLink envi
   }
   assert.equal(sanitizeEvent('cta_clique', { origem: 'footer' }), null);
   assert.equal(sanitizeEvent('cta_click', { surface: 'hero', destination: 'signup' }), null);
+});
+
+test('pautas: abertura leva só a origem conhecida e o tempo leva só segundos inteiros (#802)', () => {
+  assert.deepEqual(sanitizeEvent('pautas_aberta', { origem: 'menu-conta' }), { event: 'pautas_aberta', params: { origem: 'menu-conta' } });
+  assert.deepEqual(sanitizeEvent('pautas_aberta', { origem: 'menu-conta', email: 'ana@example.ao' }), { event: 'pautas_aberta', params: { origem: 'menu-conta' } });
+  assert.equal(sanitizeEvent('pautas_aberta', { origem: 'sidebar' }), null);
+  assert.equal(sanitizeEvent('pautas_aberta'), null);
+  assert.deepEqual(sanitizeEvent('pautas_tempo', { segundos: 42, email: 'ana@example.ao' }), { event: 'pautas_tempo', params: { page: 'pautas', segundos: 42 } });
+  assert.deepEqual(sanitizeEvent('pautas_tempo', { segundos: 42123 }), { event: 'pautas_tempo', params: { page: 'pautas', segundos: 3600 } });
+  assert.equal(sanitizeEvent('pautas_tempo', { segundos: '42' }), null);
+  assert.equal(sanitizeEvent('pautas_tempo', { segundos: Number.NaN }), null);
+  assert.equal(sanitizeEvent('pautas_tempo', { segundos: -5 }), null);
+  assert.deepEqual([0, 0.4, 0.5, 1.5, 7200, Number.POSITIVE_INFINITY].map(pautasSeconds), [0, 0, 1, 2, 3600, 0]);
+});
+
+test('as pautas do aluno são uma página própria no contrato (#802)', () => {
+  assert.equal(pageForPath('student', '/aluno/pautas'), 'pautas');
+  assert.equal(pageForPath('student', '/aluno/pautas/'), 'pautas');
+  assert.equal(safePageLocation('student', 'pautas', 'https://kixi.ao'), 'https://kixi.ao/aluno/pautas');
+  const calls: unknown[][] = [];
+  const queue = createAnalyticsQueue({ hasConsent: () => true, getGtag: () => ((...args: unknown[]) => calls.push(args)), getOrigin: () => 'https://kixi.ao', getPathname: () => '/aluno/inicio?trimestre=1' });
+  // O tempo sai ao navegar para fora: a página tem de continuar a ser as Pautas (kixi#802).
+  assert.equal(queue.track('pautas_tempo', { page: 'pautas', segundos: 12 }), 'sent');
+  const params = calls[0][2] as Record<string, unknown>;
+  assert.equal(params.page, 'pautas');
+  assert.equal(params.page_location, 'https://kixi.ao/aluno/pautas');
+  assert.equal(params.page_referrer, '');
 });
 
 test('scroll_depth só é aceite na landing, como dizem os docs', () => {

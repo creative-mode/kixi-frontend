@@ -799,7 +799,12 @@ test.describe('jornadas críticas do Kixi', () => {
     const perfil = page.getByRole('menuitem', { name: 'O meu perfil' });
     const terminar = page.getByRole('menuitem', { name: 'Terminar sessão' });
     await expect(perfil).toBeFocused();
-    // #797: o tutor ganhou entrada própria — a seguir ao perfil.
+    // #802: as pautas ficam logo a seguir ao perfil e abrem a página do aluno.
+    await page.keyboard.press('ArrowDown');
+    const pautas = page.getByRole('menuitem', { name: 'Minhas pautas' });
+    await expect(pautas).toBeFocused();
+    await expect(pautas).toHaveAttribute('href', /\/aluno\/pautas$/);
+    // #797: o tutor ganhou entrada própria — a seguir às pautas.
     await page.keyboard.press('ArrowDown');
     const tutor = page.getByRole('menuitem', { name: 'Perguntar ao tutor' });
     await expect(tutor).toBeFocused();
@@ -823,6 +828,8 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(doar).toBeFocused();
     await page.keyboard.press('ArrowUp');
     await expect(tutor).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(pautas).toBeFocused();
     await page.keyboard.press('ArrowUp');
     await expect(perfil).toBeFocused();
     await page.keyboard.press('Escape');
