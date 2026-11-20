@@ -1,7 +1,7 @@
 // Testes das regras do plano do trimestre:  node --test lib/term-plans.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { conclusionProblem, daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac } from './term-plans.ts';
+import { conclusionProblem, daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac, statementTargets } from './term-plans.ts';
 import type { PlanDraft, Reminder } from '../types/term-plans.ts';
 
 const draft = (over: Partial<PlanDraft> = {}): PlanDraft => ({
@@ -66,4 +66,12 @@ test('os lembretes vêm com o atraso primeiro e dizem o que fazer', () => {
   assert.deepEqual(remindersFirst(list).map((r) => r.level), ['LATE', 'D14']);
   assert.equal(reminderText(list[1]), 'Montar o enunciado de P1 (A1 · Matemática), 05/11/2026, há 2 dias.');
   assert.equal(planTitle({ className: 'A1', subjectName: 'Matemática', termNumber: 2 }), 'A1 · Matemática · 2.º trimestre');
+});
+
+test('o enunciado pede-se só às provas não dispensadas (kixi#635)', () => {
+  const a = (kind: 'P1' | 'P2', status: 'PLANNED' | 'DISPENSED') => ({ kind, status }) as never;
+  assert.equal(statementTargets({ assessments: [a('P1', 'PLANNED'), a('P2', 'PLANNED')] }), 'da P1 e da P2');
+  assert.equal(statementTargets({ assessments: [a('P1', 'PLANNED'), a('P2', 'DISPENSED')] }), 'da P1');
+  assert.equal(statementTargets({ assessments: [a('P1', 'DISPENSED'), a('P2', 'DISPENSED')] }), 'das provas');
+  assert.equal(conclusionProblem({ assessments: [{ kind: 'P1', status: 'PLANNED', statementId: 1, seq: 1 }, { kind: 'P2', status: 'DISPENSED', statementId: null, seq: 1 }] as never }), null);
 });

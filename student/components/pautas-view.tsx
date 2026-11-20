@@ -1,11 +1,12 @@
 import { TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { formatGrade, groupByTerm, isNegative, processNumberOf, SEM_NOTA, STATUS_LABEL, termLabel, type MyTermSheet, type RowStatus } from '@/lib/pautas-rules';
+import { DISPENSADA, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, processNumberOf, SEM_NOTA, STATUS_LABEL, termLabel, type MyTermSheet, type RowStatus } from '@/lib/pautas-rules';
 
 const VARIANT: Record<RowStatus, 'success' | 'destructive' | 'secondary'> = { POSITIVA: 'success', NEGATIVA: 'destructive', INCOMPLETA: 'secondary' };
 
-function Grade({ value, strong = false }: { value: number | null; strong?: boolean }) {
+function Grade({ value, strong = false, dispensed = false }: { value: number | null; strong?: boolean; dispensed?: boolean }) {
+  if (dispensed) return <span className="text-muted-foreground">{DISPENSADA}</span>;
   if (value === null) return <span className="text-muted-foreground" aria-label="sem nota">{SEM_NOTA}</span>;
   return <span className={strong ? 'font-bold' : undefined}>{formatGrade(value)}</span>;
 }
@@ -51,9 +52,9 @@ export function PautasView({ sheets }: { sheets: MyTermSheet[] }) {
                     <tr key={s.sheetId} className="border-t">
                       <th scope="row" className="px-4 py-2.5 text-left font-medium">{s.subjectName}</th>
                       <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.mac} /></td>
-                      <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.p1} /></td>
-                      <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.p2} /></td>
-                      <td className={`px-2 py-2.5 text-right tabular-nums ${negative ? 'underline decoration-destructive decoration-2 underline-offset-4' : ''}`}><Grade value={s.row.mt} strong /></td>
+                      <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.p1} dispensed={isDispensed(s.row, 'P1')} /></td>
+                      <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.p2} dispensed={isDispensed(s.row, 'P2')} /></td>
+                      <td className={`px-2 py-2.5 text-right tabular-nums ${negative ? 'underline decoration-destructive decoration-2 underline-offset-4' : ''}`}><Grade value={s.row.mt} strong />{mtRuleNote(s.row) ? <span className="block text-xs font-normal text-muted-foreground" data-testid="pautas-mt-regra">{mtRuleNote(s.row)}</span> : null}</td>
                       <td className="px-4 py-2.5">
                         <Badge variant={VARIANT[s.row.status]}>
                           {negative ? <TriangleAlert aria-hidden className="size-3" /> : null}

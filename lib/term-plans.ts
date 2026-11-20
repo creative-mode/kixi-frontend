@@ -84,6 +84,12 @@ export function conclusionProblem(plan: Pick<TermPlan, 'assessments'>): string |
   return `Falta ligar o enunciado: ${nomes.join(', ')}.`;
 }
 
+/** «a P1 e da P2», ou só a que não foi dispensada (kixi#635): a prova dispensada não pede enunciado. */
+export function statementTargets(plan: Pick<TermPlan, 'assessments'>): string {
+  const kinds = (['P1', 'P2'] as const).filter((k) => !plan.assessments.some((a) => a.kind === k && a.status === 'DISPENSED'));
+  return kinds.length === 0 ? 'das provas' : `da ${kinds.join(' e da ')}`;
+}
+
 export function remindersFirst(reminders: readonly Reminder[]): Reminder[] {
   const rank: Record<ReminderLevel, number> = { LATE: 0, D2: 1, D7: 2, D14: 3 };
   return [...reminders].sort((a, b) => rank[a.level] - rank[b.level] || a.plannedDate.localeCompare(b.plannedDate));
