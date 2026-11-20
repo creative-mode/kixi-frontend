@@ -173,5 +173,13 @@ test.describe('analítica ligada aos ecrãs (#714)', () => {
     expect(de('pautas_tempo')[0]).toMatchObject({ page: 'pautas', page_referrer: '' });
     expect(Number(de('pautas_tempo')[0].segundos)).toBeGreaterThanOrEqual(1);
     expect(de('pautas_tempo'), 'uma visita, um evento').toHaveLength(1);
+
+    // O caminho antigo nas Definições do perfil continua a diferenciar a origem (#802).
+    await page.goto('/aluno/perfil');
+    await page.getByRole('tab', { name: 'Definições' }).click();
+    await page.getByRole('link', { name: /As minhas pautas/ }).click();
+    await expect(page).toHaveURL(/\/aluno\/pautas$/);
+    await expect.poll(() => de('pautas_aberta').length).toBe(2);
+    expect(de('pautas_aberta')[1]).toMatchObject({ origem: 'perfil' });
   });
 });

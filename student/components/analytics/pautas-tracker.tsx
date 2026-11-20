@@ -12,15 +12,16 @@ export function PautasTracker() {
   const started = useRef<number | null>(null);
   const accumulated = useRef(0);
   const sent = useRef(false);
+  // O timer tem de viver no ref: no Strict Mode a segunda montagem cancela o fecho da primeira.
+  // Sendo local do efeito, cancelava o timer da segunda closure e o da primeira disparava a 0 s.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    let closeTimer: ReturnType<typeof setTimeout> | undefined;
-
     const open = () => {
       // No Strict Mode a montagem repete-se: o fecho da primeira é cancelado aqui, sem evento.
-      if (closeTimer) {
-        clearTimeout(closeTimer);
-        closeTimer = undefined;
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = undefined;
       }
       if (started.current === null) started.current = performance.now();
     };
@@ -48,7 +49,7 @@ export function PautasTracker() {
       window.removeEventListener('pagehide', finish);
       pause();
       // Na desmontagem real fecha e envia; no Strict Mode o `open()` seguinte cancela este timer.
-      closeTimer = setTimeout(finish, 0);
+      closeTimer.current = setTimeout(finish, 0);
     };
   }, []);
 

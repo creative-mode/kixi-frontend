@@ -14,7 +14,7 @@ As apps gestor, aluno e landing usam o mesmo schema e a mesma fila em memória, 
 - Login do aluno: o destino leva `?entrou=1` (`lib/auth-actions.ts`) e o layout dispara `login_success` com `FireEventOnce`, que tira o marcador do endereço. O marcador sai sempre, mesmo sem consentimento: um login feito antes de aceitar os cookies não fica registado (o mesmo vale para os outros marcadores do `FireEventOnce`, como o `sign_up`).
 - Doação (`landing/components/donate/DonationForm.tsx`): `donation_started` à primeira interação (campo, ficheiro ou colar), `donation_step` ao avançar de ecrã, `donation_error` com o ecrã, a categoria e o primeiro campo inválido desse ecrã.
 - Sala de prova: `exam_abandoned` só no «Sair» do aviso de saída.
-- **Pautas (#802):** o clique em «Minhas pautas» no menu da conta envia `pautas_aberta` com a origem; a página `/aluno/pautas` monta `PautasTracker`, que envia um `pautas_tempo` com os segundos de ecrã visível ao sair da rota ou ao fechar a página. Só conta o tempo com o documento visível: mudar de separador pausa o relógio e voltar retoma-o.
+- **Pautas (#802):** o clique em «Minhas pautas» no menu da conta ou em «As minhas pautas» nas Definições do perfil envia `pautas_aberta` com a origem; a página `/aluno/pautas` monta `PautasTracker`, que envia um `pautas_tempo` com os segundos de ecrã visível ao sair da rota ou ao fechar a página. Só conta o tempo com o documento visível: mudar de separador pausa o relógio e voltar retoma-o.
 - **O gestor não mede:** não tem banner nem carregador de GA, por isso lá `track` devolve sempre `denied`. `login_success` e `page_view` do gestor ficam no contrato para o dia em que se decidir medir, com banner próprio.
 
 **Limite da proteção automática:** `send_page_view: false` desliga o page view da configuração inicial (o `page_view` é o explícito do `PageViewTracker`), mas não desliga a medição melhorada de alterações no histórico do browser da propriedade GA4. Para garantir que o GA4 não cria page views automáticos em `pushState`, `replaceState` ou `popstate`, a opção **Page changes based on browser history events** deve estar desativada na propriedade (Admin → Data streams → Web stream → Enhanced measurement → Page views → configurações). Esta configuração pertence ao GA4 e não é verificável nem garantida por este repositório. O código dá contexto de página canónico em cada navegação (`setSafePageContext`) como defesa adicional; a validação final deve confirmar a opção externa e inspecionar as requisições GA4 no ambiente publicado.
@@ -40,7 +40,7 @@ Quando o consentimento não está ativo (`necessary` ou nulo), o contexto global
 - `scroll_depth`: cada limiar (25, 50, 75, 100) uma vez por montagem da página, medido só em eventos de scroll.
 - `signup_started` e `donation_started`: uma vez por formulário («Doar outro enunciado» recomeça). Só contam feitos quando `track` os aceita: quem preenche antes de aceitar os cookies emite o início na interação seguinte, e o funil não fica com passos sem começo.
 - `error_view`: uma vez por montagem da página de erro.
-- `pautas_aberta`: uma por clique na entrada do menu da conta.
+- `pautas_aberta`: uma por clique na entrada do menu da conta ou no caminho das Definições do perfil; `origem` distingue os dois.
 - `pautas_tempo`: uma por visita a `/aluno/pautas`, enviada ao sair; o Strict Mode e as mudanças de visibilidade não duplicam nem reiniciam o contador.
 
 A reabertura das definições (consentimento a nulo) desativa imediatamente a medição; eventos já na fila são descartados e não são reenviados ao reaceitar.
@@ -104,7 +104,7 @@ desligada.
 | `exam_room_joined` | Aluno, entrada confirmada numa sala | `origem`: `inicio\|provas` (ausente quando a entrada não veio de nenhum dos dois ecrãs) |
 | `onboarding_completed` | Aluno, matrícula concluída | Sem parâmetros |
 | `tutor_used` | Aluno, primeira utilização do tutor na sessão | Sem parâmetros |
-| `pautas_aberta` | Aluno, clique em «Minhas pautas» no menu da conta (#802) | `origem`: `menu-conta` |
+| `pautas_aberta` | Aluno, clique em «Minhas pautas» no menu da conta ou em «As minhas pautas» nas Definições do perfil (#802) | `origem`: `menu-conta\|perfil` |
 | `pautas_tempo` | Aluno, ao sair da página das Pautas (#802) | `page`: `pautas`; `segundos`: inteiro de 0 a 3600, arredondado e limitado a uma hora |
 
 ## Exemplos
@@ -114,7 +114,7 @@ track('cta_clique', { origem: 'header' });
 track('signup_error', { field: 'email', category: 'validation' });
 track('donation_error', { step: 'statement', category: 'file_validation', field: 'files' });
 track('error_view', { app: 'student', kind: 'unexpected' });
-track('pautas_aberta', { origem: 'menu-conta' });
+track('pautas_aberta', { origem: 'menu-conta' }); // ou { origem: 'perfil' }
 track('pautas_tempo', { segundos: 42 });
 ```
 

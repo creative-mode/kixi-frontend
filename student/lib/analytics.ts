@@ -60,8 +60,8 @@ const CTA_ORIGENS = ['header', 'outro', 'faq', 'hero', 'provas', 'provas-empty',
 const DONATION_STEPS = ['statement', 'origin', 'contact'] as const;
 /** De onde se entrou numa sala de prova (#795): o bloco do Início ou a aba das salas. */
 const ROOM_ORIGENS = ['inicio', 'provas'] as const;
-/** De onde se abriram as Pautas (#802): por agora só a entrada do menu da conta. */
-const PAUTAS_ORIGENS = ['menu-conta'] as const;
+/** De onde se abriram as Pautas (#802): a entrada nova do menu da conta e o caminho antigo do perfil. */
+const PAUTAS_ORIGENS = ['menu-conta', 'perfil'] as const;
 /** Um máximo de uma hora por visita, para um evento não ficar com um valor desproporcional. */
 const PAUTAS_MAX_SEGUNDOS = 3600;
 

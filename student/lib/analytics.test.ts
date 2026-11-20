@@ -172,6 +172,7 @@ test('cta_clique leva só a origem do CTA da landing (#512), como o CtaLink envi
 test('pautas: abertura leva só a origem conhecida e o tempo leva só segundos inteiros (#802)', () => {
   assert.deepEqual(sanitizeEvent('pautas_aberta', { origem: 'menu-conta' }), { event: 'pautas_aberta', params: { origem: 'menu-conta' } });
   assert.deepEqual(sanitizeEvent('pautas_aberta', { origem: 'menu-conta', email: 'ana@example.ao' }), { event: 'pautas_aberta', params: { origem: 'menu-conta' } });
+  assert.deepEqual(sanitizeEvent('pautas_aberta', { origem: 'perfil' }), { event: 'pautas_aberta', params: { origem: 'perfil' } });
   assert.equal(sanitizeEvent('pautas_aberta', { origem: 'sidebar' }), null);
   assert.equal(sanitizeEvent('pautas_aberta'), null);
   assert.deepEqual(sanitizeEvent('pautas_tempo', { segundos: 42, email: 'ana@example.ao' }), { event: 'pautas_tempo', params: { page: 'pautas', segundos: 42 } });
