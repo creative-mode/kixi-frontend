@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { SectionState } from '@/components/dashboard/section-state';
-import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, conclusionProblem, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac } from '@/lib/term-plans';
+import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, conclusionProblem, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac, statementTargets } from '@/lib/term-plans';
 import type { Section } from '@/types/analytics';
 import type { Assessment, PlanDraft, TermPlan } from '@/types/term-plans';
 
@@ -194,7 +194,7 @@ function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: A
           </div>
         </div>
         <CardDescription>
-          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? 'Agendamento concluído: a pauta abre em instantes.' : 'Ligue o enunciado da P1 e da P2 e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.'}
+          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? 'Agendamento concluído: a pauta abre em instantes.' : `Ligue o enunciado ${statementTargets(plan)} e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

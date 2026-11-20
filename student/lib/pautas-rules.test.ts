@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { averageOf, formatGrade, groupByTerm, isNegative, processNumberOf, SEM_NOTA, type MyTermSheet } from './pautas-rules.ts';
+import { averageOf, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, provaText, processNumberOf, SEM_NOTA, type MyTermSheet } from './pautas-rules.ts';
 
 const sheet = (over: Partial<MyTermSheet> & { mt?: number | null }): MyTermSheet => ({
   sheetId: 'PT-1', termNumber: 1, schoolYear: '2025/2026', subjectName: 'Redes', subjectCode: 'RED', className: '12B',
@@ -38,4 +38,20 @@ test('o número de processo mostra-se uma vez: o primeiro que existir, aparado, 
   assert.equal(processNumberOf([{ processNumber: null }, { processNumber: ' P-2026/0042 ' }, { processNumber: 'outro' }]), 'P-2026/0042');
   assert.equal(processNumberOf([{ processNumber: null }, {}, { processNumber: '  ' }]), null);
   assert.equal(processNumberOf([]), null);
+});
+
+test('prova dispensada mostra «Dispensada», não travessão nem zero; sem o campo nada é dispensado', () => {
+  const row = { mac: 14, p1: 13, p2: null, mt: 14, status: 'POSITIVA' as const, dispensed: ['P2' as const] };
+  assert.equal(isDispensed(row, 'P2'), true);
+  assert.equal(provaText(row, 'P2'), 'Dispensada');
+  assert.equal(provaText(row, 'P1'), '13');
+  assert.equal(provaText({ ...row, dispensed: undefined }, 'P2'), SEM_NOTA);
+  assert.equal(provaText({ ...row, dispensed: [] }, 'P2'), SEM_NOTA);
+});
+
+test('a nota da MT diz que foi calculada sem a prova dispensada', () => {
+  assert.equal(mtRuleNote({ dispensed: ['P1'] }), 'MT calculada sem a P1 (dispensada).');
+  assert.equal(mtRuleNote({ dispensed: ['P1', 'P2'] }), 'MT calculada sem a P1 e a P2 (dispensada).');
+  assert.equal(mtRuleNote({ dispensed: [] }), null);
+  assert.equal(mtRuleNote({}), null);
 });

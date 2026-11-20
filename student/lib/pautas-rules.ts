@@ -12,7 +12,31 @@ export interface MyTermSheet {
   className: string;
   /** O número de processo do aluno na escola (kixi#512); ausente ou nulo quando a escola não o tem. */
   processNumber?: string | null;
-  row: { mac: number | null; p1: number | null; p2: number | null; mt: number | null; status: RowStatus };
+  row: { mac: number | null; p1: number | null; p2: number | null; mt: number | null; status: RowStatus; dispensed?: ProvaDispensavel[] | null };
+}
+
+/** As provas que a escola pode dispensar (kixi#635): nelas a nota nula é «sem nota, sem falta», e não ausência. */
+export type ProvaDispensavel = 'P1' | 'P2';
+
+/** A prova foi dispensada nesta pauta? Campo ausente (backend anterior ao kixi#635) = nenhuma dispensada. */
+export const isDispensed = (row: Pick<MyTermSheet['row'], 'dispensed'>, prova: ProvaDispensavel): boolean => !!row.dispensed?.includes(prova);
+
+export const DISPENSADA = 'Dispensada';
+
+/**
+ * A nota de uma prova na linha do aluno: «Dispensada» quando a escola a dispensou (mesmo com nota nula), o valor quando
+ * existe, e o travessão quando falta. Dispensada não é falta nem zero.
+ */
+export function provaText(row: MyTermSheet['row'], prova: ProvaDispensavel): string {
+  if (isDispensed(row, prova)) return DISPENSADA;
+  return formatGrade(prova === 'P1' ? row.p1 : row.p2);
+}
+
+/** Nota sobre o cálculo da MT quando há prova dispensada; `null` quando a MT usa as duas provas. */
+export function mtRuleNote(row: Pick<MyTermSheet['row'], 'dispensed'>): string | null {
+  const dispensed = (['P1', 'P2'] as const).filter((p) => isDispensed(row, p));
+  if (dispensed.length === 0) return null;
+  return `MT calculada sem a ${dispensed.join(' e a ')} (dispensada).`;
 }
 
 /** O número de processo do trimestre: o mesmo em todas as pautas da mesma escola, por isso mostra-se uma vez (kixi#512). */
