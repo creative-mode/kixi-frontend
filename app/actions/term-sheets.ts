@@ -5,7 +5,7 @@ import { API_BASE } from '@/lib/constants';
 import { apiFetch } from '@/lib/mock/fetch';
 import { TIMEOUT_MESSAGE, isTimeout, timeoutSignal, withDeadline } from '@/lib/timeout';
 import type { Section } from '@/types/analytics';
-import { isUnavailableStatus, parseDetail, SHEET_ID, SHEET_UNAVAILABLE } from '@/lib/term-sheets';
+import { isUnavailableStatus, parseDetail, parseList, SHEET_ID, SHEET_UNAVAILABLE } from '@/lib/term-sheets';
 import { exportableAssessments } from '@/lib/term-sheet-export';
 import { resolveSheetPlan } from '@/lib/term-sheet-export.server';
 import type { SheetExports, TermSheetDetail, TermSheetSummary } from '@/types/term-sheets';
@@ -42,7 +42,7 @@ async function section<T>(path: string, unavailableIs403Or404 = false, map: (bod
 
 /** As pautas que o utilizador pode ver: o backend decide (ADMIN todas, o professor as das suas turmas e disciplinas). */
 export async function listTermSheets(): Promise<Section<TermSheetSummary[]>> {
-  return section<TermSheetSummary[]>('');
+  return section<TermSheetSummary[]>('', false, parseList);
 }
 
 /** Uma pauta com as linhas por aluno. */

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { averageOf, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, provaText, processNumberOf, SEM_NOTA, type MyTermSheet } from './pautas-rules.ts';
+import { averageOf, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, normalizeMySheet, parseMyTermSheets, provaText, processNumberOf, SEM_NOTA, subjectLabel, termLabel, type MyTermSheet } from './pautas-rules.ts';
 
 const sheet = (over: Partial<MyTermSheet> & { mt?: number | null }): MyTermSheet => ({
   sheetId: 'PT-1', termNumber: 1, schoolYear: '2025/2026', subjectName: 'Redes', subjectCode: 'RED', className: '12B',
@@ -54,4 +54,37 @@ test('a nota da MT diz que foi calculada sem a prova dispensada', () => {
   assert.equal(mtRuleNote({ dispensed: ['P1', 'P2'] }), 'MT calculada sem a P1 e a P2 (dispensada).');
   assert.equal(mtRuleNote({ dispensed: [] }), null);
   assert.equal(mtRuleNote({}), null);
+});
+
+// Uma pauta incompleta (só o id) também pode chegar ao aluno: a página nunca pode cair por causa dela.
+const INCOMPLETA = { sheetId: 'PT-X', termNumber: null, schoolYear: null, subjectName: null, subjectCode: null, className: null, row: null } as never;
+
+test('uma pauta com campos nulos agrupa e ordena sem rebentar, e fica no fim', () => {
+  const grupos = groupByTerm([INCOMPLETA, sheet({ sheetId: 'A', termNumber: 2 }), sheet({ sheetId: 'B', termNumber: 1 })]);
+  assert.deepEqual(grupos.map((g) => g.termNumber), [1, 2, 0]);
+  assert.equal(grupos[2].average, null);
+  assert.equal(termLabel(0), 'Sem trimestre');
+  assert.equal(termLabel(2), '2.º trimestre');
+});
+
+test('as disciplinas do mesmo trimestre ordenam-se por nome, com desempate estável pelo id e «Sem disciplina» para o nulo', () => {
+  const g = groupByTerm([sheet({ sheetId: 'Z', subjectName: 'Redes' }), { sheetId: 'PT-X', termNumber: 1, schoolYear: '2025/2026', subjectName: null, row: null } as never, sheet({ sheetId: 'A', subjectName: 'Redes' })])[0];
+  assert.deepEqual(g.sheets.map((x) => x.sheetId).slice(0, 2), ['A', 'Z']);
+  assert.equal(subjectLabel(g.sheets[2]), 'Sem disciplina');
+});
+
+test('a normalização dá à linha em falta «sem nota» e «Incompleta», nunca zero', () => {
+  const n = normalizeMySheet(INCOMPLETA)!;
+  assert.deepEqual([n.row.mac, n.row.p1, n.row.p2, n.row.mt], [null, null, null, null]);
+  assert.equal(n.row.status, 'INCOMPLETA');
+  assert.equal(n.schoolYear, '');
+  assert.equal(averageOf([n]), null);
+});
+
+test('a lista do aluno descarta o que não é pauta e mantém as completas intactas', () => {
+  const completa = sheet({ row: { mac: 14, p1: 13, p2: null, mt: 14, status: 'POSITIVA', dispensed: ['P2'] } });
+  const l = parseMyTermSheets([null, {}, completa, INCOMPLETA]);
+  assert.equal(l.length, 2);
+  assert.deepEqual(l[0], completa);
+  assert.throws(() => parseMyTermSheets({ x: 1 }), /inválida/);
 });

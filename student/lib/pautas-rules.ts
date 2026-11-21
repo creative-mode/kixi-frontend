@@ -56,7 +56,54 @@ export const isNegative = (mt: number | null | undefined): boolean => mt !== nul
 
 export const STATUS_LABEL: Record<RowStatus, string> = { POSITIVA: 'Positiva', NEGATIVA: 'Negativa', INCOMPLETA: 'Incompleta' };
 
-export const termLabel = (n: number) => `${n}.º trimestre`;
+export const SEM_TRIMESTRE = 'Sem trimestre';
+export const SEM_DISCIPLINA = 'Sem disciplina';
+export const SEM_ANO_LETIVO = 'Sem ano letivo';
+
+/** «2.º trimestre»; sem número (pauta incompleta) diz-se «Sem trimestre», nunca «0.º» nem «null.º». */
+export const termLabel = (n: number | null | undefined) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? `${n}.º trimestre` : SEM_TRIMESTRE);
+export const schoolYearLabel = (y: string | null | undefined) => y?.trim() || SEM_ANO_LETIVO;
+export const subjectLabel = (s: Pick<MyTermSheet, 'subjectName'>) => s.subjectName?.trim() || SEM_DISCIPLINA;
+
+const text = (v: unknown): string => (typeof v === 'string' ? v : '');
+const nullableNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const ROW_STATUSES: readonly RowStatus[] = ['POSITIVA', 'NEGATIVA', 'INCOMPLETA'];
+
+/**
+ * Uma pauta com campos em falta (o motor aceita-as) não pode deitar a página abaixo: o que falta fica neutro (texto vazio, trimestre 0,
+ * sem nota, «Incompleta») e os rótulos acima dizem-no por palavras. Sem `sheetId` não é uma pauta: `null`. Idempotente.
+ */
+export function normalizeMySheet(raw: unknown): MyTermSheet | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const sheetId = text(r.sheetId).trim();
+  if (!sheetId) return null;
+  const row = (r.row && typeof r.row === 'object' ? r.row : {}) as Record<string, unknown>;
+  const dispensed = Array.isArray(row.dispensed) ? row.dispensed.filter((p): p is ProvaDispensavel => p === 'P1' || p === 'P2') : undefined;
+  return {
+    sheetId,
+    termNumber: typeof r.termNumber === 'number' && Number.isFinite(r.termNumber) ? r.termNumber : 0,
+    schoolYear: text(r.schoolYear),
+    subjectName: text(r.subjectName),
+    subjectCode: text(r.subjectCode),
+    className: text(r.className),
+    ...(typeof r.processNumber === 'string' ? { processNumber: r.processNumber } : {}),
+    row: {
+      mac: nullableNum(row.mac),
+      p1: nullableNum(row.p1),
+      p2: nullableNum(row.p2),
+      mt: nullableNum(row.mt),
+      status: ROW_STATUSES.includes(row.status as RowStatus) ? (row.status as RowStatus) : 'INCOMPLETA',
+      ...(dispensed ? { dispensed } : {}),
+    },
+  };
+}
+
+/** `GET /me/term-sheets`: lista de pautas normalizadas; o que não é pauta fica de fora. Lança se não for uma lista. */
+export function parseMyTermSheets(body: unknown): MyTermSheet[] {
+  if (!Array.isArray(body)) throw new Error('Resposta das pautas inválida.');
+  return body.map(normalizeMySheet).filter((s): s is MyTermSheet => s !== null);
+}
 
 export type TermGroup = { key: string; schoolYear: string; termNumber: number; sheets: MyTermSheet[]; average: number | null };
 
@@ -67,7 +114,8 @@ export function averageOf(sheets: readonly MyTermSheet[]): number | null {
 }
 
 /** Os trimestres, o ano mais recente primeiro e dentro dele por ordem; as disciplinas por nome. */
-export function groupByTerm(list: readonly MyTermSheet[]): TermGroup[] {
+export function groupByTerm(raw: readonly MyTermSheet[]): TermGroup[] {
+  const list = raw.map(normalizeMySheet).filter((s): s is MyTermSheet => s !== null);
   const groups = new Map<string, TermGroup>();
   for (const s of list) {
     const key = `${s.schoolYear}|${s.termNumber}`;
@@ -76,6 +124,15 @@ export function groupByTerm(list: readonly MyTermSheet[]): TermGroup[] {
     groups.set(key, g);
   }
   return [...groups.values()]
-    .map((g) => ({ ...g, sheets: [...g.sheets].sort((a, b) => a.subjectName.localeCompare(b.subjectName, 'pt')), average: averageOf(g.sheets) }))
-    .sort((a, b) => b.schoolYear.localeCompare(a.schoolYear) || a.termNumber - b.termNumber);
+    .map((g) => ({
+      ...g,
+      sheets: [...g.sheets].sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b), 'pt') || a.sheetId.localeCompare(b.sheetId)),
+      average: averageOf(g.sheets),
+    }))
+    .sort((a, b) => {
+      // Sem ano ou sem trimestre vai para o fim; o resto: ano mais recente primeiro, depois o trimestre; a chave desempata.
+      if (a.schoolYear !== b.schoolYear) return !a.schoolYear ? 1 : !b.schoolYear ? -1 : b.schoolYear.localeCompare(a.schoolYear);
+      if (a.termNumber !== b.termNumber) return !a.termNumber ? 1 : !b.termNumber ? -1 : a.termNumber - b.termNumber;
+      return a.key.localeCompare(b.key);
+    });
 }

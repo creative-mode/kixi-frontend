@@ -1,7 +1,7 @@
 // Regras de apresentação das pautas:  node --test lib/term-sheets.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyFilters, filterOptions, formatGrade, isNegative, isUnavailableStatus, NO_FILTERS, parseDetail, sheetTitle, SEM_NOTA, wasAbsent } from './term-sheets.ts';
+import { applyFilters, classLabel, filterOptions, formatGrade, isFinal, isNegative, isUnavailableStatus, NO_FILTERS, normalizeRow, normalizeSummary, parseDetail, parseList, schoolYearLabel, sheetTitle, SEM_NOTA, subjectLabel, termLabel, wasAbsent } from './term-sheets.ts';
 
 const sheet = (over: Record<string, unknown>) => ({
   sheetId: 'PT-1', status: 'FECHADA', termNumber: 1, schoolYear: '2025/2026', classId: 1, className: 'M', grade: 12, course: 'SI',
@@ -70,4 +70,71 @@ test('403 e 404 da pauta são o mesmo caso para o ecrã; o resto não', () => {
   assert.equal(isUnavailableStatus(403), true);
   assert.equal(isUnavailableStatus(404), true);
   for (const s of [200, 401, 500]) assert.equal(isUnavailableStatus(s), false);
+});
+
+// O payload real da vaga 1C: o motor aceita (200) uma pauta registada só com o `classId`, e o ADMIN vê-a na lista.
+const SO_CLASS_ID = { sheetId: 'E2E-1A-FUZZ', classId: 1, status: null, termNumber: null, schoolYear: null, className: null, grade: null, course: null, subjectId: null, subjectName: null, subjectCode: null, statistics: null, updatedAt: null, institutionId: null } as never;
+
+test('uma pauta só com classId não rebenta a ordenação nem as opções, e fica no fim da lista', () => {
+  const lista = [SO_CLASS_ID, sheet({ sheetId: 'B', termNumber: 2 }), sheet({ sheetId: 'A', termNumber: 1 })];
+  assert.deepEqual(applyFilters(lista, NO_FILTERS).map((s) => s.sheetId), ['A', 'B', 'E2E-1A-FUZZ']);
+  const o = filterOptions(lista);
+  assert.deepEqual(o.schoolYears, ['2025/2026']);
+  assert.deepEqual(o.terms, [1, 2]);
+  assert.ok(o.subjects.every((s) => s.label.length > 0));
+  assert.ok(o.classes.every((c) => !/null|undefined|NaN/.test(c.label)));
+});
+
+test('a ordenação é determinística: com todos os campos nulos desempata pelo id, seja qual for a ordem de entrada', () => {
+  const nulas = ['Z', 'M', 'A'].map((id) => ({ sheetId: id, classId: 1 }) as never);
+  assert.deepEqual(applyFilters(nulas, NO_FILTERS).map((s) => s.sheetId), ['A', 'M', 'Z']);
+  assert.deepEqual(applyFilters([...nulas].reverse(), NO_FILTERS).map((s) => s.sheetId), ['A', 'M', 'Z']);
+});
+
+test('a normalização dá texto legível a cada campo em falta, sem null, undefined nem NaN', () => {
+  const s = normalizeSummary(SO_CLASS_ID)!;
+  assert.equal(s.sheetId, 'E2E-1A-FUZZ');
+  assert.equal(subjectLabel(s), 'Sem disciplina');
+  assert.equal(termLabel(s.termNumber), 'Sem trimestre');
+  assert.equal(schoolYearLabel(s.schoolYear), 'Sem ano letivo');
+  assert.equal(classLabel(s), 'Sem turma');
+  assert.equal(sheetTitle(s), 'Sem disciplina · Sem turma · Sem trimestre');
+  assert.equal(formatGrade(s.statistics.media), SEM_NOTA);
+  assert.equal(s.statistics.avaliados, 0);
+  assert.equal(isFinal(s), false);
+  assert.doesNotMatch(sheetTitle(SO_CLASS_ID), /null|undefined|NaN/);
+});
+
+test('a normalização é idempotente e não mexe numa pauta completa', () => {
+  const completa = sheet({});
+  assert.deepEqual(normalizeSummary(completa), completa);
+  assert.deepEqual(normalizeSummary(normalizeSummary(SO_CLASS_ID)), normalizeSummary(SO_CLASS_ID));
+});
+
+test('a lista descarta o que não é uma pauta (sem id) e normaliza o resto', () => {
+  const l = parseList([null, 3, {}, { sheetId: '' }, { sheetId: 'X', classId: 4 }, sheet({ sheetId: 'OK' })]);
+  assert.deepEqual(l.map((s) => s.sheetId), ['X', 'OK']);
+  assert.throws(() => parseList({ not: 'a list' }), /inválida/);
+});
+
+test('o detalhe também tolera um resumo incompleto', () => {
+  const d = parseDetail({ sheet: { sheetId: 'E2E-1A-FUZZ', classId: 1, statistics: null }, rows: [] });
+  assert.equal(subjectLabel(d), 'Sem disciplina');
+  assert.equal(d.statistics.positivas, 0);
+});
+
+test('o rótulo de um trimestre válido mantém-se', () => {
+  assert.equal(termLabel(2), '2.º trimestre');
+  assert.equal(schoolYearLabel('2025/2026'), '2025/2026');
+  assert.equal(classLabel(sheet({})), '12.ª M · SI');
+});
+
+test('as linhas incompletas ficam sem nota (nunca zero) e as que não são objectos caem', () => {
+  const d = parseDetail({ sheet: sheet({}), rows: [null, 'x', { accountId: 7 }, { accountId: 8, number: 2, name: 'Rui', mt: 12, status: 'POSITIVA', adjusted: true }] });
+  assert.equal(d.rows.length, 2);
+  assert.deepEqual([d.rows[0].mac, d.rows[0].p1, d.rows[0].p2, d.rows[0].mt], [null, null, null, null]);
+  assert.equal(d.rows[0].status, 'INCOMPLETA');
+  assert.equal(d.rows[0].name, 'Aluno sem nome');
+  assert.equal(d.rows[1].adjusted, true);
+  assert.equal(normalizeRow(null), null);
 });

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { SectionState } from '@/components/dashboard/section-state';
-import { applyFilters, filterOptions, formatGrade, isFinal, NO_FILTERS, SHEET_STATUS_LABEL, sheetTitle, termLabel, type SheetFilters } from '@/lib/term-sheets';
+import { applyFilters, classLabel, filterOptions, formatGrade, isFinal, NO_FILTERS, schoolYearLabel, SHEET_STATUS_LABEL, sheetTitle, subjectLabel, termLabel, type SheetFilters } from '@/lib/term-sheets';
 import type { Section } from '@/types/analytics';
 import { exportBlockedReason, isProvisional } from '@/lib/term-sheet-export';
 import type { SheetExports, TermSheetDetail, TermSheetSummary } from '@/types/term-sheets';
@@ -144,8 +144,8 @@ export function TermSheetsView({ canExport = false }: { canExport?: boolean }) {
                     className="flex w-full flex-col gap-3 rounded-lg text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
                     <CardHeader className="w-full">
-                      <CardTitle className="text-base">{s.subjectName}</CardTitle>
-                      <CardDescription>{s.grade}.ª {s.className} · {s.course} · {termLabel(s.termNumber)} · {s.schoolYear}</CardDescription>
+                      <CardTitle className="text-base">{subjectLabel(s)}</CardTitle>
+                      <CardDescription>{classLabel(s)} · {termLabel(s.termNumber)} · {schoolYearLabel(s.schoolYear)}</CardDescription>
                     </CardHeader>
                     <CardContent className="flex w-full flex-wrap items-center justify-between gap-2 text-sm">
                       <Badge variant={isFinal(s) ? 'success' : s.status === 'ANULADA' ? 'destructive' : 'warning'}>{SHEET_STATUS_LABEL[s.status]}</Badge>
@@ -180,7 +180,7 @@ export function TermSheetsView({ canExport = false }: { canExport?: boolean }) {
                   <div>
                     <h2 className="text-xl leading-tight text-foreground">{sheetTitle(d)}</h2>
                     <p className="text-sm text-muted-foreground">
-                      {d.course} · {d.schoolYear} · {SHEET_STATUS_LABEL[d.status]}
+                      {d.course || classLabel(d)} · {schoolYearLabel(d.schoolYear)} · {SHEET_STATUS_LABEL[d.status]}
                       {d.status === 'REGISTADA' ? ' (ainda não homologada)' : ''}
                     </p>
                   </div>
