@@ -84,6 +84,17 @@ export function conclusionProblem(plan: Pick<TermPlan, 'assessments'>): string |
   return `Falta ligar o enunciado: ${nomes.join(', ')}.`;
 }
 
+/**
+ * O que o cartão diz de um plano com o agendamento concluído e a pauta ainda por abrir. Reagendar a P1 ou a P2 apaga a ligação
+ * ao enunciado (o backend limpa-a): o plano continua «concluído», mas a pauta não abre sem o enunciado, e o texto antigo
+ * («abre em instantes») ficava a prometer o que não vai acontecer. `null` quando o plano não está nesse estado.
+ */
+export function schedulingNote(plan: Pick<TermPlan, 'schedulingConcluded' | 'pautaOpened' | 'assessments'>): string | null {
+  if (!plan.schedulingConcluded || plan.pautaOpened) return null;
+  const falta = conclusionProblem(plan);
+  return falta ? `Agendamento concluído, mas a pauta ainda não pode abrir. ${falta} Volte a ligá-lo (e a sala, se for o caso).` : 'Agendamento concluído: a pauta abre em instantes.';
+}
+
 /** «a P1 e da P2», ou só a que não foi dispensada (kixi#635): a prova dispensada não pede enunciado. */
 export function statementTargets(plan: Pick<TermPlan, 'assessments'>): string {
   const kinds = (['P1', 'P2'] as const).filter((k) => !plan.assessments.some((a) => a.kind === k && a.status === 'DISPENSED'));
