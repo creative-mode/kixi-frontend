@@ -123,6 +123,7 @@ test('429 diz quando voltar, arredondado para cima; os outros estados têm frase
   assert.match(describeHttpFailure(429, null), /limite/);
   assert.match(describeHttpFailure(503, null), /não está disponível/);
   assert.match(describeHttpFailure(404, null), /já não existe/);
+  assert.equal(describeHttpFailure(404, null, 'message'), 'Esta conversa já não existe.');
   assert.equal(formatWait(30), 'em 30 s');
   assert.equal(formatWait(3601), 'em 2 h');
   assert.equal(parseRetryAfter('45'), 45);
@@ -287,4 +288,11 @@ test('o botão de enviar só funciona com o que o modo pede', () => {
   assert.equal(canSendMessage('O que é TCP?', 'EXPLAIN_QUESTION', 11, false), true);
   assert.equal(canSendMessage('', 'CONCEPT', null, false), false);
   assert.equal(canSendMessage('x'.repeat(MAX_STUDENT_ANSWER + 1), 'CONCEPT', null, true), false);
+});
+
+test('um 404 ao abrir a conversa diz que a prova não está disponível, não que a conversa não existe (enunciado oculto)', () => {
+  assert.equal(describeHttpFailure(404, null, 'open'), 'Esta prova não está disponível para o tutor.');
+  assert.doesNotMatch(describeHttpFailure(404, null, 'open'), /conversa/);
+  // Os outros estados não mudam com a fase.
+  assert.equal(describeHttpFailure(503, null, 'open'), describeHttpFailure(503, null, 'message'));
 });

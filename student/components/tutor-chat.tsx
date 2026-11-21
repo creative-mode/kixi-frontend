@@ -72,7 +72,7 @@ function save(statementId: number, value: Saved) {
 }
 
 class HttpFailure extends Error {
-  constructor(readonly status: number, readonly retryAfter: number | null) {
+  constructor(readonly status: number, readonly retryAfter: number | null, readonly stage: 'open' | 'message' = 'message') {
     super(`HTTP ${status}`);
   }
 }
@@ -167,7 +167,7 @@ export function TutorChat({
       body: JSON.stringify(payload),
       signal,
     });
-    if (!res.ok) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')));
+    if (!res.ok) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')), 'open');
     const created = (await res.json()) as { id: number };
     sessionId.current = created.id;
     sessionContext.current = contextKey;
@@ -273,7 +273,7 @@ export function TutorChat({
         setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
       } else {
         const status = error instanceof HttpFailure ? error.status : 0;
-        const message = describeHttpFailure(status || 502, error instanceof HttpFailure ? error.retryAfter : null);
+        const message = describeHttpFailure(status || 502, error instanceof HttpFailure ? error.retryAfter : null, error instanceof HttpFailure ? error.stage : 'message');
         // A failure before any text: the empty answer is dropped and the message
         // stays above the box, with the question still there to send again.
         setMessages((prev) => prev.filter((m) => !(m.role === 'tutor' && m.text === '' && m.streaming)));
