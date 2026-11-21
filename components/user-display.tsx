@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { User } from 'lucide-react'
 import { fetchCurrentUser } from '@/lib/auth'
 import type { CurrentUser } from '@/types/auth'
+import { managerRoleLabels } from '@/lib/roles'
 
 /** `showText`: mostra o nome do papel ao lado do avatar (barra lateral); sem ele, só o avatar (cabeçalho do telemóvel). */
 export function UserDisplay({ showText }: { showText?: boolean } = {}) {
@@ -15,9 +16,9 @@ export function UserDisplay({ showText }: { showText?: boolean } = {}) {
 
     if (!user) return null
 
-    const primaryRole = user.roles?.[0] ?? 'User'
-
-    const label = primaryRole === 'TEACHER' ? 'Professor' : primaryRole === 'COORDINATOR' ? 'Coordenador' : 'Admin'
+    // O papel vem dos papéis da sessão (JWT), pela regra do `managerRoleLabels`; o token não traz o nome da conta.
+    const role = managerRoleLabels(user.roles)
+    if (!role) return null
 
     return (
         <div className="flex items-center gap-3 text-sm">
@@ -25,8 +26,8 @@ export function UserDisplay({ showText }: { showText?: boolean } = {}) {
                 <User size={17} className="text-primary" aria-hidden="true" />
             </div>
             <div className={showText ? 'min-w-0' : 'hidden'}>
-                <p className="truncate font-bold leading-tight text-foreground">{label}</p>
-                <p className="text-xs capitalize text-muted-foreground">{primaryRole.toLowerCase()}</p>
+                <p className="truncate font-bold leading-tight text-foreground">{role.title}</p>
+                {role.others.length > 0 ? <p className="truncate text-xs text-muted-foreground">Também {role.others.join(', ').toLowerCase()}</p> : null}
             </div>
         </div>
     )
