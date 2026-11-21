@@ -321,6 +321,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         {questions.length > 0 && (
           <ScoreBreakdown
             objectiveScore={breakdown.objectiveScore}
+            objectiveGraded={breakdown.objectiveGraded}
             objectiveMax={breakdown.objectiveMax}
             openScore={breakdown.openScore}
             openMax={breakdown.openMax}

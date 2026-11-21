@@ -196,6 +196,8 @@ export function optionTag(option: ResultOption, index: number): string {
 /** Score breakdown for display: objective vs open questions, separating graded from pending. */
 export interface ScoreBreakdownData {
   objectiveScore: number;
+  /** Alguma objectiva já tem nota. Sem nenhuma (sala ainda aberta) a soma é 0 por falta de dados, não por nota. */
+  objectiveGraded: boolean;
   objectiveMax: number;
   openScore: number;
   openMax: number;
@@ -214,6 +216,7 @@ export function calculateScoreBreakdown(questions: ResultQuestion[] | undefined)
   // Objective: always graded by answer key
   const objectiveScore = objectiveQuestions.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
   const objectiveMax = objectiveQuestions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+  const objectiveGraded = objectiveQuestions.some((q) => q.scoreObtained != null);
 
   // Open questions: separate graded (IA or SchoolOps) from pending
   const gradedOpen = openQuestions.filter((q) => q.scoreObtained != null);
@@ -231,6 +234,7 @@ export function calculateScoreBreakdown(questions: ResultQuestion[] | undefined)
 
   return {
     objectiveScore,
+    objectiveGraded,
     objectiveMax,
     openScore,
     openMax,

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
-import { buildPaper, containsLeaf, leafNumber, type PaperAnswer, type PaperItem, type PaperMark, type PaperMeta, type PaperQuestion, type PaperStamp } from '@/lib/folha-da-prova';
+import { buildPaper, containsLeaf, leafNumber, optionMark, type PaperAnswer, type PaperItem, type PaperMark, type PaperMeta, type PaperQuestion, type PaperStamp } from '@/lib/folha-da-prova';
 import type { ExamOption, ExamQuestion } from '@/lib/exam-rules';
 import type { QuestionImage } from '@/lib/exam';
 import { BASE_PATH } from '@/lib/base-path';
@@ -282,7 +282,7 @@ function ItemBody({ item, images, answer, mark }: { item: PaperItem; images?: Qu
 
 /** A resposta: as opções (com a marcada, e na correcção a certa) ou as linhas com o que o aluno escreveu. */
 function Answer({ options, answer, mark, lines }: { options: ExamOption[]; answer?: PaperAnswer; mark?: PaperMark; lines: number }) {
-  if (options.length > 0) return <Options options={options} chosen={answer?.optionId ?? null} correct={mark?.correctOptionId ?? null} reviewed={mark != null} />;
+  if (options.length > 0) return <Options options={options} chosen={answer?.optionId ?? null} correct={mark?.correctOptionId ?? null} reviewed={mark != null} verdict={mark?.verdict ?? 'pending'} />;
   return (
     <>
       <Lines text={answer?.text} count={lines} />
@@ -337,12 +337,13 @@ function Figures({ images }: { images?: QuestionImage[] }) {
 
 /** A opção marcada tem o círculo cheio, como o aluno a assinalaria no papel. Corrigida: a certa a verde com visto, e a
  *  errada que o aluno marcou a vermelho com cruz (e a dizer-lo por palavras, para quem não distingue cores). */
-function Options({ options, chosen, correct, reviewed }: { options: ExamOption[]; chosen: number | null; correct: number | null; reviewed: boolean }) {
+function Options({ options, chosen, correct, reviewed, verdict }: { options: ExamOption[]; chosen: number | null; correct: number | null; reviewed: boolean; verdict: PaperMark['verdict'] }) {
   return (
     <ul className="mt-1 list-none space-y-0.5 pl-4">
       {options.map((o, i) => {
-        const right = reviewed && o.id === correct;
-        const wrong = reviewed && o.id === chosen && o.id !== correct;
+        const state = optionMark({ optionId: o.id, chosen, correct, reviewed, verdict });
+        const right = state === 'right';
+        const wrong = state === 'wrong';
         return (
           <li key={o.id} className={cn('flex items-baseline gap-2', right && 'font-semibold text-green-700', wrong && 'text-red-700 line-through decoration-red-700/60')}>
             <span aria-hidden className={cn('inline-block size-3 shrink-0 translate-y-[1px] rounded-full border border-black', chosen === o.id && 'bg-black', right && 'border-green-700', right && chosen === o.id && 'bg-green-700', wrong && 'border-red-700 bg-red-700')} />
@@ -350,7 +351,7 @@ function Options({ options, chosen, correct, reviewed }: { options: ExamOption[]
             <MathText text={o.optionText} />
             {right && <span className="no-underline"><Check aria-hidden className="inline size-4 align-[-2px]" /><span className="sr-only"> resposta certa</span></span>}
             {wrong && <span className="no-underline"><span className="sr-only">a tua resposta, errada</span></span>}
-            {!reviewed && chosen === o.id && <span className="sr-only">(a tua resposta)</span>}
+            {state === 'none' && chosen === o.id && <span className="sr-only">(a tua resposta)</span>}
           </li>
         );
       })}

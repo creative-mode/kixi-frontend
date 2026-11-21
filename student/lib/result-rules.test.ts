@@ -281,3 +281,20 @@ test('quando o cartão de partilha não aparece, diz-se porquê em vez de desapa
   assert.equal(partilha(12, null, true), 'sem-nota');
   assert.equal(partilha(null, null, false), 'sem-nota');
 });
+
+// Logo após entregar com a sala ainda aberta o backend não traz nota nem gabarito (kixi: `isCorrect`, `scoreObtained` e
+// `correctOptionId` a null): «0/20 pelo gabarito» seria um zero que não existe.
+const aguardar = (over: Partial<ResultQuestion> = {}): ResultQuestion =>
+  bq({ options: [{ id: 1, optionText: 'A' }, { id: 2, optionText: 'B' }], selectedOptionId: 2, scoreObtained: null, isCorrect: null, correctOptionId: null, ...over });
+
+test('calculateScoreBreakdown: sem nota das objectivas não há «0 pelo gabarito», há a aguardar a correcção', () => {
+  const b = calculateScoreBreakdown([aguardar(), aguardar({ questionId: 2 })]);
+  assert.equal(b.objectiveGraded, false);
+  assert.equal(b.objectiveMax, 4);
+});
+
+test('calculateScoreBreakdown: com pelo menos uma objectiva corrigida a nota conta, mesmo que seja 0', () => {
+  assert.equal(calculateScoreBreakdown([obj({ scoreObtained: 0, isCorrect: false })]).objectiveGraded, true);
+  assert.equal(calculateScoreBreakdown([obj({ scoreObtained: 2 }), aguardar()]).objectiveGraded, true);
+  assert.equal(calculateScoreBreakdown([]).objectiveGraded, false);
+});
