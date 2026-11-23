@@ -110,3 +110,13 @@ test('as referências que chegam do browser são conferidas: forma, tamanho da l
   assert.match((demais as { erro: string }).erro, /No máximo/);
   assert.match((referenciasRecebidas([]) as { erro: string }).erro, /pelo menos uma folha/);
 });
+
+test('o progresso conta as folhas já guardadas no Camunda e diz o que falta', async () => {
+  const { progressoDoEnvio } = await import('./folhas.ts');
+  assert.deepEqual(progressoDoEnvio([]), { enviadas: 0, total: 0, percentagem: 0, texto: 'Nenhuma folha escolhida.' });
+  assert.deepEqual(progressoDoEnvio(['enviada', 'a-enviar', 'por-enviar']), { enviadas: 1, total: 3, percentagem: 33, texto: '1 de 3 folhas enviadas.' });
+  assert.equal(progressoDoEnvio(['enviada']).texto, '1 de 1 folha enviada.');
+  assert.equal(progressoDoEnvio(['enviada', 'enviada']).percentagem, 100);
+  assert.equal(progressoDoEnvio(['enviada', 'erro']).texto, '1 de 2 folhas enviadas, 1 com erro.');
+  assert.equal(progressoDoEnvio(['erro', 'erro']).texto, '0 de 2 folhas enviadas, 2 com erro.');
+});

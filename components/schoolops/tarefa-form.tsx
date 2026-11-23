@@ -3,17 +3,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { abrirTarefa, concluir, type TarefaAberta } from '@/app/actions/schoolops';
+import { FolhasUploader } from './folhas-uploader';
 import { FormCamunda } from './form-camunda';
-
-// Valor de compilação: sem ele o botão não aparece (um link para '#' não leva a lado nenhum).
-const TASKLIST = process.env.NEXT_PUBLIC_SCHOOLOPS_TASKLIST_URL;
 
 export function TarefaForm({ chave }: { chave: string }) {
   const router = useRouter();
@@ -76,18 +74,14 @@ export function TarefaForm({ chave }: { chave: string }) {
           <Card>
             <CardContent className="p-4 md:p-6">
               {aberta.precisaDeFicheiros ? (
-                <div className="grid gap-3 text-sm">
-                  <p>Esta tarefa pede o envio de ficheiros (as folhas digitalizadas). Por agora conclui-se no Tasklist.</p>
-                  {TASKLIST ? (
-                    <Button asChild variant="outline" className="w-fit">
-                      <a href={TASKLIST} target="_blank" rel="noreferrer">
-                        Abrir no Tasklist <ExternalLink size={14} />
-                      </a>
-                    </Button>
-                  ) : (
-                    <p className="text-muted-foreground">Peça ao administrador o endereço do Tasklist.</p>
-                  )}
-                </div>
+                <FolhasUploader
+                  chave={chave}
+                  onConcluida={() => {
+                    toast.success('Folhas enviadas. A tarefa está concluída e o sistema vai ler as respostas.');
+                    router.push('/tarefas');
+                    router.refresh();
+                  }}
+                />
               ) : aberta.schema ? (
                 <FormCamunda schema={aberta.schema} dados={aberta.dados} aEnviar={aEnviar} onEnviar={enviar} />
               ) : (

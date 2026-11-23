@@ -105,3 +105,15 @@ export function referenciasRecebidas(valor: unknown): { ok: true; referencias: R
   }
   return { ok: true, referencias };
 }
+
+export type EstadoDaFolha = 'por-enviar' | 'a-enviar' | 'enviada' | 'erro';
+
+/** Quantas folhas já estão guardadas no Camunda, em número, em percentagem e em texto para a barra de progresso. */
+export function progressoDoEnvio(estados: readonly EstadoDaFolha[]): { enviadas: number; total: number; percentagem: number; texto: string } {
+  const total = estados.length;
+  if (total === 0) return { enviadas: 0, total, percentagem: 0, texto: 'Nenhuma folha escolhida.' };
+  const enviadas = estados.filter((e) => e === 'enviada').length;
+  const comErro = estados.filter((e) => e === 'erro').length;
+  const base = `${enviadas} de ${total} ${total === 1 ? 'folha enviada' : 'folhas enviadas'}`;
+  return { enviadas, total, percentagem: Math.round((enviadas / total) * 100), texto: `${base}${comErro ? `, ${comErro} com erro` : ''}.` };
+}
