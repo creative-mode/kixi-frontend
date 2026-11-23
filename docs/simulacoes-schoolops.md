@@ -6,15 +6,47 @@ justifica). Até lá o ecrã diz "A corrigir a tua prova…", sem nota, sem cert
 
 ## Como funciona
 
-1. `submeterAction` entrega a simulação no backend e vai para `/resultado?prova=<id>`.
-2. A página de resultado vê se a tentativa é uma simulação livre (não aparece em `/exam-rooms/mine`) e chama
-   `POST {SCHOOLOPS_URL}/v1/correcoes?aguardar=0`. O pedido é idempotente no motor (cliente, instituição, prova, simulação), por isso
-   abrir o resultado outra vez não cria outra correcção e também recupera uma abertura que tenha falhado.
-3. `GET /v1/correcoes/{id}` dá o estado. `ACorrigir` volta a ler a cada 3 s, até 5 minutos.
-4. Corrigida, a nota é a do motor (0 a 20) e as dissertativas levam os pontos e a justificação. Sem respostas legíveis a correcção
-   termina sem nota ("INCOMPLETE") e o ecrã diz isso em vez de mostrar zero.
+1. `submeterAction` entrega a simulação no backend e, em segundo plano (dentro de um `try/catch` que nunca bloqueia a
+   entrega), inicia a correcção no motor com `POST {SCHOOLOPS_URL}/v1/correcoes?aguardar=0`. O pedido é idempotente no
+   motor (cliente, instituição, prova, simulação). Se a abertura falhar, a entrega segue sem `correcaoId` e o ecrã de
+   resultado volta a pedir a correcção ao abrir. Vai para `/resultado?prova=<id>&submetida=1` (com `&correcaoId=<id>`
+   quando a abertura correu bem).
+2. A página de resultado vê se a tentativa é uma simulação livre (não aparece em `/exam-rooms/mine`).
+   - Com `correcaoId` (entrega #794): lê o estado pela rota leve `GET /aluno/api/correcao/status/{correcaoId}?simulationId=<id>`,
+     sem reabrir a página inteira no servidor.
+   - Sem `correcaoId` (ecrã aberto antes da entrega, ou o aluno voltou mais tarde): abre a correcção com `correcaoDaSimulacao`
+     (idempotente), que também recupera uma abertura que tenha falhado.
+   - Se o motor estiver em baixo (`consultarEstadoCorrecao` devolve `null`) com `correcaoId`, **não** se mostra a nota do
+     backend como se fosse final: fica "a corrigir" e volta-se a ler.
+3. O ecrã de espera (`correcao-em-curso.tsx`) faz polling à rota leve a cada 3 s (até 5 minutos), com `BASE_PATH` e
+   `AbortController`. Quando o estado passa a `corrigida`/`incompleta`/`falhou`, faz `router.refresh()` **uma vez** para
+   mostrar o resultado. Mostra o erro de polling (`erroPoll`) em vez de o engolir.
+4. Corrigida, a nota é a do motor (0 a 20, com uma casa decimal) e as dissertativas levam os pontos e a justificação. O anel usa a
+   `escala` do resultado (20) como denominador, nunca o `maximo`, que é a cotação em pontos da prova e pode não somar 20. Sem respostas
+   legíveis a correcção termina sem nota ("INCOMPLETE") e o ecrã diz isso em vez de mostrar zero.
 
 Uma prova de sala não é simulação: o professor valida e a nota vem da pauta. Se `/exam-rooms/mine` falhar, a tentativa não vai ao motor.
+
+## Rota de polling (`/api/correcao/status/[correcaoId]`)
+
+Rota leve criada para a espera não reabrir a página inteira a cada leitura (#794). Contrato e semântica:
+
+- **Autenticação/autorização:** o `proxy.ts` garante sessão, mas não liga o `correcaoId` ao aluno. A rota exige
+  `?simulationId=<id>` e confirma, via `listSimulationsResult`, que a simulação pertence ao aluno (`getMe` + lista de
+  simulações). Sem isto, qualquer aluno com um `correcaoId` alheio leria o estado (e a nota) de outro. **Devolve só o
+  estado (`VistaCorrecao`), nunca o resultado completo com justificações.**
+- **Respostas:**
+  - `200` com `VistaCorrecao` (`{ kind: 'a-corrigir' | 'corrigida' | 'incompleta' | 'falhou' }`), `Cache-Control: no-store`.
+  - `400` sem `correcaoId`; `403` sem sessão ou simulação que não é do aluno; `404` correcção inexistente; `503` backend
+    indisponível (a lista de simulações não confirmou — não se arrisca).
+- **Semântica de falha/retry:** `consultarEstadoCorrecao` a `null` (motor em baixo) é tratado como "a corrigir" no ecrã de
+  resultado, não como nota final. O polling distingue `404/403` (pára) de `5xx/503` (continua a tentar).
+
+## Figuras das questões
+
+`getQuestionImagesBatch(questionIds)` carrega as imagens de várias questões em paralelo, com cache de 5 min por
+`questionId` (`TtlCache`). Não há endpoint em lote no backend: são N pedidos em paralelo, como já era. A cache é por
+`questionId` e salta o `requireQuestion` por utilizador do backend (os IDs vêm do enunciado do aluno).
 
 ## Configuração (servidor, nunca o browser)
 
@@ -46,6 +78,17 @@ nota chega ao ecrã por leitura, não pelo evento.
 
 ## A nota fora do resultado
 
-Com a correcção ligada, a nota de uma simulação livre só aparece no resultado, depois de corrigida. `listSimulationsResult` (histórico,
-catálogo, detalhe do enunciado, desempenho) tira a `finalScore` das simulações que não são de sala, e `getCommunityStats` tira
-`mine.finalScore` (comparação com a média). Se a lista de salas não se ler, tira a de todas. Sem a correcção ligada nada muda.
+O backend sabe se a correcção está feita: `correctionStatus` vem em `GET /simulations` (`PENDING`, `IN_PROGRESS`, `DONE`, `FAILED`) e
+`correctedAt` diz quando a última aberta ficou corrigida (kixi#609). O `CorrectionSummary.of` calcula-o para **qualquer** simulação
+entregue, prova de sala incluída. Enquanto a correcção não está `DONE`, a `finalScore` é a **parcial** (só as fechadas) e não é a nota
+do resultado.
+
+Por isso há uma regra só, em `student/lib/nota-da-simulacao.ts`: mostra-se `finalScore` quando a correcção está `DONE`; por corrigir
+diz-se «A corrigir» e uma falha diz «Correção falhou». Uma simulação **livre** corrigida pelo SchoolOps tem a nota em 0–20 e só o
+resultado a conhece: fora dele a regra diz «Corrigida» e liga ao resultado, em vez de mostrar a `finalScore` em pontos da prova ao lado
+de outra escala (17,75/25 no cartão e 14,2/20 no resultado, #820). Numa prova de sala a nota é a da pauta e mostra-se como sempre.
+
+Provas, histórico, detalhe do enunciado, notificações, desempenho e plano de estudo leem as simulações **uma vez por pedido**
+(`listSimulationsResult`, com `cache` do React). Quando o motor está ligado, `marcarNotaDoMotor` consulta `/exam-rooms/mine` (também
+em `cache`) uma vez por pedido para saber quais são livres; sem motor, não há esse pedido. A percentagem do desempenho continua a ser
+`nota / totalMaxScore` — a cotação da prova, não 20.

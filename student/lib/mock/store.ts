@@ -3,7 +3,7 @@ import { countLeafQuestions } from './leaf-count';
 import { resolveSchoolId } from './school';
 import * as friends from './friends';
 import { effectiveFault, normalizeFault, type Fault } from './fault';
-import { deadlineFor, expired, finalScore, gradeAnswer, toLocalDateTime, type MockAnswer, type MockQuestion } from './simulation';
+import { backupOf, correctionSummary, deadlineFor, expired, finalScore, gradeAnswer, openAnswerOf, toLocalDateTime, withPendingReview, withReviewBackup, type MockAnswer, type MockCorrectionStatus, type MockQuestion, type ReviewBackup } from './simulation';
 import crypto from 'node:crypto';
 import { getJwtSecretValue, isMockEnabled } from '../dev-secret';
 import { roomDeadline, type MockParticipant, type MockRoom } from './exam-rooms';
@@ -36,6 +36,69 @@ export const currentFault = (): Fault => effectiveFault(G.__kixiFault, FAULT);
 
 export function setFault(mode: string): void {
   G.__kixiFault = normalizeFault(mode);
+}
+
+const CORRECTION_STATUSES = new Set<MockCorrectionStatus>(['PENDING', 'IN_PROGRESS', 'DONE', 'FAILED']);
+
+/** Só para o e2e (#793): força o estado da correção de uma simulação, como o motor
+ *  faria com um PUT .../ai-grade. Sem isto não há forma determinística de apanhar o
+ *  ecrã «A corrigir» — entregar uma prova depende do relógio e do enunciado. */
+export function setMockCorrection(simulationId: number, status: string): boolean {
+  const row = store().simulations.find((s) => s.id === simulationId);
+  if (!row) return false;
+  if (status === '') {
+    // Volta à regra derivada das respostas, para um teste não deixar o próximo com
+    // uma correção forçada.
+    delete row.correctionOverride;
+    row.correctedAt = null;
+    return true;
+  }
+  if (!CORRECTION_STATUSES.has(status as MockCorrectionStatus)) return false;
+  row.correctionOverride = status as MockCorrectionStatus;
+  row.correctedAt = status === 'DONE' ? toLocalDateTime(new Date()) : null;
+  return true;
+}
+
+/** Só para o e2e: faz o resultado transportar abertas por corrigir sem alterar a
+ * semente que representa uma prova já corrigida. `null` repõe o valor calculado
+ * pelas respostas, para o cenário não contaminar o teste seguinte. */
+export function setMockPendingReviewCount(simulationId: number, count: unknown): boolean {
+  const row = store().simulations.find((s) => s.id === simulationId);
+  if (!row) return false;
+  if (count === null) {
+    delete row.pendingReviewCountOverride;
+    return true;
+  }
+  if (!Number.isInteger(count) || Number(count) < 0) return false;
+  row.pendingReviewCountOverride = Number(count);
+  return true;
+}
+
+/** O que estava na resposta aberta antes de o e2e a pôr a aguardar correção. */
+const previousReview = new Map<number, ReviewBackup>();
+
+/** Só para o e2e (#788): põe uma resposta aberta da simulação a aguardar correção (e
+ *  volta a pô-la como estava). O seed da simulação 1 está corrigido (#793), porque é
+ *  ele que faz a nota chegar ao sino; os testes do cartão «A corrigir» precisam do
+ *  mesmo seed no estado anterior, sem o trocar debaixo dos outros testes. */
+export function setMockPendingReview(simulationId: number, pending: boolean): boolean {
+  const db = store();
+  const answers = db.answers.filter((a) => a.simulationId === simulationId);
+  const aberta = openAnswerOf(answers, db.questions);
+  if (!aberta) return false;
+
+  if (!pending) {
+    const antes = previousReview.get(simulationId);
+    if (!antes) return true;
+    const resposta = db.answers.find((a) => a.id === antes.id);
+    if (resposta) Object.assign(resposta, withReviewBackup(resposta, antes));
+    previousReview.delete(simulationId);
+    return true;
+  }
+
+  if (!previousReview.has(simulationId)) previousReview.set(simulationId, backupOf(aberta));
+  Object.assign(aberta, withPendingReview(aberta));
+  return true;
 }
 
 export const SEED_PASSWORD = 'Kixi1234!';
@@ -118,6 +181,12 @@ export type SimulationRow = {
   examRoomId?: number | null;
   /** Só num treino montado (kixi#729). */
   selectedQuestionIds?: number[];
+  /** kixi#609/#793: hora em que a nota ficou pronta. O estado é derivado das respostas;
+   *  o override só existe para o e2e forçar uma prova por corrigir sem depender do relógio. */
+  correctionOverride?: MockCorrectionStatus;
+  correctedAt?: string | null;
+  /** Fixture transitório do e2e para uma correção aberta; não existe no contrato. */
+  pendingReviewCountOverride?: number;
 };
 
 export type Store = {
@@ -130,6 +199,10 @@ export type Store = {
   crossConsent: number[];
   /** Quem pode ver o perfil de cada conta (#336); sem entrada vale 'school'. */
   visibility: Record<number, string>;
+  /** Como cada aluno aparece no ranking, por âmbito (kixi#611): chave
+   *  `${accountId}:${scope}`, valor `visible`, `anonymous` ou `hidden`. Sem
+   *  entrada vale `visible`, como no backend. */
+  rankingVisibility: Record<string, string>;
   institutions: Institution[];
   courses: Course[];
   schoolYears: SchoolYear[];
@@ -238,6 +311,11 @@ export type MockPost = {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou a publicação (#753). */
+  edited?: boolean;
+  /** O autor escondeu a nota e as respostas certas de quem não é ele (kixi#612).
+   *  Ausente vale `true`, como no backend antigo. */
+  showScore?: boolean;
   /** Posts construídos (kixi#347): a lista de blocos; ausente nos simples. */
   blocks?: PostBlock[];
   /** Só no tipo `simulation`: instantâneo tirado ao publicar, como no backend.
@@ -249,6 +327,8 @@ export type MockPost = {
     durationMinutes?: number | null; schoolYear?: string | null; variant?: string | null;
     finalScore: number | null; maxScore: number | null;
     correctAnswers: number | null; totalQuestions: number | null; timeSpentSeconds: number | null;
+    /** Respostas abertas por corrigir quando a publicação foi feita (kixi#788). */
+    pendingReviewCount?: number | null;
   };
 };
 
@@ -401,6 +481,7 @@ export function seed(): Store {
     nextFriendship: 3,
     crossConsent: [],
     visibility: { 5: 'private' },
+    rankingVisibility: {},
     institutions,
     courses,
     schoolYears,
@@ -511,6 +592,9 @@ export function seed(): Store {
         id: 1, accountId: 3, statementId: 1, status: 'FINISHED', finalScore: 16.4,
         startedAt: toLocalDateTime(new Date(Date.now() - 72 * 3600 * 1000)),
         finishedAt: toLocalDateTime(new Date(Date.now() - 71 * 3600 * 1000)),
+        // #793: a nota chegou duas horas depois da entrega. É esta data que faz a
+        // notificação voltar a ser nova no sino depois de «Marcar tudo como lido».
+        correctedAt: toLocalDateTime(new Date(Date.now() - 2 * 3600 * 1000)),
         timeSpentSeconds: 3120,
       },
       {
@@ -559,7 +643,7 @@ export function seed(): Store {
     // ficou em vez de recomeçar: um POST novo na mesma pergunta daria 409.
     answers: [
       // A tentativa 1 está corrigida: duas escolhas, uma certa e uma errada, e uma
-      // resposta aberta que fica para o professor. É o que o ecrã de resultado mostra.
+      // resposta aberta corrigida pela IA. É o que o ecrã de resultado mostra.
       {
         id: 2, simulationId: 1, questionId: 1, selectedOptionId: 12, answerText: null,
         scoreObtained: 2, isCorrect: true, reviewStatus: 'AUTO_GRADED', answeredAt: null,
@@ -569,8 +653,10 @@ export function seed(): Store {
         scoreObtained: 0, isCorrect: false, reviewStatus: 'AUTO_GRADED', answeredAt: null,
       },
       {
+        // #609/#793: a aberta da tentativa 1 já foi corrigida, por isso a simulação
+        // está DONE e o sino pode mostrar a nota com `correctedAt`.
         id: 4, simulationId: 1, questionId: 3, selectedOptionId: null, answerText: 'É dividir uma rede em sub-redes mais pequenas.',
-        scoreObtained: null, isCorrect: null, reviewStatus: 'PENDING_REVIEW', answeredAt: null,
+        scoreObtained: 4, isCorrect: true, reviewStatus: 'AI_GRADED', answeredAt: null,
       },
       {
         id: 1, simulationId: 2, questionId: 1, selectedOptionId: 12, answerText: null,
@@ -653,7 +739,7 @@ export function seed(): Store {
         ],
       },
     ],
-    nextPost: 3,
+    nextPost: 4,
     postComments: [
       {
         id: 1, postId: 1, authorAccountId: 4, content: 'Se o /29 dá 8 endereços, o /28 dá 16 - e o /30 dá só 4.',
@@ -803,6 +889,13 @@ export function roomDeadlineOf(db: Store, row: SimulationRow): string | null {
 export function simulationResponse(db: Store, row: SimulationRow) {
   const statement = db.statements.find((s) => s.id === row.statementId);
   const owner = db.accounts.find((a) => a.id === row.accountId);
+  // kixi#609: enquanto a prova não é entregue não há correção; depois, o estado vem
+  // das respostas. O override serve só para o e2e simular uma correção em curso.
+  const answers = db.answers.filter((a) => a.simulationId === row.id);
+  const summary = correctionSummary(answers.map((a) => a.reviewStatus));
+  const status = row.status === 'FINISHED' ? (row.correctionOverride ?? summary.status) : null;
+  const temCorrecao = row.correctionOverride ? row.correctionOverride === 'DONE' : summary.corrected;
+  const correctedAt = status === 'DONE' && temCorrecao ? row.correctedAt ?? row.finishedAt : null;
   return {
     id: row.id,
     account: owner ? { id: owner.id, username: owner.username, email: owner.email } : null,
@@ -819,6 +912,8 @@ export function simulationResponse(db: Store, row: SimulationRow) {
     createdAt: row.startedAt,
     updatedAt: row.finishedAt,
     deletedAt: null,
+    ...(status ? { correctionStatus: status } : {}),
+    ...(correctedAt ? { correctedAt } : {}),
     ...(row.selectedQuestionIds ? { selectedQuestionIds: row.selectedQuestionIds } : {}),
   };
 }
@@ -876,7 +971,7 @@ export function closeSimulation(db: Store, row: SimulationRow): void {
 export function simulationResult(db: Store, row: SimulationRow) {
   const answers = db.answers.filter((a) => a.simulationId === row.id);
   const questions = db.questions.filter((q) => answers.some((a) => a.questionId === q.id));
-  const pending = answers.filter((a) => a.reviewStatus === 'PENDING_REVIEW').length;
+  const pending = pendingReviewCountOf(db, row);
 
   return {
     simulationId: row.id,
@@ -916,6 +1011,12 @@ export function simulationResult(db: Store, row: SimulationRow) {
       };
     }),
   };
+}
+
+/** O resultado e o instantâneo do feed têm de transportar a mesma contagem. */
+export function pendingReviewCountOf(db: Store, row: SimulationRow): number {
+  return row.pendingReviewCountOverride
+    ?? db.answers.filter((answer) => answer.simulationId === row.id && answer.reviewStatus === 'PENDING_REVIEW').length;
 }
 
 /** Resolves the class list the way ClassService.toResponse does: the nested course and

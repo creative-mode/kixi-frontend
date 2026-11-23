@@ -45,6 +45,17 @@ const GROUP_OF: Record<string, NavGroupId> = {
 
 const TOP = new Set(['/', '/professor']);
 
+/** Os destinos que só existem com a moderação no servidor (#749). */
+const MODERATION_HREFS = new Set(['/moderacao', '/moderacao/auditoria']);
+
+/**
+ * Tira do menu o que o servidor ainda não serve: uma entrada que falha sempre é pior do que
+ * nenhuma. Sem a moderação, «Moderação» e «Auditoria» não aparecem a ninguém.
+ */
+export function visibleLinks<T extends NavLinkBase>(links: T[], features: { moderation: boolean }): T[] {
+  return features.moderation ? links : links.filter((l) => !MODERATION_HREFS.has(l.href));
+}
+
 export type NavLinkBase = { href: string };
 
 export type NavLayout<T extends NavLinkBase> = {

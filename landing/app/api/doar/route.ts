@@ -3,6 +3,7 @@ import {
   MAX_FILES,
   MAX_TOTAL_BYTES,
   forwardedFor,
+  isInstitutionId,
   messageForStatus,
   readFields,
   validateFields,
@@ -64,6 +65,9 @@ export async function POST(request: Request) {
     const value = incoming.get(name);
     if (typeof value === 'string') outgoing.append(name, value);
   }
+  // Só a escolha real segue com id; «Outra» (ou a lista em baixo) vai só pelo nome.
+  // Um id inventado nunca chega ao backend.
+  if (isInstitutionId(fields.institutionId)) outgoing.append('institutionId', fields.institutionId);
   for (const file of files) outgoing.append('files', file, file.name);
 
   const headers: Record<string, string> = {};

@@ -1,0 +1,11 @@
+prova 20 (enunciado 5, simulação 6, cotação 20)
+  correção                CR-0A5ECDCA54339EB3
+  motor                   nota=17.2 escala=20 maximo=20 pontos=17.2 estado=FULLY_GRADED
+  Kixi                    finalScore=17.2 de 20 -> 17.2 na escala 20
+  ecrã do aluno           anel="17,2 de 20 valores" (aneis "de 25": 0)
+
+prova 25 (enunciado 6, simulação 7, cotação 25)
+  correção                CR-D723A55BBA366912
+  motor                   nota=14.2 escala=20 maximo=25 pontos=17.75 estado=FULLY_GRADED
+  Kixi                    finalScore=17.75 de 25 -> 14.2 na escala 20
+  ecrã do aluno           anel="14,2 de 20 valores" (aneis "de 25": 0)

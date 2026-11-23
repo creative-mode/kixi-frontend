@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { gradeRoom, roomReview } from '@/app/actions/exam-rooms';
-import { AI_LEVEL_LABEL, aiStateLabel, gradesToSend, invalidDrafts, keyMatchCount, type ReviewQuestion, type RoomReview, type ScoreDrafts } from '@/lib/exam-rooms/model';
+import { AI_LEVEL_LABEL, aiStateLabel, gradesToSend, invalidDrafts, keyMatchCount, participantName, type ReviewQuestion, type RoomReview, type ScoreDrafts } from '@/lib/exam-rooms/model';
 import { useUnsavedChanges } from '@/components/crud/use-unsaved-changes';
 import { useSessionAccount } from '@/components/session-account';
 import { clearFormDraft, clearStaleFormDrafts, loadFormDraft, saveFormDraft } from '@/lib/form-drafts';
@@ -160,7 +160,7 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
                 return (
                   <li key={a.answerId} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_140px] sm:items-start">
                     <div className="min-w-0">
-                      <b className="text-sm">{a.displayName ?? `Aluno ${a.accountId}`}</b>
+                      <b className="text-sm">{participantName(a)}</b>
                       <p className="whitespace-pre-wrap text-sm text-muted-foreground">{a.answerText?.trim() ? a.answerText : 'Sem resposta'}</p>
                     </div>
                     {pending ? (
@@ -168,7 +168,7 @@ export function RoomCorrection({ roomId, onChanged, onPlanLinked }: { roomId: nu
                         <div className="flex items-center gap-2">
                           <Input
                             inputMode="decimal"
-                            aria-label={`Nota de ${a.displayName ?? a.accountId} na questão ${labelOf(q)}`}
+                            aria-label={`Nota de ${participantName(a)} na questão ${labelOf(q)}`}
                             aria-invalid={invalid.has(a.answerId) || undefined}
                             placeholder={`0–${fmt(q.maxScore)}`}
                             value={drafts[a.answerId] ?? ''}
@@ -266,7 +266,7 @@ function AiCorrection({ review }: { review: RoomReview }) {
               {q.answers.map((a) => (
                 <li key={a.answerId} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
                   <div className="min-w-0">
-                    <b className="text-sm">{a.displayName ?? `Aluno ${a.accountId}`}</b>
+                    <b className="text-sm">{participantName(a)}</b>
                     <p className="whitespace-pre-wrap text-sm text-muted-foreground">{a.answerText?.trim() ? a.answerText : 'Sem resposta'}</p>
                   </div>
                   <div className="grid gap-1">

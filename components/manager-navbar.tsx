@@ -31,7 +31,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/actions/auth";
 import { resetTeacherScope } from "@/hooks/use-teacher-scope";
-import { activeHref, groupLinks } from "@/lib/nav-rules";
+import { activeHref, groupLinks, visibleLinks } from "@/lib/nav-rules";
+import { seesInstitutionRooms, type Role } from "@/lib/roles";
+import { isManagerPublicPage } from "@/lib/public-pages";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 import { guardGlobalUnsavedChanges } from "./crud/use-unsaved-changes";
@@ -63,8 +65,8 @@ const allNavLinks: NavLink[] = [
 // Tem de bater com `teacherMayOpen` em lib/roles.ts: um link aqui fora dessa
 // lista mandava o professor de volta ao início.
 // O coordenador só vê o plano, as pautas e as salas da instituição (o proxy fecha o resto: `coordinatorMayOpen`).
-const COORDINATOR_HREFS = ["/planos", "/pautas", "/coordenacao"];
-const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/simulation-answers", "/classes"];
+const COORDINATOR_HREFS = ["/planos", "/pautas", "/coordenacao", "/tarefas"];
+const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/classes"];
 
 const teacherHomeLink: NavLink = { href: "/professor", label: "Início", icon: Home };
 
@@ -169,7 +171,7 @@ function NavList({
   );
 }
 
-export function ManagerNavbar({ roles }: { roles: string[] }) {
+export function ManagerNavbar({ roles, moderation }: { roles: readonly Role[]; moderation: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -178,15 +180,18 @@ export function ManagerNavbar({ roles }: { roles: string[] }) {
   const isAdmin = roles.includes("ADMIN");
   const isTeacher = roles.includes("TEACHER");
   const coordinatorOnly = roles.includes("COORDINATOR") && !isAdmin && !isTeacher;
-  const navLinks = coordinatorOnly
-    ? allNavLinks.filter((l) => COORDINATOR_HREFS.includes(l.href))
-    : isTeacher && !isAdmin
-    ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
-    : allNavLinks;
+  const navLinks = visibleLinks(
+    coordinatorOnly
+      ? allNavLinks.filter((l) => COORDINATOR_HREFS.includes(l.href))
+      : isTeacher && !isAdmin
+      ? [teacherHomeLink, ...allNavLinks.filter((l) => TEACHER_HREFS.includes(l.href)), teacherTutorLink]
+      : allNavLinks.filter((l) => l.href !== "/coordenacao" || seesInstitutionRooms(roles)),
+    { moderation },
+  );
   const pathname = usePathname();
 
-  // Don't render navbar on public pages (login)
-  const isPublicPage = pathname === '/login' || pathname === '/403';
+  // Sem barra nas páginas públicas (login, 403, recuperar): um anónimo não vê a estrutura do menu autenticado.
+  const isPublicPage = isManagerPublicPage(pathname);
 
   const closeMenu = () => {
     setIsOpen(false);

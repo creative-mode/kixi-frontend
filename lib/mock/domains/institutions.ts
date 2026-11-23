@@ -10,6 +10,13 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
   let m: RegExpMatchArray | null = null;
   void [m, url, auth, isStaff, readBody, loginResponse, isAdmin, activeInst, writeWorld, denyWrite];
   // ── institutions: affiliations and teacher access ──
+  // #763: o catálogo público da doação, sem sessão. `code` é a sigla que o
+  // combobox mostra e procura; o `id` é o que liga a doação à escola.
+  if (path === '/api/v1/institutions/public' && method === 'GET') {
+    return json(200, db.institutions
+      .filter((i) => !i.deletedAt)
+      .map((i) => ({ id: i.id, code: i.code, name: i.name })));
+  }
   if (path === '/api/v1/institutions/mine' && method === 'GET') {
     if (isAdmin) return json(200, db.institutions.filter((i) => !i.deletedAt));
     const t = db.teachers.find((x) => x.accountId === Number(auth.sub) && !x.deletedAt);
@@ -94,16 +101,21 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
   if ((m = path.match(/^\/api\/v1\/donations(?:\/(\d+))?(?:\/(files\/(\d+)|review|extract|link-statement))?$/))) {
     const store = donationStore();
     const donation = m[1] ? store.find((d) => d.id === Number(m[1])) : null;
-    const summary = (d) => ({ id: d.id, reference: d.reference, status: d.status, institutionName: d.institutionName, subjectName: d.subjectName, examType: d.examType, classGrade: d.classGrade, schoolYear: d.schoolYear, fileCount: d.files.length, createdAt: d.createdAt });
+    const summary = (d) => ({ id: d.id, reference: d.reference, status: d.status, institutionId: d.institutionId ?? null, institutionName: d.institutionName, subjectName: d.subjectName, examType: d.examType, classGrade: d.classGrade, schoolYear: d.schoolYear, fileCount: d.files.length, createdAt: d.createdAt });
     const detail = (d) => ({ ...d, files: d.files.map(({ id, originalName, contentType, sizeBytes }) => ({ id, originalName, contentType, sizeBytes })) });
     if (!m[1] && method === 'GET') {
       const wanted = url.searchParams.get('status');
       if (wanted && !['pending', 'approved', 'rejected', 'converted'].includes(wanted)) return problem(400, `Unknown status: ${wanted}`);
+      const wantedInstitution = url.searchParams.get('institutionId');
+      if (wantedInstitution && !/^[1-9]\d*$/.test(wantedInstitution)) return problem(400, `Unknown institutionId: ${wantedInstitution}`);
       const page = Number(url.searchParams.get('page') ?? 1);
       const limit = Number(url.searchParams.get('limit') ?? 20);
       if (!(page >= 1) || !(limit >= 1 && limit <= 50)) return problem(400, 'page or limit out of range');
-      const rows = store.filter((d) => !wanted || d.status === wanted).sort((a, b) => b.id - a.id);
-      const counts = Object.fromEntries(['pending', 'approved', 'rejected', 'converted'].map((k) => [k, store.filter((d) => d.status === k).length]));
+      // #763: o filtro por escola olha só às doações ligadas ao catálogo.
+      const inInstitution = (d) => !wantedInstitution || d.institutionId === Number(wantedInstitution);
+      const rows = store.filter((d) => (!wanted || d.status === wanted) && inInstitution(d)).sort((a, b) => b.id - a.id);
+      const counted = store.filter(inInstitution);
+      const counts = Object.fromEntries(['pending', 'approved', 'rejected', 'converted'].map((k) => [k, counted.filter((d) => d.status === k).length]));
       return json(200, { items: rows.slice((page - 1) * limit, page * limit).map(summary), total: rows.length, page, limit, counts });
     }
     if (!donation) return problem(404, `Donation not found: ${m[1]}`);
@@ -151,7 +163,16 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
         // Uma escola não tem sessão: suspender não tem sentido e o modelo recusa.
         return problem(400, 'Uma escola pode ser ocultada, não suspensa.');
       }
+      // As mesmas regras do backend (kixi#591): a nota é obrigatória (10 a 500) em todas as decisões.
+      if (report.target === 'ACCOUNT' && status === 'HIDDEN') {
+        return problem(400, 'Uma pessoa pode ser suspensa, não ocultada.');
+      }
       const note = String(readBody()?.note ?? '').trim();
+      if (note.length > 500) return problem(400, 'A nota tem de ter no máximo 500 caracteres.');
+      if (note.length < 10) {
+        const verbo = status === 'HIDDEN' ? 'ocultar' : status === 'SUSPENDED' ? 'suspender' : 'ignorar';
+        return problem(400, `Para ${verbo} escreva uma nota com pelo menos 10 caracteres: é ela que explica a decisão.`);
+      }
       // O token traz `sub` e `roles`, nao o email. A auditoria precisa de dizer QUEM
       // decidiu, e o id serve: e o que o servidor consegue saber sem outro pedido.
       // O nome nao esta em `accounts`, esta em `users`: `seedAccount` põe o primeiro e
@@ -181,9 +202,12 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
       });
       return json(200, report);
     }
-    if (m[1] === 'audit') return json(200, [...store.audit].sort((a, b) => b.id - a.id));
+    // O backend limita as listas: `limit` (por omissão 100, máximo 500) e `offset`.
+    const limit = Math.max(1, Math.min(Number(url.searchParams.get('limit') ?? 100) || 100, 500));
+    const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0);
+    if (m[1] === 'audit') return json(200, [...store.audit].sort((a, b) => b.id - a.id).slice(offset, offset + limit));
     const wanted = url.searchParams.get('status')?.toUpperCase();
-    return json(200, store.reports.filter((r) => !wanted || r.status === wanted).sort((a, b) => b.id - a.id));
+    return json(200, store.reports.filter((r) => !wanted || r.status === wanted).sort((a, b) => b.id - a.id).slice(offset, offset + limit));
   }
 
   if ((m = path.match(/^\/api\/v1\/(verification-requests(?:\/(\d+)\/(approve|reject))?|institutions\/(\d+)\/verification\/revoke)$/))) {

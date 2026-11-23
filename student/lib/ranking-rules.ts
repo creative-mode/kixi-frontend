@@ -10,6 +10,105 @@ export const SCOPE_LABEL: Record<RankingScope, string> = {
   global: 'Global',
 };
 
+/** Os âmbitos em que o aluno escolhe como aparece (#611). O global fica de fora:
+ *  esse é o consentimento entre escolas (ADR-0013), não uma preferência de nome. */
+export type RankingVisibilityScope = Exclude<RankingScope, 'global'>;
+export type RankingVisibility = 'visible' | 'anonymous' | 'hidden';
+export type VisibilityPreferences = Record<RankingVisibilityScope, RankingVisibility>;
+
+/** O vocabulário do fio no kixi#619: `out` é o mesmo que o cliente chama `hidden`. */
+export type WireRankingVisibility = 'visible' | 'anonymous' | 'out';
+
+export const VISIBILITY_SCOPES: readonly RankingVisibilityScope[] = ['class', 'school', 'friends'];
+
+/** A única tradução entre o contrato do backend e o nome usado no cliente. */
+export function toWireVisibility(value: RankingVisibility): WireRankingVisibility {
+  return value === 'hidden' ? 'out' : value;
+}
+
+export function fromWireVisibility(value: string): RankingVisibility {
+  if (value === 'out' || value === 'hidden') return 'hidden';
+  return value === 'anonymous' ? 'anonymous' : 'visible';
+}
+
+/** O interruptor está ligado quando o aluno aparece com o nome em todos os
+ *  âmbitos. Desligado, a linha fica mas o nome sai; só um estado `hidden` (vindo
+ *  de outro cliente) o tira da tabela por completo. */
+export function showsNameInRanking(preferences: VisibilityPreferences): boolean {
+  return VISIBILITY_SCOPES.every((scope) => preferences[scope] === 'visible');
+}
+
+/** O que os colegas veem, por palavras (#800): uma frase por estado, para a
+ *  legenda nunca descrever o estado contrário ao do interruptor. Desligar
+ *  escreve `anonymous`; um `out`/`hidden` vindo de outro cliente é dito como é. */
+export function visibilityNote(preferences: VisibilityPreferences): string {
+  const hidden = VISIBILITY_SCOPES.filter((scope) => preferences[scope] === 'hidden');
+
+  if (hidden.length === VISIBILITY_SCOPES.length) {
+    return 'Os colegas não te veem no ranking. Continuas a ver a tua posição e a tua média.';
+  }
+  if (hidden.length > 0) {
+    return 'Apareces em alguns rankings e não em outros. Liga para apareceres com o teu nome em todos, ou desliga para ficares como «Um colega».';
+  }
+  if (showsNameInRanking(preferences)) {
+    return 'Os colegas veem o teu nome no ranking.';
+  }
+  return 'Os colegas veem «Um colega» no teu lugar.';
+}
+
+/** Onde o aluno está na tabela, dito sem nomear o fundo (#800): topo, meio, ou
+ *  nada. A posição já é do backend; isto só a traduz numa faixa. */
+export function relativeBandLabel(myPosition: number | null, totalStudents: number): string | null {
+  if (myPosition == null || myPosition <= 0 || totalStudents <= 0) return null;
+  const ratio = myPosition / totalStudents;
+  if (ratio <= 0.3) return 'Estás entre os 30% melhores.';
+  if (ratio <= 0.7) return 'Estás entre os 40% do meio.';
+  return null;
+}
+
+/** A distância até à linha de cima, a partir da janela que o backend devolveu.
+ *  Sem essa linha à vista, ou sem nota dos dois lados, devolve null: é melhor
+ *  não dizer nada do que inventar uma distância. */
+function nextPlaceGapValue(board: Leaderboard, metric: RankingMetric): { value: string; unit: string } | null {
+  const mine = board.entries.find((entry) => entry.me);
+  if (!mine || mine.position <= 1) return null;
+
+  const above = board.entries
+    .filter((entry) => entry.position < mine.position)
+    .sort((a, b) => b.position - a.position)[0];
+  if (!above) return null;
+
+  if (board.scope === 'global') {
+    if (board.myPercentile == null || above.percentile == null) return null;
+    const gap = above.percentile - board.myPercentile;
+    return gap > 0 ? { value: formatAverage(gap), unit: 'p.p.' } : null;
+  }
+
+  if (metric === 'xp') {
+    if (mine.xp == null || above.xp == null) return null;
+    const gap = above.xp - mine.xp;
+    return gap > 0 ? { value: String(gap), unit: 'XP' } : null;
+  }
+
+  if (mine.average == null || above.average == null) return null;
+  const gap = above.average - mine.average;
+  return gap > 0 ? { value: formatAverage(gap), unit: 'pts' } : null;
+}
+
+/** Quanto falta para subir um lugar (#800), por extenso no cartão verde. */
+export function nextPlaceGap(board: Leaderboard, metric: RankingMetric): string | null {
+  const distance = nextPlaceGapValue(board, metric);
+  if (!distance) return null;
+  const unit = board.scope === 'global' ? 'pontos percentuais' : metric === 'xp' ? 'XP' : 'pontos';
+  return `Faltam ${distance.value} ${unit} para subires um lugar.`;
+}
+
+/** A mesma distância em poucas palavras, para a linha da posição (#800): «Faltam 1,6 pts». */
+export function nextPlaceGapShort(board: Leaderboard, metric: RankingMetric): string | null {
+  const distance = nextPlaceGapValue(board, metric);
+  return distance ? `Faltam ${distance.value} ${distance.unit}` : null;
+}
+
 export function formatAverage(value: number | null): string {
   return value == null ? '—' : value.toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
@@ -19,6 +118,13 @@ export function formatAverage(value: number | null): string {
 export function myPositionLabel(myPosition: number | null, totalStudents: number): string | null {
   if (myPosition == null) return null;
   return `${myPosition}.º de ${totalStudents}`;
+}
+
+/** A linha da posição só existe quando há uma tabela para a contextualizar.
+ *  Sem board (erro, 403 do global ou carregamento) dizer «Ainda sem nota» seria
+ *  inventar uma situação que o servidor não confirmou (#812). */
+export function showPositionLine(board: Leaderboard | null, pending: boolean, blocked: boolean): boolean {
+  return board !== null && !pending && !blocked;
 }
 
 /** Progresso até ao pódio, apenas quando o backend forneceu as duas pontuações. */
@@ -35,15 +141,6 @@ export function podiumGap(board: Leaderboard, metric: RankingMetric): string | n
 
   if (board.myAverage == null || third.average == null || third.average <= board.myAverage) return null;
   return `A ${formatAverage(third.average - board.myAverage)} pontos do 3.º lugar`;
-}
-
-/** A regra de grupo pequeno (#117) esconde o pódio e corta as últimas posições:
- *  quando isso acontece, a lista de `entries` é só os vizinhos do aluno, nunca
- *  a turma toda - esta frase explica o porquê em vez de deixar parecer incompleta. */
-export function smallGroupNote(smallGroup: boolean): string | null {
-  return smallGroup
-    ? 'Este grupo é pequeno: por isso só mostramos quem está perto de ti, sem revelar os últimos lugares.'
-    : null;
 }
 
 export const PERIOD_LABEL: Record<RankingPeriod, string> = { all: 'Desde sempre', month: 'Últimos 30 dias' };

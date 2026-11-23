@@ -12,12 +12,14 @@
  *  - `SimulationSubmissionService.java:96-111`: a question is objective because it
  *    HAS OPTIONS, not because of its type, and it scores all or nothing.
  *  - `SimulationResultService.java:83-90`: the result exists only once FINISHED.
+ *  - `CorrectionSummary.java` (kixi#609): the status is derived from the answers,
+ *    never stored; `DONE` also covers a paper with objective questions only.
  */
 
 import { parseServerTime } from '../exam-rules.ts';
 
 /** SimulationTimeLimitProperties.toleranceSeconds. */
-export const TOLERANCE_SECONDS = 10;
+export const TOLERANCE_SECONDS = 120;
 
 const SECONDS_PER_MINUTE = 60;
 /** 1.25 * 60, in whole seconds. */
@@ -116,4 +118,60 @@ export function gradeAnswer(answer: MockAnswer, question: MockQuestion): MockAns
 export function finalScore(answers: MockAnswer[]): number {
   const total = answers.reduce((sum, a) => sum + (a.scoreObtained ?? 0), 0);
   return Math.round(total * 10) / 10;
+}
+
+/** Os quatro estados que o backend deriva das respostas (kixi#609). */
+export type MockCorrectionStatus = 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'FAILED';
+
+/** A resposta que o e2e (#788) põe a aguardar correção: a primeira que o gabarito não
+ *  corrige — sem opções, como `gradeAnswer` decide. Não é pelo nome do tipo: uma
+ *  `short_answer` também espera revisão. Sem nenhuma, devolve `undefined` e a rota
+ *  responde 400; uma escolha corrigida pelo gabarito nunca fica «por corrigir». */
+export function openAnswerOf(answers: readonly MockAnswer[], questions: readonly MockQuestion[]): MockAnswer | undefined {
+  return answers.find((a) => {
+    const pergunta = questions.find((q) => q.id === a.questionId);
+    return pergunta != null && !isObjective(pergunta);
+  });
+}
+
+/** O que a resposta tinha antes de ir a aguardar correção. */
+export type ReviewBackup = Pick<MockAnswer, 'id' | 'reviewStatus' | 'scoreObtained' | 'isCorrect'>;
+
+export function backupOf(answer: MockAnswer): ReviewBackup {
+  return {
+    id: answer.id,
+    reviewStatus: answer.reviewStatus,
+    scoreObtained: answer.scoreObtained,
+    isCorrect: answer.isCorrect,
+  };
+}
+
+/** Aguardar correção: a nota e o veredicto saem, como numa aberta acabada de entregar. */
+export function withPendingReview(answer: MockAnswer): MockAnswer {
+  return { ...answer, reviewStatus: 'PENDING_REVIEW', scoreObtained: null, isCorrect: null };
+}
+
+/** Repor o que o backup guardou (o teste não pode deixar o próximo com o seed trocado). */
+export function withReviewBackup(answer: MockAnswer, backup: ReviewBackup): MockAnswer {
+  return {
+    ...answer,
+    reviewStatus: backup.reviewStatus,
+    scoreObtained: backup.scoreObtained,
+    isCorrect: backup.isCorrect,
+  };
+}
+
+/**
+ * O estado da correção e se houve alguma resposta aberta corrigida (para saber se
+ * `correctedAt` faz sentido). Nenhuma aberta por corrigir é `DONE`, o mesmo caso das
+ * provas só com objetivas; algumas já corrigidas é `IN_PROGRESS`.
+ */
+export function correctionSummary(reviewStatuses: readonly (MockAnswerStatus | null)[]): {
+  status: MockCorrectionStatus;
+  corrected: boolean;
+} {
+  const pending = reviewStatuses.filter((s) => s === 'PENDING_REVIEW').length;
+  const ai = reviewStatuses.filter((s) => s === 'AI_GRADED').length;
+  if (pending > 0) return { status: ai > 0 ? 'IN_PROGRESS' : 'PENDING', corrected: false };
+  return { status: 'DONE', corrected: ai > 0 };
 }

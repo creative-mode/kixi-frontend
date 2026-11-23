@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Badge } from '@/components/ui/badge';
+import { ACTION_LABEL, VER_RESULTADO } from '@/components/ver-resultado';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,9 +12,12 @@ import { EmptyState } from '@/components/states';
 import { RefreshError } from '@/components/refresh-error';
 import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@/lib/catalog';
 import { listInvitations } from '@/lib/exam-room';
-import { invitationsErrorOf } from '@/lib/exam-room-rules';
+import { hasLiveRoom, invitationsErrorOf } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 import { Calendario } from '@/components/calendario';
+import { DonateLink } from '@/components/donate-link';
+import { Ico } from '@/components/ui/ico';
+import { appOrigin } from '@/lib/origin';
 
 export const metadata = { title: 'Provas · Kixi' };
 
@@ -38,6 +42,25 @@ function num(raw: string | string[] | undefined): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+/** Cartão de doação (#762): a página que lista enunciados é o sítio natural para
+ *  lembrar que também se pode dar um. O link sai para a landing, noutra app. */
+function DonateCard({ href }: { href: string }) {
+  return (
+    <Card className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary text-primary">
+        <Ico name="file" size={22} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-bold text-foreground">Tens um enunciado antigo?</p>
+        <p className="text-sm text-muted-foreground">Doa-o ao Kixi e ajuda outros alunos a estudar.</p>
+      </div>
+      <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-auto">
+        <DonateLink href={href} origem="provas">Doar um enunciado</DonateLink>
+      </Button>
+    </Card>
+  );
+}
+
 function State({ item }: { item: CatalogItem }) {
   if (item.state === 'progress') {
     return (
@@ -49,8 +72,8 @@ function State({ item }: { item: CatalogItem }) {
   if (item.state === 'done') {
     return (
       <div className="grid gap-1.5">
-        <Badge variant="success" className="justify-self-start">
-          Concluída{item.score ? ` · ${item.score}` : ''}
+        <Badge variant={item.correction ? 'warning' : 'success'} className="justify-self-start">
+          Concluída{item.score ? ` · ${item.score}` : item.correction ? ` · ${item.correction}` : ''}
         </Badge>
       </div>
     );
@@ -68,7 +91,7 @@ function State({ item }: { item: CatalogItem }) {
  * thing telling the student what a click will do.
  */
 function actionOf(state: ExamState): string {
-  return state === 'progress' ? 'Retomar' : state === 'done' ? 'Ver resultado' : 'Ver a prova';
+  return state === 'progress' ? 'Retomar' : state === 'done' ? VER_RESULTADO : 'Ver a prova';
 }
 
 
@@ -108,6 +131,10 @@ function Filters({
 }) {
   return (
     <form method="get" className="grid gap-3">
+      {/* Este formulário só se desenha na aba dos enunciados; sem este campo, submetê-lo
+       *  perdia o `aba=enunciados` da URL e, para quem tem uma sala a decorrer, o valor por
+       *  omissão passa a ser «Salas» — um filtro aplicado devolvia à aba errada (#795 — code review). */}
+      <input type="hidden" name="aba" value="enunciados" />
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -180,12 +207,24 @@ export default async function Provas({ searchParams }: { searchParams: Params })
     institutionId: num(params.escola),
   };
   const page = Math.max(0, (Number(one(params.pagina)) || 1) - 1);
-  const aba: Aba = one(params.aba) === 'salas' ? 'salas' : 'enunciados';
 
   const [names, invResult] = await Promise.all([getCatalogNames(), listInvitations()]);
   const invitations = invResult.ok ? invResult.data : [];
   const invitationsError = invitationsErrorOf(invResult);
-  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas" convites={invitations.length} />;
+  // #795: quem tem uma prova a decorrer cai na aba das salas, que é por onde se entra.
+  // O parâmetro manda sempre — quem pediu «Enunciados» não é levado para outra aba.
+  const pedida = one(params.aba);
+  const aba: Aba = pedida === 'salas' || pedida === 'enunciados'
+    ? pedida
+    : hasLiveRoom(invitations) ? 'salas' : 'enunciados';
+  // `?aba=enunciados` explícito (#795 — code review): sem ele, quem tem uma sala a decorrer
+  // nunca saía das Salas ao clicar em «Enunciados» — a omissão do parâmetro cai sempre no
+  // valor por omissão, e esse é «Salas» enquanto `hasLiveRoom` for verdade.
+  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas?aba=enunciados" convites={invitations.length} />;
+  // #762: a landing é outra app; `appOrigin()` é a raiz do gateway (o mesmo padrão
+  // do CookieBanner e do menu da conta). Sem origem configurada cai em `/doar`,
+  // que é o que o `npm run dev` atrás do gateway serve.
+  const donateHref = `${appOrigin() ?? ''}/doar`;
 
   if (aba === 'salas') {
     return (
@@ -194,9 +233,13 @@ export default async function Provas({ searchParams }: { searchParams: Params })
           <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
           {abas}
           {invitations.length === 0 && !invitationsError ? (
-            <EmptyState title="Ainda não tens salas de prova" message="Quando um professor te convidar para uma prova controlada, a sala aparece aqui." />
+            <EmptyState
+              title="Ainda não tens salas de prova"
+              message="Quando um professor te convidar para uma prova controlada, a sala aparece aqui."
+              action={<Button asChild variant="outline" size="sm"><DonateLink href={donateHref} origem="provas-empty">Doar um enunciado</DonateLink></Button>}
+            />
           ) : (
-            <SalasDeProva invitations={invitations} invitationsError={invitationsError} />
+            <SalasDeProva invitations={invitations} invitationsError={invitationsError} origem="provas" />
           )}
         </Column>
       </Page>
@@ -221,14 +264,16 @@ export default async function Provas({ searchParams }: { searchParams: Params })
 
   const href = (pagina: number) => {
     const search = new URLSearchParams();
+    // `aba=enunciados` (#795 — code review): a mesma razão do campo oculto do formulário
+    // acima — sem isto, paginar devolvia à aba errada a quem tem uma sala a decorrer.
+    search.set('aba', 'enunciados');
     if (filters.q) search.set('q', filters.q);
     if (filters.subjectId) search.set('disciplina', String(filters.subjectId));
     if (filters.examType) search.set('tipo', filters.examType);
     if (filters.schoolYearId) search.set('ano', String(filters.schoolYearId));
     if (filters.institutionId) search.set('escola', String(filters.institutionId));
     if (pagina > 1) search.set('pagina', String(pagina));
-    const query = search.toString();
-    return query ? `/provas?${query}` : '/provas';
+    return `/provas?${search.toString()}`;
   };
 
   const current = result.page + 1;
@@ -239,6 +284,8 @@ export default async function Provas({ searchParams }: { searchParams: Params })
         <PageHeader title="Provas" description="Simula provas anteriores e vê onde precisas de reforçar." />
 
         {abas}
+
+        <DonateCard href={donateHref} />
 
         <Calendario invitations={invitations} className="xl:hidden" />
 
@@ -260,17 +307,18 @@ export default async function Provas({ searchParams }: { searchParams: Params })
             // The card opens the detail (#19), not the room: the three modes live
             // there, and going straight to the room would make them unreachable from
             // the list — which is exactly what the acceptance criterion asks for.
-            <Link key={item.id} prefetch={false} href={`/prova/${item.id}/detalhe`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_120px]">
+            <Link key={item.id} prefetch={false} href={`/prova/${item.id}/detalhe`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-secondary/60 sm:grid-cols-[minmax(0,1fr)_170px_136px]">
               <span className="sr-only">{actionOf(item.state)}: </span>
               <div className="min-w-0"><div className="leading-snug font-bold">{item.kind} · {item.title}</div><div className="mt-0.5 text-[13px] text-muted-foreground">{[item.school, item.year, item.subject].filter(Boolean).join(' · ')}</div></div>
               <div className="order-3 col-span-2 sm:order-none sm:col-span-1"><State item={item} /></div>
-              <span className="px-btn inline-flex h-10 items-center justify-center px-4 text-sm font-semibold [--face:var(--card)] [--edge:var(--input)] [--txt:var(--foreground)]">{actionOf(item.state)}</span>
+              <span className={`${ACTION_LABEL} px-btn inline-flex h-10 items-center justify-center px-4 text-sm font-semibold [--face:var(--card)] [--edge:var(--input)] [--txt:var(--foreground)]`}>{actionOf(item.state)}</span>
             </Link>
           ))}
           {result.items.length === 0 && (
             <EmptyState
               title="Nenhum enunciado encontrado"
               message="Muda os filtros ou carrega o enunciado que procuras."
+              action={<Button asChild variant="outline" size="sm"><DonateLink href={donateHref} origem="provas-empty">Doar um enunciado</DonateLink></Button>}
             />
           )}
         </Card>

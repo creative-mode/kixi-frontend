@@ -14,6 +14,15 @@ import { mathNeedsReview, serializeMathText, type MathContentFields, type MathFo
  */
 
 /** One option of a multiple-choice question. `label` is the identity the backend gives it. */
+/** Um identificador local e imutável por pergunta e alínea: a chave duma renderização estável. */
+export function newUid(): string {
+  try {
+    return globalThis.crypto?.randomUUID() ?? `u${Date.now()}${Math.floor(Math.random() * 1e9)}`;
+  } catch {
+    return `u${Date.now()}${Math.floor(Math.random() * 1e9)}`;
+  }
+}
+
 export interface DraftOption {
   /** Backend identity, retained only after the manual statement is created. */
   serverId?: number;
@@ -35,6 +44,8 @@ export type GroupLayout = 'lettered' | 'brace';
 
 /** An alínea: a question of its own inside a `group`. The label (a, b, c…) is generated. */
 export interface DraftItem extends MathContentFields {
+  /** Identidade local e imutável desta alínea; criada na origem e preservada em normalize/clone. */
+  uid?: string;
   serverId?: number;
   /** Source label when OCR imports a paper whose alíneas do not start at a. */
   label?: string;
@@ -61,6 +72,8 @@ export interface DraftImage {
 }
 
 export interface DraftQuestion extends MathContentFields {
+  /** Identidade local e imutável desta pergunta; criada na origem e preservada em normalize/clone. */
+  uid?: string;
   serverId?: number;
   text: string;
   /** `''` means "not scored yet". It is not the same as zero, and the difference matters below. */
@@ -141,7 +154,7 @@ export function trueFalseAnswer(options: DraftOption[]): 'V' | 'F' | null {
 
 /** An empty alínea of a kind. */
 export function emptyItem(kind: LeafKind = 'open'): DraftItem {
-  return { text: '', points: '', kind, options: kind === 'true_false' ? trueFalseOptions() : [] };
+  return { text: '', points: '', kind, options: kind === 'true_false' ? trueFalseOptions() : [], uid: newUid() };
 }
 
 /** `a`, `b`, `c`… and `aa` after `z`: the labels the alíneas of a question carry. */

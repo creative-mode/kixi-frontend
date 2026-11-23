@@ -84,7 +84,7 @@ test.describe('rotas do gestor no gateway (#541)', () => {
 
 /** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
  *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
- *  1800 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
+ *  1200 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
  *  `getByRole` nem a via ("element(s) not found"). */
 async function irAoFim(page: Page) {
   await expect
@@ -223,7 +223,165 @@ test.describe('ranking acessível (#498)', () => {
     await expect(page.locator('[role="status"][aria-live="polite"]')).toContainText('Ranking da Escola carregado');
     await expect(painel.getByRole('table')).toBeVisible();
     await expect(painel.locator('tbody tr').first().locator('td').nth(2)).toContainText('%');
-    await expect(painel.getByText(/A tua média:/)).toContainText('%');
+    // A linha da posição fica acima do painel (#812), não dentro dele.
+    await expect(page.getByTestId('ranking-posicao')).toContainText('A tua média:');
+    await expect(page.getByTestId('ranking-posicao')).toContainText('%');
+  });
+});
+
+test.describe('aparecer no ranking (#800)', () => {
+  test('o interruptor da Liga sai do ranking e o Perfil mostra a mesma escolha', async ({ page }) => {
+    await alunoLogin(page);
+
+    await page.goto('/aluno/ranking');
+    const naLiga = page.getByRole('switch', { name: /Aparecer no ranking/ });
+    await expect(naLiga).toBeVisible();
+    // Se um teste anterior não repôs a escolha, normaliza para «a aparecer»
+    // antes de exercer o interruptor (o mock guarda o estado entre pedidos).
+    if (!(await naLiga.isChecked())) {
+      await naLiga.click();
+      await expect(naLiga).toBeChecked();
+    }
+    // Hierarquia final: filtros → posição → tabela → cartão verde, com espaço
+    // por baixo dos filtros e acima do cartão, e sem bloco explicativo extra.
+    const posicao = page.getByTestId('ranking-posicao');
+    const filtros = page.getByTestId('ranking-filtros');
+    const tabela = page.getByRole('table');
+    const destaque = page.getByTestId('ranking-destaque');
+    await expect(posicao).toContainText('A tua média: 16,4%');
+    await expect(posicao).toContainText('Faltam 1,6 pts');
+    const [posicaoBox, abasBox, filtrosBox, tabelaBox, destaqueBox] = await Promise.all([
+      posicao.boundingBox(),
+      page.getByRole('tablist').boundingBox(),
+      filtros.boundingBox(),
+      tabela.boundingBox(),
+      destaque.boundingBox(),
+    ]);
+    expect(abasBox!.y).toBeLessThan(posicaoBox!.y);
+    expect(posicaoBox!.y - (filtrosBox!.y + filtrosBox!.height)).toBeGreaterThanOrEqual(16);
+    expect(posicaoBox!.y).toBeLessThan(tabelaBox!.y);
+    expect(destaqueBox!.y - (tabelaBox!.y + tabelaBox!.height)).toBeGreaterThanOrEqual(16);
+    await expect(page.getByText('Este grupo é pequeno')).toHaveCount(0);
+    // A posição pode variar depois de jornadas que terminam outra simulação; o
+    // contrato é mostrar só topo ou meio, nunca nomear o fundo da tabela.
+    await expect(destaque.getByText(/Estás entre os (30% melhores|40% do meio)/, { exact: true })).toBeVisible();
+    await expect(destaque.getByText(/Faltam .* para subires um lugar/)).toBeVisible();
+    await expect(destaque.getByText(/Mostramos só as posições próximas da tua/)).toBeVisible();
+    await expect(page.getByText(/Os colegas veem o teu nome no ranking/)).toBeVisible();
+
+    // Na aba de amigos o cartão verde não encosta ao painel «Os teus amigos».
+    await page.getByRole('tab', { name: 'Amigos' }).click();
+    const painelAmigos = page.locator('[data-slot="card"]').filter({ has: page.getByText('Os teus amigos', { exact: true }) });
+    await expect(painelAmigos).toBeVisible();
+    const [cartaoAmigosBox, painelAmigosBox] = await Promise.all([
+      destaque.boundingBox(),
+      painelAmigos.boundingBox(),
+    ]);
+    expect(painelAmigosBox!.y - (cartaoAmigosBox!.y + cartaoAmigosBox!.height)).toBeGreaterThanOrEqual(12);
+    await expect(posicao).toContainText('A tua média');
+    await page.getByRole('tab', { name: 'Turma' }).click();
+
+    // Desligar não tira a linha da tabela: só o nome desaparece, como a frase diz.
+    await naLiga.click();
+    await expect(naLiga).not.toBeChecked();
+    await expect(page.getByText(/Os colegas veem «Um colega» no teu lugar/)).toBeVisible();
+
+    await page.goto(`/aluno/perfil?tab=${encodeURIComponent('Definições')}`);
+    const noPerfil = page.getByRole('switch', { name: /Aparecer no ranking/ });
+    await expect(noPerfil).not.toBeChecked();
+    await expect(page.getByText(/Os colegas veem «Um colega» no teu lugar/)).toBeVisible();
+
+    // Repõe o estado visível para os testes seguintes, que contam com os colegas.
+    await noPerfil.click();
+    await expect(noPerfil).toBeChecked();
+  });
+});
+
+test.describe('aviso de correção (#793)', () => {
+  test('a nota corrigida chega ao sino e acende o ponto das Provas até marcar como lido', async ({ page }) => {
+    await alunoLogin(page);
+    // Simula o momento em que a correção fica pronta: `correctedAt` passa a ser agora,
+    // mesmo que uma sessão anterior já tenha marcado as notificações como lidas.
+    // `page.request` partilha os cookies do browser; o fixture `request` não partilha
+    // e levaria o pedido para a página de login em vez da rota do mock.
+    const forcar = (status: string) => page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status } });
+    try {
+      expect((await forcar('DONE')).ok()).toBe(true);
+      await page.goto('/aluno/inicio');
+
+      const barra = page.locator('nav[aria-label="Principal"]:visible');
+      const provas = barra.getByRole('link', { name: /^Provas/ });
+      await expect(provas).toHaveAttribute('aria-label', /^Provas, 1 correção nova/);
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toBeVisible();
+      const sino = barra.getByRole('link', { name: 'Notificações' });
+      await expect(sino.locator('span[aria-label*="nova"]')).toHaveCount(1);
+
+      // O mesmo aviso no telemóvel: a nota fala pelo nome acessível e acende o ponto
+      // na barra inferior, mesmo quando há uma sala aberta a disputar o espaço.
+      await page.setViewportSize({ width: 390, height: 844 });
+      const provasMobile = page.getByTestId('nav-mobile').getByRole('link', { name: /^Provas, 1 correção nova/ });
+      await expect(provasMobile).toBeVisible();
+      await expect(page.getByTestId('provas-correcao-nova-mobile')).toBeVisible();
+      await expect(page.getByRole('link', { name: /^Notificações, \d+ novas/ })).toHaveCount(1);
+      await page.setViewportSize({ width: 1366, height: 860 });
+
+      // O critério de aceitação: sair do ecrã de espera e descobrir a nota pelo sino.
+      await sino.click();
+      await expect(page).toHaveURL(/\/aluno\/notificacoes/);
+      const aviso = page.getByRole('link', { name: /A tua prova de Redes de Computadores foi corrigida: 16,4\/20/ });
+      await expect(aviso).toBeVisible();
+      await expect(aviso.locator('[aria-label="Nova"]')).toBeVisible();
+
+      await page.getByRole('button', { name: 'Marcar tudo como lido' }).click();
+      await expect(aviso.locator('[aria-label="Nova"]')).toHaveCount(0);
+      await page.goto('/aluno/inicio');
+      await expect(barra.getByRole('link', { name: /^Provas/ })).not.toHaveAttribute('aria-label', /correção/);
+      await expect(sino.locator('span[aria-label*="nova"]')).toHaveCount(0);
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toHaveCount(0);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(page.getByTestId('nav-mobile').getByRole('link', { name: 'Provas' })).toBeVisible();
+      await expect(page.getByTestId('provas-correcao-nova-mobile')).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Notificações' })).toHaveCount(1);
+    } finally {
+      await forcar('');
+    }
+  });
+
+  test('uma prova entregue fica «A corrigir» até a nota chegar', async ({ page }) => {
+    await alunoLogin(page);
+    const forcar = (status: string) => page.request.post('/aluno/api/mock-correcao', { data: { simulationId: 1, status } });
+    try {
+      expect((await forcar('PENDING')).ok()).toBe(true);
+      await page.goto('/aluno/prova/1/detalhe');
+      const porCorrigir = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
+      await expect(porCorrigir).toContainText('A corrigir');
+      await expect(porCorrigir.getByRole('link', { name: 'Ver resultado' })).toHaveCount(0);
+
+      // Sem correção nova, o ponto das Provas apaga-se; o sino continua a ter a entrega.
+      await page.goto('/aluno/inicio');
+      await expect(page.locator('nav[aria-label="Principal"]:visible').getByRole('link', { name: /^Provas/ })).not.toHaveAttribute('aria-label', /correção/);
+
+      // FAILED quer dizer que o motor não vai corrigir sozinho: a lista diz isso
+      // em vez de prometer uma nota pelo sino, e nenhum ponto se acende.
+      expect((await forcar('FAILED')).ok()).toBe(true);
+      await page.goto('/aluno/prova/1/detalhe');
+      const falhada = page.getByRole('listitem').filter({ hasText: 'Prova entregue' });
+      // O badge e o texto dizem o mesmo que `/provas`: a correção falhou, não é uma espera (#820).
+      await expect(falhada).toContainText('Correção falhou');
+      await expect(falhada).toContainText('a correção falhou, fala com o professor');
+      await expect(falhada).not.toContainText('a nota chega pelo sino');
+      await page.goto('/aluno/inicio');
+      await expect(page.getByTestId('provas-correcao-nova-desktop')).toHaveCount(0);
+
+      expect((await forcar('DONE')).ok()).toBe(true);
+      await page.goto('/aluno/prova/1/detalhe');
+      // A nota vive no círculo, com nome acessível: o texto já não a repete na
+      // linha (#820), por isso a asserção passa a olhar para o círculo.
+      const corrigida = page.getByRole('listitem').filter({ hasText: 'Prova corrigida' });
+      await expect(corrigida.getByRole('img', { name: 'Nota 16,4 valores' })).toBeVisible();
+    } finally {
+      await forcar('');
+    }
   });
 });
 
@@ -280,6 +438,93 @@ test.describe('alvos de toque no telemóvel', () => {
       expect(caixa?.height ?? 0, String(nome)).toBeGreaterThanOrEqual(44);
     }
   });
+});
+
+/** Menu da conta por cima do conteúdo (#752): dentro da barra lateral `sticky` ficava por baixo do feed e dos comentários. */
+test.describe('menu da conta por cima do conteúdo (#752)', () => {
+  test('com o feed e os comentários abertos, o menu fica visível e clicável', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 860 });
+    await alunoLogin(page);
+    await page.goto('/aluno/inicio');
+    await expect(page.getByRole('article').first()).toBeVisible();
+    await page.getByRole('button', { name: /Comentar/ }).first().click();
+    await expect(page.getByLabel('Escrever um comentário').first()).toBeVisible();
+
+    const conta = page.locator('button[aria-haspopup="menu"]:visible').first();
+    await conta.click();
+    const menu = page.getByRole('menu', { name: 'Conta' });
+    await expect(menu).toBeVisible();
+
+    // Cada opção é o elemento de cima no seu próprio centro: nada do conteúdo lhe pinta por cima.
+    for (const nome of ['O meu perfil', 'Privacidade', 'Cookies', 'Terminar sessão']) {
+      const tapada = await page.getByRole('menuitem', { name: nome }).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const topo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !topo || !el.contains(topo);
+      });
+      expect(tapada, `«${nome}» tapada por outro elemento`).toBe(false);
+    }
+
+    // Tab sai do menu: fecha-o e o foco volta ao botão da conta.
+    await page.keyboard.press('Tab');
+    await expect(menu).toHaveCount(0);
+    await expect(conta).toBeFocused();
+
+    await conta.click();
+    await page.getByRole('menuitem', { name: 'O meu perfil' }).click();
+    await expect(page).toHaveURL(/\/aluno\/perfil/);
+    await expect(page.getByRole('menu', { name: 'Conta' })).toHaveCount(0);
+  });
+});
+
+/** Passe visual do aluno (#761): títulos com espaço, rótulos de acção numa linha e o botão do tutor dentro do campo. */
+test.describe('passe visual do aluno (#761)', () => {
+  /** Rótulos de acção que partiram em duas linhas: devolve os que ocupam mais do que uma. */
+  async function partidos(page: Page) {
+    return page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('main a, main button, main span.px-btn')]
+        .filter((e) => /^(Ver resultado|Continuar|Retomar|Ver a prova|Começar)$/.test((e.textContent ?? '').trim()))
+        .filter((e) => e.getBoundingClientRect().width > 0)
+        .filter((e) => {
+          const range = document.createRange();
+          range.selectNodeContents(e);
+          const linhas = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+          return linhas.size > 1;
+        })
+        .map((e) => `${(e.textContent ?? '').trim()} (${Math.round(e.getBoundingClientRect().width)} px)`),
+    );
+  }
+
+  for (const width of [360, 390, 1366]) {
+    test(`a ${width} px: sem títulos colados, sem rótulos partidos e o enviar dentro do campo`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 860 });
+      await alunoLogin(page);
+
+      await page.goto('/aluno/provas?aba=enunciados');
+      await expect(page.getByRole('link', { name: /Ver a prova|Retomar|Ver resultado/ }).first()).toBeVisible();
+      expect(await partidos(page), 'rótulos partidos em Provas').toEqual([]);
+
+      await page.goto('/aluno/prova/1/detalhe');
+      const titulo = page.getByRole('heading', { name: 'As tuas tentativas' });
+      await expect(titulo).toBeVisible();
+      const folga = await titulo.evaluate((h) => h.getBoundingClientRect().top - h.closest('[data-slot="card"]')!.getBoundingClientRect().top);
+      expect(folga, 'espaço entre o topo do cartão e o título').toBeGreaterThanOrEqual(16);
+      expect(await partidos(page), 'rótulos partidos no detalhe').toEqual([]);
+
+      await page.goto('/aluno/tutor?statementId=1');
+      const campo = page.getByLabel('Mensagem para o tutor');
+      await campo.fill('Uma dúvida');
+      const enviar = page.getByRole('button', { name: 'Enviar', exact: true });
+      const [c, b] = await Promise.all([campo.boundingBox(), enviar.boundingBox()]);
+      expect(c && b, 'campo e botão visíveis').toBeTruthy();
+      expect(b!.x).toBeGreaterThanOrEqual(c!.x);
+      expect(b!.x + b!.width).toBeLessThanOrEqual(c!.x + c!.width);
+      expect(b!.y).toBeGreaterThanOrEqual(c!.y);
+      expect(b!.y + b!.height).toBeLessThanOrEqual(c!.y + c!.height);
+      expect(b!.height, 'alvo de toque').toBeGreaterThanOrEqual(40);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), 'scroll horizontal').toBe(false);
+    });
+  }
 });
 
 /** Backend a falhar (#350): o aluno fica na aplicação com uma mensagem e uma saída, nunca no login nem em branco. */
@@ -376,6 +621,8 @@ test.describe('ranking global e métrica', () => {
     expect(await graves(page)).toEqual([]);
     await retirar.click();
     await expect(participar).toBeVisible();
+    // Sem board (o 403 do global pede consentimento), não há linha de posição.
+    await expect(page.getByTestId('ranking-posicao')).toHaveCount(0);
 
     await page.getByRole('tab', { name: 'Turma' }).click();
     await page.getByLabel('Ordenar por').selectOption('xp');
@@ -395,7 +642,10 @@ test.describe('ranking global e métrica', () => {
     await page.locator('#password').fill(process.env.E2E_PASSWORD ?? 'Kixi1234!');
     await page.getByTestId('aluno-entrar-submeter').click();
     await expect(page).toHaveURL(/\/aluno\/inicio/);
-    await page.goto('/aluno/provas');
+    // `aba=enunciados` (#795/#806): a conta «12345» é partilhada pela suite e pode já ter uma
+    // sala a decorrer, caso em que /provas abriria nas Salas — e os filtros só existem na aba
+    // dos enunciados, que é a que este teste quer mesmo exercitar.
+    await page.goto('/aluno/provas?aba=enunciados');
     const filtros = page.getByRole('button', { name: /^Filtros/ });
     await expect(filtros).toBeVisible();
     await expect(page.getByLabel('Tipo de prova')).toBeHidden();
@@ -430,17 +680,23 @@ test.describe('auditoria de UX do aluno', () => {
   });
 });
 
-/** O início (nova experiência, #729): começa logo nas publicações; o progresso vive no perfil e o calendário na coluna
- *  da direita (ecrã grande) ou no topo de Provas (telemóvel). */
+/** O início (nova experiência, #729): o progresso vive no perfil e o calendário na coluna
+ *  da direita (ecrã grande) ou no topo de Provas (telemóvel). No telemóvel o compositor
+ *  inline (#796) figura no topo, acima das publicações, em vez do botão flutuante. */
 test.describe('início sem blocos acima das publicações', () => {
-  test('no telemóvel o feed começa nas publicações e publicar é um botão', async ({ page }) => {
+  test('no telemóvel o compositor está no topo e publicar é um toque (#796)', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await alunoLogin(page);
     await page.goto('/aluno/inicio');
     await expect(page.getByTestId('mobile-progresso')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Criar publicação' })).toBeVisible();
+    // #796: o compositor está à vista (o FAB só existe com o compositor fora da viewport,
+    // o que depende do comprimento da lista — a conta actual difere da local).
+    await expect(page.getByRole('textbox', { name: 'Nova publicação' })).toBeVisible();
     await expect(page.getByRole('article').first()).toBeVisible();
-    await page.goto('/aluno/provas');
+    // `aba=enunciados` (#795/#806): a conta é partilhada pela suite e pode já ter uma sala a
+    // decorrer, caso em que /provas abriria nas Salas — e o Calendário só vive na aba dos
+    // enunciados no telemóvel, que é o que este teste verifica.
+    await page.goto('/aluno/provas?aba=enunciados');
     await expect(page.getByRole('region', { name: 'Calendário' })).toBeVisible();
   });
 
@@ -1042,7 +1298,7 @@ test.describe('doação sem ecrã cortado (#515)', () => {
 
 /** Foco, setas e movimento reduzido na apresentação (#513): o CTA do fim era
  *  focável invisível, as setas estavam sequestradas e o modo parado chegava
- *  depois da hidratação, com a página a saltar de 1800 ecrãs para uma lista. */
+ *  depois da hidratação, com a página a saltar de 1200 ecrãs para uma lista. */
 test.describe('foco e movimento da apresentação (#513)', () => {
   /** Visitante da primeira vez: sem escolha guardada o banner aparece. */
   async function primeiraVisita(page: Page) {
@@ -1100,7 +1356,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
     test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-    test('sem salto de layout e sem os 1800 ecrãs', async ({ page }) => {
+    test('sem salto de layout e sem os 1200 ecrãs', async ({ page }) => {
       await page.addInitScript(() => {
         (window as unknown as { __cls?: number }).__cls = 0;
         new PerformanceObserver((list) => {
@@ -1124,9 +1380,9 @@ test.describe('foco e movimento da apresentação (#513)', () => {
       // A apresentação nasce compacta: herói, cenas empilhadas e cartucho parado.
       const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
       const ecra = await page.evaluate(() => window.innerHeight);
-      expect(altura, 'sem os 1800 ecrãs').toBeLessThan(8 * ecra);
+      expect(altura, 'sem os 1200 ecrãs').toBeLessThan(8 * ecra);
       await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible();
-      // O colapso de 1800 ecrãs para lista pontuava muito acima de 1; a troca
+      // O colapso de 1200 ecrãs para lista pontuava muito acima de 1; a troca
       // de webfont (`font-display: swap`, decisão de produto) mexe ~0.1 e não
       // é o salto que este teste vigia.
       const cls = await page.evaluate(() => (window as unknown as { __cls?: number }).__cls ?? 0);
@@ -1261,7 +1517,7 @@ test.describe('CTA de registo da landing (#512)', () => {
     // scroll de baixo perdia-se (ainda sem ouvintes) e o CTA do fim nunca nascia.
     // Em runner carregado a hidratação demora: os 15 s são os dos testes irmãos.
     await expect(page.locator('#solucao')).toBeAttached({ timeout: 15000 });
-    // O outro só fica clicável no fim da apresentação de 1800 ecrãs, e o layout
+    // O outro só fica clicável no fim da apresentação de 1200 ecrãs, e o layout
     // pode crescer depois de lá chegar: desce-se a cada ronda até o CTA entrar
     // na árvore de acessibilidade.
     await irAoFim(page);

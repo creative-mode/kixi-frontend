@@ -1,11 +1,11 @@
 import type { MatrixPick, TrainingPlan } from './training';
 import 'server-only';
 
+import { cache } from 'react';
+
 import { apiGet, apiPost, apiPut, type Result } from './api';
 import { TtlCache } from './ttl-cache';
 import { getMe } from './me';
-import { correcaoLigada } from './schoolops/correcao';
-import { semNotaDasSimulacoes } from './schoolops/correcao-rules';
 import type { PaperMeta } from './folha-da-prova';
 import {
   answeredQuestionIds,
@@ -100,20 +100,20 @@ export async function listSimulations(): Promise<SimulationSummary[]> {
 /** Like `listSimulations`, but keeps the failure. The tutor's block (#192) must not
  *  read a failed request as "no attempt": that would fail open during a backend
  *  outage and let the student leave the paper. Callers that can degrade to an empty
- *  list keep using `listSimulations`. */
-export async function listSimulationsResult(): Promise<Result<SimulationSummary[]>> {
+ *  list keep using `listSimulations`.
+ *
+ *  A nota sai como o backend a manda, mas quem a mostra passa-a por `nota-da-simulacao`:
+ *  uma simulação livre ainda por corrigir traz a nota parcial (só as fechadas), e essa
+ *  não é a nota do resultado (#791). Já não se esconde a nota aqui — era essa a segunda
+ *  leitura que obrigava a pedir `/exam-rooms/mine` em cada página. */
+export const listSimulationsResult = cache(async (): Promise<Result<SimulationSummary[]>> => {
   const result = await apiGet<Simulation[]>('/simulations');
   if (!result.ok) return result;
   if (!Array.isArray(result.data)) {
     return { ok: false, status: 0, message: 'O servidor devolveu uma resposta inesperada.' };
   }
-  // Com a correcção do SchoolOps ligada a nota de uma simulação só aparece no resultado, depois de corrigida.
-  if (correcaoLigada()) {
-    const salas = await apiGet<Array<{ simulationId: number | null }>>('/exam-rooms/mine');
-    return { ok: true, data: semNotaDasSimulacoes(result.data, salas.ok && Array.isArray(salas.data) ? salas.data : null) };
-  }
   return { ok: true, data: result.data };
-}
+});
 
 /** Starts an attempt. The server starts the clock itself (SimulationService.java:95),
  *  so the body carries the account, the statement and the statement's school year:
@@ -258,9 +258,26 @@ export async function saveIntegrityEvent(
 /** GET /question-images/question/{questionId} — the images of one question. A
  *  question carries no image field of its own, so each one is a separate request;
  *  losing it costs an illustration, not the room, so this degrades to an empty list. */
+const IMAGES_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const IMAGES_MAX = 500;
+const imagesCache = new TtlCache<QuestionImage[]>(IMAGES_TTL_MS, IMAGES_MAX);
+
 export async function getQuestionImages(questionId: number): Promise<QuestionImage[]> {
-  const result = await apiGet<QuestionImage[]>(`/question-images/question/${questionId}`);
-  return result.ok && Array.isArray(result.data) ? result.data : [];
+  const ler = async () => {
+    const result = await apiGet<QuestionImage[]>(`/question-images/question/${questionId}`);
+    const value = result.ok && Array.isArray(result.data) ? result.data : [];
+    return { value, keep: result.ok };
+  };
+  return imagesCache.remember(String(questionId), ler);
+}
+
+/** Carrega as imagens de várias questões em paralelo, usando cache para evitar pedidos repetidos. */
+export async function getQuestionImagesBatch(questionIds: number[]): Promise<Record<number, QuestionImage[]>> {
+  const uniqueIds = [...new Set(questionIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const results = await Promise.all(
+    uniqueIds.map(async (id) => [id, await getQuestionImages(id)] as const)
+  );
+  return Object.fromEntries(results);
 }
 
 /** What the room needs to paint itself, in one pass.
@@ -346,12 +363,7 @@ export async function getRoom(statementId: number): Promise<Room> {
   const all = statement.data.questions;
   const parents = new Set(all.filter((q) => chosen?.has(q.id) && q.parentId != null).map((q) => q.parentId));
   const questions = chosen ? all.filter((q) => chosen.has(q.id) || parents.has(q.id)) : all;
-  const images: RoomData['images'] = {};
-  await Promise.all(
-    questions.map(async (question) => {
-      images[question.id] = await getQuestionImages(question.id);
-    }),
-  );
+  const images = await getQuestionImagesBatch(questions.map((q) => q.id));
 
   return {
     kind: 'open',

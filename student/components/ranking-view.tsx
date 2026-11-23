@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Users } from 'lucide-react';
+import { TrendingUp, Users } from 'lucide-react';
 import { Column, Page, PageHeader } from '@/components/page';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,9 +11,11 @@ import { EmptyState, ErrorState } from '@/components/states';
 import { UserAvatar } from '@/components/user-avatar';
 import { fetchLeaderboardAction, setConsentAction } from '@/lib/ranking-actions';
 import { FriendsPanel } from '@/components/friends-panel';
+import { RankingVisibility } from '@/components/ranking-visibility';
 import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
-import { formatAverage, globalNote, myPositionLabel, podiumGap, smallGroupNote, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import { formatAverage, globalNote, myPositionLabel, nextPlaceGap, nextPlaceGapShort, podiumGap, relativeBandLabel, showPositionLine, GLOBAL_EMPTY_HINT, METRIC_LABEL, PERIOD_LABEL, SCOPE_LABEL } from '@/lib/ranking-rules';
+import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { useMe } from '@/lib/me-context';
 import { photoUrl } from '@/lib/profile';
 import type { Leaderboard, RankingMetric, RankingPeriod, RankingScope } from '@/lib/ranking';
@@ -25,9 +27,11 @@ const SCOPES: RankingScope[] = ['class', 'school', 'friends', 'global'];
 export function RankingView({
   initial,
   error,
+  initialVisibility = null,
 }: {
   initial: Leaderboard | null;
   error: string | null;
+  initialVisibility?: VisibilityPreferences | null;
 }) {
   const me = useMe();
   const [scope, setScope] = useState<RankingScope>('class');
@@ -83,21 +87,31 @@ export function RankingView({
     load(scope, period, next);
   };
   const progress = board ? podiumGap(board, metric) : null;
+  const band = board ? relativeBandLabel(board.myPosition, board.totalStudents) : null;
+  const gap = board ? nextPlaceGap(board, metric) : null;
+  const gapCurto = board ? nextPlaceGapShort(board, metric) : null;
+  const posicao = myPositionLabel(board?.myPosition ?? null, board?.totalStudents ?? 0);
 
   return (
     <Page variant="wide">
-      <Column className="gap-5">
+      <Column className="gap-3">
         <PageHeader
           title={pending ? `A carregar ${SCOPE_LABEL[scope]}…` : `Ranking · ${SCOPE_LABEL[scope]}`}
           description="Média das simulações deste período. Vês o topo e quem está perto de ti."
         />
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
+        {/* A escolha é da conta, não da aba: fica no topo e sobrevive à troca de
+            âmbito. Uma linha compacta em vez do bloco grande da maquete, para a
+            tabela continuar à vista sem scrolling (#800). */}
+        <Card className="gap-0 px-4 py-0">
+          <RankingVisibility initial={initialVisibility} />
+        </Card>
         <Tabs value={scope} onValueChange={(v) => changeScope(v as RankingScope)}>
           <TabsList aria-label="Comparar com">
             {SCOPES.map((s) => <TabsTrigger key={s} value={s}>{SCOPE_LABEL[s]}</TabsTrigger>)}
           </TabsList>
 
-          <div className="flex flex-wrap gap-3">
+          <div data-testid="ranking-filtros" className="mb-5 flex flex-wrap gap-3">
             <label className="grid min-w-40 flex-1 gap-1 text-[13px] text-muted-foreground">
               Período
               <NativeSelect value={period} disabled={pending} onChange={(e) => changePeriod(e.target.value as RankingPeriod)}>
@@ -111,6 +125,20 @@ export function RankingView({
               </NativeSelect>
             </label>
           </div>
+
+          {/* A posição é o contexto da tabela: fica logo acima do ranking, depois
+              dos filtros. Sem board (erro, consentimento ou carregamento) não há
+              posição para mostrar: «Ainda sem nota» seria uma afirmação falsa. */}
+          {board && showPositionLine(board, pending, needsConsent || Boolean(boardError)) && (
+            <div data-testid="ranking-posicao" className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+              <Users className="size-4" aria-hidden />
+              {posicao ?? 'Ainda sem nota para te posicionar'}
+              {progress && <span>· {progress}</span>}
+              {board.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
+              {gapCurto && <span>· {gapCurto}</span>}
+              {scope === 'global' && board.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
+            </div>
+          )}
 
           <TabsContent value={scope} aria-busy={pending} aria-label={`Ranking ${SCOPE_LABEL[scope]}`}>
             {pending ? (
@@ -154,17 +182,7 @@ export function RankingView({
               </Card>
             ) : (
               <>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="size-4" aria-hidden />
-                  {myPositionLabel(board.myPosition, board.totalStudents) ?? 'Ainda sem nota para te posicionar'}
-                  {progress && <span>· {progress}</span>}
-                  {board.myAverage != null && <span>· A tua média: {formatAverage(board.myAverage)}%</span>}
-                  {scope === 'global' && board.myPercentile != null && <span>· Percentil na tua escola: {formatAverage(board.myPercentile)}</span>}
-                </div>
                 {scope === 'global' && <p className="text-sm text-muted-foreground">{globalNote(board.institutionsCounted, metric)}</p>}
-                {smallGroupNote(board.smallGroup) && (
-                  <p className="text-sm text-muted-foreground">{smallGroupNote(board.smallGroup)}</p>
-                )}
                 <Card className="overflow-hidden py-0">
                   <Table>
                     <TableHeader>
@@ -194,6 +212,21 @@ export function RankingView({
                     </TableBody>
                   </Table>
                 </Card>
+                {/* Depois da tabela, com espaço acima para o cartão respirar. Só a
+                    faixa e a distância ao lugar de cima, sem texto explicativo extra. */}
+                {band && (
+                  <div data-testid="ranking-destaque" className="mt-6 flex items-start gap-3 rounded-2xl border-[1.5px] border-[#1F5C2E] bg-[#F1F7F0] px-4 py-2.5">
+                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#dcecd9] text-[#1F5C2E]" aria-hidden="true">
+                      <TrendingUp className="size-4" />
+                    </span>
+                    <div className="grid min-w-0 gap-0.5 text-sm leading-snug">
+                      <strong className="font-bold text-[#121c15]">{band.replace(/\.$/, '')}</strong>
+                      <span className="text-[#6B6B6B]">
+                        {gap ? `${gap} ` : ''}Mostramos só as posições próximas da tua.
+                      </span>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -201,7 +234,11 @@ export function RankingView({
               <div><Button variant="outline" size="sm" disabled={pending} onClick={() => consent(false)}>Deixar de participar no ranking global</Button></div>
             )}
 
-            {scope === 'friends' && !pending && <FriendsPanel onChange={() => load('friends')} />}
+            {/* Na aba de amigos o cartão verde é seguido pelo painel de convites:
+                sem esta folga os dois blocos encostam. */}
+            {scope === 'friends' && !pending && (
+              <div className="mt-4"><FriendsPanel onChange={() => load('friends')} /></div>
+            )}
           </TabsContent>
         </Tabs>
       </Column>

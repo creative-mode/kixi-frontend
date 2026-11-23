@@ -1,5 +1,5 @@
-/** A matriz da prova (matriz de especificação): os temas que saem, quantas questões e que cotação tem cada um, numa
- *  escala de 20 valores. É o que o professor carrega para uma prova agendada e o que o aluno vê em «Prepara-te para a
+/** A matriz da prova (matriz de especificação): os temas que saem, quantas questões e que cotação tem cada um, na escala
+ *  que o professor escolher. É o que o professor carrega para uma prova agendada e o que o aluno vê em «Prepara-te para a
  *  prova». Regras puras, sem rede, para o `node --test` as alcançar. O contrato é o do backend (`/exam-rooms/{id}/matrix`). */
 
 export const LEVELS = [

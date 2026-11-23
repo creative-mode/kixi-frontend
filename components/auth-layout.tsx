@@ -2,11 +2,11 @@
 
 import { usePathname } from 'next/navigation'
 
-const PUBLIC_PAGES = ['/login', '/403', '/recuperar']
+import { isManagerPublicPage } from '@/lib/public-pages'
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isPublicPage = PUBLIC_PAGES.includes(pathname)
+  const isPublicPage = isManagerPublicPage(pathname)
 
   if (isPublicPage) {
     // No navbar padding, full-screen layout for login

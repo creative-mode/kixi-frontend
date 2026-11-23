@@ -23,6 +23,10 @@ function world(now = '2026-10-12T09:30:00') {
     ],
     classes: [{ id: 7, deletedAt: null }, { id: 8, deletedAt: null }],
     accounts: [{ id: S1 }, { id: S2 }, { id: OUTSIDER }, { id: TEACHER }],
+    users: [
+      { accountId: S1, firstName: 'Ana', lastName: 'Silva', deletedAt: null },
+      { accountId: S2, firstName: 'Bruno', lastName: 'Costa', deletedAt: null },
+    ],
     enrollments: [
       { accountId: S1, classId: 7, deletedAt: null },
       { accountId: S2, classId: 7, deletedAt: null },
@@ -118,6 +122,7 @@ test('de ponta a ponta: abrir, iniciar na janela, entrar, encerrar e notas', () 
     assert.equal(snap.body.joinedParticipants, 1);
     const s1 = snap.body.participants.find((p: { accountId: number }) => p.accountId === S1);
     assert.deepEqual([s1.status, s1.answeredQuestions, s1.totalQuestions], ['IN_PROGRESS', 1, 2]);
+    assert.equal(s1.displayName, 'Ana Silva');
   }
 
   assert.equal(rooms.transition(id, TEACHER, false, 'CLOSED').ok, true);
@@ -128,6 +133,7 @@ test('de ponta a ponta: abrir, iniciar na janela, entrar, encerrar e notas', () 
     const s2 = g.body.find((x: { accountId: number }) => x.accountId === S2);
     assert.equal(s1.status, 'FINISHED');
     assert.equal(s1.correctAnswers, 1);
+    assert.equal(s1.displayName, 'Ana Silva');
     assert.equal(s2.simulationId, null);
   }
   const reopen = rooms.transition(id, TEACHER, false, 'OPEN');
@@ -159,6 +165,7 @@ test('os eventos de integridade saem por aluno, com a hora e sem os de outra ten
     const s1 = seen.body.participants.find((p: { accountId: number }) => p.accountId === S1);
     assert.deepEqual(s1.events.map((e: { id: number }) => e.id), [1, 2]);
     assert.equal(s1.events[1].questionId, 1);
+    assert.equal(s1.displayName, 'Ana Silva');
     // O S2 foi convidado mas não entrou: sem tentativa, sem eventos.
     const s2 = seen.body.participants.find((p: { accountId: number }) => p.accountId === S2);
     assert.deepEqual(s2.events, []);
@@ -199,6 +206,7 @@ test('review: numa sala de um plano as respostas vêm com a nota e a observaçã
   assert.equal(r.body.pending, 1);
   const [first, second] = r.body.questions[0].answers;
   assert.equal(first.status, 'AI_GRADED');
+  assert.equal(first.displayName, 'Ana Silva');
   assert.equal(first.aiFeedback, 'Falta o tempo de vida.');
   assert.equal(first.scoreObtained, 4);
   assert.equal(second.status, 'PENDING_REVIEW');

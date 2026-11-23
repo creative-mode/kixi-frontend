@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { answersOf, marksOf, paperQuestions, stampOf } from './folha-do-resultado.ts';
+import { optionMark } from './folha-da-prova.ts';
 import { buildPaper } from './folha-da-prova.ts';
 import type { ResultQuestion } from './result-rules.ts';
 
@@ -47,4 +48,18 @@ test('a nota é provisória enquanto há respostas por corrigir, e sem nota não
   assert.equal(stampOf(8, 20, 0)?.provisional, false);
   assert.equal(stampOf(null, 20, 0), null);
   assert.equal(stampOf(12, null, 0)?.passed, null);
+});
+
+test('a opção marcada só fica «errada» quando a folha sabe qual é a certa: sem gabarito (sala aberta) não se pinta de vermelho', () => {
+  // Sala aberta: o backend ainda não devolve a opção certa, e a escolhida (que pode ser a certa) ficava vermelha.
+  assert.equal(optionMark({ optionId: 2, chosen: 2, correct: null, reviewed: true, verdict: 'pending' }), 'none');
+  assert.equal(optionMark({ optionId: 2, chosen: 2, correct: null, reviewed: true, verdict: 'wrong' }), 'none');
+  // Corrigida: a certa a verde e a errada escolhida a vermelho.
+  assert.equal(optionMark({ optionId: 1, chosen: 2, correct: 1, reviewed: true, verdict: 'wrong' }), 'right');
+  assert.equal(optionMark({ optionId: 2, chosen: 2, correct: 1, reviewed: true, verdict: 'wrong' }), 'wrong');
+  assert.equal(optionMark({ optionId: 3, chosen: 2, correct: 1, reviewed: true, verdict: 'wrong' }), 'none');
+  // Por corrigir pelo professor (questão que espera revisão): nada de certo/errado.
+  assert.equal(optionMark({ optionId: 2, chosen: 2, correct: 1, reviewed: true, verdict: 'pending' }), 'none');
+  // Sem correcção (folha em branco da prova): nada.
+  assert.equal(optionMark({ optionId: 1, chosen: 1, correct: 1, reviewed: false, verdict: 'pending' }), 'none');
 });

@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Clock, GraduationCap } from 'lucide-react';
-import { scorePassed, scorePercent, simulationHeadline } from '@/lib/feed-rules';
+import { Clock, EyeOff, GraduationCap } from 'lucide-react';
+import { pendingReviews, scorePassed, scorePercent, simulationHeadline } from '@/lib/feed-rules';
 import { formatDuration, formatScore } from '@/lib/result-rules';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +21,46 @@ export interface SimulationCardData {
   correctAnswers: number | null;
   totalQuestions: number | null;
   timeSpentSeconds: number | null;
+  /** Respostas abertas ainda por corrigir (kixi#788). Acima de zero, a nota é
+   *  provisória e o cartão diz «A corrigir» em vez de a mostrar como final. */
+  pendingReviewCount?: number | null;
+  /** A nota e as respostas certas estão escondidas de quem não é o autor (kixi#612).
+   *  Ausente num backend antigo; com os dois números nulos também se lê como escondida. */
+  scoreHidden?: boolean;
+}
+
+/** O lugar da nota quando o autor escolheu escondê-la (kixi#612): diz o que está
+ *  escondido e de quem, sem deixar um carimbo vazio a parecer uma nota em falta. */
+function HiddenScore() {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-dashed px-4 py-3 text-muted-foreground">
+      <EyeOff className="size-5 shrink-0" aria-hidden />
+      <span className="grid gap-0.5 leading-tight">
+        <span className="text-sm font-bold text-foreground">Nota escondida</span>
+        <span className="text-[13px]">Só o autor vê a nota e as respostas certas.</span>
+      </span>
+    </div>
+  );
+}
+
+/** O lugar da nota enquanto há respostas abertas por corrigir (kixi#788): o cartão
+ *  mantém o cabeçalho e o carimbo, mas o carimbo diz «A corrigir» em vez de
+ *  estampar a nota parcial como se fosse a final — a mesma do ecrã de resultado. */
+function ProvisionalScore({ count }: { count: number }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double border-warning px-4 py-1.5 text-center text-warning">
+        <span className="text-[24px] leading-none font-black tracking-[0.06em] uppercase">A corrigir</span>
+        <span className="mt-1 text-[10px] font-bold tracking-wider uppercase">Nota provisória</span>
+      </div>
+      <div className="grid min-w-40 flex-1 gap-0.5">
+        <span className="text-sm font-semibold">
+          {count === 1 ? '1 resposta aberta por corrigir' : `${count} respostas abertas por corrigir`}
+        </span>
+        <span className="text-[13px] leading-snug text-muted-foreground">A nota aparece aqui quando a correção terminar.</span>
+      </div>
+    </div>
+  );
 }
 
 /** O cartão do resultado de uma prova simulada: com o cabeçalho do instantâneo,
@@ -36,6 +76,9 @@ export interface SimulationCardData {
  *  simulação de quem está a ver, por isso só o dono o recebe (`correctionHref`);
  *  na pré-visualização do próprio resultado também não há link, porque já lá se está. */
 export function SimulationCard({ card, correctionHref }: { card: SimulationCardData; correctionHref?: string | null }) {
+  const hidden = card.scoreHidden ?? (card.finalScore == null && card.maxScore == null);
+  const pending = pendingReviews(card);
+  const provisional = !hidden && pending > 0;
   const percent = scorePercent(card.finalScore, card.maxScore);
   const passed = scorePassed(card.finalScore, card.maxScore);
   const score = formatScore(card.finalScore);
@@ -68,20 +111,24 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
         </figcaption>
         <div className="grid gap-3 px-4 py-4">
           <p className="text-sm leading-snug font-semibold">{card.statementTitle ?? 'Prova'}</p>
-          <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-            <span className="text-[44px] leading-[.95] font-bold tracking-tighter tabular-nums">{score ?? '—'}</span>
-            {card.maxScore != null && (
-              <span className="pb-1 text-base font-semibold text-muted-foreground">de {formatScore(card.maxScore)} valores</span>
-            )}
-            {percent != null && <span className="ml-auto pb-1 text-base font-bold text-primary tabular-nums">{percent}%</span>}
-          </div>
-          {percent != null && (
-            <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
-              <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
-            </span>
+          {hidden ? <HiddenScore /> : provisional ? <ProvisionalScore count={pending} /> : (
+            <>
+              <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+                <span className="text-[44px] leading-[.95] font-bold tracking-tighter tabular-nums">{score ?? '—'}</span>
+                {card.maxScore != null && (
+                  <span className="pb-1 text-base font-semibold text-muted-foreground">de {formatScore(card.maxScore)} valores</span>
+                )}
+                {percent != null && <span className="ml-auto pb-1 text-base font-bold text-primary tabular-nums">{percent}%</span>}
+              </div>
+              {percent != null && (
+                <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
+                  <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                </span>
+              )}
+            </>
           )}
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
-            {card.correctAnswers != null && card.totalQuestions != null && (
+            {!provisional && card.correctAnswers != null && card.totalQuestions != null && (
               <span><b className="text-foreground tabular-nums">{card.correctAnswers} de {card.totalQuestions}</b> respostas certas</span>
             )}
             {time && <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" aria-hidden />{time}</span>}
@@ -108,28 +155,34 @@ export function SimulationCard({ card, correctionHref }: { card: SimulationCardD
           <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">{headline}</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div
-            role="img"
-            aria-label={`Nota: ${score ?? 'sem nota'}${card.maxScore != null ? ` de ${formatScore(card.maxScore)} valores` : ''}, ${stampWord.toLowerCase()}`}
-            className={cn('grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double px-4 py-1 text-center', stampTone)}
-          >
-            <span className="text-[34px] leading-none font-black tabular-nums" aria-hidden="true">{score ?? '—'}</span>
-            <span className="text-[10px] font-bold tracking-wider uppercase" aria-hidden="true">
-              {card.maxScore != null ? `de ${formatScore(card.maxScore)} valores` : 'valores'}
-            </span>
-            <span className="mt-0.5 text-[11px] font-black tracking-[0.2em] uppercase" aria-hidden="true">{stampWord}</span>
-          </div>
-          {percent != null && (
-            <div className="grid min-w-28 flex-1 gap-1">
-              <span className="text-base font-bold text-primary tabular-nums">{percent}%</span>
-              <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
-                <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
-              </span>
-            </div>
+          {hidden ? <div className="min-w-0 flex-1"><HiddenScore /></div> : provisional ? (
+            <ProvisionalScore count={pending} />
+          ) : (
+            <>
+              <div
+                role="img"
+                aria-label={`Nota: ${score ?? 'sem nota'}${card.maxScore != null ? ` de ${formatScore(card.maxScore)} valores` : ''}, ${stampWord.toLowerCase()}`}
+                className={cn('grid rotate-[-4deg] place-items-center rounded-lg border-[3px] border-double px-4 py-1 text-center', stampTone)}
+              >
+                <span className="text-[34px] leading-none font-black tabular-nums" aria-hidden="true">{score ?? '—'}</span>
+                <span className="text-[10px] font-bold tracking-wider uppercase" aria-hidden="true">
+                  {card.maxScore != null ? `de ${formatScore(card.maxScore)} valores` : 'valores'}
+                </span>
+                <span className="mt-0.5 text-[11px] font-black tracking-[0.2em] uppercase" aria-hidden="true">{stampWord}</span>
+              </div>
+              {percent != null && (
+                <div className="grid min-w-28 flex-1 gap-1">
+                  <span className="text-base font-bold text-primary tabular-nums">{percent}%</span>
+                  <span className="h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${percent}% da cotação`}>
+                    <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
-          {card.correctAnswers != null && card.totalQuestions != null && (
+          {!provisional && card.correctAnswers != null && card.totalQuestions != null && (
             <span><b className="text-foreground tabular-nums">{card.correctAnswers} de {card.totalQuestions}</b> respostas certas</span>
           )}
           {time && <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" aria-hidden />{time}</span>}

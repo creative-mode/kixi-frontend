@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyBlock, imagesWithoutAlt, isPostImage, moved, payloadOf, problemOf, summaryOf, TEMPLATES, templateBlocks, toPayload, type PostBlock } from './post-blocks.ts';
+import { draftsFromBlocks, emptyBlock, imagesWithoutAlt, isPostImage, moved, payloadOf, problemOf, summaryOf, TEMPLATES, templateBlocks, toPayload, type PostBlock } from './post-blocks.ts';
 
 const text = (t: string): PostBlock => ({ type: 'text', text: t });
 const choice = (q: string, items: string[], correct: number): PostBlock => ({ type: 'choice', text: q, items, correct });
@@ -92,4 +92,21 @@ test('as imagens enviadas sem descrição são apontadas pela posição, para o 
 test('uma imagem ainda por escolher não conta: o aviso é sobre o que vai ser publicado', () => {
   assert.deepEqual(imagesWithoutAlt([{ type: 'image', url: '', alt: '' }, { type: 'image' }]), []);
   assert.deepEqual(imagesWithoutAlt([]), []);
+});
+
+test('editar reabre a publicação com os mesmos blocos, cada um com uma chave nova', () => {
+  const saved: PostBlock[] = [
+    { type: 'heading', text: 'Endereços de uma rede' },
+    { type: 'list', items: ['Rede', 'Difusão'], ordered: true },
+  ];
+  const drafts = draftsFromBlocks(saved);
+  assert.deepEqual(drafts.map(({ key: _key, ...b }) => b), saved);
+  assert.equal(new Set(drafts.map((d) => d.key)).size, 2);
+});
+
+test('uma publicação simples abre como um bloco de texto com o conteúdo, para poder ser editada', () => {
+  const drafts = draftsFromBlocks(null, 'Como se resolve uma equação?');
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].type, 'text');
+  assert.equal(drafts[0].text, 'Como se resolve uma equação?');
 });

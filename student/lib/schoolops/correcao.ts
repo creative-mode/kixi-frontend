@@ -2,13 +2,13 @@ import 'server-only';
 
 import { BASE_PATH } from '../base-path';
 import type { Me } from '../types';
-import { pedidoDeCorrecao, vistaDaCorrecao, type CorrecaoEstado, type VistaCorrecao } from './correcao-rules';
+import { motorSimulado } from '../mock/motor';
+import { abrirCorrecaoComId, iniciarAbertura, consultarEstado, type Abertura, type EstadoLido } from './correcao-motor';
+import { pedidoDeCorrecao, vistaDaCorrecao, type VistaCorrecao } from './correcao-rules';
 
 // Cliente do SchoolOps para as simulações do aluno: a correcção corre no motor (objectivas pelo gabarito, dissertativas
-// por proximidade ao gabarito) e o aluno só vê a nota quando está feita. Só corre no servidor: o token do cliente nunca
+// por proximidade ao gabarito) e o aluno só vê a nota quando está feita. Só corre no servidor: the token do cliente nunca
 // chega ao browser. Sem SCHOOLOPS_URL e SCHOOLOPS_CLIENTE_TOKEN a funcionalidade está desligada e o resultado fica como antes.
-
-const TIMEOUT_MS = 8_000;
 
 function config(): { url: string; token: string; callback: string } | null {
   const url = process.env.SCHOOLOPS_URL?.replace(/\/$/, '');
@@ -20,41 +20,52 @@ function config(): { url: string; token: string; callback: string } | null {
 
 export const correcaoLigada = (): boolean => config() !== null;
 
-type Resposta<T> = { ok: true; corpo: T } | { ok: false; status: number };
-
-async function chamar<T>(cfg: { url: string; token: string }, caminho: string, init: RequestInit = {}): Promise<Resposta<T>> {
-  try {
-    const res = await fetch(`${cfg.url}${caminho}`, {
-      ...init,
-      headers: { Authorization: `Bearer ${cfg.token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) return { ok: false, status: res.status };
-    return { ok: true, corpo: (await res.json()) as T };
-  } catch {
-    return { ok: false, status: 0 }; // o motor em baixo não pode deitar abaixo o ecrã: mostra-se "a corrigir" e volta-se a tentar
-  }
-}
+/** Só no modo de demonstração: a simulação tem um estado do motor combinado à mão (`lib/mock/motor.ts`). */
+export const correcaoSimulada = (simulationId: number): boolean => motorSimulado(simulationId) !== null;
 
 /** Abre a correcção (idempotente no motor, por simulação) e devolve o que se pode mostrar já. */
 export async function correcaoDaSimulacao(args: {
   me: Me;
   simulationId: number;
   statementId: number;
-  statementTitle: string | null;
 }): Promise<VistaCorrecao | null> {
+  const abertura = await correcaoDaSimulacaoComId(args);
+  return abertura?.vista ?? null;
+}
+
+/** Como `correcaoDaSimulacao`, mas devolve também o `correcaoId`: o ecrã de resultado usa-o para a
+ *  espera ler só o estado pela rota leve (#794). O resto do código continua a usar a vista. */
+export async function correcaoDaSimulacaoComId(args: {
+  me: Me;
+  simulationId: number;
+  statementId: number;
+}): Promise<Abertura | null> {
+  // Só no modo de demonstração (#792): o estado do motor combinado à mão. Sem id, a espera relê a página inteira.
+  const simulado = motorSimulado(args.simulationId);
+  if (simulado) return { vista: vistaDaCorrecao(simulado), correcaoId: null };
   const cfg = config();
   if (!cfg) return null;
   const pedido = pedidoDeCorrecao({ ...args, callbackUrl: cfg.callback });
-  const aberta = await chamar<{ correcaoId: string; resultado?: CorrecaoEstado['resultado'] }>(cfg, '/v1/correcoes?aguardar=0', {
-    method: 'POST',
-    body: JSON.stringify(pedido),
-  });
-  if (!aberta.ok) {
-    // Um 4xx (menos o 429) é o motor a recusar o pedido: repetir não adianta e esperar para sempre é pior do que dizê-lo.
-    return aberta.status >= 400 && aberta.status < 500 && aberta.status !== 429 && aberta.status !== 408 ? { kind: 'falhou' } : { kind: 'a-corrigir' };
-  }
-  const estado = await chamar<CorrecaoEstado>(cfg, `/v1/correcoes/${encodeURIComponent(aberta.corpo.correcaoId)}`);
-  return vistaDaCorrecao(estado.ok ? estado.corpo : { correcaoId: aberta.corpo.correcaoId, estado: 'ACTIVE' });
+  return abrirCorrecaoComId({ cfg, pedido, simulationId: args.simulationId });
+}
+
+/** Inicia a correcção na entrega (POST /v1/correcoes?aguardar=0) sem esperar o resultado.
+ *  Devolve o correcaoId para a espera ler o estado pela rota leve (#794). */
+export async function iniciarCorrecao(args: {
+  me: Me;
+  simulationId: number;
+  statementId: number;
+}): Promise<{ correcaoId: string } | null> {
+  const cfg = config();
+  if (!cfg) return null;
+  const pedido = pedidoDeCorrecao({ ...args, callbackUrl: cfg.callback });
+  return iniciarAbertura({ cfg, pedido, simulationId: args.simulationId });
+}
+
+/** Consulta o estado de uma correcção pelo ID (para polling leve na espera).
+ *  Devolve o estado do motor quando falha (0 = fora, 404 = não existe) para a espera distinguir "volta a ler" de "desiste". */
+export async function consultarEstadoCorrecao(correcaoId: string): Promise<EstadoLido> {
+  const cfg = config();
+  if (!cfg) return { ok: false, status: 0 };
+  return consultarEstado(cfg, correcaoId);
 }

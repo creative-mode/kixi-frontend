@@ -8,13 +8,20 @@
  */
 
 import { isFinished } from './attempt-history.ts';
+import { notaFinal } from './nota-da-simulacao.ts';
 
 /** Uma simulação como o backend a devolve, só com o que isto lê. */
 export interface RawSimulation {
   id: number;
   status?: string | null;
   finalScore?: number | null;
+  /** kixi#609: só uma nota `DONE` entra no desempenho (#791); é também o sinal de que a
+   *  notificação da nota pode sair. Calculado para qualquer simulação entregue. */
+  correctionStatus?: string | null;
+  /** A nota é a do motor (0–20): a percentagem usa a cotação, a lista não mostra o número. */
+  notaDoMotor?: boolean;
   finishedAt?: string | null;
+  correctedAt?: string | null;
   statement?: { id?: number | null; title?: string | null; totalMaxScore?: number | null } | null;
 }
 
@@ -29,6 +36,8 @@ export interface ActivityItem {
   id: number;
   title: string;
   score: number;
+  /** Só o resultado mostra este número; no perfil fica «Corrigida» (#820). */
+  notaDoMotor: boolean;
   finishedAt: string | null;
 }
 
@@ -45,19 +54,21 @@ const finishedAtOf = (s: RawSimulation) => (s.finishedAt ? Date.parse(s.finished
  *  não vira percentagem, e uma barra a 0% diria que o aluno não sabe nada. */
 export function percentOf(s: RawSimulation): number | null {
   const total = s.statement?.totalMaxScore;
-  if (s.finalScore == null || !total || total <= 0) return null;
-  return Math.max(0, Math.min(100, Math.round((s.finalScore * 100) / total)));
+  const nota = notaFinal(s);
+  if (nota == null || !total || total <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((nota * 100) / total)));
 }
 
 export function buildPerformance(simulations: RawSimulation[]): Performance {
   const finished = simulations
-    .filter((s) => isFinished(s) && s.finalScore != null)
+    .filter((s) => isFinished(s) && notaFinal(s) != null)
     .sort((a, b) => finishedAtOf(b) - finishedAtOf(a));
 
   const activity = finished.map((s) => ({
     id: s.id,
     title: s.statement?.title?.trim() || 'Prova',
-    score: s.finalScore as number,
+    score: notaFinal(s) as number,
+    notaDoMotor: s.notaDoMotor === true,
     finishedAt: s.finishedAt ?? null,
   }));
 

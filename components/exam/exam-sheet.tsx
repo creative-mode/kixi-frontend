@@ -172,7 +172,7 @@ export function ExamSheet({ school, draft, keyMode = 'screen' }: { school: Schoo
           ))}
         </ol>
       )}
-      {total > 0 && <p className="mt-3 text-right text-xs font-semibold">Total: {total} valores</p>}
+      {total > 0 && <p className="mt-3 text-right text-xs font-semibold">Cotação: {total} valores</p>}
 
       {rules.length > 0 && (
         <section className="mt-6">

@@ -1,8 +1,8 @@
 import { TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatGrade, isNegative, ROW_STATUS_LABEL, SEM_NOTA, wasAbsent } from '@/lib/term-sheets';
-import type { RowStatus, TermSheetRow } from '@/types/term-sheets';
+import { DISPENSADA, formatGrade, isDispensed, isNegative, ROW_STATUS_LABEL, SEM_NOTA, wasAbsent } from '@/lib/term-sheets';
+import type { DispensedComponent, RowStatus, TermSheetRow } from '@/types/term-sheets';
 
 const STATUS_VARIANT: Record<RowStatus, 'success' | 'destructive' | 'secondary'> = {
   POSITIVA: 'success',
@@ -11,7 +11,9 @@ const STATUS_VARIANT: Record<RowStatus, 'success' | 'destructive' | 'secondary'>
 };
 
 /** Uma nota ou «sem nota»: o travessão leva o texto para os leitores de ecrã, e nunca aparece um zero que não existe. */
-function Grade({ value, emphasis = false }: { value: number | null; emphasis?: boolean }) {
+function Grade({ value, emphasis = false, dispensed = false }: { value: number | null; emphasis?: boolean; dispensed?: boolean }) {
+  // Dispensada não é falta nem zero: a escola dispensou a componente (kixi#635).
+  if (dispensed) return <span className="text-muted-foreground">{DISPENSADA}</span>;
   if (value === null) {
     return (
       <span className="text-muted-foreground" aria-label="sem nota">
@@ -26,7 +28,7 @@ function Grade({ value, emphasis = false }: { value: number | null; emphasis?: b
  * A pauta por aluno. A MT negativa não se distingue só pela cor: o estado traz o texto («Negativa») e um
  * triângulo, e a nota fica sublinhada. Quem faltou aparece como «Incompleta», com as notas por preencher.
  */
-export function TermSheetTable({ rows, caption }: { rows: TermSheetRow[]; caption: string }) {
+export function TermSheetTable({ rows, caption, dispensed }: { rows: TermSheetRow[]; caption: string; dispensed?: readonly DispensedComponent[] }) {
   // kixi#512: a coluna só existe se a escola tem pelo menos um número; um aluno sem número fica com «sem número», sem erro.
   const withProcess = rows.some((row) => row.processNumber);
   return (
@@ -58,9 +60,9 @@ export function TermSheetTable({ rows, caption }: { rows: TermSheetRow[]; captio
                     {row.processNumber ? row.processNumber : <span className="text-muted-foreground" aria-label="sem número">{SEM_NOTA}</span>}
                   </TableCell>
                 ) : null}
-                <TableCell className="text-right tabular-nums"><Grade value={row.mac} /></TableCell>
-                <TableCell className="text-right tabular-nums"><Grade value={row.p1} /></TableCell>
-                <TableCell className="text-right tabular-nums"><Grade value={row.p2} /></TableCell>
+                <TableCell className="text-right tabular-nums"><Grade value={row.mac} dispensed={isDispensed(dispensed, 'MAC')} /></TableCell>
+                <TableCell className="text-right tabular-nums"><Grade value={row.p1} dispensed={isDispensed(dispensed, 'P1')} /></TableCell>
+                <TableCell className="text-right tabular-nums"><Grade value={row.p2} dispensed={isDispensed(dispensed, 'P2')} /></TableCell>
                 <TableCell className={`text-right tabular-nums ${negative ? 'underline decoration-destructive decoration-2 underline-offset-4' : ''}`}>
                   <Grade value={row.mt} emphasis />
                 </TableCell>

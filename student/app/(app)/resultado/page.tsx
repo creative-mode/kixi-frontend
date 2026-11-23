@@ -17,13 +17,17 @@ import { getResultView } from '@/lib/result';
 import { getCommunityStats } from '@/lib/community';
 import { badgesUnlockedIn, gradeReading } from '@/lib/result-motivation';
 import { getBadges, getStats } from '@/lib/stats';
+import { getLeaderboard } from '@/lib/ranking';
 import { CorrecaoEmCurso } from '@/components/correcao-em-curso';
+import { abertasDaProva } from '@/lib/correcao-previsao';
 import { listInvitations } from '@/lib/exam-room';
-import { comCorrecao, eSimulacaoLivre } from '@/lib/schoolops/correcao-rules';
-import { correcaoDaSimulacao, correcaoLigada } from '@/lib/schoolops/correcao';
-import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
+import { comCorrecao, eSimulacaoLivre, escalaDaNota, notaProvisoria } from '@/lib/schoolops/correcao-rules';
+import { correcaoDaSimulacaoComId, consultarEstadoCorrecao, correcaoLigada, correcaoSimulada } from '@/lib/schoolops/correcao';
+import { getQuestionImagesBatch, getStatementFull, loadPaperMeta } from '@/lib/exam';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { MathText } from '@/lib/shared/math-text';
+import { PedirRevisaoButton } from '@/components/pedir-revisao';
+import { ScoreBreakdown } from '@/components/score-breakdown';
 import { answersOf, marksOf, paperQuestions, stampOf } from '@/lib/folha-do-resultado';
 import {
   formatDelta,
@@ -33,11 +37,14 @@ import {
   inOrder,
   observation,
   optionTag,
+  partilha,
   verdict,
   type ResultQuestion,
   showsContext,
   toReview,
   type Verdict,
+  calculateScoreBreakdown,
+  type ScoreBreakdownData,
 } from '@/lib/result-rules';
 import { displayNumber, topNumber, wholeNumbers } from '@/lib/question-number';
 import { wrongAnswersParam } from '@/lib/tutor-rules';
@@ -51,10 +58,16 @@ const VERDICT: Record<Verdict, { label: string; variant: 'success' | 'destructiv
   blank: { label: 'Sem resposta', variant: 'secondary' },
 };
 
-function Review({ question, context }: { question: ResultQuestion; context: boolean }) {
+function Review({ question, context, simulationId }: { question: ResultQuestion; context: boolean; simulationId: number }) {
   const v = verdict(question);
   const options = question.options ?? [];
   const shown = displayNumber(question);
+  const isAiGraded = question.aiLevel != null;
+  const aiLevelLabel = question.aiLevel ? { TOTAL: 'Resposta completa', PARCIAL: 'Resposta parcial', MINIMA: 'Resposta mínima', NULA: 'Sem pontuação' }[question.aiLevel] : null;
+  // TODO: aiConfidence deve vir do backend (campo aiConfidence no QuestionResult).
+  // Actualmente question.confidence é confiança do OCR (MathContentFields), não da IA.
+  // Não apresentar confiança até o backend a disponibilizar.
+  // const aiConfidence = question.aiConfidence != null ? Math.round(question.aiConfidence * 100) : null;
   return (
     <li className="grid gap-3 px-5 py-4">
       {context && question.parentText ? (
@@ -100,6 +113,15 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
           <p><span className="text-muted-foreground">A tua resposta: </span>{question.answerText?.trim() || 'Sem resposta'}</p>
           {question.modelAnswer && <p><span className="text-muted-foreground">Resposta esperada: </span>{question.modelAnswer}</p>}
           {v === 'pending' && <p className="text-muted-foreground">Esta resposta ainda está a ser corrigida.</p>}
+          {isAiGraded && (
+            <div className="grid gap-1 pt-1 border-t border-dashed">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-info">
+                <span className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5">Corrigida pela IA</span>
+                {aiLevelLabel && <span className="text-info">· {aiLevelLabel}</span>}
+              </p>
+              <PedirRevisaoButton simulationId={simulationId} questionId={question.questionId} />
+            </div>
+          )}
         </div>
       )}
 
@@ -113,9 +135,12 @@ function Review({ question, context }: { question: ResultQuestion; context: bool
   );
 }
 
-export default async function Resultado({ searchParams }: { searchParams: Promise<{ prova?: string | string[] }> }) {
-  const raw = (await searchParams).prova;
+export default async function Resultado({ searchParams }: { searchParams: Promise<{ prova?: string | string[]; correcaoId?: string | string[] }> }) {
+  const params = await searchParams;
+  const raw = params.prova;
   const id = Number(Array.isArray(raw) ? raw[0] : raw);
+  const correcaoIdRaw = params.correcaoId;
+  const correcaoId = Array.isArray(correcaoIdRaw) ? correcaoIdRaw[0] : correcaoIdRaw ?? null;
   // Sem tentativa não há resultado para mostrar: a lista de provas é onde se escolhe.
   if (!Number.isInteger(id) || id <= 0) redirect('/provas');
 
@@ -134,15 +159,25 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const { result: resultadoDoBackend, statementId, comparison } = view;
   const me = await getMe();
 
-  // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
-  // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   let totalMax = view.totalMaxScore;
   let result = resultadoDoBackend;
-  if (correcaoLigada() && me && statementId != null) {
+  // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
+  // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
+  if ((correcaoLigada() || correcaoSimulada(resultadoDoBackend.simulationId)) && me && statementId != null) {
     const salas = await listInvitations();
     if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
-      const correcao = await correcaoDaSimulacao({ me, simulationId: resultadoDoBackend.simulationId, statementId, statementTitle: view.title });
-      if (correcao && correcao.kind !== 'corrigida') {
+      // Com correcaoId (entrega #794): lê o estado pela rota leve, sem reabrir a correcção.
+      // Sem correcaoId (ecrã aberto antes da entrega, ou utilizador voltou mais tarde): abre a correcção (idempotente).
+      // Se o motor estiver em baixo com correcaoId, não se mostra a nota do backend como se
+      // fosse final: fica "a corrigir" e a espera volta a ler.
+      const lida = correcaoId ? await consultarEstadoCorrecao(correcaoId) : null;
+      const abertura = correcaoId ? null : await correcaoDaSimulacaoComId({ me, simulationId: resultadoDoBackend.simulationId, statementId });
+      const correcao =
+        (correcaoId ? (lida?.ok ? lida.vista : { kind: 'a-corrigir' as const }) : abertura?.vista) ??
+        { kind: 'a-corrigir' as const };
+      // O id para a espera ler só o estado: o da URL, ou o que a abertura acabou de devolver (#794).
+      const idDaEspera = correcaoId ?? abertura?.correcaoId ?? null;
+      if (correcao.kind !== 'corrigida') {
         return (
           <Page>
             <FireEventOnce param="submetida" event="exam_submitted" />
@@ -150,7 +185,16 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <Column className="gap-5">
               <PageHeader kicker="Resultado" title={view.title} back="/provas" />
               <Card className="px-5 py-6">
-                {correcao.kind === 'a-corrigir' && <CorrecaoEmCurso />}
+                {correcao.kind === 'a-corrigir' && (
+                  <CorrecaoEmCurso
+                    correcaoId={idDaEspera}
+                    simulationId={resultadoDoBackend.simulationId}
+                    provisoria={notaProvisoria(resultadoDoBackend)}
+                    abertas={abertasDaProva(resultadoDoBackend.questions)}
+                    progresso={correcao.progresso}
+                    previsaoSegundos={correcao.previsaoSegundos}
+                  />
+                )}
                 {correcao.kind === 'incompleta' && (
                   <p role="status" className="text-sm">
                     {correcao.semGabarito
@@ -158,8 +202,16 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                       : 'Não encontrámos respostas legíveis para corrigir esta prova, por isso não há nota. Podes refazê-la.'}
                   </p>
                 )}
-                {/* O motor atrasou-se: para o aluno é só mais tempo, com a prova guardada. Nunca um erro. */}
-                {correcao.kind === 'falhou' && <CorrecaoEmCurso desdeMs={3 * 60_000} />}
+                {/* O motor recusou o pedido ou a correção ficou com um incidente: não se espera, dá-se a nota das fechadas
+                    como provisória e uma nova tentativa (#787). */}
+                {correcao.kind === 'falhou' && (
+                  <CorrecaoEmCurso
+                    correcaoId={idDaEspera}
+                    simulationId={resultadoDoBackend.simulationId}
+                    provisoria={notaProvisoria(resultadoDoBackend)}
+                    falha={correcao.motivo}
+                  />
+                )}
               </Card>
               <div className="flex flex-wrap items-start gap-2.5">
                 {statementId != null && <RefazerSimulacao statementId={statementId} />}
@@ -169,9 +221,10 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           </Page>
         );
       }
-      if (correcao?.kind === 'corrigida') {
+      if (correcao.kind === 'corrigida') {
         result = comCorrecao(resultadoDoBackend, correcao.resultado);
-        totalMax = correcao.resultado.maximo ?? 20;
+        // A nota do motor é 0–20: o denominador é a escala, não a cotação em pontos da prova (#60).
+        totalMax = escalaDaNota(correcao.resultado);
       }
     }
   }
@@ -182,14 +235,22 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   const pending = result.pendingReviewCount ?? 0;
   const hasMistakes = questions.some((q) => ['wrong', 'blank'].includes(verdict(q)));
 
+  const breakdown: ScoreBreakdownData = calculateScoreBreakdown(questions);
+
   // A leitura da nota (#492) só usa números do servidor: a média da turma vem da
   // comunidade da prova, e o XP, a sequência e as medalhas vêm de /me. Cada bloco
   // que falha fica omisso em vez de derrubar o resultado.
-  const [stats, badges, community] = await Promise.all([
+  const [stats, badges, community, classRanking] = await Promise.all([
     getStats(),
     getBadges(),
     statementId != null ? getCommunityStats(statementId) : Promise.resolve(null),
+    // O `totalStudents` do ranking de turma é a contagem de matrículas activas na
+    // turma; serve só para dizer «(N colegas)» antes de publicar (#801).
+    classId != null ? getLeaderboard('class') : Promise.resolve(null),
   ]);
+  const classmateCount = classRanking?.ok
+    ? Math.max(classRanking.data.totalStudents - 1, 0)
+    : null;
   const reading = gradeReading({
     score: result.finalScore,
     totalMax,
@@ -203,7 +264,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
   // molde em branco e a revisão questão a questão, mais abaixo, continua a ser a fonte de tudo.
   const statement = statementId != null ? await getStatementFull(statementId, { cached: true }) : null;
   const paperMeta = statement?.ok ? await loadPaperMeta(statement.data) : { kind: 'Prova', totalMaxScore: totalMax };
-  const figures = Object.fromEntries(await Promise.all(questions.map(async (q) => [q.questionId, await getQuestionImages(q.questionId)] as const)));
+  const figures = await getQuestionImagesBatch(questions.map((q) => q.questionId));
   const stamp = stampOf(result.finalScore, totalMax, pending);
 
   return (
@@ -258,6 +319,20 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         </div>
 
         {questions.length > 0 && (
+          <ScoreBreakdown
+            objectiveScore={breakdown.objectiveScore}
+            objectiveGraded={breakdown.objectiveGraded}
+            objectiveMax={breakdown.objectiveMax}
+            openScore={breakdown.openScore}
+            openMax={breakdown.openMax}
+            openPendingScore={breakdown.openPendingScore}
+            openPendingMax={breakdown.openPendingMax}
+            hasAiGraded={breakdown.hasAiGraded}
+            hasSchoolOpsGraded={breakdown.hasSchoolOpsGraded}
+          />
+        )}
+
+        {questions.length > 0 && (
           <Card className="gap-3 p-3 sm:p-5" aria-label="A tua prova corrigida">
             <div>
               <h2 className="text-[17px] font-bold tracking-tight">A tua prova corrigida</h2>
@@ -282,15 +357,24 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
             <p className="border-t px-5 py-4 text-sm text-muted-foreground">Não respondeste a nenhuma questão desta prova.</p>
           ) : (
             <ul className="divide-y border-t">
-              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} />)}
+              {questions.map((question, i) => <Review key={question.questionId} question={question} context={showsContext(questions, i)} simulationId={result.simulationId} />)}
             </ul>
           )}
         </Card>
+
+        {partilha(classId, result.finalScore, me != null) === 'sem-perfil' && (
+          <p data-testid="resultado-sem-perfil" className="rounded-xl border border-dashed px-5 py-4 text-sm text-muted-foreground">
+            Não conseguimos confirmar a tua turma agora, por isso o botão de partilhar não aparece. O resultado está guardado: recarrega a página para o partilhares com a turma.
+          </p>
+        )}
 
         {classId != null && result.finalScore != null && (
           <PublishResult
             classId={classId}
             simulationId={result.simulationId}
+            classGrade={me?.currentClass?.grade ?? null}
+            classCode={me?.currentClass?.code ?? null}
+            classmateCount={classmateCount}
             card={{
               simulationId: result.simulationId,
               statementId,
@@ -302,11 +386,18 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
               durationMinutes: paperMeta.durationMinutes,
               schoolYear: paperMeta.schoolYear,
               variant: paperMeta.variant,
-              finalScore: result.finalScore,
-              maxScore: totalMax,
-              correctAnswers: result.correctAnswers ?? null,
-              totalQuestions: result.totalQuestions ?? null,
-              timeSpentSeconds: result.timeSpentSeconds ?? null,
+              // A pré-visualização usa os números que o servidor vai gravar no
+              // instantâneo (SimulationShowcase): a nota e as contagens do resultado
+              // do backend, e a cotação do enunciado — não a nota do SchoolOps, que
+              // só chega ao feed quando o kixi#609 estiver feito. Enquanto houver
+              // respostas abertas por corrigir, `pendingReviewCount` faz o cartão
+              // dizer «A corrigir» em vez de estampar a nota parcial (kixi#788).
+              finalScore: resultadoDoBackend.finalScore ?? null,
+              maxScore: view.totalMaxScore,
+              correctAnswers: resultadoDoBackend.correctAnswers ?? null,
+              totalQuestions: resultadoDoBackend.totalQuestions ?? null,
+              timeSpentSeconds: resultadoDoBackend.timeSpentSeconds ?? null,
+              pendingReviewCount: resultadoDoBackend.pendingReviewCount ?? 0,
             }}
           />
         )}

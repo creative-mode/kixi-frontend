@@ -1,8 +1,9 @@
 import { toLocalDateTime } from '../simulation';
 
 import { acceptAnswer, conversation } from '../feed-comments';
+import { deleteComment, deletePost, editComment, editPost } from '../feed-edit';
 import { payloadOf, problemOf, summaryOf as blocksSummary, type BuiltKind, type PostBlock } from '../../post-blocks';
-import { MockPost, json, maskedName, meResponse, problem } from '../store';
+import { MockPost, json, maskedName, meResponse, pendingReviewCountOf, problem } from '../store';
 import type { MockCtx } from '../store';
 
 /** Rotas do domínio «feed» do mock; devolve `undefined` quando o pedido não é deste domínio. */
@@ -26,10 +27,18 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     const start = (page - 1) * limit;
     return json(
-      scoped.slice(start, start + limit).map((p) => ({
-        ...p,
-        hasReacted: db.postReactions.some((r) => r.postId === p.id && r.accountId === account.id),
-      })),
+      scoped.slice(start, start + limit).map((p) => {
+        const mine = p.authorAccountId === account.id;
+        // Como o backend (#612): quando o autor esconde a nota, só ele a recebe.
+        const hidden = p.showScore === false && !mine && p.simulation != null;
+        return {
+          ...p,
+          ...(hidden
+            ? { simulation: { ...p.simulation, finalScore: null, maxScore: null, correctAnswers: null, totalQuestions: null } }
+            : {}),
+          hasReacted: db.postReactions.some((r) => r.postId === p.id && r.accountId === account.id),
+        };
+      }),
     );
   }
 
@@ -81,6 +90,7 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
         variant: statement?.variant ?? null,
         finalScore: sim.finalScore, maxScore: statement?.totalMaxScore ?? null,
         correctAnswers: null, totalQuestions: null, timeSpentSeconds: sim.timeSpentSeconds,
+        pendingReviewCount: pendingReviewCountOf(db, sim),
       };
     }
     const now = toLocalDateTime(new Date());
@@ -98,6 +108,7 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
       commentCount: 0,
       createdAt: now,
       updatedAt: now,
+      ...(isSimulation ? { showScore: body.showScore !== false } : {}),
       ...(blocks.length > 0 ? { blocks } : {}),
       ...(simulation ? { simulation } : {}),
     };
@@ -187,6 +198,39 @@ export async function feedRoutes({ method, pathname, search, filter, body, text,
     );
     if (!Array.isArray(rows)) return problem(rows.status, rows.message);
     return json(rows);
+  }
+
+  // Editar e eliminar publicações (#753). O autor edita; o autor ou um moderador elimina.
+  const postMatch = pathname.match(/^\/feed\/posts\/(\d+)$/);
+  if (postMatch && method === 'PUT') {
+    const post = db.posts.find((p) => p.id === Number(postMatch[1]));
+    if (!post) return problem(404, 'Post not found');
+    const done = editPost(post, account.id, body, toLocalDateTime(new Date()));
+    if (!done.ok) return problem(done.status, done.message);
+    return json({
+      ...post,
+      hasReacted: db.postReactions.some((r) => r.postId === post.id && r.accountId === account.id),
+    });
+  }
+  if (postMatch && method === 'DELETE') {
+    const done = deletePost(db.posts, db.postComments, Number(postMatch[1]), account.id, staff);
+    if (!done.ok) return problem(done.status, done.message);
+    return new Response(null, { status: 204 });
+  }
+
+  const oneCommentMatch = pathname.match(/^\/feed\/posts\/(\d+)\/comments\/(\d+)$/);
+  if (oneCommentMatch && method === 'PUT') {
+    const done = editComment(db.postComments, Number(oneCommentMatch[1]), Number(oneCommentMatch[2]), account.id, text('content'), toLocalDateTime(new Date()));
+    if (!done.ok) return problem(done.status, done.message);
+    return json({ ...done.comment, mine: true, displayName: maskedName(db, done.comment.authorAccountId) });
+  }
+  if (oneCommentMatch && method === 'DELETE') {
+    const postId = Number(oneCommentMatch[1]);
+    const post = db.posts.find((p) => p.id === postId);
+    if (!post) return problem(404, 'Post not found');
+    const done = deleteComment(db.postComments, post, Number(oneCommentMatch[2]), account.id, staff);
+    if (!done.ok) return problem(done.status, done.message);
+    return new Response(null, { status: 204 });
   }
 
   const reportMatch = pathname.match(/^\/feed\/posts\/(\d+)\/reports$/);

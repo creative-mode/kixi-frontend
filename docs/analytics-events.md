@@ -14,6 +14,7 @@ As apps gestor, aluno e landing usam o mesmo schema e a mesma fila em memória, 
 - Login do aluno: o destino leva `?entrou=1` (`lib/auth-actions.ts`) e o layout dispara `login_success` com `FireEventOnce`, que tira o marcador do endereço. O marcador sai sempre, mesmo sem consentimento: um login feito antes de aceitar os cookies não fica registado (o mesmo vale para os outros marcadores do `FireEventOnce`, como o `sign_up`).
 - Doação (`landing/components/donate/DonationForm.tsx`): `donation_started` à primeira interação (campo, ficheiro ou colar), `donation_step` ao avançar de ecrã, `donation_error` com o ecrã, a categoria e o primeiro campo inválido desse ecrã.
 - Sala de prova: `exam_abandoned` só no «Sair» do aviso de saída.
+- **Pautas (#802):** o clique em «Minhas pautas» no menu da conta ou em «As minhas pautas» nas Definições do perfil envia `pautas_aberta` com a origem; a página `/aluno/pautas` monta `PautasTracker`, que envia um `pautas_tempo` com os segundos de ecrã visível ao sair da rota ou ao fechar a página. Só conta o tempo com o documento visível: mudar de separador pausa o relógio e voltar retoma-o.
 - **O gestor não mede:** não tem banner nem carregador de GA, por isso lá `track` devolve sempre `denied`. `login_success` e `page_view` do gestor ficam no contrato para o dia em que se decidir medir, com banner próprio.
 
 **Limite da proteção automática:** `send_page_view: false` desliga o page view da configuração inicial (o `page_view` é o explícito do `PageViewTracker`), mas não desliga a medição melhorada de alterações no histórico do browser da propriedade GA4. Para garantir que o GA4 não cria page views automáticos em `pushState`, `replaceState` ou `popstate`, a opção **Page changes based on browser history events** deve estar desativada na propriedade (Admin → Data streams → Web stream → Enhanced measurement → Page views → configurações). Esta configuração pertence ao GA4 e não é verificável nem garantida por este repositório. O código dá contexto de página canónico em cada navegação (`setSafePageContext`) como defesa adicional; a validação final deve confirmar a opção externa e inspecionar as requisições GA4 no ambiente publicado.
@@ -39,6 +40,8 @@ Quando o consentimento não está ativo (`necessary` ou nulo), o contexto global
 - `scroll_depth`: cada limiar (25, 50, 75, 100) uma vez por montagem da página, medido só em eventos de scroll.
 - `signup_started` e `donation_started`: uma vez por formulário («Doar outro enunciado» recomeça). Só contam feitos quando `track` os aceita: quem preenche antes de aceitar os cookies emite o início na interação seguinte, e o funil não fica com passos sem começo.
 - `error_view`: uma vez por montagem da página de erro.
+- `pautas_aberta`: uma por clique na entrada do menu da conta ou no caminho das Definições do perfil; `origem` distingue os dois.
+- `pautas_tempo`: uma por visita a `/aluno/pautas`, enviada ao sair; o Strict Mode e as mudanças de visibilidade não duplicam nem reiniciam o contador.
 
 A reabertura das definições (consentimento a nulo) desativa imediatamente a medição; eventos já na fila são descartados e não são reenviados ao reaceitar.
 
@@ -49,11 +52,40 @@ A seguinte configuração da propriedade GA4 é obrigatória para a proteção c
 - **Admin → Data streams → Web stream → Enhanced measurement → Page views → configurações**: desativar a opção “Page changes based on browser history events” (impedir page views automáticos em `pushState`, `replaceState`, `popstate`).
 - Verificar se não há integrações GTM/Google tag externas que carreguem outros destinos de medição.
 
+## Métricas de campo (#799)
+
+O `WebVitalsTracker` (`student/components/analytics/`), montado no layout do aluno, usa o
+`useReportWebVitals` do Next — que já traz o `web-vitals` compilado, sem dependência nova — e
+envia um `web_vitals` por métrica, página canónica e carregamento:
+
+- **O que sai:** LCP e INP (atualizados; envia-se o último valor fechado), TTFB, FCP e CLS.
+- **O que não sai:** URL completa, ids, user-agent ou qualquer identificador. O aparelho é
+  classificado em `mobile`/`tablet`/`desktop` a partir do ponteiro, da largura e de um teste
+  grosseiro ao user-agent; nada disso é guardado.
+- **Consentimento:** sem `all` a métrica fica em memória e só é enviada quando a pessoa aceita
+  (`CONSENT_EVENT`), como o `page_view`. Sem `NEXT_PUBLIC_GA_ID`, fica na fila como os restantes.
+- **Server-Timing:** o gateway acrescenta `Server-Timing: upstream;desc="primeiro byte";dur=…`
+  a `/aluno/inicio`, `/aluno/provas` e `/aluno/resultado`, para separar a espera do servidor do
+  trabalho do browser.
+
+**Ler o p75 em produção.** O evento já vai para o GA4. Para o ver:
+
+1. Admin → Custom definitions → criar dimensões de evento `metric`, `page` e `device` (âmbito
+   evento) e uma métrica personalizada `value` (âmbito evento, unidade ms).
+2. Explore → Free form: linhas `page` e `device`, colunas `metric`, valor `value` com agregação
+   **p75**. As metas são INP <= 200 ms, LCP <= 2,5 s, TTFB <= 800 ms, FCP <= 1,8 s e CLS <= 0,1.
+
+**Ler o p75 na máquina de quem testa.** Com `KIXI_VITALS_LOG=true` num host local/rede privada,
+o mesmo evento é também enviado para `/aluno/api/vitals`, que agrega em memória (sem disco, sem
+ids) e serve o painel `/aluno/metricas`. O endpoint responde 404 em produção ou com a flag
+desligada.
+
 ## Catálogo de eventos
 
 | Evento | Aplicação e quando | Parâmetros permitidos |
 |---|---|---|
-| `page_view` | Landing e aluno, uma vez por rota com consentimento | `app`: `manager\|student\|landing`; `page`: categoria controlada por app (`home`, `donation`, `privacy`, `cookies`, `login`, `signup`, `onboarding`, `student_home`, `exam`, `result`, `room`, `dashboard`, `forbidden`, `not_found`, `other`); UTMs permitidas acima |
+| `page_view` | Landing e aluno, uma vez por rota com consentimento | `app`: `manager\|student\|landing`; `page`: categoria controlada por app (`home`, `donation`, `privacy`, `cookies`, `login`, `signup`, `onboarding`, `student_home`, `pautas`, `exam`, `result`, `room`, `dashboard`, `forbidden`, `not_found`, `other`); UTMs permitidas acima |
+| `web_vitals` | Aluno, uma vez por métrica e navegação; LCP/INP levam o último valor (#799) | `app`: `student`; `page`: categoria controlada; `metric`: `LCP\|INP\|TTFB\|FCP\|CLS`; `value`: ms (CLS adimensional, três casas); `device`: `mobile\|tablet\|desktop` |
 | `cta_clique` | Landing, clique num CTA de criar conta (`CtaLink`, #512) | `origem`: `header\|outro\|faq` |
 | `signup_started` | Aluno, primeira interação no formulário de cadastro | `surface`: `signup_form` |
 | `signup_error` | Aluno, validação local ou falha do servidor | `field`: `first_name\|last_name\|username\|email\|password\|confirm\|form`; `category`: `validation\|server` |
@@ -69,9 +101,11 @@ A seguinte configuração da propriedade GA4 é obrigatória para a proteção c
 | `exam_abandoned` | Aluno, somente após confirmar explicitamente “Sair” no diálogo de saída | `app`: `student` |
 | `exam_started` | Aluno, confirmação de início | Sem parâmetros |
 | `exam_submitted` | Aluno, entrega confirmada | Sem parâmetros |
-| `exam_room_joined` | Aluno, entrada confirmada numa sala | Sem parâmetros |
+| `exam_room_joined` | Aluno, entrada confirmada numa sala | `origem`: `inicio\|provas` (ausente quando a entrada não veio de nenhum dos dois ecrãs) |
 | `onboarding_completed` | Aluno, matrícula concluída | Sem parâmetros |
 | `tutor_used` | Aluno, primeira utilização do tutor na sessão | Sem parâmetros |
+| `pautas_aberta` | Aluno, clique em «Minhas pautas» no menu da conta ou em «As minhas pautas» nas Definições do perfil (#802) | `origem`: `menu-conta\|perfil` |
+| `pautas_tempo` | Aluno, ao sair da página das Pautas (#802) | `page`: `pautas`; `segundos`: inteiro de 0 a 3600, arredondado e limitado a uma hora |
 
 ## Exemplos
 
@@ -80,6 +114,8 @@ track('cta_clique', { origem: 'header' });
 track('signup_error', { field: 'email', category: 'validation' });
 track('donation_error', { step: 'statement', category: 'file_validation', field: 'files' });
 track('error_view', { app: 'student', kind: 'unexpected' });
+track('pautas_aberta', { origem: 'menu-conta' }); // ou { origem: 'perfil' }
+track('pautas_tempo', { segundos: 42 });
 ```
 
 Não passar valores de formulário a `track`; parâmetros fora do catálogo não são enviados. A chamada só é aceite se houver consentimento e o nome estiver em `AnalyticsEvent` (`track` não aceita `string` solta); quando o gtag ainda não estiver disponível, fica pendente na fila volátil limitada até inicialização.

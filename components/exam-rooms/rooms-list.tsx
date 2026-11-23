@@ -76,7 +76,7 @@ export function RoomsList() {
                 <Link href={`/exam-rooms/${room.id}`} className="block rounded-[20px] border bg-card p-4 transition-colors hover:border-primary">
                   <div className="flex items-start justify-between gap-3">
                     <span className="font-semibold">{titleOf(data, room.statementId)}</span>
-                    <RoomStatusBadge status={room.status} />
+                    <RoomStatusBadge room={room} />
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {classOf(data, room.classId)} · {room.durationMinutes} min
@@ -108,7 +108,7 @@ export function RoomsList() {
                       <TableCell className="tabular-nums text-muted-foreground">
                         {formatWall(room.startsAt, year)} → {formatWall(room.endsAt, year)} · {room.durationMinutes} min
                       </TableCell>
-                      <TableCell><RoomStatusBadge status={room.status} /></TableCell>
+                      <TableCell><RoomStatusBadge room={room} /></TableCell>
                       <TableCell className="text-right">
                         <Button asChild variant="ghost" size="sm">
                           <Link href={`/exam-rooms/${room.id}`}>

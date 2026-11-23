@@ -13,6 +13,12 @@ decidir uma reclamação) e conclui-as com o **form do próprio processo**, no d
 - O form é desenhado pelo viewer do form-js (`@bpmn-io/form-js-viewer`). `components/schoolops/form-camunda.css` mapeia as
   variáveis dele para os tokens do design system, por isso o form acompanha o tema. O botão de concluir é o do Kixi.
   A marca bpmn.io que o viewer mostra mantém-se (condição da licença).
+- Cada cartão da lista diz a que prova (P1/P2), avaliação contínua ou turma/disciplina se refere (kixi-frontend#774):
+  `variaveisDasTarefas` (`lib/schoolops/camunda.ts`) pede, numa só pesquisa global ao Camunda (`/v2/variables/search`,
+  filtrada pelas instâncias da lista), as variáveis `provaId`/`prova`, `avaliacaoContinua` e `pauta` de todas as tarefas
+  de uma vez; `tituloDaTarefa` (`lib/schoolops/tarefas.ts`) é que decide o texto. A forma exacta destas variáveis é do
+  motor SchoolOps: o que aqui se lê espelha o que o Kixi lhe envia ao abrir a pauta (`SchoolOpsPautaOpener`, no backend)
+  — a prova só tem `componente` (P1/P2), nunca um título, por isso "Prova P1" é o caso normal, não só um recurso.
 
 ## Configuração
 

@@ -22,11 +22,14 @@ import {
   applyEvent,
   buildMessagePayload,
   buildSessionPayload,
+  canSendMessage,
   composerAction,
   describeHttpFailure,
   modeNeedsQuestion,
   parseRetryAfter,
   parseSse,
+  preselectQuestion,
+  questionOptions,
   type ChatMessage,
   type ChatMode,
   type PaperQuestion,
@@ -69,7 +72,7 @@ function save(statementId: number, value: Saved) {
 }
 
 class HttpFailure extends Error {
-  constructor(readonly status: number, readonly retryAfter: number | null) {
+  constructor(readonly status: number, readonly retryAfter: number | null, readonly stage: 'open' | 'message' = 'message') {
     super(`HTTP ${status}`);
   }
 }
@@ -129,6 +132,8 @@ export function TutorChat({
       : questions.find((question) => question.number === initialQuestionNumber)?.id ?? null,
   );
   const [notice, setNotice] = useState<string | null>(null);
+  /** Se o «Tentar de novo» faz sentido para este aviso (a escolha da questão não se resolve tentando). */
+  const [noticeRetry, setNoticeRetry] = useState(true);
   const sessionId = useRef<number | null>(null);
   const sessionContext = useRef<string | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -162,7 +167,7 @@ export function TutorChat({
       body: JSON.stringify(payload),
       signal,
     });
-    if (!res.ok) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')));
+    if (!res.ok) throw new HttpFailure(res.status, parseRetryAfter(res.headers.get('retry-after')), 'open');
     const created = (await res.json()) as { id: number };
     sessionId.current = created.id;
     sessionContext.current = contextKey;
@@ -186,10 +191,12 @@ export function TutorChat({
     const selected = questions.find((question) => question.id === desiredQuestionId) ?? null;
     if (modeNeedsQuestion(desiredMode) && !selected) {
       setNotice('Escolhe uma questão para esse modo.');
+      setNoticeRetry(false);
       return;
     }
     lastSent.current = text;
     setNotice(null);
+    setNoticeRetry(true);
     setAnswerAnnouncement('');
     setBusy(true);
 
@@ -266,11 +273,12 @@ export function TutorChat({
         setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
       } else {
         const status = error instanceof HttpFailure ? error.status : 0;
-        const message = describeHttpFailure(status || 502, error instanceof HttpFailure ? error.retryAfter : null);
+        const message = describeHttpFailure(status || 502, error instanceof HttpFailure ? error.retryAfter : null, error instanceof HttpFailure ? error.stage : 'message');
         // A failure before any text: the empty answer is dropped and the message
         // stays above the box, with the question still there to send again.
         setMessages((prev) => prev.filter((m) => !(m.role === 'tutor' && m.text === '' && m.streaming)));
         setNotice(message);
+        setNoticeRetry(true);
         if (status === 401) window.location.assign(`${BASE_PATH}/entrar?reason=session-expired`);
       }
     } finally {
@@ -290,13 +298,19 @@ export function TutorChat({
 
   const limit = draft.length > MAX_MESSAGE;
   const selectedQuestion = questions.find((question) => question.id === questionId) ?? null;
-  const needsQuestion = modeNeedsQuestion(mode);
   // Only the latest finished answer offers it: asking again on every bubble would
   // stack copies of the same request. And only when that answer was about a question:
   // "exercises like this one" needs a "this one", and the request it opens is refused
   // without it.
   const lastAnswer = [...messages].reverse().find((m) => m.role === 'tutor' && !m.streaming);
   const lastAnswerQuestionId = lastAnswer?.questionId ?? null;
+  const needsQuestion = modeNeedsQuestion(mode);
+
+  useEffect(() => {
+    if (!needsQuestion || questionId !== null) return;
+    const pre = preselectQuestion(mode, questions, lastAnswerQuestionId);
+    if (pre != null) setQuestionId(pre);
+  }, [mode, needsQuestion, questionId, questions, lastAnswerQuestionId]);
   const selectedAnswer = answerTo(wrongAnswers, selectedQuestion?.number ?? null);
 
   return (
@@ -416,19 +430,17 @@ export function TutorChat({
                   value={questionId ?? ''}
                   onChange={(e) => setQuestionId(e.target.value ? Number(e.target.value) : null)}
                   disabled={busy}
+                  aria-describedby={`tutor-question-hint`}
                 >
-                  {/* In a mode that is about one question, "the whole paper" is not a
-                    * choice: the turn is refused without a question. Offering it as a
-                    * selectable option is offering something that cannot be sent, so it
-                    * stays visible — the student still needs to see the list start here —
-                    * but it cannot be picked. */}
-                  <option value="" disabled>A prova toda</option>
-                  {questions.map((question) => (
-                    <option key={question.id} value={question.id}>
-                      Questão {question.number}: {question.text.slice(0, 60)}
+                  {questionOptions(mode, questions).map((option) => (
+                    <option key={option.value || 'placeholder'} value={option.value} disabled={option.disabled}>
+                      {option.label}
                     </option>
                   ))}
                 </NativeSelect>
+                <p id="tutor-question-hint" className="text-xs text-muted-foreground">
+                  O modo {mode === 'EXPLAIN_QUESTION' ? '«Explicar questão»' : '«Exercícios semelhantes»'} precisa de uma questão específica da prova — a prova inteira fica disponível no modo «Conceito».
+                </p>
                 {selectedAnswer && (
                   <p className="text-xs text-muted-foreground">Incluo a tua resposta: {selectedAnswer}</p>
                 )}
@@ -441,9 +453,11 @@ export function TutorChat({
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 <TriangleAlert className="size-4 shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1">{notice}</span>
-                <Button type="button" variant="outline" size="sm" onClick={retryLast} disabled={busy}>
-                  <RefreshCw aria-hidden />Tentar de novo
-                </Button>
+                {noticeRetry && (
+                  <Button type="button" variant="outline" size="sm" onClick={retryLast} disabled={busy}>
+                    <RefreshCw aria-hidden />Tentar de novo
+                  </Button>
+                )}
               </div>
             )}
             {messages.length === 0 && (
@@ -465,17 +479,17 @@ export function TutorChat({
                 </Button>
               </div>
             )}
-            {/* Grelha e não `flex`: a coluna `minmax(0, 1fr)` deixa o campo encolher,
-                enquanto um `textarea` a 100% numa linha flex guardava a largura mínima
-                e empurrava o «Enviar» para fora do ecrã. */}
+            {/* O botão vive dentro do campo, no canto de baixo à direita (#761): ao lado,
+                um botão de 36 px alinhado ao fundo de uma caixa de 2 a 4 linhas ficava
+                desencontrado. `pr-14` reserva-lhe o espaço para o texto não passar por baixo. */}
             <form
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2.5"
+              className="relative"
               onSubmit={(e) => { e.preventDefault(); void ask(draft); }}
             >
               <Textarea
-                // `min-w-0`: sem ele a caixa guarda a largura intrínseca do
-                // `textarea` e empurra o «Enviar» para fora do ecrã no telemóvel.
-                className="min-w-0"
+                // `text-base` em todos os tamanhos: abaixo dos 16 px o iOS amplia a
+                // página ao focar o campo (#495).
+                className="min-w-0 pr-14 text-base md:text-base"
                 value={draft}
                 rows={draft.length > 120 ? 4 : 2}
                 onChange={(e) => setDraft(e.target.value)}
@@ -493,14 +507,16 @@ export function TutorChat({
                 aria-invalid={limit}
               />
               {busy ? (
-                <Button type="button" variant="outline" onClick={stop}><Square aria-hidden />Parar</Button>
+                <Button type="button" variant="outline" size="icon" className="absolute right-1.5 bottom-1.5" onClick={stop} aria-label="Parar">
+                  <Square aria-hidden />
+                </Button>
               ) : (
-                <Button type="submit" disabled={!draft.trim() || limit}>
-                  <Send aria-hidden />Enviar
+                <Button type="submit" size="icon" className="absolute right-1.5 bottom-1.5" disabled={!canSendMessage(draft, mode, questionId, limit)} aria-label="Enviar" aria-describedby={needsQuestion && questionId == null ? 'tutor-question-hint' : undefined}>
+                  <Send aria-hidden />
                 </Button>
               )}
             </form>
-            <p className="text-xs text-muted-foreground md:hidden">Enter muda de linha. Usa «Enviar» para mandar a pergunta.</p>
+            <p className="text-xs text-muted-foreground md:hidden">Enter muda de linha. Usa o botão de enviar para mandar a pergunta.</p>
             {limit && <p role="alert" className="text-[13px] text-destructive">A mensagem passa os {MAX_MESSAGE} caracteres.</p>}
             {busy && <p className="sr-only" role="status"><Loader2 aria-hidden />O tutor está a responder</p>}
           </div>

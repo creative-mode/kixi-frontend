@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/jwt';
 import { resolveOrigin } from '@/lib/origin';
 import { appRelativePath, MANAGER_BASE_PATH, managerNext } from '@/lib/safe-next';
-import { canAccessManager, coordinatorMayOpen, isCoordinatorOnly, isStudentOnly, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
+import { canAccessManager, coordinatorMayOpen, isCoordinatorOnly, isStudentOnly, mayOpenCoordination, normalizeRoles, teacherRoute, type Role } from '@/lib/roles';
 
 /**
  * A origem de confiança, ou null quando não há nenhuma.
@@ -124,6 +124,11 @@ export async function proxy(request: NextRequest) {
       response.cookies.delete('auth_token');
       response.cookies.delete('user_info');
       return response;
+    }
+
+    // A coordenação é do coordenador (a sua instituição) e do ADMIN (todas): regra explícita em `lib/roles.ts` (#759).
+    if (isRoute(pathname, '/coordenacao') && !mayOpenCoordination(roles)) {
+      return NextResponse.redirect(redirectTo(roles.includes('TEACHER') ? '/professor' : '/login', request));
     }
 
     // O coordenador também: só o plano e as pautas (a decisão e os testes estão em `lib/roles.ts`).

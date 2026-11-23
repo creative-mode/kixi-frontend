@@ -25,6 +25,8 @@ const KNOWN: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^No institution exists with that id/i, () => 'A escola não existe.'],
   [/^Class violates a database constraint/i, () => 'Já existe uma turma com estes dados.'],
   [/^A term with number (\d+) already exists/i, (m) => `Já existe o período ${m[1]}.`],
+  // Publicar um enunciado (StatementService.answerKeyComplete): o backend lista os números das questões sem opção correcta.
+  [/^These questions have options but no correct option marked: question (\d+(?:, \d+)*)\s*$/i, (m) => `Há questões com opções mas sem a opção correcta marcada: questão ${m[1]}. Marque a resposta certa em cada uma antes de publicar.`],
   // Salas de prova (ExamRoomService): a maior parte chega como 403/404, que antes escondiam o motivo.
   [/^The room class must match the statement class/i, () => 'A turma da sala tem de ser a do enunciado: escolha um enunciado desta turma.'],
   [/^A teacher may only create a room for an assigned class/i, () => 'Este enunciado não tem turma, por isso um professor não o pode usar numa sala: escolha a turma em «Rever enunciado» e crie a sala de novo.'],

@@ -8,6 +8,7 @@ import { Experience } from '@/components/experience';
 import type { ExperienceEntry } from '@/lib/experience-rules';
 import { sairAction } from '@/lib/auth-actions';
 import { PostCard } from '@/components/post-card';
+import { RankingVisibility } from '@/components/ranking-visibility';
 import { VisibilityPicker } from '@/components/visibility-picker';
 import type { Visibility } from '@/lib/profiles';
 import { ProfileEditor } from '@/components/profile-editor';
@@ -16,9 +17,11 @@ import Link from 'next/link';
 import { RefreshError } from '@/components/refresh-error';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { track } from '@/lib/analytics';
 import { contextLine, fullName, photoUrl } from '@/lib/profile';
 import { setReduceMotion, useReduceMotion } from '@/lib/motion';
 import { formatAverage } from '@/lib/ranking-rules';
+import type { VisibilityPreferences } from '@/lib/ranking-rules';
 import { shortTitle, type ProfileTab } from '@/lib/social-rules';
 import type { Performance } from '@/lib/performance-rules';
 import type { CatalogItem } from '@/lib/catalog';
@@ -40,12 +43,14 @@ export function PerfilView({
   initialTab = 'Publicações',
   startEditing = false,
   visibility = 'school',
+  rankingVisibility = null,
   experience = [],
 }: {
   landingOrigin: string | null;
   experience?: ExperienceEntry[];
   me: Me;
   visibility?: Visibility;
+  rankingVisibility?: VisibilityPreferences | null;
   stats: Stats | null;
   badges: Badge[];
   history: CatalogItem[];
@@ -96,7 +101,7 @@ export function PerfilView({
             {recent.map((a) => (
               <li key={a.id} className="min-w-0">
                 <Link prefetch={false} href={`/resultado?prova=${a.id}`} className="flex h-full flex-col gap-1.5 rounded-[14px] bg-[#f5f6f4] px-3.5 py-4 text-[#121c15] no-underline">
-                  <strong className="text-xl leading-none tabular-nums">{formatAverage(a.score)}</strong>
+                  <strong className="text-[15px] leading-tight tabular-nums">{a.notaDoMotor ? 'Corrigida' : formatAverage(a.score)}</strong>
                   <span className={`${mut} line-clamp-2`}>{shortTitle(a.title, 32)}</span>
                 </Link>
               </li>
@@ -169,7 +174,7 @@ export function PerfilView({
             ) : history.map((item, i) => (
               <div key={item.id} className="flex items-center justify-between gap-3 border-[#eef0ec] py-3.5" style={{ borderTopWidth: i === 0 ? 0 : 1 }}>
                 <div><strong className="block text-[15px]">{item.kind} · {item.title}</strong><span className={mut}>{[item.subject, item.school].filter(Boolean).join(' · ')}</span></div>
-                <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c] tabular-nums">{item.score}</span>
+                <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c] tabular-nums">{item.score ?? item.correction ?? '—'}</span>
               </div>
             ))}
           </section>
@@ -193,8 +198,11 @@ export function PerfilView({
               <div className="grid gap-0.5 leading-snug"><span className="text-base">+25% de tempo nas provas</span><span className={mut}>Definido pela escola, não por ti.</span></div>
               <span className="inline-flex h-7 items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1f5a2c]">{me.accessibility_extra_time ? 'Ativo' : 'Inativo'}</span>
             </div>
+            {/* #800: um interruptor só, mas o #611 guarda a resposta por âmbito. */}
+            <RankingVisibility initial={rankingVisibility} compact className="border-t border-[#eef0ec]" />
             <VisibilityPicker initial={visibility} />
-            <Link href="/pautas" className="flex min-h-[58px] items-center gap-3 border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]"><span className="flex-1">As minhas pautas</span><Ico name="chevron" size={18} className="text-[#7a857d]" aria-hidden /></Link>
+            {/* #802: o caminho antigo também conta, para comparar com a entrada nova do menu. */}
+            <Link href="/pautas" onClick={() => track('pautas_aberta', { origem: 'perfil' })} className="flex min-h-[58px] items-center gap-3 border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]"><span className="flex-1">As minhas pautas</span><Ico name="chevron" size={18} className="text-[#7a857d]" aria-hidden /></Link>
             <a href={`${landingOrigin ?? ''}/privacidade`} className="flex min-h-[58px] items-center border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]">Privacidade</a>
             <a href={`${landingOrigin ?? ''}/cookies`} className="flex min-h-[58px] items-center border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]">Cookies</a>
             <form action={sairAction} className="border-t border-[#eef0ec] pt-3.5">

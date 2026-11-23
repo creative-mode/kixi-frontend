@@ -9,7 +9,7 @@
  * para o do construtor; as alíneas vêm em `subitems_content`. O gabarito nunca vem do OCR: um
  * verdadeiro/falso fica com as duas opções e nenhuma marcada, para o professor decidir.
  */
-import { labelAt, normalizeSourceItemLabel, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
+import { labelAt, newUid, normalizeSourceItemLabel, trueFalseOptions, type DraftImage, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind } from './draft.ts';
 import { KINDS, type ExamDraft } from './schools.ts';
 import { mathContentFields, mathNeedsReview, type MathContentBlock, type MathFormula } from '../../student/lib/shared/math-types.ts';
 
@@ -211,7 +211,8 @@ function questionFrom(q: ExtractionQuestion, warningReview = false, globalReview
 
   if (subs.length > 0 && (type === 'verdadeiro_falso' || type === 'composta' || type === 'dissertativa' || type === '')) {
     const fallback: LeafKind = type === 'verdadeiro_falso' ? 'true_false' : 'open';
-    const items = subs.map((s) => itemFrom(s, fallback, review));
+    const items = subs.map((s) => ({ ...itemFrom(s, fallback, review), uid: newUid() }));
+    // alguns subs podem ser undefined? itemFrom devolve DraftItem sempre
     return { question: { text, points: '', options: [], kind: 'group', items, ...(q.groupLayout === 'brace' ? { groupLayout: 'brace' as const } : {}), ...math, ...(review ? { review: true } : {}), ...(sourceNumber ? { sourceNumber } : {}) }, review: items.filter((item) => item.review).length };
   }
   if (type === 'verdadeiro_falso') {
@@ -271,7 +272,9 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   const variant = (extraction.variant ?? '').trim();
   if (variant) patch.variant = variant;
   if (extraction.school_year_start && extraction.school_year_end) patch.schoolYear = `${extraction.school_year_start}/${extraction.school_year_end}`;
-  const rules = (extraction.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+  // «Cotação: de 0 a 20 valores.» do enunciado original não entra: a cotação é calculada a partir das questões.
+  // O filtro é mesmo «começa por cotação» (c e ç, a e ã), não qualquer linha que comece por «cot».
+  const rules = (extraction.instructions ?? '').split(/\r?\n/).map((r) => r.trim()).filter((r) => r && !/^\s*cota[cç][aã]o\b/i.test(r));
   if (rules.length > 0) patch.rules = rules;
 
   const name = (extraction.subject_name ?? '').trim();
@@ -307,9 +310,10 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   // do original, por isso o índice dela acompanha as questões — é o que identifica as
   // questões desta página quando a leitura voltar a ser repetida.
   const items = built.map((b, i) => {
+    const withUid: DraftQuestion = { uid: newUid(), ...b.question };
     const question: DraftQuestion = typeof origin.sourcePageIndex === 'number' && origin.sourcePageIndex >= 0
-      ? { ...b.question, sourcePageIndex: origin.sourcePageIndex }
-      : b.question;
+      ? { ...withUid, sourcePageIndex: origin.sourcePageIndex }
+      : withUid;
     const images = imagesOf(kept[i].number, extraction.images_to_upload);
     return images.length > 0 ? { ...question, images } : question;
   });
@@ -346,7 +350,7 @@ export function draftFromExtraction(extraction: ExamExtraction, ctx: ExtractionC
   const codes = new Set(warnings.map((w) => (w.code ?? '').toUpperCase()));
   const allUnscored = items.length > 0 && items.every((q) => (q.kind === 'group' ? (q.items ?? []).every((i) => i.points === '') : q.points === ''));
   if (codes.has('NO_COTACAO') || allUnscored) {
-    nota('A prova não traz cotação. Use «Distribuir 20 valores» ou preencha a cotação de cada questão.');
+    nota('A prova não traz cotação. Use «Distribuir por igual» ou preencha a cotação de cada questão.');
   }
   for (const w of warnings) {
     if ((w.code ?? '').toUpperCase() !== 'LOW_CONFIDENCE' || !w.field) continue;

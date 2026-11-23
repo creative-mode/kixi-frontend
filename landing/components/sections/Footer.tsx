@@ -10,7 +10,6 @@ export function Footer() {
         <p className="footer__lead">Feito por alunos do ITEL, para alunos.</p>
         <nav aria-label="Rodapé" className="footer__nav">
           {NAV.map((n) => <a key={n.href} href={n.href}>{n.label}</a>)}
-          <a href="/doar">Doar um enunciado</a>
           {TRUST_LINKS.map((l) => <a key={l.href} href={l.href}>{l.label}</a>)}
           <a href={SIGNUP_URL}>Criar conta</a>
           <a href={LOGIN_URL}>Entrar</a>

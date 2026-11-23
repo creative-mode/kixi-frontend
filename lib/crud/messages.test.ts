@@ -55,3 +55,14 @@ test('o convite à turma explica porque falhou', () => {
   assert.equal(friendlyMessage(400, problem('The class has no active students')), 'A turma não tem alunos matriculados para convidar.');
   assert.match(friendlyMessage(409, problem('Invalid exam room state transition')), /não pode passar/);
 });
+
+test('publicar um enunciado com questões sem opção correcta dá o aviso em português, com os números das questões', () => {
+  const m = friendlyMessage(422, problem('These questions have options but no correct option marked: question 2, 3'));
+  assert.equal(m, 'Há questões com opções mas sem a opção correcta marcada: questão 2, 3. Marque a resposta certa em cada uma antes de publicar.');
+  assert.equal(friendlyMessage(422, problem('These questions have options but no correct option marked: question 7')), 'Há questões com opções mas sem a opção correcta marcada: questão 7. Marque a resposta certa em cada uma antes de publicar.');
+  assert.doesNotMatch(m, /These questions/);
+});
+
+test('um erro desconhecido do backend não é escondido', () => {
+  assert.equal(friendlyMessage(422, problem('Something never seen before')), 'Something never seen before');
+});
