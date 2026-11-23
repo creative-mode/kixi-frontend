@@ -85,6 +85,11 @@ test('o nome do ficheiro diz disciplina, turma, trimestre e ano, sem acentos', (
   assert.equal(exportFileName({ ...sheet, className: '12B' }), 'pauta-redes-de-computadores-12b-1t-2025-2026.pdf', 'a classe não se repete');
 });
 
+test('uma pauta incompleta não deixa «0t» nem «0» no nome do ficheiro', () => {
+  const vazia = { status: 'REGISTADA', subjectName: '', grade: 0, className: '', termNumber: 0, schoolYear: '' } as never;
+  assert.equal(exportFileName(vazia), 'pauta-provisoria.pdf');
+});
+
 test('a pauta ainda não homologada leva «provisoria» no nome', () => {
   assert.equal(exportFileName({ ...sheet, status: 'REGISTADA' }), 'pauta-redes-de-computadores-12b-1t-2025-2026-provisoria.pdf');
 });

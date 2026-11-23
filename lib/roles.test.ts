@@ -1,7 +1,7 @@
 // Testes das rotas do professor no gestor:  node --test lib/roles.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coordinatorMayOpen, isCoordinatorOnly, mayOpenCoordination, normalizeRoles, canAccessManager, seesInstitutionRooms, teacherRoute } from './roles.ts';
+import { coordinatorMayOpen, isCoordinatorOnly, mayOpenCoordination, normalizeRoles, canAccessManager, seesInstitutionRooms, teacherRoute, managerRoleLabels } from './roles.ts';
 
 test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enunciado', () => {
   for (const p of [
@@ -97,4 +97,21 @@ test('a coordenação é do coordenador e do ADMIN, mas o menu só a mostra ao c
   assert.equal(seesInstitutionRooms(admin), false);
   assert.equal(seesInstitutionRooms(coordinator), true);
   assert.equal(seesInstitutionRooms(teacher), false);
+});
+
+test('a barra lateral mostra o papel real do gestor, venham os papéis pela ordem que vierem', () => {
+  // O coordenador do 1C vinha com STUDENT à frente e a barra dizia «Admin / student».
+  assert.deepEqual(managerRoleLabels(['STUDENT', 'COORDINATOR']), { title: 'Coordenador', others: [] });
+  assert.deepEqual(managerRoleLabels(['COORDINATOR']), { title: 'Coordenador', others: [] });
+  assert.deepEqual(managerRoleLabels(['TEACHER']), { title: 'Professor', others: [] });
+  assert.deepEqual(managerRoleLabels(['ADMIN']), { title: 'Admin', others: [] });
+  assert.deepEqual(managerRoleLabels(['TEACHER', 'ADMIN', 'STUDENT']), { title: 'Admin', others: ['Professor'] });
+  assert.deepEqual(managerRoleLabels(['COORDINATOR', 'TEACHER']), { title: 'Coordenador', others: ['Professor'] });
+});
+
+test('sem papel de gestão não se inventa um: nem «Admin» por omissão', () => {
+  assert.equal(managerRoleLabels(['STUDENT']), null);
+  assert.equal(managerRoleLabels([]), null);
+  assert.equal(managerRoleLabels(['ROLE_X']), null);
+  assert.equal(managerRoleLabels(undefined), null);
 });

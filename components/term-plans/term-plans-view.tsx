@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { SectionState } from '@/components/dashboard/section-state';
-import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, conclusionProblem, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac, statementTargets } from '@/lib/term-plans';
+import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, conclusionProblem, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac, schedulingNote, statementTargets } from '@/lib/term-plans';
 import type { Section } from '@/types/analytics';
 import type { Assessment, PlanDraft, TermPlan } from '@/types/term-plans';
 
@@ -40,11 +40,12 @@ export function TermPlansView() {
     return () => window.clearTimeout(task);
   }, [load]);
 
-  const act = useCallback(async (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => {
+  const act = useCallback(async (run: () => Promise<{ ok: boolean; error?: string }>, done: string): Promise<boolean> => {
     setNotice(null);
     const r = await run();
     setNotice(r.ok ? done : (r.error ?? 'Não foi possível concluir.'));
     if (r.ok) await load();
+    return r.ok;
   }, [load]);
 
   return (
@@ -58,7 +59,7 @@ export function TermPlansView() {
         {(ctx) => (
           <>
             <Reminders ctx={ctx} />
-            {ctx.canPlan && <NewPlan ctx={ctx} onCreate={(d) => act(() => createPlan(d), 'Plano criado.')} />}
+            {ctx.canPlan && <NewPlan ctx={ctx} onCreate={async (d) => { await act(() => createPlan(d), 'Plano criado.'); }} />}
             {ctx.plans.length === 0 ? (
               <p className="text-sm text-muted-foreground">Ainda não há planos{ctx.canPlan ? '. Crie o primeiro acima.' : ' visíveis para si.'}</p>
             ) : (
@@ -176,7 +177,7 @@ function NewPlan({ ctx, onCreate }: { ctx: PlanContext; onCreate: (d: PlanDraft)
   );
 }
 
-type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => Promise<void>;
+type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => Promise<boolean>;
 
 function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: Act }) {
   const { done, total } = progress(plan);
@@ -194,7 +195,7 @@ function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: A
           </div>
         </div>
         <CardDescription>
-          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? 'Agendamento concluído: a pauta abre em instantes.' : `Ligue o enunciado ${statementTargets(plan)} e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.`}
+          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? schedulingNote(plan) : `Ligue o enunciado ${statementTargets(plan)} e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -222,6 +223,13 @@ function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessm
   const [asking, setAsking] = useState(false);
   const [newDate, setNewDate] = useState('');
   const isExam = a.kind !== 'MAC';
+  // Depois de reagendar ou dispensar com sucesso o formulário fecha e esquece os valores; se falhar fica, para se corrigir.
+  const closeForm = (ok: boolean) => {
+    if (!ok) return;
+    setAsking(false);
+    setReason('');
+    setNewDate('');
+  };
   const rooms = useMemo<RoomChoice[]>(() => ctx.rooms.filter((r) => r.classId === plan.classId), [ctx.rooms, plan.classId]);
   // Um enunciado da turma (ou livre, sem turma própria) e da disciplina do plano: a P1, a P2 e cada MAC escolhem-no
   // da mesma forma (kixi#623/kixi-frontend#809), antes ou em vez de lhe abrir sala.
@@ -272,8 +280,8 @@ function AssessmentRow({ plan, a, mine, ctx, act }: { plan: TermPlan; a: Assessm
                   {isExam && <Input aria-label="Nova data" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="max-w-40" />}
                   <Input aria-label={isExam ? 'Motivo do reagendamento' : 'Motivo da dispensa'} placeholder="Motivo" value={reason} onChange={(e) => setReason(e.target.value)} className="max-w-64" />
                   {isExam
-                    ? <Button size="sm" disabled={!reason.trim() || !newDate} onClick={() => void act(() => reschedule(plan.id, a.id, newDate, reason), 'Prova reagendada.')}>Reagendar</Button>
-                    : <Button size="sm" disabled={!reason.trim()} onClick={() => void act(() => dispense(plan.id, a.id, reason), 'Avaliação dispensada.')}>Dispensar</Button>}
+                    ? <Button size="sm" disabled={!reason.trim() || !newDate} onClick={() => void act(() => reschedule(plan.id, a.id, newDate, reason), 'Prova reagendada.').then(closeForm)}>Reagendar</Button>
+                    : <Button size="sm" disabled={!reason.trim()} onClick={() => void act(() => dispense(plan.id, a.id, reason), 'Avaliação dispensada.').then(closeForm)}>Dispensar</Button>}
                   <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancelar</Button>
                 </>
               )}

@@ -15,10 +15,14 @@ export interface MyTermSheet {
   row: { mac: number | null; p1: number | null; p2: number | null; mt: number | null; status: RowStatus; dispensed?: ProvaDispensavel[] | null };
 }
 
-/** As provas que a escola pode dispensar (kixi#635): nelas a nota nula é «sem nota, sem falta», e não ausência. */
-export type ProvaDispensavel = 'P1' | 'P2';
+/**
+ * As componentes que a escola pode dispensar (kixi#635): nelas a nota nula é «sem nota, sem falta», e não ausência.
+ * `MAC` vem quando todas as avaliações de MAC do plano estão dispensadas.
+ */
+export type ProvaDispensavel = 'P1' | 'P2' | 'MAC';
+const PROVAS_DISPENSAVEIS: readonly ProvaDispensavel[] = ['P1', 'P2', 'MAC'];
 
-/** A prova foi dispensada nesta pauta? Campo ausente (backend anterior ao kixi#635) = nenhuma dispensada. */
+/** A componente foi dispensada nesta pauta? Campo ausente (backend anterior ao kixi#635) = nenhuma dispensada. */
 export const isDispensed = (row: Pick<MyTermSheet['row'], 'dispensed'>, prova: ProvaDispensavel): boolean => !!row.dispensed?.includes(prova);
 
 export const DISPENSADA = 'Dispensada';
@@ -29,14 +33,16 @@ export const DISPENSADA = 'Dispensada';
  */
 export function provaText(row: MyTermSheet['row'], prova: ProvaDispensavel): string {
   if (isDispensed(row, prova)) return DISPENSADA;
-  return formatGrade(prova === 'P1' ? row.p1 : row.p2);
+  return formatGrade(prova === 'P1' ? row.p1 : prova === 'P2' ? row.p2 : row.mac);
 }
 
 /** Nota sobre o cálculo da MT quando há prova dispensada; `null` quando a MT usa as duas provas. */
 export function mtRuleNote(row: Pick<MyTermSheet['row'], 'dispensed'>): string | null {
-  const dispensed = (['P1', 'P2'] as const).filter((p) => isDispensed(row, p));
+  const dispensed = PROVAS_DISPENSAVEIS.filter((p) => isDispensed(row, p));
   if (dispensed.length === 0) return null;
-  return `MT calculada sem a ${dispensed.join(' e a ')} (dispensada).`;
+  const nomes = dispensed.map((p) => `a ${p}`);
+  const lista = nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+  return `MT calculada sem ${lista} (${dispensed.length === 1 ? 'dispensada' : 'dispensadas'}).`;
 }
 
 /** O número de processo do trimestre: o mesmo em todas as pautas da mesma escola, por isso mostra-se uma vez (kixi#512). */
@@ -56,7 +62,60 @@ export const isNegative = (mt: number | null | undefined): boolean => mt !== nul
 
 export const STATUS_LABEL: Record<RowStatus, string> = { POSITIVA: 'Positiva', NEGATIVA: 'Negativa', INCOMPLETA: 'Incompleta' };
 
-export const termLabel = (n: number) => `${n}.º trimestre`;
+export const SEM_TRIMESTRE = 'Sem trimestre';
+export const SEM_DISCIPLINA = 'Sem disciplina';
+export const SEM_ANO_LETIVO = 'Sem ano letivo';
+
+/** «2.º trimestre»; sem número (pauta incompleta) diz-se «Sem trimestre», nunca «0.º» nem «null.º». */
+export const termLabel = (n: number | null | undefined) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? `${n}.º trimestre` : SEM_TRIMESTRE);
+export const schoolYearLabel = (y: string | null | undefined) => y?.trim() || SEM_ANO_LETIVO;
+export const subjectLabel = (s: Pick<MyTermSheet, 'subjectName'>) => s.subjectName?.trim() || SEM_DISCIPLINA;
+
+/** O nome da região rolável da tabela de notas: quem navega por teclado chega-lhe por Tab e o leitor de ecrã diz de que trimestre é. */
+export function notasRegionLabel(g: Pick<TermGroup, 'termNumber' | 'schoolYear'>): string {
+  const base = g.termNumber > 0 ? `Notas do ${termLabel(g.termNumber)}` : 'Notas sem trimestre';
+  return g.schoolYear.trim() ? `${base}, ${g.schoolYear.trim()}` : base;
+}
+
+const text = (v: unknown): string => (typeof v === 'string' ? v : '');
+const nullableNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const ROW_STATUSES: readonly RowStatus[] = ['POSITIVA', 'NEGATIVA', 'INCOMPLETA'];
+
+/**
+ * Uma pauta com campos em falta (o motor aceita-as) não pode deitar a página abaixo: o que falta fica neutro (texto vazio, trimestre 0,
+ * sem nota, «Incompleta») e os rótulos acima dizem-no por palavras. Sem `sheetId` não é uma pauta: `null`. Idempotente.
+ */
+export function normalizeMySheet(raw: unknown): MyTermSheet | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const sheetId = text(r.sheetId).trim();
+  if (!sheetId) return null;
+  const row = (r.row && typeof r.row === 'object' ? r.row : {}) as Record<string, unknown>;
+  const dispensed = Array.isArray(row.dispensed) ? row.dispensed.filter((p): p is ProvaDispensavel => PROVAS_DISPENSAVEIS.includes(p as ProvaDispensavel)) : undefined;
+  return {
+    sheetId,
+    termNumber: typeof r.termNumber === 'number' && Number.isFinite(r.termNumber) ? r.termNumber : 0,
+    schoolYear: text(r.schoolYear),
+    subjectName: text(r.subjectName),
+    subjectCode: text(r.subjectCode),
+    className: text(r.className),
+    ...(typeof r.processNumber === 'string' ? { processNumber: r.processNumber } : {}),
+    row: {
+      mac: nullableNum(row.mac),
+      p1: nullableNum(row.p1),
+      p2: nullableNum(row.p2),
+      mt: nullableNum(row.mt),
+      status: ROW_STATUSES.includes(row.status as RowStatus) ? (row.status as RowStatus) : 'INCOMPLETA',
+      ...(dispensed ? { dispensed } : {}),
+    },
+  };
+}
+
+/** `GET /me/term-sheets`: lista de pautas normalizadas; o que não é pauta fica de fora. Lança se não for uma lista. */
+export function parseMyTermSheets(body: unknown): MyTermSheet[] {
+  if (!Array.isArray(body)) throw new Error('Resposta das pautas inválida.');
+  return body.map(normalizeMySheet).filter((s): s is MyTermSheet => s !== null);
+}
 
 export type TermGroup = { key: string; schoolYear: string; termNumber: number; sheets: MyTermSheet[]; average: number | null };
 
@@ -67,7 +126,8 @@ export function averageOf(sheets: readonly MyTermSheet[]): number | null {
 }
 
 /** Os trimestres, o ano mais recente primeiro e dentro dele por ordem; as disciplinas por nome. */
-export function groupByTerm(list: readonly MyTermSheet[]): TermGroup[] {
+export function groupByTerm(raw: readonly MyTermSheet[]): TermGroup[] {
+  const list = raw.map(normalizeMySheet).filter((s): s is MyTermSheet => s !== null);
   const groups = new Map<string, TermGroup>();
   for (const s of list) {
     const key = `${s.schoolYear}|${s.termNumber}`;
@@ -76,6 +136,15 @@ export function groupByTerm(list: readonly MyTermSheet[]): TermGroup[] {
     groups.set(key, g);
   }
   return [...groups.values()]
-    .map((g) => ({ ...g, sheets: [...g.sheets].sort((a, b) => a.subjectName.localeCompare(b.subjectName, 'pt')), average: averageOf(g.sheets) }))
-    .sort((a, b) => b.schoolYear.localeCompare(a.schoolYear) || a.termNumber - b.termNumber);
+    .map((g) => ({
+      ...g,
+      sheets: [...g.sheets].sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b), 'pt') || a.sheetId.localeCompare(b.sheetId)),
+      average: averageOf(g.sheets),
+    }))
+    .sort((a, b) => {
+      // Sem ano ou sem trimestre vai para o fim; o resto: ano mais recente primeiro, depois o trimestre; a chave desempata.
+      if (a.schoolYear !== b.schoolYear) return !a.schoolYear ? 1 : !b.schoolYear ? -1 : b.schoolYear.localeCompare(a.schoolYear);
+      if (a.termNumber !== b.termNumber) return !a.termNumber ? 1 : !b.termNumber ? -1 : a.termNumber - b.termNumber;
+      return a.key.localeCompare(b.key);
+    });
 }

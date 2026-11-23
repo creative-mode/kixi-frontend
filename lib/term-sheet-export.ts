@@ -63,7 +63,7 @@ type NameSheet = Pick<TermSheetSummary, 'status' | 'subjectName' | 'grade' | 'cl
 
 /** A turma como se lê na escola: «12B». O código da turma às vezes já traz a classe à frente, e não se repete. */
 const classPart = (s: Pick<TermSheetSummary, 'grade' | 'className'>): string =>
-  s.className.startsWith(String(s.grade)) ? s.className : `${s.grade}${s.className}`;
+  !(s.grade > 0) || s.className.startsWith(String(s.grade)) ? s.className : `${s.grade}${s.className}`;
 
 /** `pauta-redes-12b-1t-2025-2026.pdf`, ou `resultado-p1-…` para uma prova; `-provisoria` quando ainda não está homologada. */
 export function exportFileName(sheet: NameSheet, assessment?: { title: string } | null): string {
@@ -71,7 +71,7 @@ export function exportFileName(sheet: NameSheet, assessment?: { title: string } 
     assessment ? `resultado-${slug(assessment.title)}` : 'pauta',
     slug(sheet.subjectName),
     slug(classPart(sheet)),
-    `${sheet.termNumber}t`,
+    sheet.termNumber > 0 ? `${sheet.termNumber}t` : '',
     slug(sheet.schoolYear),
     isProvisional(sheet) ? 'provisoria' : '',
   ];

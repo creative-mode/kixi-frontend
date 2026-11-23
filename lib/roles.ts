@@ -43,6 +43,19 @@ export function isStudentOnly(roles: readonly Role[]): boolean {
 
 // ── só do gestor (não tem espelho no aluno) ─────────────────────────────────
 
+const MANAGER_ROLE_LABEL: Record<'ADMIN' | 'COORDINATOR' | 'TEACHER', string> = { ADMIN: 'Admin', COORDINATOR: 'Coordenador', TEACHER: 'Professor' };
+
+/**
+ * O papel que a barra lateral mostra, tirado dos papéis da sessão (JWT): o mais forte primeiro (ADMIN, coordenador, professor),
+ * e os restantes de gestão como `others`. A ordem dos papéis no token não conta (o coordenador chegou com STUDENT à frente) e um
+ * papel desconhecido nunca vira «Admin». `null` quando não há nenhum papel de gestão.
+ */
+export function managerRoleLabels(roles: readonly string[] | null | undefined): { title: string; others: string[] } | null {
+  const have = (['ADMIN', 'COORDINATOR', 'TEACHER'] as const).filter((r) => roles?.includes(r));
+  if (have.length === 0) return null;
+  return { title: MANAGER_ROLE_LABEL[have[0]], others: have.slice(1).map((r) => MANAGER_ROLE_LABEL[r]) };
+}
+
 /** Rotas de administração: um professor que lá chegue vê a 403 com o motivo. */
 const ADMIN_ONLY_ROUTES = [
   '/school-year',

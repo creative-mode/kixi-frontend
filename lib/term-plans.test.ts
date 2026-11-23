@@ -1,7 +1,7 @@
 // Testes das regras do plano do trimestre:  node --test lib/term-plans.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { conclusionProblem, daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac, statementTargets } from './term-plans.ts';
+import { conclusionProblem, daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac, schedulingNote, statementTargets } from './term-plans.ts';
 import type { PlanDraft, Reminder } from '../types/term-plans.ts';
 
 const draft = (over: Partial<PlanDraft> = {}): PlanDraft => ({
@@ -74,4 +74,17 @@ test('o enunciado pede-se só às provas não dispensadas (kixi#635)', () => {
   assert.equal(statementTargets({ assessments: [a('P1', 'PLANNED'), a('P2', 'DISPENSED')] }), 'da P1');
   assert.equal(statementTargets({ assessments: [a('P1', 'DISPENSED'), a('P2', 'DISPENSED')] }), 'das provas');
   assert.equal(conclusionProblem({ assessments: [{ kind: 'P1', status: 'PLANNED', statementId: 1, seq: 1 }, { kind: 'P2', status: 'DISPENSED', statementId: null, seq: 1 }] as never }), null);
+});
+
+test('o agendamento concluído só promete a pauta «em instantes» se todas as provas ainda têm enunciado', () => {
+  const av = (kind: 'P1' | 'P2', statementId: number | null) => ({ kind, seq: 1, status: 'PLANNED', statementId }) as never;
+  const ligado = { schedulingConcluded: true, pautaOpened: false, assessments: [av('P1', 1), av('P2', 2)] };
+  assert.equal(schedulingNote(ligado), 'Agendamento concluído: a pauta abre em instantes.');
+  // Reagendar a P2 apaga a ligação ao enunciado (kixi): o texto não pode continuar a prometer a pauta.
+  const reagendada = { ...ligado, assessments: [av('P1', 1), av('P2', null)] };
+  assert.match(schedulingNote(reagendada)!, /Falta ligar o enunciado: P2\./);
+  assert.doesNotMatch(schedulingNote(reagendada)!, /em instantes/);
+  // Fora do agendamento concluído não há nota própria.
+  assert.equal(schedulingNote({ ...ligado, schedulingConcluded: false }), null);
+  assert.equal(schedulingNote({ ...ligado, pautaOpened: true }), null);
 });

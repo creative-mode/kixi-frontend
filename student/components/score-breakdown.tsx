@@ -2,6 +2,8 @@ import { formatScore } from '@/lib/result-rules';
 
 interface ScoreBreakdownProps {
   objectiveScore: number;
+  /** Falso quando as objectivas ainda não têm nota (sala aberta): diz-se «a aguardar», não «0/20». */
+  objectiveGraded?: boolean;
   objectiveMax: number;
   openScore: number;
   openMax: number;
@@ -13,6 +15,7 @@ interface ScoreBreakdownProps {
 
 export function ScoreBreakdown({
   objectiveScore,
+  objectiveGraded = true,
   objectiveMax,
   openScore,
   openMax,
@@ -32,7 +35,11 @@ export function ScoreBreakdown({
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-medium text-primary">
       {objectiveMax > 0 && (
         <span>
-          Objectivas <b className="font-bold">{formatScore(objectiveScore)}</b>/{formatScore(objectiveMax)} pelo gabarito
+          {objectiveGraded ? (
+            <>Objectivas <b className="font-bold">{formatScore(objectiveScore)}</b>/{formatScore(objectiveMax)} pelo gabarito</>
+          ) : (
+            <>Objectivas <b className="font-bold">a aguardar a correcção</b> (valem {formatScore(objectiveMax)})</>
+          )}
         </span>
       )}
       {objectiveMax > 0 && hasOpen && <span className="text-muted-foreground" aria-hidden>·</span>}

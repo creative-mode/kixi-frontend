@@ -247,15 +247,16 @@ export function translateChatError(code: string, _message = ''): string {
 }
 
 /** What to tell the student for a failure before the stream began. `retryAfter` is the
- *  `Retry-After` header, in seconds. */
-export function describeHttpFailure(status: number, retryAfter: number | null): string {
+ *  `Retry-After` header, in seconds; `stage` says whether it failed opening the conversation or sending a message. */
+export function describeHttpFailure(status: number, retryAfter: number | null, stage: 'open' | 'message' = 'message'): string {
   if (status === 429) {
     const wait = retryAfter != null && retryAfter > 0 ? ` Tenta de novo ${formatWait(retryAfter)}.` : '';
     return `Atingiste o limite de mensagens para o tutor.${wait}`;
   }
   if (status === 503) return 'O tutor não está disponível de momento. Tenta mais tarde.';
   if (status === 504) return 'O tutor demorou demasiado a responder.';
-  if (status === 404) return 'Esta conversa já não existe.';
+  // Ao abrir a conversa, um 404 é a prova («Statement not found»: oculta ou removida), não a conversa; ao enviar, é a sessão que desapareceu.
+  if (status === 404) return stage === 'open' ? 'Esta prova não está disponível para o tutor.' : 'Esta conversa já não existe.';
   if (status === 401) return 'A sessão expirou. Entra novamente.';
   return 'Não conseguimos falar com o tutor. Tenta de novo.';
 }

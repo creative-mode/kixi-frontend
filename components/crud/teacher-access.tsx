@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Confirm, type ConfirmState } from './confirm';
 export function TeacherAccess({ teacher, onChange }: { teacher: Row; onChange: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const uid = useId();
   const [form, setForm] = useState({ username: '', email: teacher.email ?? '', password: '' });
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
@@ -61,9 +62,9 @@ export function TeacherAccess({ teacher, onChange }: { teacher: Row; onChange: (
             </div>
           ) : (
             <form onSubmit={grant} className="grid gap-3">
-              <div className="grid gap-1.5"><Label>Utilizador</Label><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required minLength={3} /></div>
-              <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
-              <div className="grid gap-1.5"><Label>Palavra-passe inicial</Label><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} /></div>
+              <div className="grid gap-1.5"><Label htmlFor={`${uid}-utilizador`}>Utilizador</Label><Input id={`${uid}-utilizador`} autoComplete="off" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required minLength={3} /></div>
+              <div className="grid gap-1.5"><Label htmlFor={`${uid}-email`}>Email</Label><Input id={`${uid}-email`} autoComplete="off" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
+              <div className="grid gap-1.5"><Label htmlFor={`${uid}-palavra-passe`}>Palavra-passe inicial</Label><Input id={`${uid}-palavra-passe`} autoComplete="new-password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} /></div>
               <Button type="submit" disabled={busy}>Conceder acesso</Button>
             </form>
           )}

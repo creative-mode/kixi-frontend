@@ -33,6 +33,7 @@ import { logoutAction } from "@/app/actions/auth";
 import { resetTeacherScope } from "@/hooks/use-teacher-scope";
 import { activeHref, groupLinks, visibleLinks } from "@/lib/nav-rules";
 import { seesInstitutionRooms, type Role } from "@/lib/roles";
+import { isManagerPublicPage } from "@/lib/public-pages";
 import { UserDisplay } from "./user-display";
 import { KixiLogo } from "./kixi-logo";
 import { guardGlobalUnsavedChanges } from "./crud/use-unsaved-changes";
@@ -189,8 +190,8 @@ export function ManagerNavbar({ roles, moderation }: { roles: readonly Role[]; m
   );
   const pathname = usePathname();
 
-  // Don't render navbar on public pages (login)
-  const isPublicPage = pathname === '/login' || pathname === '/403';
+  // Sem barra nas páginas públicas (login, 403, recuperar): um anónimo não vê a estrutura do menu autenticado.
+  const isPublicPage = isManagerPublicPage(pathname);
 
   const closeMenu = () => {
     setIsOpen(false);
