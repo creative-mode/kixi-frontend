@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { test } from 'node:test';
-import { assinaturaValida, eSimulacaoLivre, pedidoDeCorrecao, vistaDaCorrecao } from './correcao-rules.ts';
+import { assinaturaValida, estadoParaEspera, previsaoValida, progressoValido, correcaoIdDoConflito, eSimulacaoLivre, escalaDaNota, notaProvisoria, pedidoDeCorrecao, vistaDaCorrecao, vistaDeUmaRecusa } from './correcao-rules.ts';
 
 const me = { accountId: 3, first_name: 'Ana', last_name: 'Domingos', username: 'ana.domingos', school: { id: 1, name: 'Instituto', code: 'ITEL' } };
 
@@ -16,21 +16,22 @@ test('corrigida mostra o resultado; sem respostas legíveis diz-se incompleta, n
 });
 
 test('uma correcção cancelada ou com incidente é uma falha, não uma espera eterna', () => {
-  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'CANCELADA' }).kind, 'falhou');
-  assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'INCIDENTE' }).kind, 'falhou');
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'CANCELADA' }), { kind: 'falhou', motivo: 'incidente' });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'FALHADA' }), { kind: 'falhou', motivo: 'incidente' });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'INCIDENTE' }), { kind: 'falhou', motivo: 'incidente' });
 });
 
 test('o pedido leva a instituição, a prova, a simulação e o aluno, e usa o username sem nome', () => {
-  const p = pedidoDeCorrecao({ me, simulationId: 9, statementId: 2, statementTitle: 'P1', callbackUrl: 'https://k/e' });
+  const p = pedidoDeCorrecao({ me, simulationId: 9, statementId: 2, callbackUrl: 'https://k/e' });
   assert.equal(p?.correcaoRef, 'kixi-sim-9');
   assert.deepEqual(p?.org, { sourcedId: '1', nome: 'Instituto', sigla: 'ITEL' });
   assert.deepEqual(p?.simulacao, { sourcedId: '9' });
   assert.equal(p?.aluno.nome, 'Ana Domingos');
-  assert.equal(pedidoDeCorrecao({ me: { ...me, first_name: null, last_name: null }, simulationId: 9, statementId: 2, statementTitle: null, callbackUrl: 'x' })?.aluno.nome, 'ana.domingos');
+  assert.equal(pedidoDeCorrecao({ me: { ...me, first_name: null, last_name: null }, simulationId: 9, statementId: 2, callbackUrl: 'x' })?.aluno.nome, 'ana.domingos');
 });
 
 test('um aluno sem escola usa a organização geral do Kixi em vez de ficar sem pedido', () => {
-  const p = pedidoDeCorrecao({ me: { ...me, school: null }, simulationId: 1, statementId: 1, statementTitle: null, callbackUrl: 'x' });
+  const p = pedidoDeCorrecao({ me: { ...me, school: null }, simulationId: 1, statementId: 1, callbackUrl: 'x' });
   assert.deepEqual(p?.org, { sourcedId: 'kixi', nome: 'Kixi', sigla: 'KIXI' });
 });
 
@@ -82,15 +83,13 @@ test('com a correcção feita, a nota é a do motor e as dissertativas levam pon
   assert.notEqual(r.questions?.[1].reviewStatus, 'PENDING_REVIEW');
 });
 
-import { semNotaDasSimulacoes } from './correcao-rules.ts';
-
-test('a nota das simulações livres sai das outras páginas; a das salas fica', () => {
-  const sims = [{ id: 1, finalScore: 14 }, { id: 2, finalScore: 18 }, { id: '3', finalScore: null }];
-  assert.deepEqual(semNotaDasSimulacoes(sims, [{ simulationId: 2 }]), [{ id: 1, finalScore: null }, { id: 2, finalScore: 18 }, { id: '3', finalScore: null }]);
-});
-
-test('se a lista de salas falhou, não se arrisca: sai a nota de todas', () => {
-  assert.deepEqual(semNotaDasSimulacoes([{ id: 2, finalScore: 18 }], null), [{ id: 2, finalScore: null }]);
+test('o anel usa a escala da nota (20), nunca a cotação em pontos da prova', () => {
+  // Uma prova de 25 pontos: a nota do motor é 11,6 de 20, não 11,6 de 25.
+  assert.equal(escalaDaNota({ nota: 11.6, pontos: 14.5, maximo: 25, escala: 20 }), 20);
+  // Motor anterior ao #60, sem escala no resultado: a nota continua a ser 0–20.
+  assert.equal(escalaDaNota({ nota: 11.6, pontos: 14.5, maximo: 25 }), 20);
+  assert.equal(escalaDaNota({ escala: 0 }), 20);
+  assert.equal(escalaDaNota({ escala: -5 }), 20);
 });
 
 test('sem gabarito numa questão aberta diz-se, em vez de culpar a leitura das respostas', () => {
@@ -104,4 +103,63 @@ test('sem gabarito numa questão aberta diz-se, em vez de culpar a leitura das r
 
 test('uma correcção FALHADA (incidente no motor) é uma falha, não uma espera', () => {
   assert.equal(vistaDaCorrecao({ correcaoId: 'c', estado: 'FALHADA' }).kind, 'falhou');
+});
+
+// ── #787: recusa, 409, nota provisória ───────────────────────────────────────
+
+test('o pedido só leva o que o contrato exige: o título da prova, que o professor pode editar, não segue', () => {
+  const p = pedidoDeCorrecao({ me, simulationId: 9, statementId: 2, callbackUrl: 'https://k/e' });
+  assert.deepEqual(p.prova, { sourcedId: '2' });
+});
+
+test('um 4xx do motor (menos 408 e 429) é uma recusa; rede, 5xx, 408 e 429 são só atraso', () => {
+  for (const status of [400, 401, 403, 404, 422]) assert.deepEqual(vistaDeUmaRecusa(status), { kind: 'falhou', motivo: 'recusada' }, String(status));
+  for (const status of [0, 408, 429, 500, 502, 503, 504]) assert.deepEqual(vistaDeUmaRecusa(status), { kind: 'a-corrigir' }, String(status));
+});
+
+test('o 409 do motor traz o identificador da correcção que já existe', () => {
+  const problema = JSON.stringify({ status: 409, title: 'Conflict', detail: 'A correcção CR-0A5ECDCA54339EB3 já existe com outro conteúdo.' });
+  assert.equal(correcaoIdDoConflito(problema), 'CR-0A5ECDCA54339EB3');
+  assert.equal(correcaoIdDoConflito('{"detail":"outro erro"}'), null);
+  assert.equal(correcaoIdDoConflito('CR-123 curto'), null);
+  assert.equal(correcaoIdDoConflito(null), null);
+});
+
+test('a nota provisória soma só as questões fechadas já pontuadas e nunca inventa uma', () => {
+  const q = (reviewStatus: string, scoreObtained: number | null, maxScore: number) => ({ questionId: 1, reviewStatus, scoreObtained, maxScore }) as never;
+  const base = { simulationId: 1, finalScore: null, pendingReviewCount: 2 };
+  const com = (questions?: unknown[]) => notaProvisoria({ ...base, questions } as never);
+  assert.deepEqual(com([q('AUTO_GRADED', 2, 2), q('AUTO_GRADED', 0, 3), q('PENDING_REVIEW', null, 6)]), { pontos: 2, maximo: 5 });
+  assert.equal(com([q('PENDING_REVIEW', null, 6)]), null);
+  assert.equal(com([]), null);
+  assert.equal(com(undefined), null);
+});
+
+test('o progresso e a previsão do motor passam para a espera quando fazem sentido (schoolops#59)', () => {
+  assert.deepEqual(
+    vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 63 }),
+    { kind: 'a-corrigir', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 63 },
+  );
+  // Motor antigo, ou ainda sem amostras: nada a mostrar além da espera, e nunca um zero inventado.
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', progresso: null, previsaoSegundos: null }), { kind: 'a-corrigir' });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', progresso: { corrigidas: 0, total: 5 } }), { kind: 'a-corrigir', progresso: { corrigidas: 0, total: 5 } });
+  assert.deepEqual(vistaDaCorrecao({ correcaoId: 'c', estado: 'ABERTA', previsaoSegundos: 0 }), { kind: 'a-corrigir', previsaoSegundos: 0 });
+});
+
+test('um progresso incoerente conta como «ainda não se sabe»', () => {
+  assert.equal(progressoValido({ corrigidas: 6, total: 5 }), null);
+  assert.equal(progressoValido({ corrigidas: -1, total: 5 }), null);
+  assert.equal(progressoValido({ corrigidas: 0, total: 0 }), null);
+  assert.equal(progressoValido({ corrigidas: 1.5, total: 5 }), null);
+  assert.equal(previsaoValida(-3), null);
+  assert.equal(previsaoValida(Number.NaN), null);
+  assert.equal(previsaoValida(undefined), null);
+  assert.equal(previsaoValida(41.6), 42);
+});
+
+test('a leitura leve leva à espera o progresso e a previsão, e nunca o resultado', () => {
+  assert.deepEqual(estadoParaEspera({ kind: 'a-corrigir', progresso: { corrigidas: 1, total: 4 }, previsaoSegundos: 30 }), { kind: 'a-corrigir', progresso: { corrigidas: 1, total: 4 }, previsaoSegundos: 30 });
+  assert.deepEqual(estadoParaEspera({ kind: 'a-corrigir' }), { kind: 'a-corrigir', progresso: null, previsaoSegundos: null });
+  assert.deepEqual(estadoParaEspera({ kind: 'falhou', motivo: 'incidente' }), { kind: 'falhou', motivo: 'incidente' });
+  assert.deepEqual(estadoParaEspera({ kind: 'corrigida', resultado: { nota: 15 } }), { kind: 'corrigida' });
 });

@@ -1,24 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, DoorOpen, FileText, Gift, Plus, Printer, Save, ScanText, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, Printer, Save, ScanText } from 'lucide-react';
 import { toast } from 'sonner';
 import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { NativeSelect } from '@/components/ui/native-select';
 import { Spinner } from '@/components/ui/spinner';
-import Link from 'next/link';
 import { approveStatement, createManualStatement, getStatementForReview, getStatementFull, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, updateManualStatement, type ReviewChoices, type StatementInput } from '@/app/actions/crud';
 import { extractDonation, getDonation, linkDonationStatement } from '@/app/actions/donations';
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
 import { classChoices, subjectChoices } from '@/lib/exam/curriculum';
-import { clearDraft, draftHasContent, EMPTY_DRAFT, KINDS, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
+import { clearDraft, draftHasContent, EMPTY_DRAFT, loadDraft, saveDraft, type ExamDraft, type School } from '@/lib/exam/schools';
 import { listQuestionImages, uploadQuestionImage } from '@/app/actions/media';
-import { applyServerIds, applyUpdateIdentities, distributeScore, figuresOf, move, problemDetails, toRequest, toUpdateRequest, totalScore, unscored } from '@/lib/exam/draft';
+import { applyServerIds, applyUpdateIdentities, distributeScore, figuresOf, problemDetails, toRequest, toUpdateRequest, totalScore, unscored } from '@/lib/exam/draft';
 import { renderPdfPageToImage, pdfPageCount } from '@/lib/exam/pdf';
 import { mergePageRetry } from '@/lib/exam/retry';
 import { flattenSourcePages, pageAtSources } from '@/lib/exam/sources';
@@ -29,34 +25,22 @@ import { draftFromExtraction, type ExamExtraction, type ImportedNote } from '@/l
 import type { OriginalPage } from './exam-importer';
 import { ExamImporter } from './exam-importer';
 import { ExamSheet } from './exam-sheet';
-import { QuestionEditor } from './question-editor';
-import { SourceThumb } from './source-thumb';
 import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 import { useUnsavedChanges } from '@/components/crud/use-unsaved-changes';
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  // O `<label>` envolve o controlo em vez de ser irmao: um label que envolve o
-  // `<select>` associa-lhe o nome sem `htmlFor` nem ids. Antes eram irmaos, e o
-  // campo ficava sem nome acessivel — o `getByLabel` nao o encontrava e um leitor
-  // de ecra anunciava «caixa de selecao, sem rotulo».
-  // A tipografia vai no texto, nao no wrapper. Um `<label>` que envolve o controlo
-  // passa a ser pai do `<select>`, e o preflight do Tailwind v4 poe `font: inherit`
-  // nos controlos: o `font-medium` do `Label` chegava ao texto do campo e deixava-o
-  // a negrito medio sem ninguem o ter decidido. Num `label` simples so o `<span>` e
-  // negrito, e o controlo volta ao peso normal.
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-sm font-medium leading-none">{label}</span>
-      {children}
-    </label>
-  );
-}
+import { SavedExamCard } from './builder/saved-exam-card';
+import { DonationCard } from './builder/donation-card';
+import { OcrNotesCard } from './builder/ocr-notes-card';
+import { FooterPreviewCard } from './builder/footer-preview-card';
+import { OriginalPagesCard } from './builder/original-pages-card';
+import { EscolaDisciplinaCard } from './builder/escola-disciplina-card';
+import { CabecalhoCard } from './builder/cabecalho-card';
+import { QuestoesCard } from './builder/questoes-card';
+import { RegrasCard } from './builder/regras-card';
 
 /** A prova que acabou de ser guardada: serve para dizer onde está e para a poder dar a uma turma. */
-interface SavedExam { id: number; title: string; published: boolean; snapshot: string; savedAt: string }
-/** `savedAt` é um instante do browser; a hora mostra-se no fuso de Luanda. */
+import type { PendingFigurePublication, SavedExam } from './builder/types';
+export type { PendingFigurePublication, SavedExam };
 const SAVED_AT = new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Luanda', hour: '2-digit', minute: '2-digit' });
-interface PendingFigurePublication extends SavedExam { figures: ReturnType<typeof figuresOf>; publish: boolean }
 
 /** Anexa apenas os recortes ainda ausentes; a ordem e a legenda identificam cada recorte
  *  porque a prova acabou de ser criada e, portanto, não tem imagens pré-existentes. */
@@ -101,6 +85,8 @@ async function attachMissingFigures(statementId: number, figures: ReturnType<typ
 export function ExamBuilder({ openImport = false, donationId = null }: { openImport?: boolean; donationId?: number | null }) {
   /** Abaixo de `lg` a folha vem depois de sete cartões: o alternador mostra uma coisa de cada vez. */
   const [view, setView] = useState<'editar' | 'previsualizar'>('editar');
+  /** Em ecrãs largos pode ocultar-se a pré-visualização para dar espaço a escrever. */
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [schools, setSchools] = useState<School[]>([]);
   const [subjectIds, setSubjectIds] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<ExamDraft>(EMPTY_DRAFT);
@@ -219,11 +205,24 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     if (donationId === null) return;
     getDonation(donationId).then((res) => (res.ok ? setDonation(res.data) : reportActionError(res.error)));
   }, [donationId]);
+  // #763: quando a doação já está ligada a uma escola, o construtor abre nessa
+  // escola — desde que esteja entre as que este administrador pode usar. Uma
+  // escolha já feita no rascunho não é substituída.
+  useEffect(() => {
+    const linked = donation?.institutionId;
+    if (linked == null || !ready) return;
+    setDraft((current) => {
+      if (current.schoolId) return current;
+      if (!schools.some((option) => option.id === String(linked))) return current;
+      return { ...current, schoolId: String(linked) };
+    });
+  }, [donation, ready, schools]);
   useEffect(() => { fetchCurrentUser().then((u) => setAdmin(!!u?.roles.includes('ADMIN'))); }, []);
 
   const school = useMemo(() => schools.find((s) => s.id === draft.schoolId) ?? schools[0], [schools, draft.schoolId]);
   const schoolId = school?.id;
   const set = <K extends keyof ExamDraft>(k: K, v: ExamDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const patchDraft = (patch: Partial<ExamDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
   // Escola → turmas da escola (ao professor, as que lhe estão atribuídas) → disciplinas do currículo do
   // curso dessas turmas (ao professor, as que dá). O backend recusa o resto ("A teacher must choose the class they teach").
@@ -540,14 +539,10 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     applyImport(res.data, donation?.reference ?? `doação ${donationId}`);
   }
 
-  const setItem = (i: number, patch: Partial<ExamDraft['items'][number]>) => set('items', draft.items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
-  const setRule = (i: number, v: string) => set('rules', draft.rules.map((x, j) => (j === i ? v : x)));
-  /** Reordena no rascunho; a ordem vai no pedido de criação, que é quem a guarda. */
-  const moveItem = (i: number, direction: -1 | 1) => set('items', move(draft.items, i, direction));
-  const total = totalScore(draft.items);
   /** Problemas com destino: cada linha tem as questões/alíneas que a explicam. */
   const detalhes = problemDetails(draft.items);
   const problemas = detalhes.map((d) => d.message);
+  const total = totalScore(draft.items);
   /** Páginas por original, na ordem global da leitura (índice 0-based): imagens
    *  contam 1; um PDF conta o que já foi apurado (até lá, 1). */
   const contagens = originais?.map((o) => (o.kind === 'image' ? 1 : pdfs.get(o.url) ?? 1)) ?? [];
@@ -582,7 +577,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Montar prova</h1>
-          <p className="mt-1 text-muted-foreground">A prova segue o modelo oficial. Só o logótipo, o nome da escola e a disciplina mudam.</p>
+          <p className="mt-1 text-muted-foreground">A prova segue o modelo oficial. Só o logótipo, o nome da escola e a disciplina mudam. Construa visualmente; confira no enunciado.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => { setImportOpen((v) => !v); setView('editar'); }} aria-expanded={importOpen} disabled={pendingPublication !== null}>
@@ -598,9 +593,18 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           <Button variant="outline" onClick={() => window.print()} disabled={!ready2print}>
             <Printer aria-hidden /> Imprimir / guardar PDF
           </Button>
+          <Button variant="outline" className="hidden lg:inline-flex" aria-pressed={previewCollapsed} aria-label={previewCollapsed ? 'Mostrar a pré-visualização' : 'Ocultar a pré-visualização'} onClick={() => setPreviewCollapsed((v) => !v)}>
+            {previewCollapsed ? 'Mostrar' : 'Ocultar'} pré-visualização
+          </Button>
           {saved ? <span className="self-center text-xs text-muted-foreground" role="status">{changedSinceSave ? 'Alterações por guardar' : `Guardado às ${SAVED_AT.format(new Date(saved.savedAt))}`}</span> : null}
         </div>
       </div>
+
+      <nav aria-label="Avançar no construtor" className="mb-5 flex flex-wrap gap-2 print:hidden">
+        <a href="#builder-dados" className="rounded-full border px-3 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">Dados</a>
+        <a href="#builder-questoes" className="rounded-full border px-3 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">Questões</a>
+        <a href="#builder-regras" className="rounded-full border px-3 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground">Regras</a>
+      </nav>
 
       {hasSummary && (
         <div id="construtor-pendencias" className="mb-6 grid gap-0.5 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning print:hidden">
@@ -611,33 +615,19 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       {blocker && <p id="construtor-estado" className="mb-6 text-sm text-muted-foreground print:hidden">{blocker}</p>}
 
       {saved && (
-        <Card className="mb-6 border-primary/40 bg-accent/40 print:hidden" role="status" aria-live="polite">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Check className="size-4 text-primary" aria-hidden />{saved.published ? 'Prova publicada' : 'Prova guardada'}</CardTitle>
-            <CardDescription>
-              «{saved.title}» {pendingPublication ? 'continua oculta enquanto os recortes OCR não forem anexados e confirmados.' : saved.published ? 'já está disponível para os alunos simularem sozinhos.' : 'ficou oculta: publique-a para a poder dar a uma turma.'} A prova é dada a partir de um enunciado, numa sala: os alunos entram na sala e fazem a simulação.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {pendingPublication ? <Button onClick={() => resumeFigurePublication(pendingPublication)} disabled={saving}>{saving ? <Spinner className="size-4" /> : <Check aria-hidden />}{saving ? 'A retomar…' : 'Retomar anexação e publicação'}</Button> : null}
-            {saved.published ? (
-              <Button asChild><Link href={`/exam-rooms/new?statementId=${saved.id}`}><DoorOpen aria-hidden />Criar sala com esta prova</Link></Button>
-            ) : null}
-            {!pendingPublication ? <Button asChild variant="outline"><Link href={`/statements/${saved.id}`}><FileText aria-hidden />Ver o enunciado</Link></Button> : null}
-            <Button variant="ghost" disabled={pendingPublication !== null} onClick={() => setConfirm({
-              title: 'Começar uma prova nova?',
-              description: 'O rascunho atual será limpo. A prova já guardada continua disponível.',
-              action: 'Começar nova prova',
-              destructive: true,
-              run: () => { // `EMPTY_DRAFT` mesmo: `schoolId: ''` já volta a escolher a primeira escola no
-              // select, e preservar o id fazia o rascunho limpo contar como conteúdo e
-              // voltar a ser guardado — um aviso a mais no arranque seguinte.
-              setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); trocarOriginais(null); setSaved(null);
-            }} )}>
-              <Plus aria-hidden />Nova prova
-            </Button>
-          </CardContent>
-        </Card>
+        <SavedExamCard
+          saved={saved}
+          pendingPublication={pendingPublication}
+          onResume={() => pendingPublication && void resumeFigurePublication(pendingPublication)}
+          onNewExam={() => setConfirm({
+            title: 'Começar uma prova nova?',
+            description: 'O rascunho atual será limpo. A prova já guardada continua disponível.',
+            action: 'Começar nova prova',
+            destructive: true,
+            run: () => { setDraft(EMPTY_DRAFT); setNotes([]); setFooterPreview(null); trocarOriginais(null); setSaved(null); },
+          })}
+          saving={saving}
+        />
       )}
 
       <div id="construtor-vista" role="group" aria-label="Vista do construtor" className="mb-4 grid scroll-mt-20 grid-cols-2 gap-1 rounded-lg border bg-muted p-1 lg:hidden print:hidden">
@@ -657,117 +647,16 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
         ))}
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <div className={cn('grid grid-cols-[minmax(0,1fr)] items-start gap-6', previewCollapsed ? 'lg:grid-cols-[minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]')}>
         <div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4 print:hidden', view !== 'editar' && 'max-lg:hidden')}>
-          {donationId !== null && (
-            <Card className="print:hidden" role="region" aria-label="Doação de origem">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Gift className="size-4 text-primary" aria-hidden />Doação {donation?.reference ?? `#${donationId}`}</CardTitle>
-                <CardDescription>
-                  {donation
-                    ? `${donation.subjectName} · ${donation.examType} · ${donation.institutionName}. ${donation.files.length} ficheiro(s).`
-                    : 'A carregar a doação…'}
-                  {' '}O OCR lê os ficheiros e preenche o construtor; ao guardar, a doação fica ligada à prova.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                <Button onClick={readDonation} disabled={!donation || reading || !ready}>
-                  {reading ? <Spinner className="size-4" /> : <ScanText aria-hidden />}
-                  {reading ? 'A ler a prova…' : 'Ler os ficheiros com o OCR'}
-                </Button>
-                <Button asChild variant="outline"><Link href={`/donations/${donationId}`}>Ver a doação</Link></Button>
-              </CardContent>
-            </Card>
-          )}
+          {donationId !== null && <DonationCard donationId={donationId} donation={donation} reading={reading} ready={ready} onRead={readDonation} />}
 
           {importOpen && <ExamImporter onExtracted={applyImport} onClose={() => setImportOpen(false)} />}
           <Confirm state={confirm} onClose={() => setConfirm(null)} />
 
-          {notes.length > 0 && (
-            <Card className="border-warning/40">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="flex items-center gap-2"><Sparkles className="size-4 text-warning" aria-hidden />Lido pelo OCR: reveja</CardTitle>
-                    <CardDescription>O OCR errou ou ficou inseguro nestes pontos. Corrija no rascunho antes de guardar.</CardDescription>
-                  </div>
-                  <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label="Dispensar as notas do OCR" onClick={() => setNotes([])}><X size={16} /></Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="grid gap-2.5 text-sm">
-                  {notes.map((n, i) => (
-                    <li key={`${i}-${n.text.slice(0, 24)}`} className="grid gap-1">
-                      <span>{n.text}</span>
-                      {typeof n.question === 'number' ? (
-                        <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => irParaQuestao(n.question!)}>
-                          Ir para a questão {n.question}
-                        </Button>
-                      ) : n.anchor === 'rodape' ? (
-                        <Button type="button" variant="outline" size="sm" className="justify-self-start" asChild>
-                          <a href="#ocr-rodape">Ver rodapé original</a>
-                        </Button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
+          {notes.length > 0 && <OcrNotesCard notes={notes} onIrParaQuestao={irParaQuestao} onDismiss={() => setNotes([])} />}
 
-          {originais && originais.length > 0 && (
-            <Card className="print:hidden" data-testid="ocr-originais">
-              <CardHeader>
-                <CardTitle>Páginas originais</CardTitle>
-                <CardDescription>As páginas lidas, na ordem da leitura. Toque para ver em tamanho real.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="flex flex-wrap gap-4">
-                  {originais.map((o, oi) => (
-                    <li key={o.url} className="grid gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setOriginalAberto(o)}
-                        aria-label={`Ver ${o.name} em tamanho real`}
-                        className="grid w-24 gap-1 rounded-lg border bg-card p-1.5 text-left transition-colors hover:border-primary"
-                      >
-                        {o.kind === 'image' ? (
-                          <img src={o.url} alt="" aria-hidden className="h-20 w-full rounded object-cover" />
-                        ) : (
-                          /* Página 1 renderizada: o File veio do URL no efeito de contagem. */
-                          pdfFiles.current.has(o.url)
-                            ? <SourceThumb file={pdfFiles.current.get(o.url)!} kind="pdf" className="h-20 w-full rounded object-cover" />
-                            : <span className="grid h-20 w-full place-items-center rounded bg-accent text-primary"><FileText size={20} aria-hidden /></span>
-                        )}
-                        <span className="truncate text-[11px] text-muted-foreground">{o.name}</span>
-                      </button>
-                      {/* Páginas de um PDF: cada uma pode ser relida sozinha — o rascunho
-                          troca só as questões que vieram dela (`mergePageRetry`). */}
-                      {o.kind === 'pdf' && pdfFiles.current.has(o.url) && (pdfs.get(o.url) ?? 0) > 1 && (
-                        <div className="flex flex-wrap gap-1">
-                          {paginasOriginais.filter((p) => p.sourceIndex === oi).map((p) => (
-                            <button
-                              key={p.pageIndex}
-                              type="button"
-                              className="grid w-12 gap-0.5 rounded-md border bg-card p-0.5 text-center transition-colors hover:border-primary disabled:opacity-60"
-                              disabled={relendo !== null}
-                              aria-label={`Repetir a leitura da página ${p.page} de ${o.name}`}
-                              onClick={() => void repetirLeitura(o, p.page, p.pageIndex)}
-                            >
-                              <SourceThumb file={pdfFiles.current.get(o.url)!} kind="pdf" page={p.page} className="h-10 w-full rounded object-cover" />
-                              <span className="grid h-3.5 place-items-center text-[10px] tabular-nums text-muted-foreground">
-                                {relendo === `${o.url}#${p.page}` ? <Spinner className="size-3" /> : p.page}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
+          {originais && originais.length > 0 && <OriginalPagesCard originais={originais} pdfs={pdfs} pdfFiles={pdfFiles} relendo={relendo} paginasOriginais={paginasOriginais} onRepetirLeitura={repetirLeitura} onOpenOriginal={setOriginalAberto} />}
 
           <Dialog open={originalAberto !== null} onOpenChange={(aberto) => { if (!aberto) setOriginalAberto(null); }}>
             <DialogContent className="max-w-3xl">
@@ -785,160 +674,18 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
             </DialogContent>
           </Dialog>
 
-          {footerPreview && (
-            <Card data-testid="ocr-footer-preview" id="ocr-rodape" className="scroll-mt-20">
-              <CardHeader>
-                <CardTitle>Rodapé original — fora das questões</CardTitle>
-                <CardDescription>
-                  Recorte da página {(footerPreview.pageIndex ?? 0) + 1}, mantido para conferência. Não será impresso como parte das perguntas.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                <img src={footerPreview.dataUrl} alt="Rodapé original da prova, incluindo contacto e coordenação" className="max-h-72 w-full rounded-lg border object-contain object-left-top" />
-                {footerPreview.text.length > 0 && <p className="text-sm text-muted-foreground">Texto reconhecido: {footerPreview.text.join(' · ')}</p>}
-              </CardContent>
-            </Card>
-          )}
+          {footerPreview && <FooterPreviewCard footerPreview={footerPreview} />}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Escola e disciplina</CardTitle>
-              <CardDescription>A prova pertence a uma escola e a uma disciplina dessa escola.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {ready && schools.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Não está afiliado a nenhuma escola. Peça a um administrador que o associe a uma <Link href="/institutions" className="underline">instituição</Link>.
-                </p>
-              ) : (
-                <>
-                  <Field label="Escola">
-                    <NativeSelect value={school?.id ?? ''} onChange={(e) => set('schoolId', e.target.value)}>
-                      {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </NativeSelect>
-                  </Field>
-                  <Field label="Disciplina">
-                    <NativeSelect value={subject} onChange={(e) => set('subject', e.target.value)}>
-                      <option value="">Escolher…</option>
-                      {subjectOptions.map((x) => <option key={x.value} value={x.label}>{x.label}</option>)}
-                    </NativeSelect>
-                  </Field>
-                  <Field label={admin ? 'Turma (opcional)' : 'Turma'}>
-                    <NativeSelect value={chosenClassId} onChange={(e) => setClassId(e.target.value)} disabled={!choices}>
-                      <option value="">Escolher…</option>
-                      {classOptions.map((c) => <option key={c.value} value={String(c.value)}>{c.label}</option>)}
-                    </NativeSelect>
-                  </Field>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <EscolaDisciplinaCard ready={ready} schools={schools} schoolId={school?.id} choices={choices} chosenClassId={chosenClassId} subject={subject} subjectOptions={subjectOptions} classOptions={classOptions} admin={admin} onSchool={(value) => set('schoolId', value)} onSubject={(value) => set('subject', value)} onClass={setClassId} />
 
-          <Card>
-            <CardHeader><CardTitle>Cabeçalho</CardTitle></CardHeader>
-            <CardContent className="grid gap-4">
-              <Field label="Título"><Input value={draft.title} onChange={(e) => set('title', e.target.value)} placeholder={subject ? `${draft.kind} – ${subject}` : 'Tipo – disciplina'} /></Field>
-              <div className="grid gap-4 sm:grid-cols-[1fr_1.5fr_1fr]">
-                <Field label="Classe"><Input value={draft.grade} onChange={(e) => set('grade', e.target.value)} /></Field>
-                <Field label="Tipo">
-                  <NativeSelect value={draft.kind} onChange={(e) => set('kind', e.target.value)}>{KINDS.map((k) => <option key={k}>{k}</option>)}</NativeSelect>
-                </Field>
-                <Field label="Fase"><Input value={draft.phase} onChange={(e) => set('phase', e.target.value)} /></Field>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Duração (min)">
-                  <Input type="number" min={1} step={5} value={draft.duration} onChange={(e) => set('duration', e.target.value === '' ? '' : Number(e.target.value))} placeholder="90" />
-                </Field>
-                <Field label="Série"><Input value={draft.variant} onChange={(e) => set('variant', e.target.value)} placeholder="B" /></Field>
-                <Field label="Ano letivo"><Input value={draft.schoolYear} onChange={(e) => set('schoolYear', e.target.value)} placeholder="2024/2025" /></Field>
-              </div>
-            </CardContent>
-          </Card>
+          <CabecalhoCard draft={draft} onPatch={patchDraft} subject={subject} />
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Questões</CardTitle>
-              <CardDescription>
-                Escolha o tipo de cada questão: dissertativa, escolha múltipla, verdadeiro/falso ou com alíneas (a, b, c…). Escolha múltipla e verdadeiro/falso precisam de resposta marcada para a prova poder ser publicada.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid min-w-0 gap-3">
-              {draft.items.map((it, i) => (
-                <QuestionEditor
-                  key={i}
-                  item={it}
-                  index={i}
-                  total={draft.items.length}
-                  onChange={(patch) => setItem(i, patch)}
-                  onRemove={() => set('items', draft.items.filter((_, j) => j !== i))}
-                  onMove={(direction) => moveItem(i, direction)}
-                  onOpenOriginal={originais ? abrirOriginal : undefined}
-                />
-              ))}
-              <Button variant="outline" size="sm" className="justify-self-start" onClick={() => set('items', [...draft.items, { text: '', points: '', options: [] }])}><Plus aria-hidden /> Questão</Button>
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-3 text-sm">
-                <span className="text-muted-foreground">
-                  {draft.items.filter((i) => i.text.trim()).length} questão(s), <b className="text-foreground">{total} valores</b>
-                </span>
-                {unscored(draft.items) > 0 && (
-                  // A soma do servidor **filtra** as perguntas sem cotação em vez de as
-                  // contar como zero. O total declarado sai menor do que a folha sugere
-                  // e o `/approve` recusa-o, sem dizer porquê.
-                  <span className="flex flex-wrap items-center gap-2 text-muted-foreground">
-                    {unscored(draft.items)} sem cotação, e sem cotação não conta para o total
-                    <Button type="button" variant="outline" size="sm" onClick={() => set('items', distributeScore(draft.items, 20))}>Distribuir 20 valores</Button>
-                  </span>
-                )}
-              </div>
-              {problemas.length > 0 && (
-                <ul role="status" className="grid gap-2 rounded-lg bg-warning-soft px-3 py-2 text-[13px] text-warning">
-                  {detalhes.map((p) => (
-                    <li key={p.message} className="grid gap-1.5">
-                      <span>{p.message}</span>
-                      {p.targets.length > 0 && (
-                        <span className="flex flex-wrap gap-1">
-                          {p.targets.map((t) => (
-                            <Button
-                              key={`${t.question}-${t.label ?? ''}`}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              data-testid={`ir-para-questao-${t.question}${t.label ?? ''}`}
-                              onClick={() => irParaQuestao(t.question, t.label)}
-                            >
-                              Rever a questão {t.question}{t.label ?? ''}
-                            </Button>
-                          ))}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          <QuestoesCard items={draft.items} onItems={(items) => set('items', items)} distribute={() => set('items', distributeScore(draft.items, 20))} total={total} unscoredCount={unscored(draft.items)} questionCount={draft.items.filter((i) => i.text.trim()).length} problemas={detalhes} onIrParaQuestao={irParaQuestao} onOpenOriginal={abrirOriginal} originalAtivo={!!originais} />
 
-          <Card>
-            <CardHeader><CardTitle>Regras e rodapé</CardTitle></CardHeader>
-            <CardContent className="grid gap-3">
-              {draft.rules.map((r, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <Input value={r} onChange={(e) => setRule(i, e.target.value)} aria-label={`Regra ${i + 1}`} />
-                  <Button variant="ghost" size="icon" aria-label={`Remover regra ${i + 1}`} onClick={() => set('rules', draft.rules.filter((_, j) => j !== i))}><Trash2 /></Button>
-                </div>
-              ))}
-              <Button variant="outline" size="sm" className="justify-self-start" onClick={() => set('rules', [...draft.rules, ''])}><Plus aria-hidden /> Regra</Button>
-              <Field label="Observação"><Input value={draft.note} onChange={(e) => set('note', e.target.value)} /></Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Local"><Input value={draft.place} onChange={(e) => set('place', e.target.value)} /></Field>
-                <Field label="Data"><Input type="date" value={draft.date} onChange={(e) => set('date', e.target.value)} /></Field>
-              </div>
-              <Field label="Professor"><Input value={draft.teacher} onChange={(e) => set('teacher', e.target.value)} /></Field>
-            </CardContent>
-          </Card>
+          <RegrasCard draft={draft} onPatch={patchDraft} />
         </div>
 
-        <div className={cn('exam-preview min-w-0 overflow-x-auto lg:sticky lg:top-24', view !== 'previsualizar' && 'max-lg:hidden')}>
+        <div className={cn('exam-preview min-w-0 overflow-x-auto lg:sticky lg:top-24', view !== 'previsualizar' && 'max-lg:hidden', previewCollapsed && 'lg:hidden')}>
           <ExamSheet school={school} draft={draft} />
         </div>
       </div>

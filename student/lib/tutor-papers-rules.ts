@@ -8,6 +8,7 @@
  */
 
 import { acceptsAnswers, type SimulationSummary } from './exam-rules.ts';
+import { estadoDaNotaEmPalavras, notaDaSimulacao } from './nota-da-simulacao.ts';
 import type { Mastery } from './performance-rules.ts';
 
 /** Uma linha da lista do tutor: a prova e uma nota curta de porque está ali. */
@@ -29,8 +30,13 @@ function scoreLabel(score: number | null | undefined): string | null {
 function noteOf(simulation: SimulationSummary): string | undefined {
   const status = (simulation.status ?? '').toUpperCase();
   if (status === 'FINISHED') {
-    const score = scoreLabel(simulation.finalScore);
-    return score ? `Concluída · ${score}` : 'Concluída';
+    const nota = notaDaSimulacao(simulation);
+    if (nota.kind === 'nota') {
+      const score = scoreLabel(nota.nota);
+      return score ? `Concluída · ${score}` : 'Concluída';
+    }
+    const estado = estadoDaNotaEmPalavras(simulation);
+    return estado ? `Concluída · ${estado}` : 'Concluída';
   }
   // Uma tentativa em curso que já passou do prazo não fecha o tutor (#192): continua a
   // ser uma prova, só não está a decorrer.

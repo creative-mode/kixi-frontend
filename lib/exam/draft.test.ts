@@ -637,3 +637,12 @@ test('uma resposta-modelo que sobrou de antes de mudar o tipo não é enviada', 
   assert.equal(toUpdateRequest([sobra])[0].modelAnswer, null);
   assert.equal(toUpdateRequest([{ ...open('a', 1), modelAnswer: ' chave ' }])[0].modelAnswer, 'chave');
 });
+
+test('move preserva os uid das perguntas trocadas', () => {
+  const items = ['q1', 'q2', 'q3', 'q4'].map((uid, i) => ({ text: `p${i + 1}`, points: '', options: [], uid }));
+  assert.deepEqual(move(items, 1, 1).map((item) => item.uid), ['q1', 'q3', 'q2', 'q4']);
+  assert.deepEqual(move(items, 2, -1).map((item) => item.uid), ['q1', 'q3', 'q2', 'q4']);
+  assert.deepEqual(move(items, 0, 1).map((item) => item.uid), ['q2', 'q1', 'q3', 'q4']);
+  // sem sair da lista: os uid ficam os mesmos
+  assert.deepEqual(move(items, 0, -1).map((item) => item.uid), ['q1', 'q2', 'q3', 'q4']);
+});

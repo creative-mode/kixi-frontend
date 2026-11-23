@@ -1,7 +1,7 @@
 // Testes das rotas do professor no gestor:  node --test lib/roles.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coordinatorMayOpen, isCoordinatorOnly, normalizeRoles, canAccessManager, teacherRoute } from './roles.ts';
+import { coordinatorMayOpen, isCoordinatorOnly, mayOpenCoordination, normalizeRoles, canAccessManager, seesInstitutionRooms, teacherRoute, managerRoleLabels } from './roles.ts';
 
 test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enunciado', () => {
   for (const p of [
@@ -21,7 +21,6 @@ test('o professor abre o seu início, o exam-builder, as listas e o fluxo do enu
     '/statements/import',
     '/statements/42',
     '/simulations',
-    '/simulation-answers',
     '/classes',
   ]) {
     assert.equal(teacherRoute(p), 'allow', p);
@@ -43,6 +42,7 @@ test('lixeiras, formulários e o resto voltam ao início dele', () => {
     '/simulations/trash',
     '/classes/new',
     '/classes/3/edit',
+    '/simulation-answers',
     '/simulation-answers/9/edit',
     '/exam-builderx',
     '/assign',
@@ -75,8 +75,43 @@ test('o coordenador entra no gestor e só abre o plano e as pautas', () => {
   assert.equal(isCoordinatorOnly(normalizeRoles(['COORDINATOR', 'TEACHER'])), false);
   assert.equal(isCoordinatorOnly(normalizeRoles(['ADMIN', 'COORDINATOR'])), false);
   assert.equal(coordinatorMayOpen('/planos'), true);
+  assert.equal(coordinatorMayOpen('/tarefas'), true);
+  assert.equal(coordinatorMayOpen('/tarefas/2251799813687487'), true);
+  assert.equal(coordinatorMayOpen('/tarefas/abc'), false);
   assert.equal(coordinatorMayOpen('/pautas'), true);
   assert.equal(coordinatorMayOpen('/coordenacao'), true);
+  assert.equal(coordinatorMayOpen('/coordenacao/12'), true);
   assert.equal(coordinatorMayOpen('/exam-rooms'), false);
   assert.equal(coordinatorMayOpen('/accounts'), false);
+});
+
+test('a coordenação é do coordenador e do ADMIN, mas o menu só a mostra ao coordenador', () => {
+  const admin = normalizeRoles(['ADMIN']);
+  const coordinator = normalizeRoles(['COORDINATOR']);
+  const teacher = normalizeRoles(['TEACHER']);
+
+  assert.equal(mayOpenCoordination(admin), true);
+  assert.equal(mayOpenCoordination(coordinator), true);
+  assert.equal(mayOpenCoordination(teacher), false);
+
+  assert.equal(seesInstitutionRooms(admin), false);
+  assert.equal(seesInstitutionRooms(coordinator), true);
+  assert.equal(seesInstitutionRooms(teacher), false);
+});
+
+test('a barra lateral mostra o papel real do gestor, venham os papéis pela ordem que vierem', () => {
+  // O coordenador do 1C vinha com STUDENT à frente e a barra dizia «Admin / student».
+  assert.deepEqual(managerRoleLabels(['STUDENT', 'COORDINATOR']), { title: 'Coordenador', others: [] });
+  assert.deepEqual(managerRoleLabels(['COORDINATOR']), { title: 'Coordenador', others: [] });
+  assert.deepEqual(managerRoleLabels(['TEACHER']), { title: 'Professor', others: [] });
+  assert.deepEqual(managerRoleLabels(['ADMIN']), { title: 'Admin', others: [] });
+  assert.deepEqual(managerRoleLabels(['TEACHER', 'ADMIN', 'STUDENT']), { title: 'Admin', others: ['Professor'] });
+  assert.deepEqual(managerRoleLabels(['COORDINATOR', 'TEACHER']), { title: 'Coordenador', others: ['Professor'] });
+});
+
+test('sem papel de gestão não se inventa um: nem «Admin» por omissão', () => {
+  assert.equal(managerRoleLabels(['STUDENT']), null);
+  assert.equal(managerRoleLabels([]), null);
+  assert.equal(managerRoleLabels(['ROLE_X']), null);
+  assert.equal(managerRoleLabels(undefined), null);
 });

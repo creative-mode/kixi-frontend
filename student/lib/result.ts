@@ -56,7 +56,7 @@ export async function getResultView(simulationId: number): Promise<ResultView> {
     comparison: compareWithPrevious(
       simulationId,
       finalScore,
-      attempts.map((a) => ({ id: Number(a.id), status: a.status, finalScore: a.finalScore })),
+      attempts.map((a) => ({ id: Number(a.id), status: a.status, finalScore: a.finalScore, correctionStatus: a.correctionStatus })),
     ),
     startedAt: simulation.ok ? (simulation.data.startedAt ?? null) : null,
     finishedAt: simulation.ok ? (simulation.data.finishedAt ?? null) : null,

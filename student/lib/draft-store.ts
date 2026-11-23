@@ -4,7 +4,7 @@
  *  reiniciar com respostas que o servidor ainda não confirmou, perdem-se. Aqui guarda-se, por simulação, só o que ainda não está
  *  confirmado: se uma entrada existe, é mais recente do que a do servidor, e some quando o servidor a confirma.
  *
- *  Fica no browser do aluno, por isso tem validade curta e limpa-se quando a prova fecha. Em computadores partilhados da escola o próprio
+ *  Fica no browser do aluno, por isso tem validade curta e só se apaga quando o servidor confirma ou após expirar. Em computadores partilhados da escola o próprio
  *  aluno é o único a abrir a sua simulação (a chave é o id dela), e nada daqui sai para o servidor sem passar pela fila normal. */
 
 export interface Resposta {

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Logo } from '@/components/kixi';
 import { LOGIN_URL, NAV, SIGNUP_URL } from '@/lib/content';
-import { Cta } from './CtaLink';
+import { Cta, TrackedLink } from './CtaLink';
 
 /** Cabeçalho desde o 1.º ecrã (#512): "Criar conta" primário e "Entrar"
  *  secundário, mais a navegação por âncoras a partir de desktop. */
@@ -13,7 +13,9 @@ export function Header() {
           <Logo size={28} wordmark />
         </Link>
         <nav aria-label="Secções" className="site-header__nav">
-          {NAV.map((n) => <a key={n.href} href={n.href}>{n.label}</a>)}
+          {NAV.map((n) => n.href.startsWith('#')
+            ? <a key={n.href} href={n.href}>{n.label}</a>
+            : <TrackedLink key={n.href} href={n.href} origem="header">{n.label}</TrackedLink>)}
         </nav>
         <div className="site-header__actions">
           <Cta href={SIGNUP_URL} origem="header" size="sm">Criar conta</Cta>

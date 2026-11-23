@@ -98,6 +98,11 @@ export interface Entity {
   canEdit: boolean;
   /** hide the trash link (entity has no /trash endpoint, e.g. cancel-only flows) */
   trashable?: boolean;
+  /**
+   * Apagar e restaurar mudam o que o recálculo das notas vê (kixi#596): só o ADMIN, com motivo obrigatório, que o backend
+   * grava no trilho de auditoria. Sem purge na interface.
+   */
+  audited?: boolean;
   /** copy for the delete confirm when it is not "move to trash" */
   deleteCopy?: { title: string; description: (title: string) => string; action: string; done: string };
   /** FK field -> source entity, to resolve ids to names in list columns */
@@ -555,6 +560,8 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     toRequest: (v) => ({ accountId: Number(v.accountId), token: String(v.token).trim(), ipAddress: String(v.ipAddress).trim(), expiresAt: fromLuandaDateTimeLocal(String(v.expiresAt ?? '')) }),
     toForm: (r) => ({ accountId: r.accountId, token: r.token, ipAddress: r.ipAddress, expiresAt: localInput(r.expiresAt) }),
   },
+  // Só de leitura (kixi#596): a resposta é do aluno. O staff não a cria nem a edita; a nota corrige-se na sala da prova
+  // (correção), e só o ADMIN apaga ou restaura, com motivo.
   'simulation-answers': {
     key: 'simulation-answers',
     fem: true,
@@ -563,36 +570,26 @@ export const ENTITIES: Record<EntityKey, Entity> = {
     idKey: 'id',
     singular: 'Resposta',
     plural: 'Respostas',
-    description: 'Respostas dadas pelos alunos em cada simulação',
+    description: 'Respostas dadas pelos alunos em cada simulação, para consulta. A nota corrige-se na sala da prova.',
     icon: ListChecks,
     tone: 'bg-accent text-primary',
-    fields: [
-      { name: 'simulationId', label: 'Simulação', type: 'select', required: true, optionsFrom: 'simulations', createOnly: true },
-      { name: 'questionId', label: 'Questão (n.º interno)', type: 'number', required: true, min: 1, createOnly: true },
-      { name: 'selectedOptionId', label: 'Opção escolhida (n.º interno)', type: 'number', min: 1, hint: 'Para questões de escolha múltipla.' },
-      { name: 'answerText', label: 'Resposta escrita', type: 'textarea', max: 5000, hint: 'Para questões de resposta aberta.' },
-      { name: 'answeredAt', label: 'Respondida em', type: 'datetime' },
-    ],
+    fields: [],
+    lookups: { simulationId: 'simulations' },
     columns: [
-      { label: 'Simulação', value: (r) => <strong>#{r.simulationId}</strong>, className: 'w-28' },
+      {
+        label: 'Aluno e prova',
+        value: (r, labels) => <strong>{labels?.[`simulationId:${r.simulationId}`] ?? `Simulação #${r.simulationId}`}</strong>,
+      },
       { label: 'Questão', value: (r) => `#${r.questionId}`, className: 'w-24' },
       { label: 'Resposta', value: (r) => (r.selectedOptionId != null ? `Opção #${r.selectedOptionId}` : dim(r.answerText ? String(r.answerText).slice(0, 48) : null)) },
       { label: 'Correta', value: (r) => (r.isCorrect == null ? dim(null) : r.isCorrect ? <span className="text-success">Sim</span> : <span className="text-destructive">Não</span>), className: 'w-24' },
       { label: 'Pontos', value: (r) => dim(r.scoreObtained == null ? null : num(r.scoreObtained)), className: 'w-20' },
     ],
-    titleOf: (r) => `Resposta #${r.id}`,
-    canCreate: true,
-    canEdit: true,
+    titleOf: (r) => `Resposta #${r.id} da simulação #${r.simulationId}`,
+    canCreate: false,
+    canEdit: false,
+    audited: true,
     restore: { method: 'POST', suffix: '/restore' },
-    purge: { suffix: '/purge' },
-    toRequest: (v) => ({
-      simulationId: Number(v.simulationId),
-      questionId: Number(v.questionId),
-      selectedOptionId: v.selectedOptionId === '' || v.selectedOptionId == null ? null : Number(v.selectedOptionId),
-      answerText: v.answerText || null,
-      answeredAt: fromLuandaDateTimeLocal(String(v.answeredAt ?? '')),
-    }),
-    toForm: (r) => ({ simulationId: r.simulationId, questionId: r.questionId, selectedOptionId: r.selectedOptionId ?? '', answerText: r.answerText ?? '', answeredAt: localInput(r.answeredAt) }),
   },
   // Statements and simulations are managed (moderated), not authored here: statements arrive through OCR.
   statements: {

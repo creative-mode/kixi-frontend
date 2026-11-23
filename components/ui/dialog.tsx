@@ -5,6 +5,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { useRestoreFocus } from '@/hooks/use-restore-focus'
 
 function Dialog({
   ...props
@@ -50,10 +51,14 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // Os diálogos abrem-se por estado, sem `DialogTrigger`: o foco volta a quem os abriu (ver `useRestoreFocus`).
+  const focus = useRestoreFocus({ onOpenAutoFocus, onCloseAutoFocus })
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -64,6 +69,8 @@ function DialogContent({
           className,
         )}
         {...props}
+        onOpenAutoFocus={focus.onOpenAutoFocus}
+        onCloseAutoFocus={focus.onCloseAutoFocus}
       >
         {children}
         {showCloseButton && (

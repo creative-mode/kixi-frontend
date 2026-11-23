@@ -37,6 +37,35 @@ function formulaFor(body: string, formulas: readonly MathFormula[]): MathFormula
   return formulas.find((formula) => formula.raw.trim() === normalized || formula.latex?.trim() === normalized);
 }
 
+/**
+ * O KaTeX é determinístico: a mesma fórmula devolve o mesmo HTML. A cache evita-o por cada
+ * fotograma do tutor a escrever (o texto chega por partes e é re-renderizado) e por cada
+ * publicação que reaparece no feed (#754).
+ */
+const KATEX_CACHE = new Map<string, string>();
+const KATEX_CACHE_LIMIT = 500;
+
+function renderKatex(latex: string, display: boolean): string | null {
+  const key = `${display ? 'D' : 'I'}:${latex}`;
+  const cached = KATEX_CACHE.get(key);
+  if (cached) return cached;
+  try {
+    const html = katex.renderToString(latex, {
+      displayMode: display,
+      output: 'htmlAndMathml',
+      throwOnError: true,
+      trust: false,
+      maxExpand: 1000,
+      maxSize: 20,
+    });
+    if (KATEX_CACHE.size >= KATEX_CACHE_LIMIT) KATEX_CACHE.clear();
+    KATEX_CACHE.set(key, html);
+    return html;
+  } catch {
+    return null;
+  }
+}
+
 function renderFormula(latex: string | null | undefined, literal: string, display: boolean, formula?: MathFormula): string {
   const needsReview = formula?.kind === 'unrecognized' || !latex?.trim()
     || [formula?.confidence, formula?.ocrConfidence, formula?.layoutConfidence]
@@ -52,20 +81,12 @@ function renderFormula(latex: string | null | undefined, literal: string, displa
   if (!latex?.trim() || formula?.kind === 'unrecognized') {
     return `<span class="kixi-math-literal${needsReview ? ' kixi-math-review' : ''}"${formula ? ` title="${confidenceTitle}"` : ''}>${escapeHtml(literal)}${reviewLabel}</span>`;
   }
-  try {
-    const html = katex.renderToString(latex, {
-      displayMode: display,
-      output: 'htmlAndMathml',
-      throwOnError: true,
-      trust: false,
-      maxExpand: 1000,
-      maxSize: 20,
-    });
-    const source = formula ? ` title="${confidenceTitle}"` : '';
-    return `<span class="kixi-math${display ? ' kixi-math-display' : ''}${needsReview ? ' kixi-math-review' : ''}"${source}>${html}${reviewLabel}</span>`;
-  } catch {
+  const html = renderKatex(latex, display);
+  if (html === null) {
     return `<span class="kixi-math-literal kixi-math-review"${formula ? ` title="${confidenceTitle}"` : ''}>${escapeHtml(literal)}<span class="kixi-math-review-label">Fórmula inválida — rever</span></span>`;
   }
+  const source = formula ? ` title="${confidenceTitle}"` : '';
+  return `<span class="kixi-math${display ? ' kixi-math-display' : ''}${needsReview ? ' kixi-math-review' : ''}"${source}>${html}${reviewLabel}</span>`;
 }
 
 function renderDelimitedText(text: string, formulas: readonly MathFormula[]): string {
@@ -127,6 +148,33 @@ export function renderMathHtml(text: string, formulas: readonly MathFormula[] = 
       : renderFormula(block.latex, block.raw, false, block)).join('');
   }
   return renderDelimitedText(text, formulas);
+}
+
+const DELIMITED = /^\s*(?:\$\$?|\\\[|\\\()([\s\S]*?)(?:\$\$?|\\\]|\\\))\s*$/;
+
+/** O LaTeX de um bloco de fórmula, sem os delimitadores que o aluno possa ter escrito. */
+export function standaloneLatex(value: string): string {
+  const match = DELIMITED.exec(value);
+  return (match ? match[1] : value).trim();
+}
+
+/**
+ * Um valor inteiro é uma fórmula, não texto com fórmulas: o bloco `formula` do compositor e os `Inline`
+ * do tutor. Se não compilar fica o texto tal como veio — publicações antigas não ganham um aviso.
+ */
+export function renderStandaloneMathHtml(value: string, display: boolean): string {
+  const latex = standaloneLatex(value);
+  if (!latex) return '';
+  const html = renderKatex(latex, display);
+  if (html === null) {
+    return `<span class="kixi-math-literal">${escapeHtml(latex)}</span>`;
+  }
+  return `<span class="kixi-math${display ? ' kixi-math-display' : ''}">${html}</span>`;
+}
+
+/** A fronteira HTML de um valor inteiro, como `renderMathMarkup` para o texto com fórmulas. */
+export function renderStandaloneMathMarkup(value: string, display: boolean): { __html: string } {
+  return { __html: renderStandaloneMathHtml(value, display) };
 }
 
 /** The single audited boundary between escaped/KaTeX output and React's HTML sink. */

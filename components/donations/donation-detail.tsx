@@ -13,6 +13,7 @@ import { getDonation, reviewDonation } from '@/app/actions/donations';
 import { canOpenInBuilder, canReview, fileSize, isImage, type DonationDetail } from '@/lib/donations/model';
 import { DonationStatusBadge } from './donations-list';
 import { formatLuandaDateTime } from '@/lib/format';
+import { Confirm, type ConfirmState } from '@/components/crud/confirm';
 
 const when = (iso: string | null) => formatLuandaDateTime(iso);
 
@@ -30,6 +31,7 @@ export function DonationDetailView({ id }: { id: number }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -45,13 +47,30 @@ export function DonationDetailView({ id }: { id: number }) {
     return () => window.clearTimeout(task);
   }, [load]);
 
-  async function decide(status: 'approved' | 'rejected') {
+  /** Devolve `false` quando falha, para o diálogo de confirmação ficar aberto e se poder tentar de novo. */
+  async function decide(status: 'approved' | 'rejected'): Promise<boolean> {
     setBusy(true);
     const res = await reviewDonation(id, status, note);
     setBusy(false);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) {
+      toast.error(res.error);
+      return false;
+    }
     setDonation(res.data);
     toast.success(status === 'approved' ? 'Doação aprovada.' : 'Doação rejeitada.');
+    return true;
+  }
+
+  // Rejeitar fecha a doação ao construtor e o doador não volta a vê-la: pede confirmação, como as outras decisões sem volta do gestor.
+  function askReject(reference: string) {
+    setConfirm({
+      title: 'Rejeitar esta doação?',
+      description: `A doação ${reference} deixa de poder ser aberta no construtor. A nota, se a escreveu, fica guardada com a decisão.`,
+      action: 'Rejeitar doação',
+      destructive: true,
+      busyLabel: 'A rejeitar…',
+      run: () => decide('rejected'),
+    });
   }
 
   const back = (
@@ -143,7 +162,7 @@ export function DonationDetailView({ id }: { id: number }) {
                   <Textarea id="review-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={3} disabled={busy} />
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => decide('approved')} disabled={busy || donation.status === 'approved'}><Check size={16} aria-hidden /> Aprovar</Button>
-                    <Button variant="outline" onClick={() => decide('rejected')} disabled={busy || donation.status === 'rejected'}><X size={16} aria-hidden /> Rejeitar</Button>
+                    <Button variant="outline" onClick={() => askReject(donation.reference)} disabled={busy || donation.status === 'rejected'}><X size={16} aria-hidden /> Rejeitar</Button>
                   </div>
                 </>
               ) : (
@@ -172,6 +191,7 @@ export function DonationDetailView({ id }: { id: number }) {
           </Card>
         </div>
       </div>
+      <Confirm state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }

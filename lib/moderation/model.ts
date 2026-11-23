@@ -44,24 +44,23 @@ export const DECISION_LABEL: Record<Decision, string> = {
 
 export const DECISION_NOTE: Record<Decision, string> = {
   IGNORED: 'A denúncia não se confirma. Nada muda no perfil.',
-  HIDDEN: 'O perfil deixa de aparecer a terceiros — quem o procurar não o encontra.',
+  HIDDEN: 'A escola deixa de aparecer a terceiros — quem a procurar não a encontra.',
   SUSPENDED: 'Como ocultar, e a conta deixa de conseguir entrar.',
 };
 
-/** Ocultar e suspender apagam alguém da vista de todos: sem nota escrita, daqui
- *  a meses ninguém sabe porquê. Ignorar não muda nada, por isso a nota é opcional. */
+/** Toda a decisão pede nota (kixi#591): ocultar e suspender apagam alguém da vista de todos, e
+ *  ignorar é a que mais interessa auditar. Sem nota escrita, daqui a meses ninguém sabe porquê. */
 export const NOTA_MINIMA = 10;
 
 export function decisionExigeNota(decision: Decision): boolean {
-  return decision === 'HIDDEN' || decision === 'SUSPENDED';
+  return DECISIONS.includes(decision);
 }
 
-/** A nota da decisão: obrigatória e com mínimo para ocultar/suspender,
- *  e sempre com o máximo de 500. */
+/** A nota da decisão: obrigatória, com o mínimo de NOTA_MINIMA e o máximo de 500 caracteres. */
 export function notaDecisaoError(decision: Decision, note: string): string | null {
   const limpa = note.trim();
   if (decisionExigeNota(decision) && limpa.length < NOTA_MINIMA) {
-    return `Para ${decision === 'HIDDEN' ? 'ocultar' : 'suspender'} escreva uma nota com pelo menos ${NOTA_MINIMA} caracteres: é ela que explica a decisão daqui a meses.`;
+    return `Para ${decision === 'HIDDEN' ? 'ocultar' : decision === 'SUSPENDED' ? 'suspender' : 'ignorar'} escreva uma nota com pelo menos ${NOTA_MINIMA} caracteres: é ela que explica a decisão daqui a meses.`;
   }
   return noteError(note);
 }
@@ -125,11 +124,13 @@ export function isReportReason(value: unknown): value is ReportReason {
   return typeof value === 'string' && Object.hasOwn(REASONS, value);
 }
 
-/** Uma escola pode ocultar-se mas não suspender-se: não há sessão para suspender. */
+/** Uma escola pode ocultar-se mas não suspender-se (não há sessão para suspender); uma pessoa
+ *  pode suspender-se mas não ocultar-se. É a regra do backend (kixi#591): o resto dá 400. */
 export function decisionValida(target: ReportTarget, decision: unknown): decision is Decision {
   if (!isDecision(decision)) return false;
   if (target === 'INSTITUTION' && decision === 'SUSPENDED') return false;
-  return true;
+  if (target === 'ACCOUNT' && decision === 'HIDDEN') return false;
+  return DECISIONS.includes(decision);
 }
 
 export function noteError(note: string, max = 500): string | null {

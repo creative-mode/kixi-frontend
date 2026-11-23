@@ -1,0 +1,46 @@
+{
+  "simulacaoId": 17,
+  "correcaoId": "CR-4EF317B6F4BF5B68",
+  "fria": {
+    "status": 200,
+    "ms": 263,
+    "corpo": {
+      "kind": "a-corrigir"
+    }
+  },
+  "real": {
+    "status": 200,
+    "ms": 228.9000000357628,
+    "corpo": {
+      "kind": "a-corrigir"
+    }
+  },
+  "alheia": {
+    "status": 403,
+    "ms": 127.90000003576279,
+    "corpo": {
+      "error": "Não autorizado"
+    }
+  },
+  "inexistente": {
+    "status": 404,
+    "ms": 213,
+    "corpo": {
+      "error": "Correção não encontrada"
+    }
+  },
+  "emBaixo": {
+    "status": 503,
+    "ms": 124.79999995231628,
+    "corpo": {
+      "error": "Serviço temporariamente indisponível"
+    }
+  },
+  "voltou": {
+    "status": 200,
+    "ms": 162.79999995231628,
+    "corpo": {
+      "kind": "a-corrigir"
+    }
+  }
+}

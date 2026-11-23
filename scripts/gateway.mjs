@@ -3,9 +3,16 @@
 //   /aluno*    -> aluno    (:3003)
 //   tudo o resto -> landing (:3004)
 import http from 'node:http';
+import https from 'node:https';
 import net from 'node:net';
+import { readFileSync } from 'node:fs';
 
 const PORT = Number(process.env.PORT ?? 3000);
+// TLS opcional: a demo no telemóvel precisa de HTTPS para o cookie de sessão `Secure`
+// (em produção) não ser descartado pelo browser numa rede local (#799).
+const TLS = process.env.TLS_CERT && process.env.TLS_KEY
+  ? { cert: readFileSync(process.env.TLS_CERT), key: readFileSync(process.env.TLS_KEY) }
+  : null;
 // Hosts públicos onde /manager* não é exposto. A lista vem de PUBLIC_ORIGINS
 // (ex: kixi.creativemode.ao). Comparação exata, case-insensitive e sem porta,
 // para evitar vulnerabilidades como creativemode.ao.evil.com.
@@ -33,6 +40,11 @@ const ROUTES = [
 ];
 const LANDING = { host: process.env.LANDING_HOST ?? '127.0.0.1', port: Number(process.env.LANDING_PORT ?? 3004) };
 
+// #799: as páginas que mais pedem ao servidor dizem quanto tempo o gateway esperou pelo
+// primeiro byte da app. O browser vê-o em DevTools → Timing, sem JavaScript nenhum.
+const HEAVY_ROUTES = [/^\/aluno\/inicio(?:\?|$)/, /^\/aluno\/provas(?:\?|$)/, /^\/aluno\/resultado(?:\?|$)/];
+const isHeavyRoute = (url = '') => HEAVY_ROUTES.some((route) => route.test(url));
+
 const pick = (url = '/') => {
   const hit = ROUTES.find((r) => url === r.prefix || url.startsWith(r.prefix + '/') || url.startsWith(r.prefix + '?'));
   return hit ?? LANDING;
@@ -42,7 +54,7 @@ const forwarded = (req) => ({
   ...req.headers,
   'x-forwarded-host': req.headers.host,
   // atrás de um proxy TLS (nginx, Caddy, Traefik) mantém o protocolo original
-  'x-forwarded-proto': req.headers['x-forwarded-proto'] ?? 'http',
+  'x-forwarded-proto': req.socket.encrypted ? 'https' : (req.headers['x-forwarded-proto'] ?? 'http'),
 });
 
 // Cabeçalhos de segurança, definidos só aqui para as três apps ficarem iguais.
@@ -99,7 +111,8 @@ const sessionHome = (req) => {
   return null;
 };
 
-const server = http.createServer((req, res) => {
+function handle(req, res) {
+  const started = performance.now();
   for (const [k, v] of Object.entries(securityHeaders(req))) res.setHeader(k, v);
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'text/plain' });
@@ -120,7 +133,11 @@ const server = http.createServer((req, res) => {
   }
   const t = pick(req.url);
   const up = http.request({ host: t.host, port: t.port, method: req.method, path: req.url, headers: forwarded(req) }, (r) => {
-    res.writeHead(r.statusCode ?? 502, r.headers);
+    const headers = { ...r.headers };
+    if ((req.method === 'GET' || req.method === 'HEAD') && isHeavyRoute(req.url)) {
+      headers['server-timing'] = `upstream;desc="primeiro byte";dur=${(performance.now() - started).toFixed(1)}`;
+    }
+    res.writeHead(r.statusCode ?? 502, headers);
     r.pipe(res);
   });
   up.on('error', () => {
@@ -128,7 +145,9 @@ const server = http.createServer((req, res) => {
     res.end('Esta parte do Kixi ainda está a arrancar. Tenta outra vez daqui a pouco.');
   });
   req.pipe(up);
-});
+}
+
+const server = TLS ? https.createServer(TLS, handle) : http.createServer(handle);
 
 // HMR (websocket) dos três apps
 server.on('upgrade', (req, socket, head) => {
@@ -144,4 +163,4 @@ server.on('upgrade', (req, socket, head) => {
   socket.on('error', () => up.destroy());
 });
 
-server.listen(PORT, () => console.log(`Kixi: http://localhost:${PORT}  (landing /, aluno /aluno, gestor /manager)`));
+server.listen(PORT, () => console.log(`Kixi: ${TLS ? 'https' : 'http'}://localhost:${PORT}  (landing /, aluno /aluno, gestor /manager)`));

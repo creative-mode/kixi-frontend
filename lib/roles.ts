@@ -17,13 +17,24 @@ export function canAccessManager(roles: readonly Role[]): boolean {
   return hasRole(roles, 'ADMIN') || hasRole(roles, 'TEACHER') || hasRole(roles, 'COORDINATOR');
 }
 
-/** O coordenador (sem ADMIN nem TEACHER) só abre o plano e as pautas da sua instituição (kixi#513). */
+/** O coordenador (sem ADMIN nem TEACHER) só abre o plano, as pautas e as tarefas de homologação da sua instituição (kixi#513, #772). */
 export function isCoordinatorOnly(roles: readonly Role[]): boolean {
   return hasRole(roles, 'COORDINATOR') && !hasRole(roles, 'ADMIN') && !hasRole(roles, 'TEACHER');
 }
 
 export function coordinatorMayOpen(pathname: string): boolean {
-  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao';
+  // As tarefas: a homologação das mini-pautas e da pauta é do coordenador (kixi-frontend#772); só vê as que lhe estão atribuídas.
+  return pathname === '/planos' || pathname === '/pautas' || pathname === '/coordenacao' || pathname.startsWith('/coordenacao/') || pathname === '/tarefas' || /^\/tarefas\/\d+$/.test(pathname);
+}
+
+/** `coordenacao` é do coordenador (a sua instituição) e do ADMIN (todas), como o `CoordinationController` do backend (#759). */
+export function mayOpenCoordination(roles: readonly Role[]): boolean {
+  return hasRole(roles, 'ADMIN') || isCoordinatorOnly(roles);
+}
+
+/** O menu dá «Salas da instituição» só ao coordenador; o ADMIN e o professor usam «Salas de prova» (#759). */
+export function seesInstitutionRooms(roles: readonly Role[]): boolean {
+  return isCoordinatorOnly(roles);
 }
 
 export function isStudentOnly(roles: readonly Role[]): boolean {
@@ -31,6 +42,19 @@ export function isStudentOnly(roles: readonly Role[]): boolean {
 }
 
 // ── só do gestor (não tem espelho no aluno) ─────────────────────────────────
+
+const MANAGER_ROLE_LABEL: Record<'ADMIN' | 'COORDINATOR' | 'TEACHER', string> = { ADMIN: 'Admin', COORDINATOR: 'Coordenador', TEACHER: 'Professor' };
+
+/**
+ * O papel que a barra lateral mostra, tirado dos papéis da sessão (JWT): o mais forte primeiro (ADMIN, coordenador, professor),
+ * e os restantes de gestão como `others`. A ordem dos papéis no token não conta (o coordenador chegou com STUDENT à frente) e um
+ * papel desconhecido nunca vira «Admin». `null` quando não há nenhum papel de gestão.
+ */
+export function managerRoleLabels(roles: readonly string[] | null | undefined): { title: string; others: string[] } | null {
+  const have = (['ADMIN', 'COORDINATOR', 'TEACHER'] as const).filter((r) => roles?.includes(r));
+  if (have.length === 0) return null;
+  return { title: MANAGER_ROLE_LABEL[have[0]], others: have.slice(1).map((r) => MANAGER_ROLE_LABEL[r]) };
+}
 
 /** Rotas de administração: um professor que lá chegue vê a 403 com o motivo. */
 const ADMIN_ONLY_ROUTES = [
@@ -74,7 +98,6 @@ export function teacherMayOpen(pathname: string): boolean {
     pathname === '/statements/import' ||
     /^\/statements\/\d+$/.test(pathname) ||
     pathname === '/simulations' ||
-    pathname === '/simulation-answers' ||
     pathname === '/classes' ||
     pathname === '/tarefas' ||
     pathname === '/pautas' ||

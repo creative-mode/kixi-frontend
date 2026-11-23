@@ -38,23 +38,38 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
     return () => window.clearTimeout(task);
   }, [load]);
 
-  async function restore(row: Row) {
+  async function restore(row: Row, reason?: string) {
     const id = rowId(entity, row);
-    if (busyRef.current.has(id) || bulkBusy) return;
+    if (busyRef.current.has(id) || bulkBusy) return false;
     busyRef.current.add(id);
     setBusyIds((ids) => new Set(ids).add(id));
     try {
-      const res = await restoreRow(entityKey, id);
+      const res = await restoreRow(entityKey, id, reason);
       if (res.ok) {
         toast.success(`${entity.singular} ${gender(entity, 'restaurado')}`);
         void load();
-      } else reportActionError(res.error);
+        return true;
+      }
+      reportActionError(res.error);
+      return false;
     } catch {
       toast.error('Não foi possível restaurar. Tente novamente.');
+      return false;
     } finally {
       busyRef.current.delete(id);
       setBusyIds((ids) => { const next = new Set(ids); next.delete(id); return next; });
     }
+  }
+  // Restaurar uma resposta é auditado (kixi#596): pede o motivo.
+  function askRestore(row: Row) {
+    setConfirm({
+      title: `Restaurar ${gender(entity, 'o')} ${entity.singular.toLowerCase()}?`,
+      description: `${entity.singular} «${entity.titleOf(row)}» volta à lista e ao cálculo da nota.`,
+      action: 'Restaurar',
+      busyLabel: 'A restaurar…',
+      reason: { label: 'Motivo da restauração', min: 5 },
+      run: (reason) => restore(row, reason),
+    });
   }
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -108,9 +123,11 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
             <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" aria-label="Pesquisar na lixeira" placeholder="Pesquisar na lixeira…" />
           </div>
-          <Button variant="outline" size="sm" onClick={() => void restoreAll()} disabled={!shown?.length || bulkBusy}>
-            <RotateCcw size={16} /> {bulkBusy ? 'A restaurar…' : 'Restaurar resultados'}
-          </Button>
+          {entity.audited ? null : (
+            <Button variant="outline" size="sm" onClick={() => void restoreAll()} disabled={!shown?.length || bulkBusy}>
+              <RotateCcw size={16} /> {bulkBusy ? 'A restaurar…' : 'Restaurar resultados'}
+            </Button>
+          )}
         </div>
         <CardContent className="p-0">
           <Table>
@@ -137,8 +154,10 @@ export function CrudTrash({ entityKey }: { entityKey: EntityKey }) {
                     ))}
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" disabled={busyIds.has(rowId(entity, row)) || bulkBusy} onClick={() => void restore(row)} aria-label="Restaurar"><RotateCcw size={16} /></Button>
-                        <Button variant="ghost" size="sm" disabled={busyIds.has(rowId(entity, row)) || bulkBusy} className="hover:bg-danger-soft hover:text-destructive" onClick={() => askPurge(row)} aria-label="Eliminar definitivamente"><Trash2 size={16} /></Button>
+                        <Button variant="ghost" size="sm" disabled={busyIds.has(rowId(entity, row)) || bulkBusy} onClick={() => (entity.audited ? askRestore(row) : void restore(row))} aria-label="Restaurar"><RotateCcw size={16} /></Button>
+                        {entity.purge ? (
+                          <Button variant="ghost" size="sm" disabled={busyIds.has(rowId(entity, row)) || bulkBusy} className="hover:bg-danger-soft hover:text-destructive" onClick={() => askPurge(row)} aria-label="Eliminar definitivamente"><Trash2 size={16} /></Button>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>

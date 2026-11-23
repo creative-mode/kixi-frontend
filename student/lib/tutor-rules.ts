@@ -247,15 +247,16 @@ export function translateChatError(code: string, _message = ''): string {
 }
 
 /** What to tell the student for a failure before the stream began. `retryAfter` is the
- *  `Retry-After` header, in seconds. */
-export function describeHttpFailure(status: number, retryAfter: number | null): string {
+ *  `Retry-After` header, in seconds; `stage` says whether it failed opening the conversation or sending a message. */
+export function describeHttpFailure(status: number, retryAfter: number | null, stage: 'open' | 'message' = 'message'): string {
   if (status === 429) {
     const wait = retryAfter != null && retryAfter > 0 ? ` Tenta de novo ${formatWait(retryAfter)}.` : '';
     return `Atingiste o limite de mensagens para o tutor.${wait}`;
   }
   if (status === 503) return 'O tutor não está disponível de momento. Tenta mais tarde.';
   if (status === 504) return 'O tutor demorou demasiado a responder.';
-  if (status === 404) return 'Esta conversa já não existe.';
+  // Ao abrir a conversa, um 404 é a prova («Statement not found»: oculta ou removida), não a conversa; ao enviar, é a sessão que desapareceu.
+  if (status === 404) return stage === 'open' ? 'Esta prova não está disponível para o tutor.' : 'Esta conversa já não existe.';
   if (status === 401) return 'A sessão expirou. Entra novamente.';
   return 'Não conseguimos falar com o tutor. Tenta de novo.';
 }
@@ -356,3 +357,56 @@ export const SUGGESTIONS = [
 ] as const;
 
 export const MAX_MESSAGE = 4000;
+
+// ── o select de questão, por modo (#751) ──────────────────────────────────────
+
+/** Uma opção do select de questão. O placeholder é `disabled`: mostra-se, mas não é uma escolha. */
+export interface QuestionOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+/**
+ * As opções do select de questão para um modo, sem «A prova toda»: numa prova, nenhuma das
+ * perguntas do tutor vive no vacío, e a prova toda continua disponível no modo «Conceito»,
+ * que é para isso que existe. O placeholder mostra onde começa a lista e nunca é enviável.
+ */
+export function questionOptions(mode: ChatMode, questions: readonly PaperQuestion[]): QuestionOption[] {
+  if (!modeNeedsQuestion(mode)) return [];
+  return [
+    { value: '', label: 'Escolha uma questão…', disabled: true },
+    ...questions.map((q) => ({ value: String(q.id), label: `Questão ${q.number}: ${q.text.slice(0, 60)}` })),
+  ];
+}
+
+/**
+ * A questão a propor por defeito quando o aluno ainda não escolheu: a que estávamos a
+ * explicar (a da última resposta) se ela existir na prova; senão a primeira. Nunca uma
+ * escolha «vazia»: `null` só quando estamos fora de um modo de questão ou a prova não
+ * tem questões, e nesses casos o ecrã diz-o a ele, não fingindo uma opção inexistente.
+ */
+export function preselectQuestion(
+  mode: ChatMode,
+  questions: readonly PaperQuestion[],
+  lastQuestionId: number | null | undefined,
+): number | null {
+  if (!modeNeedsQuestion(mode) || questions.length === 0) return null;
+  if (lastQuestionId != null && questions.some((q) => q.id === lastQuestionId)) return lastQuestionId;
+  return questions[0].id;
+}
+
+/**
+ * Se o aluno pode enviar agora. Desativar o botão antes de o tocar é mais honesto do que
+ * receber «Escolhe uma questão para esse modo.» depois: o erro não acontece.
+ */
+export function canSendMessage(
+  draft: string,
+  mode: ChatMode,
+  questionId: number | null,
+  limit: boolean,
+): boolean {
+  if (limit) return false;
+  if (!draft.trim()) return false;
+  return !(modeNeedsQuestion(mode) && questionId == null);
+}

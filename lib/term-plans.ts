@@ -72,6 +72,35 @@ export function resizeMac(d: PlanDraft, count: number): PlanDraft {
   };
 }
 
+/**
+ * O que falta para concluir o agendamento (kixi#623/kixi-frontend#809): a P1, a P2 e cada MAC não dispensada precisam
+ * de enunciado antes de a pauta poder abrir. Espelha a validação do backend (`TermPlanService.conclude`), em português
+ * e já com o nome de cada avaliação em falta, para o professor ver o que falta sem ter de tentar concluir primeiro.
+ */
+export function conclusionProblem(plan: Pick<TermPlan, 'assessments'>): string | null {
+  const missing = plan.assessments.filter((a) => a.status !== 'DISPENSED' && a.statementId === null);
+  if (missing.length === 0) return null;
+  const nomes = missing.map((a) => (a.kind === 'MAC' ? `MAC ${a.seq}` : a.kind));
+  return `Falta ligar o enunciado: ${nomes.join(', ')}.`;
+}
+
+/**
+ * O que o cartão diz de um plano com o agendamento concluído e a pauta ainda por abrir. Reagendar a P1 ou a P2 apaga a ligação
+ * ao enunciado (o backend limpa-a): o plano continua «concluído», mas a pauta não abre sem o enunciado, e o texto antigo
+ * («abre em instantes») ficava a prometer o que não vai acontecer. `null` quando o plano não está nesse estado.
+ */
+export function schedulingNote(plan: Pick<TermPlan, 'schedulingConcluded' | 'pautaOpened' | 'assessments'>): string | null {
+  if (!plan.schedulingConcluded || plan.pautaOpened) return null;
+  const falta = conclusionProblem(plan);
+  return falta ? `Agendamento concluído, mas a pauta ainda não pode abrir. ${falta} Volte a ligá-lo (e a sala, se for o caso).` : 'Agendamento concluído: a pauta abre em instantes.';
+}
+
+/** «a P1 e da P2», ou só a que não foi dispensada (kixi#635): a prova dispensada não pede enunciado. */
+export function statementTargets(plan: Pick<TermPlan, 'assessments'>): string {
+  const kinds = (['P1', 'P2'] as const).filter((k) => !plan.assessments.some((a) => a.kind === k && a.status === 'DISPENSED'));
+  return kinds.length === 0 ? 'das provas' : `da ${kinds.join(' e da ')}`;
+}
+
 export function remindersFirst(reminders: readonly Reminder[]): Reminder[] {
   const rank: Record<ReminderLevel, number> = { LATE: 0, D2: 1, D7: 2, D14: 3 };
   return [...reminders].sort((a, b) => rank[a.level] - rank[b.level] || a.plannedDate.localeCompare(b.plannedDate));

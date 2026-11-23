@@ -5,6 +5,7 @@ import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
+import { useRestoreFocus } from '@/hooks/use-restore-focus'
 
 function AlertDialog({
   ...props
@@ -46,8 +47,12 @@ function AlertDialogOverlay({
 
 function AlertDialogContent({
   className,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
+  // Abre-se por estado, sem `AlertDialogTrigger`: o foco volta a quem o abriu (ver `useRestoreFocus`).
+  const focus = useRestoreFocus({ onOpenAutoFocus, onCloseAutoFocus })
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
@@ -58,6 +63,8 @@ function AlertDialogContent({
           className,
         )}
         {...props}
+        onOpenAutoFocus={focus.onOpenAutoFocus}
+        onCloseAutoFocus={focus.onCloseAutoFocus}
       />
     </AlertDialogPortal>
   )

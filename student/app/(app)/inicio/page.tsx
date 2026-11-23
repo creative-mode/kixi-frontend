@@ -5,11 +5,12 @@ import { getFeed, loadAuthors } from '@/lib/feed';
 import { loadFirstConversations } from '@/lib/comments';
 import { FEED_PAGE_SIZE } from '@/lib/feed-pagination';
 import { InicioFeed } from './inicio-feed';
+import { SalasDeProvaSection } from './salas-de-prova-section';
 
 export const metadata = { title: 'Início · Kixi' };
 
 /**
- * O início: o feed da turma, na coluna central, a começar logo nas publicações.
+ * O início: as salas de prova no topo e, abaixo, o feed da turma na coluna central.
  * Os widgets estão na coluna da direita, global (ver `(app)/layout.tsx`).
  *
  * Os convites leem-se aqui, no servidor, porque `GET /exam-rooms/mine` precisa do cookie da sessão.
@@ -48,6 +49,7 @@ export default async function InicioPage() {
         authors={authors}
         conversations={conversations}
         feedError={feed && !feed.ok ? feed.message : null}
+        salas={<SalasDeProvaSection />}
       />
     </>
   );

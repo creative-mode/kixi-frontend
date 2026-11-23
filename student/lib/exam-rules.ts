@@ -62,8 +62,17 @@ export interface SimulationSummary {
   status?: string | null;
   deadline?: string | null;
   finalScore?: number | null;
+  finishedAt?: string | null;
+  /** kixi#609: PENDING, IN_PROGRESS, DONE ou FAILED. Calculado para qualquer
+   *  simulação entregue, sala incluída. */
+  correctionStatus?: string | null;
+  correctedAt?: string | null;
+  /** A nota é a do motor (0–20): só o resultado a mostra (#820). */
+  notaDoMotor?: boolean;
   statement?: { id?: number | null; title?: string | null } | null;
 }
+
+type AnswerWindow = Pick<SimulationSummary, 'status' | 'deadline'> & { id?: number };
 
 /** The answer body SimulationAnswerRequest takes. `answeredAt` is deliberately
  *  absent: the server ignores it when deciding whether time is up
@@ -216,12 +225,12 @@ export function remainingMs(deadline: string | null | undefined, now: number): n
   return at - now;
 }
 
-/** The server keeps taking answers for a few seconds after the nominal end
- *  (`app.simulations.tolerance-seconds`, 10 by default). The student's clock does not
+/** The server keeps taking answers for two minutes after the nominal end
+ *  (`app.simulations.tolerance-seconds`, 120 by default). The student's clock does not
  *  count that grace: a 60 minute exam must start at 60:00, not 1:00:09, and a clock
  *  that reaches 00:00 while the form still accepts answers is the kind side of the same
  *  margin. The form keeps using the real deadline. */
-export const GRACE_MS = 10_000;
+export const GRACE_MS = 120_000;
 
 export function displayRemainingMs(left: number | null): number | null {
   return left === null ? null : Math.max(0, left - GRACE_MS);
@@ -303,13 +312,25 @@ export function attemptFor(simulations: SimulationSummary[], statementId: number
  *  conditions the server does — not IN_PROGRESS, or past the deadline — so the
  *  student is not invited to answer into a 409. */
 export function acceptsAnswers(
-  simulation: SimulationSummary | null,
+  simulation: AnswerWindow | null,
   now: number,
 ): boolean {
   if (!simulation) return false;
   if ((simulation.status ?? '').toUpperCase() !== 'IN_PROGRESS') return false;
   const left = remainingMs(simulation.deadline, now);
   return left === null || left > 0;
+}
+
+/** The final-minute sync runs while the server can still accept a write, including
+ * its grace period. Keeping this predicate pure makes the interval's transition to
+ * `false` at the effective deadline explicit and testable. */
+export function shouldPeriodicallyFlush(
+  simulation: AnswerWindow | null,
+  now: number,
+): boolean {
+  if (!acceptsAnswers(simulation, now)) return false;
+  const left = remainingMs(simulation?.deadline, now);
+  return left !== null && left <= GRACE_MS + 60_000;
 }
 
 /** The backend answers in English, and the student reads Portuguese. Only the

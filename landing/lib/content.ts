@@ -46,6 +46,9 @@ export const NAV = [
   { href: '#modulos', label: 'Módulos' },
   { href: '#para-quem', label: 'Para quem' },
   { href: '#perguntas', label: 'Perguntas' },
+  // #762: doar deixa de viver só no rodapé. No telemóvel a navegação está escondida,
+  // e é o CTA do herói que cumpre o mesmo papel sem espremer o cabeçalho.
+  { href: '/doar', label: 'Doar um enunciado' },
 ] as const;
 
 export const MODULES = [

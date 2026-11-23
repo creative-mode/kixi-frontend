@@ -8,13 +8,20 @@ import { readConsent } from './consent.ts';
 export type AnalyticsApp = 'manager' | 'student' | 'landing';
 export type AnalyticsPage =
   | 'home' | 'donation' | 'privacy' | 'cookies' | 'login' | 'signup'
-  | 'onboarding' | 'student_home' | 'exam' | 'result' | 'room'
+  | 'onboarding' | 'student_home' | 'pautas' | 'exam' | 'result' | 'room'
   | 'dashboard' | 'forbidden' | 'not_found' | 'other';
 export type AnalyticsEvent =
   | 'page_view' | 'cta_clique' | 'signup_started' | 'signup_error' | 'sign_up' | 'login_success'
   | 'donation_started' | 'donation_step' | 'donation_error' | 'donation_submitted'
   | 'consent_choice' | 'error_view' | 'exam_started' | 'exam_submitted'
-  | 'exam_room_joined' | 'exam_abandoned' | 'scroll_depth' | 'onboarding_completed' | 'tutor_used';
+  | 'exam_room_joined' | 'exam_abandoned' | 'scroll_depth' | 'onboarding_completed' | 'tutor_used'
+  | 'pautas_aberta' | 'pautas_tempo' | 'web_vitals';
+
+/** As métricas de campo que o `useReportWebVitals` entrega (LCP, INP e TTFB são as da #799). */
+export const VITAL_METRICS = ['LCP', 'INP', 'TTFB', 'FCP', 'CLS'] as const;
+export type VitalMetric = (typeof VITAL_METRICS)[number];
+export const VITAL_DEVICES = ['mobile', 'tablet', 'desktop'] as const;
+export type VitalDevice = (typeof VITAL_DEVICES)[number];
 export type AnalyticsParams = Record<string, string | number | boolean>;
 export type TrackStatus = 'sent' | 'queued' | 'denied' | 'invalid' | 'overflow';
 type Gtag = (...args: unknown[]) => void;
@@ -33,12 +40,12 @@ export const ANALYTICS_READY_EVENT = 'kixi-analytics-ready';
 
 const PAGES: Record<AnalyticsApp, readonly AnalyticsPage[]> = {
   manager: ['login', 'dashboard', 'forbidden', 'not_found', 'other'],
-  student: ['login', 'signup', 'onboarding', 'student_home', 'exam', 'result', 'room', 'forbidden', 'not_found', 'other'],
+  student: ['login', 'signup', 'onboarding', 'student_home', 'pautas', 'exam', 'result', 'room', 'forbidden', 'not_found', 'other'],
   landing: ['home', 'donation', 'privacy', 'cookies', 'forbidden', 'not_found', 'other'],
 };
 const PATHS: Record<AnalyticsApp, Partial<Record<AnalyticsPage, string>>> = {
   manager: { login: '/manager/login', dashboard: '/manager', forbidden: '/manager/403', not_found: '/manager/404', other: '/manager' },
-  student: { login: '/aluno/entrar', signup: '/aluno/cadastro', onboarding: '/aluno/onboarding', student_home: '/aluno/inicio', exam: '/aluno/prova', result: '/aluno/resultado', room: '/aluno/sala', forbidden: '/aluno/403', not_found: '/aluno/404', other: '/aluno' },
+  student: { login: '/aluno/entrar', signup: '/aluno/cadastro', onboarding: '/aluno/onboarding', student_home: '/aluno/inicio', pautas: '/aluno/pautas', exam: '/aluno/prova', result: '/aluno/resultado', room: '/aluno/sala', forbidden: '/aluno/403', not_found: '/aluno/404', other: '/aluno' },
   landing: { home: '/', donation: '/doar', privacy: '/privacidade', cookies: '/cookies', forbidden: '/403', not_found: '/404', other: '/' },
 };
 const UTM_ALLOWLIST = {
@@ -49,8 +56,14 @@ const UTM_ALLOWLIST = {
 const SIGNUP_FIELDS = ['first_name', 'last_name', 'username', 'email', 'password', 'confirm', 'form'] as const;
 const DONATION_FIELDS = ['files', 'institution', 'subject', 'exam_type', 'class_grade', 'school_year', 'donor_name', 'donor_email', 'notes', 'consent', 'form'] as const;
 /** De onde veio o clique num CTA da landing (`CtaOrigem`, #512). */
-const CTA_ORIGENS = ['header', 'outro', 'faq'] as const;
+const CTA_ORIGENS = ['header', 'outro', 'faq', 'hero', 'provas', 'provas-empty', 'student-menu'] as const;
 const DONATION_STEPS = ['statement', 'origin', 'contact'] as const;
+/** De onde se entrou numa sala de prova (#795): o bloco do Início ou a aba das salas. */
+const ROOM_ORIGENS = ['inicio', 'provas'] as const;
+/** De onde se abriram as Pautas (#802): a entrada nova do menu da conta e o caminho antigo do perfil. */
+const PAUTAS_ORIGENS = ['menu-conta', 'perfil'] as const;
+/** Um máximo de uma hora por visita, para um evento não ficar com um valor desproporcional. */
+const PAUTAS_MAX_SEGUNDOS = 3600;
 
 function oneOf<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
   return typeof value === 'string' && (allowed as readonly string[]).includes(value);
@@ -105,6 +118,12 @@ export function donationStep(index: number): (typeof DONATION_STEPS)[number] {
   return DONATION_STEPS[Math.min(Math.max(0, Math.trunc(index)), DONATION_STEPS.length - 1)];
 }
 
+/** Segundos de permanência nas Pautas, inteiros e sem ruído (#802). */
+export function pautasSeconds(seconds: number): number {
+  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+  return Math.min(PAUTAS_MAX_SEGUNDOS, Math.round(seconds));
+}
+
 export function pageForPath(app: AnalyticsApp, pathname: string): AnalyticsPage {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (app === 'landing') {
@@ -121,6 +140,7 @@ export function pageForPath(app: AnalyticsApp, pathname: string): AnalyticsPage 
     if (route === '/cadastro') return 'signup';
     if (route === '/onboarding') return 'onboarding';
     if (route === '/inicio') return 'student_home';
+    if (route === '/pautas') return 'pautas';
     if (/^\/prova\/[^/]+$/.test(route)) return 'exam';
     if (route === '/resultado') return 'result';
     if (/^\/sala\/[^/]+$/.test(route)) return 'room';
@@ -173,9 +193,19 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
     case 'onboarding_completed':
     case 'exam_started':
     case 'exam_submitted':
-    case 'exam_room_joined':
     case 'tutor_used':
       return { event, params: {} };
+    case 'exam_room_joined':
+      // A entrada conta sempre; `origem` só existe quando se sabe de onde veio (#795).
+      return { event, params: oneOf(params.origem, ROOM_ORIGENS) ? { origem: params.origem } : {} };
+    case 'pautas_aberta':
+      // #802: só se regista a abertura quando se conhece a origem do clique.
+      return oneOf(params.origem, PAUTAS_ORIGENS) ? { event, params: { origem: params.origem } } : null;
+    case 'pautas_tempo':
+      // #802: segundos inteiros, nunca texto arbitrário nem um valor desproporcional. A página
+      // vai no evento porque ele sai ao navegar para fora, quando a URL já mudou.
+      if (typeof params.segundos !== 'number' || !Number.isFinite(params.segundos) || params.segundos < 0) return null;
+      return { event, params: { page: 'pautas', segundos: pautasSeconds(params.segundos) } };
     case 'donation_step':
       return oneOf(params.step, DONATION_STEPS) ? { event, params: { step: params.step } } : null;
     case 'donation_error':
@@ -198,9 +228,39 @@ export function sanitizeEvent(event: string, params: AnalyticsParams = {}): { ev
         && oneOf(params.page, PAGES.landing)
         && [25, 50, 75, 100].includes(Number(params.depth))
         ? { event, params: { app: 'landing', page: params.page, depth: Number(params.depth) } } : null;
+    case 'web_vitals': {
+      const app = params.app;
+      const page = params.page;
+      if (!oneOf(app, ['manager', 'student', 'landing'] as const) || !oneOf(page, PAGES[app])) return null;
+      if (!oneOf(params.metric, VITAL_METRICS) || !oneOf(params.device, VITAL_DEVICES)) return null;
+      if (typeof params.value !== 'number' || !Number.isFinite(params.value) || params.value < 0) return null;
+      const value = vitalValue(params.metric, params.value);
+      if (value > 600_000) return null;
+      return { event, params: { app, page, metric: params.metric, value, device: params.device } };
+    }
     default:
       return null;
   }
+}
+
+/**
+ * Telemóvel, tablet ou computador, sem ler o user-agent inteiro nem guardar nada (#799): o UA
+ * separa iPad/tablet de telemóvel, o ponteiro grosso apanha tablets que se apresentam como
+ * computador (iPadOS), e a largura é o último recurso.
+ */
+export function deviceType(width: number, coarsePointer: boolean, userAgent: string): VitalDevice {
+  const ua = userAgent ?? '';
+  if (/iPad|Tablet|PlayBook|Silk|Android(?!.*Mobile)/i.test(ua)) return 'tablet';
+  if (/Mobi|iPhone|iPod|Android.*Mobile|Windows Phone/i.test(ua)) return 'mobile';
+  if (coarsePointer && Number.isFinite(width) && width >= 768) return 'tablet';
+  if (coarsePointer || (Number.isFinite(width) && width < 768)) return 'mobile';
+  return 'desktop';
+}
+
+/** CLS é adimensional; as restantes métricas são milissegundos. Tudo arredondado para o evento não levar ruído. */
+export function vitalValue(name: VitalMetric, value: number): number {
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return name === 'CLS' ? Math.round(value * 1000) / 1000 : Math.round(value);
 }
 
 export function safePageLocation(app: AnalyticsApp, page: AnalyticsPage, origin: string): string {
@@ -249,7 +309,9 @@ export function createAnalyticsQueue(options: QueueOptions) {
         : 'landing';
     const page = item.event === 'page_view'
       ? item.params.page as AnalyticsPage
-      : pageForPath(app, pathname);
+      : item.event === 'pautas_tempo' && oneOf(item.params.page, PAGES[app])
+        ? item.params.page
+        : pageForPath(app, pathname);
     const locationApp = item.event === 'page_view' ? item.params.app as AnalyticsApp : app;
     // GA can attach the browser URL to any event. Always override it with a
     // canonical route and suppress referrer so queries and fragments never leak.

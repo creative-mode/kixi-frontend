@@ -5,13 +5,12 @@ import { API_BASE } from '@/lib/constants';
 import { apiFetch } from '@/lib/mock/fetch';
 import { TIMEOUT_MESSAGE, isTimeout, timeoutSignal, withDeadline } from '@/lib/timeout';
 import type { Section } from '@/types/analytics';
-import { isUnavailableStatus, parseDetail, SHEET_UNAVAILABLE } from '@/lib/term-sheets';
-import type { TermSheetDetail, TermSheetSummary } from '@/types/term-sheets';
+import { isUnavailableStatus, parseDetail, parseList, SHEET_ID, SHEET_UNAVAILABLE } from '@/lib/term-sheets';
+import { exportableAssessments } from '@/lib/term-sheet-export';
+import { resolveSheetPlan } from '@/lib/term-sheet-export.server';
+import type { SheetExports, TermSheetDetail, TermSheetSummary } from '@/types/term-sheets';
 
 const BASE = `${API_BASE}/term-sheets`;
-
-/** O id da pauta entra no caminho do pedido: só aceita o formato que o motor gera (PT-...), nada que mude o caminho. */
-const SHEET_ID = /^[A-Za-z0-9._-]{1,80}$/;
 
 async function get<T>(path: string, unavailableIs403Or404 = false): Promise<T> {
   const headers = await getAuthHeaders();
@@ -43,11 +42,18 @@ async function section<T>(path: string, unavailableIs403Or404 = false, map: (bod
 
 /** As pautas que o utilizador pode ver: o backend decide (ADMIN todas, o professor as das suas turmas e disciplinas). */
 export async function listTermSheets(): Promise<Section<TermSheetSummary[]>> {
-  return section<TermSheetSummary[]>('');
+  return section<TermSheetSummary[]>('', false, parseList);
 }
 
 /** Uma pauta com as linhas por aluno. */
 export async function getTermSheet(sheetId: string): Promise<Section<TermSheetDetail>> {
   if (!SHEET_ID.test(sheetId)) return { ok: false, error: 'Pauta inválida.' };
   return section<TermSheetDetail>(`/${encodeURIComponent(sheetId)}`, true, parseDetail);
+}
+
+/** As provas da pauta com resultado para exportar em PDF (kixi-frontend#808): corrigidas e com enunciado, do plano do trimestre. */
+export async function getSheetExports(sheetId: string): Promise<Section<SheetExports>> {
+  const resolved = await resolveSheetPlan(sheetId);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  return { ok: true, data: { assessments: exportableAssessments(resolved.plan.assessments).map(({ id, kind, title }) => ({ id, kind, title })) } };
 }

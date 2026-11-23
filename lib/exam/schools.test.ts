@@ -86,8 +86,9 @@ test('mexer só no cabeçalho também é trabalho por guardar (#362)', () => {
     { duration: 90 },
     { variant: 'B' },
     { schoolYear: '2024/2025' },
-    { rules: ['O trabalho deve ser realizado em grupo.'] }, // apagou uma regra
-    { rules: ['O trabalho deve ser realizado em grupo.', 'Cotação: de 0 a 20 valores.', 'Sem calculadora.'] }, // acrescentou
+    { rules: [] }, // apagou a regra por omissão
+    { rules: ['O trabalho deve ser realizado em grupo.', 'Sem calculadora.'] }, // acrescentou uma
+    { rules: ['O trabalho deve ser realizado em grupo.'], kind: 'Teste' }, // mudou de kind — as regras por omissão mudam com ele
     { note: 'Revisão de véspera.' },
     { place: 'Benguela' },
     { date: '2026-10-20' },
@@ -138,4 +139,22 @@ test('a marca de revisão do OCR conta como trabalho (#362)', () => {
   assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], review: true }] }), true);
   assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], kind: 'group', items: [{ text: '', points: '', options: [], review: true }] }] }), true);
   assert.equal(draftHasContent({ ...EMPTY_DRAFT, items: [{ text: '', points: '', options: [], review: false }] }), false);
+});
+
+test('o uid que vem no rascunho mantém-se; quem não vem, ganha um', () => {
+  const d = normalizeDraft({
+    items: [
+      { text: 'Com uid', points: '', options: [], uid: 'muid-existente' },
+      { text: 'Sem uid', points: '', options: [] },
+      { text: 'Grupo', points: '', options: [], kind: 'group', items: [
+        { text: 'a alínea com uid', points: '', options: [], uid: 'muid-alinea' },
+        { text: 'a alínea sem uid', points: '', options: [] },
+      ] },
+    ],
+  } as never);
+  assert.equal(d.items[0].uid, 'muid-existente');
+  assert.ok(d.items[1].uid);
+  assert.notEqual(d.items[1].uid, 'muid-existente');
+  assert.equal(d.items[2].items?.[0].uid, 'muid-alinea');
+  assert.ok(d.items[2].items?.[1].uid);
 });

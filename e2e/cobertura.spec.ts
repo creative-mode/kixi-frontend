@@ -165,3 +165,79 @@ for (const entrada of [
     await expect(page, entrada.rota).toHaveURL(entrada.depois, { timeout: 15_000 });
   });
 }
+
+/**
+ * #762: a doação tem de estar à vista sem descer ao rodapé. No telemóvel o `NAV`
+ * está escondido, por isso é o CTA do herói que cumpre o papel; no portátil os
+ * dois têm de existir. O banner de cookies (primeira visita) já está montado e
+ * fixo em baixo: o clique no CTA prova que ele não o tapa.
+ */
+test('landing: «Doar um enunciado» no primeiro ecrã e no cabeçalho (#762)', async ({ page, isMobile }) => {
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('dialog', { name: 'Cookies' })).toBeVisible();
+
+  const hero = page.locator('.pres__hero').getByRole('link', { name: 'Doar um enunciado' });
+  await expect(hero).toBeVisible();
+  await expect(hero).toHaveAttribute('href', '/doar');
+
+  const caixa = await hero.boundingBox();
+  const ecra = page.viewportSize();
+  expect(caixa, 'o CTA do herói tem de estar no ecrã').not.toBeNull();
+  expect(ecra).not.toBeNull();
+  expect(caixa!.y + caixa!.height).toBeLessThanOrEqual(ecra!.height);
+
+  if (!isMobile) {
+    const cabecalho = page.locator('header.site-header').getByRole('link', { name: 'Doar um enunciado' });
+    await expect(cabecalho).toBeVisible();
+    await expect(cabecalho).toHaveAttribute('href', '/doar');
+  }
+
+  await hero.click();
+  await expect(page).toHaveURL(/\/doar\/?$/);
+});
+
+test('aluno: «Doar um enunciado» no cartão de /provas e no menu da conta (#762)', async ({ page }) => {
+  await page.goto('/aluno/entrar');
+  await page.getByLabel('Utilizador ou email').fill('12345');
+  await page.locator('#password').fill(PASSWORD);
+  await page.getByTestId('aluno-entrar-submeter').click();
+  await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+  // `aba=enunciados` (#795/#806): a conta «12345» é partilhada por toda a suite e, consoante
+  // a ordem, pode já ter uma sala a decorrer — e nesse caso /provas abre nas Salas, não aqui.
+  // O cartão de doação só vive na aba dos enunciados, por isso o teste pede-a de propósito.
+  await page.goto('/aluno/provas?aba=enunciados');
+  const cartao = page.getByRole('link', { name: 'Doar um enunciado' }).first();
+  await expect(cartao).toBeVisible();
+  await expect(cartao).toHaveAttribute('href', /\/doar$/);
+
+  const caixa = await cartao.boundingBox();
+  const ecra = page.viewportSize();
+  expect(caixa, 'o cartão de doação tem de estar no ecrã').not.toBeNull();
+  expect(ecra).not.toBeNull();
+  expect(caixa!.y + caixa!.height).toBeLessThanOrEqual(ecra!.height);
+
+  // A barra inferior tem 4 destinos por desenho (#704); a doação vive no menu da
+  // conta, que está em todos os ecrãs do aluno.
+  await page.getByRole('button', { name: /Conta de/ }).click();
+  const noMenu = page.getByRole('menuitem', { name: 'Doar um enunciado' });
+  await expect(noMenu).toBeVisible();
+  await expect(noMenu).toHaveAttribute('href', /\/doar$/);
+});
+
+test('aluno: «Minhas pautas» no menu da conta abre as pautas (#802)', async ({ page }) => {
+  await page.goto('/aluno/entrar');
+  await page.getByLabel('Utilizador ou email').fill('12345');
+  await page.locator('#password').fill(PASSWORD);
+  await page.getByTestId('aluno-entrar-submeter').click();
+  await expect(page).toHaveURL(/\/aluno\/inicio/);
+
+  await page.getByRole('button', { name: /Conta de/ }).click();
+  const pautas = page.getByRole('menuitem', { name: 'Minhas pautas' });
+  await expect(pautas).toBeVisible();
+  await expect(pautas).toHaveAttribute('href', /\/aluno\/pautas$/);
+  await pautas.click();
+  await expect(page).toHaveURL(/\/aluno\/pautas$/);
+  await expect(page.getByRole('heading', { name: 'As minhas pautas' })).toBeVisible();
+});

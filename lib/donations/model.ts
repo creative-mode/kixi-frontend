@@ -16,6 +16,8 @@ export interface DonationSummary {
   id: number;
   reference: string;
   status: DonationStatus;
+  /** A escola ligada (#763); nulo nas doações antigas ou quando o doador escolheu «Outra». */
+  institutionId?: number | null;
   institutionName: string;
   subjectName: string;
   examType: string;

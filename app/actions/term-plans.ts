@@ -30,12 +30,15 @@ const send = (method: string, body?: unknown): RequestInit => ({
 
 export type PlanPair = { classId: number; subjectId: number; label: string };
 export type RoomChoice = { id: number; classId: number | null; label: string };
+/** Um enunciado que se pode ligar a uma avaliação sem lhe abrir sala (kixi#623/kixi-frontend#809): a avaliação em papel. */
+export type StatementChoice = { id: number; classId: number | null; subjectId: number | null; label: string };
 export type PlanContext = {
   plans: TermPlan[];
   reminders: Reminder[];
   pairs: PlanPair[];
   terms: { id: number; label: string }[];
   rooms: RoomChoice[];
+  statements: StatementChoice[];
   canPlan: boolean;
   canDecide: boolean;
 };
@@ -72,6 +75,10 @@ export async function planContext(): Promise<Result<PlanContext>> {
         id: Number(r.id), classId: r.classId == null ? null : Number(r.classId),
         label: `Sala ${r.id} · ${statementTitle.get(Number(r.statementId)) ?? `Enunciado ${r.statementId}`}`,
       })),
+      statements: (statements.ok ? statements.data : []).map((s) => ({
+        id: Number(s.id), classId: s.classId == null ? null : Number(s.classId), subjectId: s.subjectId == null ? null : Number(s.subjectId),
+        label: String(s.title ?? `Enunciado ${s.id}`),
+      })),
       canPlan: teacher,
       canDecide: admin || (user?.roles ?? []).includes('COORDINATOR'),
     });
@@ -103,8 +110,9 @@ export async function linkRoom(planId: number, assessmentId: number, roomId: num
   return act(`${BASE}/${safeId(planId)}/assessments/${safeId(assessmentId)}`, send('PATCH', { roomId: safeId(roomId) }));
 }
 
-export async function markDone(planId: number, assessmentId: number): Promise<Result<TermPlan>> {
-  return act(`${BASE}/${safeId(planId)}/assessments/${safeId(assessmentId)}/done`, send('POST'));
+/** Liga um enunciado sem lhe abrir sala (kixi#623/kixi-frontend#809): o caso em papel, para P1, P2 ou uma avaliação de MAC. */
+export async function linkStatement(planId: number, assessmentId: number, statementId: number): Promise<Result<TermPlan>> {
+  return act(`${BASE}/${safeId(planId)}/assessments/${safeId(assessmentId)}`, send('PATCH', { statementId: safeId(statementId) }));
 }
 
 export async function dispense(planId: number, assessmentId: number, reason: string): Promise<Result<TermPlan>> {

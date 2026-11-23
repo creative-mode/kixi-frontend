@@ -13,12 +13,19 @@
  */
 
 import { parseServerTime } from './exam-rules.ts';
+import { notaDaSimulacao } from './nota-da-simulacao.ts';
 
 /** A simulation as `GET /simulations` returns it for the signed-in student. */
 export interface Attempt {
   id: number;
   status?: string | null;
   finalScore?: number | null;
+  /** kixi#609: PENDING, IN_PROGRESS, DONE ou FAILED. Ausente numa prova de sala. */
+  correctionStatus?: string | null;
+  /** kixi#609: hora da última resposta aberta corrigida; só com `DONE`. */
+  correctedAt?: string | null;
+  /** A nota que vale é a do motor (0–20): fora do resultado mostra-se o estado (#820). */
+  notaDoMotor?: boolean;
   /** ISO date from `startedAt`, when the backend sends one. */
   startedAt?: string | null;
 }
@@ -65,14 +72,41 @@ export function formatScore(score: number | null | undefined): string | undefine
   return String(score).replace('.', ',');
 }
 
+/**
+ * kixi#609/#793: a correção acabou quando o backend diz `DONE`. Um campo ausente é
+ * a resposta de um backend anterior ao #609, que só mandava tentativas corrigidas:
+ * continuar a dizer «corrigida» é o que preserva o comportamento antigo. `FAILED`
+ * não conta como acabada — a correção pode ainda ser feita por uma pessoa, e o
+ * aluno não deve ficar à espera de uma nota que não chega sozinha.
+ */
+export function correctionDone(a: Attempt): boolean {
+  const status = (a.correctionStatus ?? '').toUpperCase();
+  return status === '' || status === 'DONE';
+}
+
+/** Uma prova entregue cuja correção ainda não acabou. */
+export const correcting = (a: Attempt) => isFinished(a) && !correctionDone(a);
+
+/** kixi#609: o motor avisou que não consegue corrigir as abertas e não volta a tentar
+ *  sozinho. Não acende o ponto nem promete uma nota no sino — o aluno tem de saber
+ *  que aqui não há nada a chegar. */
+export const correctionFailed = (a: Attempt) => (a.correctionStatus ?? '').toUpperCase() === 'FAILED';
+
+/** A nota que se pode mostrar desta tentativa, já pela regra única (#791): uma tentativa por
+ *  corrigir não tem nota, tem estado, e uma livre corrigida pelo motor só mostra a nota no
+ *  resultado (#820). `formatScore` continua a ser só a formatação. */
+export function scoreOf(a: Attempt): string | undefined {
+  const nota = notaDaSimulacao(a);
+  return nota.kind === 'nota' ? formatScore(nota.nota) : undefined;
+}
 /** What the screen calls an attempt. Kept here so the card and the detail cannot
  *  disagree about it — which is how the same paper ends up "done" in one place and
  *  "in progress" in the other. */
-export type AttemptLabel = 'corrected' | 'unfinished' | 'cancelled';
+export type AttemptLabel = 'corrected' | 'correcting' | 'unfinished' | 'cancelled';
 
 export function labelOf(a: Attempt): AttemptLabel {
   if (isCancelled(a)) return 'cancelled';
-  if (isFinished(a)) return 'corrected';
+  if (isFinished(a)) return correctionDone(a) ? 'corrected' : 'correcting';
   return 'unfinished';
 }
 

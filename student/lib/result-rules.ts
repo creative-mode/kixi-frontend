@@ -11,6 +11,7 @@
 
 import { isItem, topNumber } from './question-number.ts';
 import type { MathContentFields } from './shared/math-types.ts';
+import { notaFinal } from './nota-da-simulacao.ts';
 
 export interface ResultOption {
   id: number;
@@ -147,6 +148,8 @@ export interface AttemptScore {
   id: number;
   status?: string | null;
   finalScore?: number | null;
+  /** kixi#609: uma tentativa por corrigir não entra na comparação (#791). */
+  correctionStatus?: string | null;
 }
 
 export interface Comparison {
@@ -165,13 +168,16 @@ export function compareWithPrevious(
   attempts: AttemptScore[],
 ): Comparison | null {
   if (currentScore == null) return null;
+  // Só uma tentativa com nota final conta como comparação: a parcial de uma livre por
+  // corrigir não é uma nota e faria a diferença mentir (#791).
   const previous = attempts
-    .filter((a) => a.id < currentId && (a.status ?? '').toUpperCase() === 'FINISHED' && a.finalScore != null)
+    .filter((a) => a.id < currentId && (a.status ?? '').toUpperCase() === 'FINISHED' && notaFinal(a) != null)
     .sort((a, b) => b.id - a.id)[0];
-  if (!previous || previous.finalScore == null) return null;
+  const anterior = previous ? notaFinal(previous) : null;
+  if (anterior == null) return null;
   return {
-    previousScore: previous.finalScore,
-    delta: Math.round((currentScore - previous.finalScore) * 10) / 10,
+    previousScore: anterior,
+    delta: Math.round((currentScore - anterior) * 10) / 10,
   };
 }
 
@@ -185,4 +191,77 @@ export function formatDelta(delta: number): string {
 /** The letter shown for an option: the one the paper gave, or A, B, C by position. */
 export function optionTag(option: ResultOption, index: number): string {
   return option.optionLabel?.trim() || String.fromCharCode(65 + index);
+}
+
+/** Score breakdown for display: objective vs open questions, separating graded from pending. */
+export interface ScoreBreakdownData {
+  objectiveScore: number;
+  /** Alguma objectiva já tem nota. Sem nenhuma (sala ainda aberta) a soma é 0 por falta de dados, não por nota. */
+  objectiveGraded: boolean;
+  objectiveMax: number;
+  openScore: number;
+  openMax: number;
+  openPendingScore: number;
+  openPendingMax: number;
+  hasAiGraded: boolean;
+  hasSchoolOpsGraded: boolean;
+}
+
+/** Calculate score breakdown from questions. Pure function, no server, no React. */
+export function calculateScoreBreakdown(questions: ResultQuestion[] | undefined): ScoreBreakdownData {
+  const qs = questions ?? [];
+  const objectiveQuestions = qs.filter((q) => (q.options ?? []).length > 0);
+  const openQuestions = qs.filter((q) => (q.options ?? []).length === 0);
+
+  // Objective: always graded by answer key
+  const objectiveScore = objectiveQuestions.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const objectiveMax = objectiveQuestions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+  const objectiveGraded = objectiveQuestions.some((q) => q.scoreObtained != null);
+
+  // Open questions: separate graded (IA or SchoolOps) from pending
+  const gradedOpen = openQuestions.filter((q) => q.scoreObtained != null);
+  const pendingOpen = openQuestions.filter((q) => q.scoreObtained == null);
+
+  const openScore = gradedOpen.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const openMax = gradedOpen.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+  const openPendingScore = pendingOpen.reduce((sum, q) => sum + (q.scoreObtained ?? 0), 0);
+  const openPendingMax = pendingOpen.reduce((sum, q) => sum + (q.maxScore ?? 0), 0);
+
+  // Identification: conservative - only aiLevel means AI-graded (kixi#542 plan exams)
+  // SchoolOps sets feedback but not aiLevel. TODO: backend should send gradedBy: 'IA' | 'SCHOOLOPS' | 'TEACHER'
+  const hasAiGraded = openQuestions.some((q) => q.aiLevel != null);
+  const hasSchoolOpsGraded = openQuestions.some((q) => q.feedback != null && q.aiLevel == null);
+
+  return {
+    objectiveScore,
+    objectiveGraded,
+    objectiveMax,
+    openScore,
+    openMax,
+    openPendingScore,
+    openPendingMax,
+    hasAiGraded,
+    hasSchoolOpsGraded,
+  };
+}
+
+/**
+ * Se o aluno pode partilhar o resultado com a turma, e se não, porquê (#789, hipótese 4).
+ * O feed é da turma. O ecrã de resultado só sabe a turma pelo perfil, e quando o perfil
+ * não carrega (falha transitória) o cartão de partilha desaparecia em silêncio, como se
+ * o resultado se tivesse perdido. Agora diz-se o que falta.
+ *  - `sem-nota`: nada para mostrar (por corrigir);
+ *  - `sem-perfil`: não deu para confirmar a turma agora, recarregar resolve;
+ *  - `sem-turma`: o perfil carregou e não tem turma (o layout manda o aluno para o onboarding).
+ */
+export type Partilha = 'pode' | 'sem-turma' | 'sem-perfil' | 'sem-nota';
+
+export function partilha(
+  classId: number | null | undefined,
+  finalScore: number | null | undefined,
+  perfilConhecido: boolean,
+): Partilha {
+  if (finalScore == null) return 'sem-nota';
+  if (classId != null) return 'pode';
+  return perfilConhecido ? 'sem-turma' : 'sem-perfil';
 }

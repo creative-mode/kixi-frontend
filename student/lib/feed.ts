@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { apiGet, apiPatch, apiPost, apiPut, type Result } from './api';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, type Result } from './api';
 import { getPerson } from './profiles';
 import { authorOfPerson, type FeedAuthor } from './feed-rules';
 import type { BuiltKind, PostBlock } from './post-blocks';
@@ -38,6 +38,9 @@ export interface SimulationCard {
   correctAnswers: number | null;
   totalQuestions: number | null;
   timeSpentSeconds: number | null;
+  /** Respostas abertas ainda por corrigir, do instantâneo (kixi#788): acima de
+   *  zero, o cartão diz «A corrigir» em vez de mostrar a nota parcial como final. */
+  pendingReviewCount?: number | null;
 }
 
 export type ReactionType = 'applause' | 'strength';
@@ -59,6 +62,8 @@ export interface FeedPost {
   hasReacted: boolean;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou a publicação (#753). Ausente num backend antigo. */
+  edited?: boolean;
   /** Só nas publicações do tipo `simulation`. */
   simulation?: SimulationCard | null;
   /** Só nas publicações construídas (kixi#347); as simples não os trazem. */
@@ -89,13 +94,16 @@ export async function createBuiltPost(
   return apiPost<FeedPost>('/feed/posts', { type: type.toUpperCase(), classId, title: title || undefined, blocks });
 }
 
-/** Publica o resultado de uma simulação terminada, com uma reflexão opcional. */
+/** Publica o resultado de uma simulação terminada, com uma reflexão opcional.
+ *  `showScore` diz se a turma vê a nota e as respostas certas (kixi#612); ausente
+ *  no backend antigo, o cartão continua a mostrar os números como antes. */
 export async function createSimulationPost(
   classId: number,
   simulationId: number,
   content: string,
+  showScore = true,
 ): Promise<Result<FeedPost>> {
-  return apiPost<FeedPost>('/feed/posts', { type: 'SIMULATION', classId, simulationId, content: content || undefined });
+  return apiPost<FeedPost>('/feed/posts', { type: 'SIMULATION', classId, simulationId, content: content || undefined, showScore });
 }
 
 /** Alterna a reação do aluno (sempre 'applause' aqui: só há uma forma de aplaudir
@@ -122,6 +130,8 @@ export interface PostComment {
   isAccepted?: boolean;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou o comentário (#753). Ausente num backend antigo. */
+  edited?: boolean;
   /** O backend diz se a linha é do aluno, para o cliente não comparar ids. */
   mine: boolean;
   displayName: string | null;
@@ -146,6 +156,29 @@ export async function addComment(postId: number, content: string) {
 /** O autor da publicação aceita (ou retira) uma resposta; devolve a linha como ficou. */
 export async function acceptComment(postId: number, commentId: number) {
   return apiPatch<PostComment>(`/feed/posts/${postId}/comments/${commentId}/accept`);
+}
+
+/** O autor edita o texto, o título ou os blocos de uma publicação; o tipo não muda (#753). */
+export async function updatePost(
+  postId: number,
+  values: { title?: string; content?: string; blocks?: PostBlock[] },
+) {
+  return apiPut<FeedPost>(`/feed/posts/${postId}`, values);
+}
+
+/** Elimina uma publicação; o servidor decide se quem pede é o autor ou um moderador (#753). */
+export async function deletePost(postId: number) {
+  return apiDelete<void>(`/feed/posts/${postId}`);
+}
+
+/** O autor edita o texto de um comentário (#753). */
+export async function updateComment(postId: number, commentId: number, content: string) {
+  return apiPut<PostComment>(`/feed/posts/${postId}/comments/${commentId}`, { content });
+}
+
+/** Elimina um comentário. Uma resposta aceite recusa-se: retira-se a aceitação primeiro (#753). */
+export async function deleteComment(postId: number, commentId: number) {
+  return apiDelete<void>(`/feed/posts/${postId}/comments/${commentId}`);
 }
 
 export async function reportPost(postId: number, reason: string) {

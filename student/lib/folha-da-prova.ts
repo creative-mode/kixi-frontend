@@ -109,6 +109,18 @@ export type PaperMark = {
   modelAnswer?: string | null;
 };
 
+/**
+ * Como se pinta uma opção na folha corrigida. A certa só se conhece quando o servidor a devolve (`correct`): logo depois de
+ * entregar com a sala ainda aberta não a devolve, e a opção escolhida (que pode ser a certa) ficava «errada» a vermelho.
+ * Sem gabarito, ou com a questão ainda por corrigir, não se afirma certo nem errado.
+ */
+export function optionMark({ optionId, chosen, correct, reviewed, verdict }: { optionId: number; chosen: number | null; correct: number | null; reviewed: boolean; verdict: PaperMark['verdict'] }): 'right' | 'wrong' | 'none' {
+  if (!reviewed || correct == null) return 'none';
+  if (optionId === correct) return 'right';
+  if (optionId === chosen && verdict !== 'pending') return 'wrong';
+  return 'none';
+}
+
 /** A nota estampada no topo da folha: verde se positiva, vermelha se negativa. `passed` nulo = ainda por corrigir. */
 export type PaperStamp = { score: string; max: string | null; passed: boolean | null; provisional: boolean };
 

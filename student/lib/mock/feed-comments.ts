@@ -11,8 +11,9 @@ export type MockPostComment = {
   isAccepted?: boolean;
   createdAt: string;
   updatedAt: string;
+  /** O autor já editou o comentário (#753). */
+  edited?: boolean;
 };
-
 /** O que o painel recebe de cada linha: o `displayName` já mascarado e `mine`, como o
  *  backend resolve antes de responder. */
 export type CommentRow = MockPostComment & {

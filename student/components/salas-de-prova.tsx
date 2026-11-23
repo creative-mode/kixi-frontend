@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Clock, DoorOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { VerResultado } from '@/components/ver-resultado';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { entrarSalaAction } from '@/lib/exam-room-actions';
@@ -19,6 +20,7 @@ import {
   sortInvitations,
   type Invitation,
   type Phase,
+  type RoomOrigin,
 } from '@/lib/exam-room-rules';
 
 const BADGE: Record<Phase, { label: string; variant: 'success' | 'warning' | 'secondary' | 'outline' }> = {
@@ -30,11 +32,20 @@ const BADGE: Record<Phase, { label: string; variant: 'success' | 'warning' | 'se
 };
 
 /** A secção "Salas de prova": as provas controladas para que o professor convidou o
- *  aluno. Só aparece quando há convites; com erro, aparece o aviso em vez de nada. */
-export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0 }: {
+ *  aluno. Sem convites não desenha cartões (o Início mostra a linha discreta, #795);
+ *  com erro, aparece o aviso em vez de nada.
+ *  `origem` (#795) diz de que ecrã veio a entrada — Início ou aba das salas — e segue
+ *  no formulário até ao evento de analítica.
+ *  `scheduledCount` (#806 — code review) soma-se a `hiddenCount` na linha final, sem
+ *  lhe mudar o texto: quem chama decide o que fica de fora dos cartões (p.ex. o
+ *  Início, que só mostra cartão cheio para salas já accionáveis) e esta linha avisa
+ *  sempre quantas ficaram de fora e porquê. */
+export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0, scheduledCount = 0, origem }: {
   invitations: Invitation[];
   invitationsError?: { message: string; status: number | null } | null;
   hiddenCount?: number;
+  scheduledCount?: number;
+  origem?: RoomOrigin;
 }) {
   // O relógio só arranca depois de montar: `Date.now()` no render diferia entre o
   // servidor e o browser, e o React acusava a divergência na hidratação.
@@ -49,7 +60,7 @@ export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0 }:
   }, []);
 
   if (invitations.length === 0) {
-    if (!invitationsError) return hiddenCount > 0 ? <p className="text-[13px] text-muted-foreground">{hiddenCount === 1 ? '1 sala já entregue ou terminada' : `${hiddenCount} salas já entregues ou terminadas`} · <Link href="/provas" className="font-semibold text-primary hover:underline">ver em Provas</Link></p> : null;
+    if (!invitationsError) return <ForaDosCartoes hiddenCount={hiddenCount} scheduledCount={scheduledCount} />;
     return (
       <section aria-labelledby="salas-title" className="grid gap-3">
         <h2 id="salas-title" className="flex items-center gap-2 text-lg font-bold"><DoorOpen className="size-5" aria-hidden /> Salas de prova</h2>
@@ -77,12 +88,29 @@ export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0 }:
       <ul className="grid gap-3">
         {list.map((inv) => (
           <li key={inv.roomId}>
-            <SalaCard inv={inv} now={now} offset={receivedAt === null ? 0 : clockOffset(inv.serverTime, receivedAt)} />
+            <SalaCard inv={inv} now={now} offset={receivedAt === null ? 0 : clockOffset(inv.serverTime, receivedAt)} origem={origem} />
           </li>
         ))}
       </ul>
-      {hiddenCount > 0 && <p className="text-[13px] text-muted-foreground">{hiddenCount === 1 ? '1 sala já entregue ou terminada' : `${hiddenCount} salas já entregues ou terminadas`} · <Link href="/provas" className="font-semibold text-primary hover:underline">ver em Provas</Link></p>}
+      <ForaDosCartoes hiddenCount={hiddenCount} scheduledCount={scheduledCount} />
     </section>
+  );
+}
+
+/** A linha de resumo para o que ficou fora dos cartões — entregues/terminadas
+ *  (`hiddenCount`, todas as páginas) e por abrir (`scheduledCount`, só o Início,
+ *  #806 — code review). Nenhuma das duas descreve "sala para já sem acção", por
+ *  isso partilham a mesma frase em vez de uma por cada chamador. */
+function ForaDosCartoes({ hiddenCount, scheduledCount }: { hiddenCount: number; scheduledCount: number }) {
+  const partes = [
+    scheduledCount > 0 && (scheduledCount === 1 ? '1 por abrir' : `${scheduledCount} por abrir`),
+    hiddenCount > 0 && (hiddenCount === 1 ? '1 já entregue ou terminada' : `${hiddenCount} já entregues ou terminadas`),
+  ].filter(Boolean);
+  if (partes.length === 0) return null;
+  return (
+    <p className="text-[13px] text-muted-foreground">
+      {partes.join(' · ')} · <Link href="/provas" className="font-semibold text-primary hover:underline">ver em Provas</Link>
+    </p>
   );
 }
 
@@ -97,7 +125,7 @@ function RefreshRoomsButton() {
   );
 }
 
-function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; offset: number }) {
+function SalaCard({ inv, now, offset, origem }: { inv: Invitation; now: number | null; offset: number; origem?: RoomOrigin }) {
   const [state, enter, pending] = useActionState(entrarSalaAction, undefined);
   const router = useRouter();
   // A fase segue o relógio vivo depois de montar: com o snapshot do servidor, a
@@ -149,9 +177,7 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
       {state?.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
       {action.kind === 'result' ? (
-        <Button asChild variant="outline" className="justify-self-start">
-          <Link href={`/resultado?prova=${action.simulationId}`}>Ver resultado</Link>
-        </Button>
+        <VerResultado simulationId={action.simulationId} className="justify-self-start" />
       ) : action.kind === 'continue' ? (
         <Button asChild className="justify-self-start">
           <Link href={`/sala/${action.roomId}`}>Continuar a prova</Link>
@@ -161,6 +187,7 @@ function SalaCard({ inv, now, offset }: { inv: Invitation; now: number | null; o
       ) : action.kind === 'enter-live' || action.kind === 'enter-lobby' ? (
         <form action={enter} className="justify-self-start">
           <input type="hidden" name="roomId" value={inv.roomId} />
+          {origem && <input type="hidden" name="origem" value={origem} />}
           <Button type="submit" disabled={pending}>
             {pending ? 'A entrar…' : action.kind === 'enter-live' ? 'Entrar na prova' : 'Entrar na sala de espera'}
           </Button>

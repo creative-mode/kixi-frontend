@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { authorOfPerson, authorView, maskName, canPublish, canPublishReflection, commentAuthorLabel, postTypeLabel, scorePassed, scorePercent, simulationHeadline } from './feed-rules.ts';
+import { authorOfPerson, authorView, cardWithoutScore, classAudienceLabel, classDisplayName, maskName, canPublish, canPublishReflection, commentAuthorLabel, pendingReviews, postTypeLabel, scorePassed, scorePercent, simulationHeadline } from './feed-rules.ts';
 
 const ME = { name: 'Ana Silva', photo: '/me.jpg' };
 const AUTHOR = { name: 'Beatriz Costa', photo: '/b.jpg', verified: false };
@@ -122,4 +122,52 @@ test('o cabeçalho do cartão junta classe, tipo, duração e ano letivo (#602)'
   assert.equal(simulationHeadline({ grade: null, paperKind: 'Exame', subject: null, durationMinutes: null, schoolYear: null, variant: 'A' }), 'Exame · Série A');
   // Sem nada do instantâneo não há linha: um backend antigo mostra só título e nota.
   assert.equal(simulationHeadline({}), null);
+});
+
+test('a turma lê-se «12.ª B» a partir da classe e do código (#801)', () => {
+  assert.equal(classDisplayName(12, '12B'), '12.ª B');
+  assert.equal(classDisplayName(12, '12 A'), '12.ª A');
+  assert.equal(classDisplayName(12, 'TPLP12B'), '12.ª TPLP12B');
+  assert.equal(classDisplayName(12, '12.ª B'), '12.ª B');
+  assert.equal(classDisplayName(12, null), '12.ª');
+  assert.equal(classDisplayName(null, '12B'), '12B');
+  assert.equal(classDisplayName(null, null), null);
+});
+
+test('a linha do público conta os colegas, sem o próprio, e degrada sem número (#801)', () => {
+  assert.equal(classAudienceLabel(12, '12B', 31), 'Visível para a turma 12.ª B (31 colegas)');
+  assert.equal(classAudienceLabel(12, '12B', 1), 'Visível para a turma 12.ª B (1 colega)');
+  assert.equal(classAudienceLabel(12, '12B', null), 'Visível para a turma 12.ª B');
+  assert.equal(classAudienceLabel(12, '12B', 0), 'Visível para a turma 12.ª B');
+});
+
+test('desligar «Mostrar a nota» tira os números do cartão antes de chegar ao HTML (#801)', () => {
+  const card = {
+    simulationId: 1,
+    statementTitle: 'Prova de Redes',
+    schoolName: 'ITEL',
+    finalScore: 16.4,
+    maxScore: 20,
+    correctAnswers: 12,
+    totalQuestions: 15,
+    timeSpentSeconds: 1800,
+  };
+  assert.deepEqual(cardWithoutScore(card), {
+    ...card,
+    finalScore: null,
+    maxScore: null,
+    correctAnswers: null,
+    totalQuestions: null,
+    scoreHidden: true,
+  });
+});
+
+test('a nota só é provisória enquanto houver respostas abertas por corrigir (#788)', () => {
+  assert.equal(pendingReviews({ pendingReviewCount: 3 }), 3);
+  assert.equal(pendingReviews({ pendingReviewCount: 0 }), 0);
+  // Sem o campo (backend antigo) ou com um valor inválido não se inventa correcção pendente.
+  assert.equal(pendingReviews({}), 0);
+  assert.equal(pendingReviews({ pendingReviewCount: null }), 0);
+  assert.equal(pendingReviews({ pendingReviewCount: -2 }), 0);
+  assert.equal(pendingReviews({ pendingReviewCount: Number.NaN }), 0);
 });

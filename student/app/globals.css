@@ -37,6 +37,8 @@
 }
 @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* O aviso breve de uma publicação eliminada (#753). */
+.toast { animation: rise .18s ease-out; }
 
 /*
  * `prefers-reduced-motion` (FE-25). O app do gestor já tinha isto; o aluno, que é
@@ -128,3 +130,11 @@ html[data-reduce-motion='true'] *::after {
 .st.apr { border: 2.5px solid #d49a00; border-right-color: #f0e2bd; border-bottom-color: #f0e2bd; }
 .st.fra { border: 2.5px solid #c2383e; }
 .st.nov { border: 2px solid #cdd6c9; background: white; }
+
+/* #820: o enunciado e a comunidade abrem a pedido no ecrã; no papel saem inteiros.
+   O `details` fechado esconde o conteúdo no slot `::details-content` do browser. */
+@media print {
+  details::details-content { content-visibility: visible !important; display: block !important; }
+  details > summary { list-style: none; }
+  details > summary svg { display: none; }
+}

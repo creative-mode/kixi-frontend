@@ -28,13 +28,15 @@ function Item({ n }: { n: Notification }) {
   );
 }
 
-/** As notificações do aluno: respostas às suas perguntas, medalhas e resultados, com «Marcar tudo como lido» guardado no servidor. */
+/** As notificações do aluno: respostas às perguntas, medalhas, entregas e correções prontas (#793), com «Marcar tudo como lido» guardado no servidor. */
 export default async function NotificacoesPage() {
   const profile = await getProfile();
   if (profile.kind !== 'ok') {
     return <div className="px-4 pt-7"><RefreshError title="Não foi possível carregar as notificações" message="O servidor não respondeu a tempo. Tenta de novo." /></div>;
   }
-  const { items, unreadCount } = await loadNotifications(profile.me);
+  // Só esta página mostra o texto das notificações: pedir a nota ao SchoolOps aqui
+  // evita duas chamadas por correção em todas as páginas que desenham o sino (#793/#817).
+  const { items, unreadCount } = await loadNotifications(profile.me, true, true);
   const novas = items.filter((i) => i.unread);
   const antigas = items.filter((i) => !i.unread);
 

@@ -12,6 +12,7 @@ import {
   participantName,
   summarizeIntegrity,
   type RoomIntegrity as RoomIntegrityData,
+  type RoomStatus,
 } from '@/lib/exam-rooms/model';
 
 /** A consola não fecha nem reabre um stream por causa disto: uma atualização lenta
@@ -27,7 +28,7 @@ const POLL_MS = 20_000;
  * ecrã diz que isto não substitui supervisão. Um aluno pode ter perdido o foco por
  * uma notificação; o que o professor faz com isso é dele.
  */
-export function RoomIntegrity({ roomId }: { roomId: number }) {
+export function RoomIntegrity({ roomId, status }: { roomId: number; status: RoomStatus }) {
   const [data, setData] = useState<RoomIntegrityData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,12 +44,15 @@ export function RoomIntegrity({ roomId }: { roomId: number }) {
 
   useEffect(() => {
     const task = window.setTimeout(() => void load(), 0);
+    // Encerrada, a sala já não produz eventos: o polling só gastava pedidos.
+    // «Atualizar» continua a dar uma leitura manual.
+    if (status === 'CLOSED') return () => window.clearTimeout(task);
     const clock = window.setInterval(() => void load(), POLL_MS);
     return () => {
       window.clearTimeout(task);
       window.clearInterval(clock);
     };
-  }, [load]);
+  }, [load, status]);
 
   if (error) return <p className="text-sm text-destructive">{error}</p>;
   if (!data) {

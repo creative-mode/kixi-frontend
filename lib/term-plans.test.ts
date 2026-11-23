@@ -1,7 +1,7 @@
 // Testes das regras do plano do trimestre:  node --test lib/term-plans.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac } from './term-plans.ts';
+import { conclusionProblem, daysText, draftProblem, formatDate, isCleared, planTitle, progress, reminderText, remindersFirst, resizeMac, schedulingNote, statementTargets } from './term-plans.ts';
 import type { PlanDraft, Reminder } from '../types/term-plans.ts';
 
 const draft = (over: Partial<PlanDraft> = {}): PlanDraft => ({
@@ -44,6 +44,19 @@ test('o progresso conta só o que está corrigido ou dispensado', () => {
   assert.equal(isCleared({ status: 'DONE' }), false);
 });
 
+test('concluir o agendamento pede o enunciado de cada avaliação não dispensada (kixi#623/kixi-frontend#809)', () => {
+  const avaliacao = (kind: 'P1' | 'P2' | 'MAC', over: Record<string, unknown> = {}) =>
+    ({ kind, seq: 1, status: 'PLANNED', statementId: null, ...over }) as never;
+  assert.equal(conclusionProblem({ assessments: [avaliacao('P1', { statementId: 1 }), avaliacao('P2', { statementId: 2 })] }), null);
+  assert.equal(conclusionProblem({ assessments: [avaliacao('P1')] }), 'Falta ligar o enunciado: P1.');
+  assert.equal(
+    conclusionProblem({ assessments: [avaliacao('P1', { statementId: 1 }), avaliacao('MAC', { seq: 2 })] }),
+    'Falta ligar o enunciado: MAC 2.',
+  );
+  // Uma MAC dispensada não pede enunciado.
+  assert.equal(conclusionProblem({ assessments: [avaliacao('MAC', { status: 'DISPENSED' })] }), null);
+});
+
 test('os lembretes vêm com o atraso primeiro e dizem o que fazer', () => {
   const base = { planId: 1, assessmentId: 1, kind: 'P1', title: 'P1', className: 'A1', subjectName: 'Matemática' } as const;
   const list: Reminder[] = [
@@ -53,4 +66,25 @@ test('os lembretes vêm com o atraso primeiro e dizem o que fazer', () => {
   assert.deepEqual(remindersFirst(list).map((r) => r.level), ['LATE', 'D14']);
   assert.equal(reminderText(list[1]), 'Montar o enunciado de P1 (A1 · Matemática), 05/11/2026, há 2 dias.');
   assert.equal(planTitle({ className: 'A1', subjectName: 'Matemática', termNumber: 2 }), 'A1 · Matemática · 2.º trimestre');
+});
+
+test('o enunciado pede-se só às provas não dispensadas (kixi#635)', () => {
+  const a = (kind: 'P1' | 'P2', status: 'PLANNED' | 'DISPENSED') => ({ kind, status }) as never;
+  assert.equal(statementTargets({ assessments: [a('P1', 'PLANNED'), a('P2', 'PLANNED')] }), 'da P1 e da P2');
+  assert.equal(statementTargets({ assessments: [a('P1', 'PLANNED'), a('P2', 'DISPENSED')] }), 'da P1');
+  assert.equal(statementTargets({ assessments: [a('P1', 'DISPENSED'), a('P2', 'DISPENSED')] }), 'das provas');
+  assert.equal(conclusionProblem({ assessments: [{ kind: 'P1', status: 'PLANNED', statementId: 1, seq: 1 }, { kind: 'P2', status: 'DISPENSED', statementId: null, seq: 1 }] as never }), null);
+});
+
+test('o agendamento concluído só promete a pauta «em instantes» se todas as provas ainda têm enunciado', () => {
+  const av = (kind: 'P1' | 'P2', statementId: number | null) => ({ kind, seq: 1, status: 'PLANNED', statementId }) as never;
+  const ligado = { schedulingConcluded: true, pautaOpened: false, assessments: [av('P1', 1), av('P2', 2)] };
+  assert.equal(schedulingNote(ligado), 'Agendamento concluído: a pauta abre em instantes.');
+  // Reagendar a P2 apaga a ligação ao enunciado (kixi): o texto não pode continuar a prometer a pauta.
+  const reagendada = { ...ligado, assessments: [av('P1', 1), av('P2', null)] };
+  assert.match(schedulingNote(reagendada)!, /Falta ligar o enunciado: P2\./);
+  assert.doesNotMatch(schedulingNote(reagendada)!, /em instantes/);
+  // Fora do agendamento concluído não há nota própria.
+  assert.equal(schedulingNote({ ...ligado, schedulingConcluded: false }), null);
+  assert.equal(schedulingNote({ ...ligado, pautaOpened: true }), null);
 });
