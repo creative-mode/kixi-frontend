@@ -43,7 +43,7 @@ export const nomeDoProcesso = (id: string) => PROCESSOS[id] ?? id;
  *  turma/disciplina da pauta e o tipo de prova. Usado para pedir só estas ao Camunda, numa só pesquisa para todas as
  *  tarefas da lista. `tipoProva` (kixi-frontend#809) é como se reconhece uma avaliação de MAC em `minipauta-prova` e
  *  `correcao-prova` (o mesmo processo da P1/P2, desde o schoolops#65): vale `AVALIACAO_CONTINUA`, nunca um objecto. */
-export const NOMES_DAS_VARIAVEIS_DO_CARTAO = ['provaId', 'prova', 'avaliacaoContinua', 'pauta', 'tipoProva'];
+export const NOMES_DAS_VARIAVEIS_DO_CARTAO = ['provaId', 'prova', 'avaliacaoContinua', 'pauta', 'tipoProva', 'componentes'];
 
 const texto = (v: unknown): string | undefined => {
   if (typeof v === 'string') return v.trim() || undefined;
@@ -61,6 +61,22 @@ function turmaEDisciplina(variaveis: Record<string, unknown>): string | undefine
   const disciplina = texto(pauta?.disciplina);
   if (disciplina && turma) return `${disciplina} · ${turma}`;
   return disciplina ?? turma;
+}
+
+/**
+ * Se a prova da tarefa é a P1 ou a P2 (V2-10): a instância de `correcao-prova` não traz o componente na variável `prova`,
+ * mas traz `componentes` (`npp` = P1, `npt` = P2, cada uma com o `provaId`) e o `provaId` da própria tarefa. Compara-se um com
+ * os outros; uma prova que não é de nenhuma componente (ou uma avaliação de MAC) não se inventa como P1 nem P2.
+ */
+export function componenteDaProva(variaveis: Record<string, unknown>): 'P1' | 'P2' | null {
+  if (variaveis.tipoProva === 'AVALIACAO_CONTINUA') return null;
+  const id = texto(variaveis.provaId);
+  const c = variaveis.componentes;
+  if (!id || !c || typeof c !== 'object') return null;
+  const { npp, npt } = c as { npp?: { provaId?: unknown } | null; npt?: { provaId?: unknown } | null };
+  if (texto(npp?.provaId) === id) return 'P1';
+  if (texto(npt?.provaId) === id) return 'P2';
+  return null;
 }
 
 /**
@@ -85,7 +101,7 @@ export function tituloDaTarefa(processDefinitionId: string, variaveis: Record<st
     const titulo = typeof prova === 'string' ? texto(prova) : texto(prova?.titulo);
     const componente = typeof prova === 'object' ? texto(prova?.componente) : undefined;
     const idSolto = texto(variaveis.provaId);
-    const referencia = titulo ?? (componente ? `Prova ${componente}` : idSolto ? `Prova ${idSolto}` : undefined);
+    const referencia = titulo ?? (componente ? `Prova ${componente}` : undefined) ?? (componenteDaProva(variaveis) ? `Prova ${componenteDaProva(variaveis)}` : undefined) ?? (idSolto ? `Prova ${idSolto}` : undefined);
     return [referencia, contexto].filter(Boolean).join(' · ') || null;
   }
   if (processDefinitionId === 'minipauta-mac') {
@@ -93,6 +109,9 @@ export function tituloDaTarefa(processDefinitionId: string, variaveis: Record<st
     const titulo = typeof avaliacao === 'string' ? texto(avaliacao) : texto(avaliacao?.titulo);
     return [titulo, contexto].filter(Boolean).join(' · ') || null;
   }
+  // `correcao-prova` (recolher, digitalizar, tratar leituras): diz se é a P1 ou a P2, que de outro modo têm o mesmo título (V2-10).
+  const componente = componenteDaProva(variaveis);
+  if (componente) return [`Prova ${componente}`, contexto].filter(Boolean).join(' · ');
   return contexto ?? null;
 }
 
