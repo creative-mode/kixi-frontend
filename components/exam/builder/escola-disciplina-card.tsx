@@ -7,7 +7,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 
 /** Escola e disciplina: a prova pertence a um sítio. */
 export function EscolaDisciplinaCard({
-  ready, schools, schoolId, choices, chosenClassId, subject, subjectOptions, classOptions, admin, onSchool, onSubject, onClass,
+  ready, schools, schoolId, choices, chosenClassId, subject, subjectOptions, classOptions, admin, onSchool, onSubject, onClass, terms = [], termId = '', onTerm,
 }: {
   ready: boolean;
   schools: { id: string; name: string }[];
@@ -21,6 +21,10 @@ export function EscolaDisciplinaCard({
   onSchool: (value: string) => void;
   onSubject: (value: string) => void;
   onClass: (value: string) => void;
+  /** O trimestre da prova (opcional): sem a lista não se mostra o campo. */
+  terms?: { value: number; label: string }[];
+  termId?: string;
+  onTerm?: (value: string) => void;
 }) {
   return (
     <Card id="builder-dados" className="scroll-mt-24">
@@ -52,6 +56,14 @@ export function EscolaDisciplinaCard({
                 {classOptions.map((c) => <option key={c.value} value={String(c.value)}>{c.label}</option>)}
               </NativeSelect>
             </Field>
+            {terms.length > 0 && onTerm ? (
+              <Field label="Trimestre (opcional)">
+                <NativeSelect value={termId} onChange={(e) => onTerm(e.target.value)}>
+                  <option value="">Sem trimestre</option>
+                  {terms.map((t) => <option key={t.value} value={String(t.value)}>{t.label}</option>)}
+                </NativeSelect>
+              </Field>
+            ) : null}
           </>
         )}
       </CardContent>

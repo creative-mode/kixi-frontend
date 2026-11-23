@@ -38,7 +38,7 @@ export interface OriginalPage {
   kind: 'image' | 'pdf';
 }
 
-export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extraction: ExamExtraction, names: string, originals: OriginalPage[]) => boolean | void; onClose: () => void }) {
+export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extraction: ExamExtraction, names: string, originals: OriginalPage[], meta: { requestId: string }) => boolean | void; onClose: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -154,14 +154,14 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
       return fieldset.querySelector<HTMLElement>(':scope > div [role="textbox"]')?.textContent?.trim() ?? '';
     });
 
-    return (extraction: ExamExtraction, names: string, originals: OriginalPage[] = []) => {
+    return (extraction: ExamExtraction, names: string, originals: OriginalPage[] = [], meta: { requestId: string } = { requestId }) => {
       const expectedItems = draftFromExtraction(extraction, { subjects: [] }).items;
       const expected = expectedItems.map((item) => serializeMathText(item.text, item.formulas, item.blocks));
       const previous = values(fields()).slice(0, expected.length);
       counts.questionCount = Math.min(10_000, expected.length);
       // A callback may ask a blocking confirmation before replacing the current
       // draft. Start observing only after it returns, and skip declined imports.
-      if (onExtracted(extraction, names, originals) === false) {
+      if (onExtracted(extraction, names, originals, meta) === false) {
         report();
         return;
       }
@@ -355,7 +355,7 @@ export function ExamImporter({ onExtracted, onClose }: { onExtracted: (extractio
         transferidas.current.add(url);
         return { name: f.name, url, kind: eImagem(f) ? 'image' : 'pdf' };
       });
-      apply(extraction, alvos.map((f) => f.name).join(', '), originals);
+      apply(extraction, alvos.map((f) => f.name).join(', '), originals, { requestId });
       reported = true;
       setFiles((cur) => cur.filter((f) => !alvos.includes(f)));
     } catch (caught) {

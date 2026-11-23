@@ -145,6 +145,37 @@ test('a falha do trabalho de OCR em inglês chega ao ecrã em português (kixi#6
   }
 });
 
+test('a falha do trabalho com errorCode usa o código (distingue branco de corrompido); sem código ou com código desconhecido, o texto (kixi#648)', async () => {
+  const original = globalThis.XMLHttpRequest;
+  const originalFetch = globalThis.fetch;
+  globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
+  FakeXhr.responseOnSend = true;
+  try {
+    const casos: [Record<string, unknown>, RegExp][] = [
+      [{ error: 'OCR processing failed', errorCode: 'OCR_NO_TEXT' }, /em branco/],
+      [{ error: 'OCR processing failed', errorCode: 'OCR_FILE_CORRUPT' }, /corrompido/],
+      [{ error: 'OCR processing failed', errorCode: 'OCR_UNREADABLE' }, /ilegível/],
+      [{ error: 'OCR processing failed', errorCode: 'OCR_PROCESSING_FAILED' }, /Não foi possível ler o ficheiro/],
+      [{ error: 'OCR processing failed', errorCode: null }, /Não foi possível ler o ficheiro/],
+      [{ error: 'OCR processing failed' }, /Não foi possível ler o ficheiro/],
+      [{ error: 'Algo novo', errorCode: 'CODIGO_NOVO' }, /Algo novo/],
+    ];
+    for (const [corpo, esperado] of casos) {
+      FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+      globalThis.fetch = (async () => Response.json({ status: 'FAILED', pageCount: 0, ...corpo })) as typeof fetch;
+      const events: OcrStreamEvent[] = [];
+      await assert.rejects(streamExamOcr(new FormData(), { onUploadProgress: () => undefined, onEvent: (event) => events.push(event) }), esperado);
+      const mensagem = (events[1] as { message: string }).message;
+      assert.match(mensagem, esperado);
+      assert.doesNotMatch(mensagem, /OCR_|OCR processing failed/);
+    }
+  } finally {
+    FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+    globalThis.XMLHttpRequest = original;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('polling retries a transient server failure without abandoning the job', async () => {
   const original = globalThis.XMLHttpRequest;
   const originalFetch = globalThis.fetch;

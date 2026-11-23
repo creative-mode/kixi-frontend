@@ -1,4 +1,5 @@
 import { kindOf, labelsFor, newUid, normalizeSourceItemLabel, trueFalseOptions, withoutImages, type DraftItem, type DraftOption, type DraftQuestion, type LeafKind, type QuestionKind } from './draft.ts';
+import { ocrProvenance } from './provenance.ts';
 import { mathContentFields } from '../../student/lib/shared/math-types.ts';
 
 export interface School {
@@ -17,6 +18,10 @@ export interface ExamDraft {
   savedStatementId?: number;
   savedAt?: string;
   savedPublished?: boolean;
+  /** O pedido OCR que leu esta prova e a confiança global da leitura (kixi#648): seguem no pedido ao guardar, para o enunciado
+   *  ficar com a proveniência OCR. Ausentes numa prova feita à mão. */
+  ocrRequestId?: string;
+  ocrConfidence?: number;
   schoolId: string;
   subject: string;
   kind: string;
@@ -161,6 +166,8 @@ export function normalizeDraft(saved: Partial<ExamDraft>): ExamDraft {
     savedStatementId: Number.isInteger(saved.savedStatementId) && Number(saved.savedStatementId) > 0 ? Number(saved.savedStatementId) : undefined,
     savedAt: typeof saved.savedAt === 'string' ? saved.savedAt : undefined,
     savedPublished: typeof saved.savedPublished === 'boolean' ? saved.savedPublished : undefined,
+    ocrRequestId: ocrProvenance(saved).ocrRequestId,
+    ocrConfidence: ocrProvenance(saved).ocrConfidence,
     items: Array.isArray(saved.items) && saved.items.length > 0 ? saved.items.map(normalizeItem) : EMPTY_DRAFT.items.map(normalizeItem),
     title: typeof saved.title === 'string' ? saved.title : '',
     duration: typeof saved.duration === 'number' ? saved.duration : '',
