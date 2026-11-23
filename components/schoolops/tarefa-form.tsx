@@ -70,6 +70,7 @@ export function TarefaForm({ chave }: { chave: string }) {
           <header className="mb-4">
             <Badge variant="secondary" className="mb-2">{aberta.tarefa.processo}</Badge>
             <h1 className="text-xl font-semibold tracking-tight">{aberta.tarefa.nome}</h1>
+            {aberta.tarefa.detalhe ? <p className="mt-1 text-sm text-muted-foreground" data-testid="tarefa-detalhe">{aberta.tarefa.detalhe}</p> : null}
           </header>
           <Card>
             <CardContent className="p-4 md:p-6">

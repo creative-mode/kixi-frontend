@@ -110,10 +110,12 @@ export async function abrirTarefa(key: string): Promise<Result<TarefaAberta>> {
     // Uma tarefa de outro professor responde como se não existisse.
     if (!pertenceA(t, conta)) return fail('Tarefa não encontrada ou já concluída.');
     const [formulario, variaveis] = await Promise.all([obterFormulario(key), variaveisDaTarefa(key)]);
+    const dados = valoresDasVariaveis(variaveis);
     return ok({
-      tarefa: paraTarefa(t),
+      // As variáveis da instância dizem a que prova se refere (P1 ou P2, disciplina e turma): V2-10, sem inventar nada.
+      tarefa: paraTarefa(t, dados),
       schema: formulario?.schema ?? null,
-      dados: valoresDasVariaveis(variaveis),
+      dados,
       precisaDeFicheiros: formulario ? temEnvioDeFicheiros(formulario.schema) : false,
     });
   });
