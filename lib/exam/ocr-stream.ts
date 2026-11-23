@@ -1,4 +1,5 @@
 import type { ExamExtraction } from './extraction';
+import { translate } from '../crud/messages.ts';
 import { createOcrRequestId, isOcrRequestId, type OcrMark } from './ocr-telemetry.ts';
 
 export type OcrStreamEvent =
@@ -106,7 +107,7 @@ export function streamExamOcr(
       let message = `Pedido OCR recusado (${response.status}).`;
       try {
         const body = await response.json() as { detail?: string; message?: string };
-        message = body.detail ?? body.message ?? message;
+        message = translate(body.detail ?? body.message ?? message);
       } catch { /* keep status-based message */ }
       cancelAcceptedJob();
       finish(new Error(response.status === 401 ? 'Sessão expirada. Inicie sessão novamente.' : message));
@@ -168,8 +169,9 @@ export function streamExamOcr(
           return finish(undefined, job.result);
         }
         if (job.status === 'FAILED' || job.status === 'CANCELLED') {
-          const error = job.error || (job.status === 'CANCELLED'
-            ? 'Importação OCR cancelada.' : 'O OCR falhou durante o processamento.');
+          // O erro do trabalho vem do backend em inglês (kixi#648): traduz-se o que se conhece, o resto fica como veio.
+          const error = translate(job.error || (job.status === 'CANCELLED'
+            ? 'Importação OCR cancelada.' : 'O OCR falhou durante o processamento.'));
           callbacks.onEvent({ type: 'error', message: error });
           acceptedJobId = null;
           return finish(new Error(error));
@@ -196,6 +198,7 @@ export function streamExamOcr(
       if (xhr.status < 200 || xhr.status >= 300) {
         let message = xhr.responseText || `Pedido OCR recusado (${xhr.status}).`;
         try { message = (JSON.parse(xhr.responseText) as { detail?: string }).detail ?? message; } catch { /* keep response */ }
+        message = translate(message);
         return finish(new Error(xhr.status === 401 ? 'Sessão expirada. Inicie sessão novamente.' : message));
       }
       let accepted: { jobId?: unknown };

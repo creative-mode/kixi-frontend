@@ -66,3 +66,29 @@ test('publicar um enunciado com questões sem opção correcta dá o aviso em po
 test('um erro desconhecido do backend não é escondido', () => {
   assert.equal(friendlyMessage(422, problem('Something never seen before')), 'Something never seen before');
 });
+
+// kixi#648: os erros do OCR chegavam em inglês ao ecrã.
+test('os erros do OCR ficam em português claro, sem perder o número de píxeis nem de páginas', () => {
+  assert.match(translate('Unsupported or invalid OCR file'), /não é uma imagem.*nem um PDF válido/);
+  assert.match(translate('Unsupported or invalid OCR image'), /corrompida/);
+  assert.match(translate('OCR image exceeds the maximum pixel count'), /resolução/);
+  assert.match(translate('The image is too large to read: 123456789 pixels'), /demasiado grande.*123\s456\s789 píxeis/);
+  assert.match(translate('A PDF can have at most 30 pages'), /no máximo 30 páginas/);
+  assert.match(translate('The PDF carries script or an embedded file. Send photos of the pages or a flattened PDF.'), /script ou um ficheiro embebido/);
+  for (const t of ['Unsupported or invalid OCR file', 'The image is too large to read: 9 pixels', 'OCR processing failed', 'OCR stream ended without a result']) {
+    assert.doesNotMatch(translate(t), /\b(OCR processing|Unsupported|too large|stream)\b/, t);
+  }
+});
+
+test('a falha geral do OCR diz o que verificar (em branco, corrompido, desfocado), porque o backend não as distingue', () => {
+  const falha = translate('OCR processing failed');
+  assert.match(falha, /em branco/);
+  assert.match(falha, /corrompid/);
+  assert.equal(translate('OCR stream ended without a result'), falha);
+});
+
+test('o erro do OCR vem em problem+json e continua traduzido; um texto desconhecido do OCR não se esconde', () => {
+  assert.match(friendlyMessage(400, problem('Unsupported or invalid OCR file')), /não é uma imagem/);
+  assert.equal(friendlyMessage(400, problem('OCR engine exploded in a new way')), 'OCR engine exploded in a new way');
+  assert.equal(translate('Algo novo do OCR'), 'Algo novo do OCR');
+});
