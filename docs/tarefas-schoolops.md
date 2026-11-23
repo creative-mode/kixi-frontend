@@ -23,11 +23,13 @@ decidir uma reclamação) e conclui-as com o **form do próprio processo**, no d
 ## Configuração
 
 `SCHOOLOPS_CAMUNDA_URL` (API REST do Camunda), `SCHOOLOPS_CAMUNDA_TOKEN` (só se o Camunda o exigir) ou, com o Camunda em OIDC, `SCHOOLOPS_CAMUNDA_TOKEN_URL`, `SCHOOLOPS_CAMUNDA_CLIENT_ID` e `SCHOOLOPS_CAMUNDA_CLIENT_SECRET` (client credentials, com cache e renovação num 401), e
-`NEXT_PUBLIC_SCHOOLOPS_TASKLIST_URL`. Sem a primeira, a página diz que as tarefas não estão configuradas.
+Sem a primeira, a página diz que as tarefas não estão configuradas. O `NEXT_PUBLIC_SCHOOLOPS_TASKLIST_URL` já não é preciso (as folhas carregam-se no próprio ecrã).
 
 ## Limites
 
-- Tarefas com envio de ficheiros (digitalizar as folhas de uma prova em papel) ainda se concluem no Tasklist: precisam de
-  documentos do Camunda.
+- Digitalizar as folhas de uma prova em papel (kixi-frontend#838): o ecrã da tarefa tem um carregador (PNG, JPG ou PDF, até
+  40 ficheiros, 15 MB cada, 100 MB no total). Cada ficheiro vai por uma Server Action (`carregarFolha`) a `POST /v2/documents`
+  do Camunda (o token fica no servidor) e a tarefa conclui-se (`concluirComFolhas`) com `folhasDigitalizadas` = lista de
+  `{documentId, storeId, contentHash}`. Só a conta atribuída (o professor) o pode fazer; o tipo confere-se pelo conteúdo.
 - O professor do pedido tem de ser o id da conta. O cliente do Kixi no SchoolOps (`docker/kixi/cliente-schoolops.mjs`) envia
   hoje o username; passa a enviar o `accountId`.

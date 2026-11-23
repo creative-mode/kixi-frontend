@@ -6,6 +6,8 @@
 import { getCurrentUser } from '@/lib/auth.server';
 import { call, fail, ok, type Result } from '@/lib/crud/http';
 import {
+  CamundaErro,
+  carregarDocumento,
   concluirTarefa,
   obterFormulario,
   obterTarefa,
@@ -13,6 +15,7 @@ import {
   variaveisDaTarefa,
   variaveisDasTarefas,
 } from '@/lib/schoolops/camunda';
+import { campoDeFicheiros, problemaDasFolhas, referenciasRecebidas, tipoPeloConteudo, variaveisDeConclusao, type ReferenciaDocumento } from '@/lib/schoolops/folhas';
 import {
   dadosParaConcluir,
   paraTarefa,
@@ -28,7 +31,7 @@ export type TarefaAberta = {
   tarefa: Tarefa;
   schema: Componente | null;
   dados: Record<string, unknown>;
-  /** O form pede ficheiros: ainda se faz no Tasklist. */
+  /** O form pede ficheiros (as folhas digitalizadas): o ecrã mostra o carregador em vez do formulário. */
   precisaDeFicheiros: boolean;
 };
 
@@ -107,10 +110,12 @@ export async function abrirTarefa(key: string): Promise<Result<TarefaAberta>> {
     // Uma tarefa de outro professor responde como se não existisse.
     if (!pertenceA(t, conta)) return fail('Tarefa não encontrada ou já concluída.');
     const [formulario, variaveis] = await Promise.all([obterFormulario(key), variaveisDaTarefa(key)]);
+    const dados = valoresDasVariaveis(variaveis);
     return ok({
-      tarefa: paraTarefa(t),
+      // As variáveis da instância dizem a que prova se refere (P1 ou P2, disciplina e turma): V2-10, sem inventar nada.
+      tarefa: paraTarefa(t, dados),
       schema: formulario?.schema ?? null,
-      dados: valoresDasVariaveis(variaveis),
+      dados,
       precisaDeFicheiros: formulario ? temEnvioDeFicheiros(formulario.schema) : false,
     });
   });
@@ -123,12 +128,60 @@ export async function concluir(key: string, dados: Record<string, unknown>): Pro
     if (!pertenceA(t, conta)) return fail('Tarefa não encontrada ou já concluída.');
     const formulario = await obterFormulario(key);
     if (!formulario) return fail('Esta tarefa não tem formulário.');
-    if (temEnvioDeFicheiros(formulario.schema)) return fail('Esta tarefa pede ficheiros: conclua-a no Tasklist.');
+    if (temEnvioDeFicheiros(formulario.schema)) return fail('Esta tarefa pede ficheiros: carregue as folhas no ecrã da tarefa.');
     const erro = primeiroErro(dados, formulario.schema);
     if (erro) return fail(erro);
     // Só se devolvem os campos de entrada do form (não os de leitura nem os calculados): o professor não altera as outras
     // variáveis do processo.
     await concluirTarefa(key, dadosParaConcluir(dados, formulario.schema));
+    return ok(undefined);
+  });
+}
+
+/** A tarefa é do professor e o seu form pede ficheiros: devolve o nome do campo. Cada passo do envio repete esta verificação. */
+async function tarefaDeFolhas(key: string): Promise<Result<string>> {
+  const conta = await professor();
+  const t = await obterTarefa(key);
+  if (!pertenceA(t, conta)) return fail('Tarefa não encontrada ou já concluída.');
+  const formulario = await obterFormulario(key);
+  const campo = formulario ? campoDeFicheiros(formulario.schema) : null;
+  if (!campo) return fail('Esta tarefa não pede folhas digitalizadas.');
+  return ok(campo);
+}
+
+/**
+ * Passo 1 do envio (kixi-frontend#838): um ficheiro de cada vez, para o ecrã mostrar o progresso e o erro de cada um. Confere
+ * a posse da tarefa, o tamanho e o tipo pelo conteúdo, e guarda o ficheiro no Camunda; o browser só recebe a referência.
+ */
+export async function carregarFolha(key: string, dados: FormData): Promise<Result<ReferenciaDocumento>> {
+  return protegido(async () => {
+    const campo = await tarefaDeFolhas(key);
+    if (!campo.ok) return campo;
+    const ficheiro = dados.get('file');
+    if (!(ficheiro instanceof File)) return fail('Não chegou nenhum ficheiro.');
+    const problema = problemaDasFolhas(ficheiro);
+    if (problema) return fail(problema);
+    const bytes = new Uint8Array(await ficheiro.arrayBuffer());
+    const tipo = tipoPeloConteudo(bytes);
+    if (!tipo) return fail(`«${ficheiro.name}» não é uma imagem PNG, JPG nem um PDF válido.`);
+    return ok(await carregarDocumento({ nome: ficheiro.name, tipo, bytes }));
+  });
+}
+
+/** Passo 2: conclui «Digitalizar as folhas» com as referências dos ficheiros já carregados. */
+export async function concluirComFolhas(key: string, referencias: unknown): Promise<Result<undefined>> {
+  return protegido(async () => {
+    const campo = await tarefaDeFolhas(key);
+    if (!campo.ok) return campo;
+    const recebidas = referenciasRecebidas(referencias);
+    if (!recebidas.ok) return fail(recebidas.erro);
+    try {
+      await concluirTarefa(key, variaveisDeConclusao(campo.data, recebidas.referencias));
+    } catch (e) {
+      // Um segundo envio (duplo clique, outro separador) chega depois de a tarefa estar concluída.
+      if (e instanceof CamundaErro && (e.estado === 404 || e.estado === 409)) return fail('Esta tarefa já foi concluída.');
+      throw e;
+    }
     return ok(undefined);
   });
 }
