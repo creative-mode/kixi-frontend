@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { friendlyMessage, translate } from './messages.ts';
+import { friendlyMessage, messageForCode, translate } from './messages.ts';
 
 const problem = (detail: string, extra: Record<string, unknown> = {}) => JSON.stringify({ title: 'x', detail, properties: extra });
 
@@ -91,4 +91,60 @@ test('o erro do OCR vem em problem+json e continua traduzido; um texto desconhec
   assert.match(friendlyMessage(400, problem('Unsupported or invalid OCR file')), /não é uma imagem/);
   assert.equal(friendlyMessage(400, problem('OCR engine exploded in a new way')), 'OCR engine exploded in a new way');
   assert.equal(translate('Algo novo do OCR'), 'Algo novo do OCR');
+});
+
+// kixi#648 (backend): o erro padrão traz `properties.code` e o estado do trabalho traz `errorCode`; o texto inglês não muda.
+const comCodigo = (detail: string, code: string, extra: Record<string, unknown> = {}) => problem(detail, { code, ...extra });
+
+test('com código, a mensagem em português sai do código e distingue branco, ilegível e corrompido', () => {
+  const branco = friendlyMessage(400, comCodigo('OCR extraction failed', 'OCR_NO_TEXT'));
+  const ilegivel = friendlyMessage(400, comCodigo('OCR extraction failed', 'OCR_UNREADABLE'));
+  const corrompido = friendlyMessage(400, comCodigo('OCR extraction failed', 'OCR_FILE_CORRUPT'));
+  assert.match(branco, /em branco/);
+  assert.match(ilegivel, /ilegível/);
+  assert.match(corrompido, /corrompido/);
+  assert.equal(new Set([branco, ilegivel, corrompido]).size, 3, 'três causas, três mensagens');
+  for (const m of [branco, ilegivel, corrompido]) assert.doesNotMatch(m, /OCR extraction failed|OCR_/);
+});
+
+test('cada código do OCR tem a sua mensagem, e o código nunca se mostra ao utilizador', () => {
+  const casos: [string, RegExp][] = [
+    ['OCR_FILE_INVALID', /nem um PDF válido/],
+    ['IMAGE_TOO_LARGE', /demasiado grande/],
+    ['OCR_FILE_REJECTED', /recusou o ficheiro/],
+    ['OCR_UNAVAILABLE', /indisponível/],
+    ['OCR_PROCESSING_FAILED', /Não foi possível ler o ficheiro/],
+  ];
+  for (const [code, re] of casos) {
+    const m = friendlyMessage(code === 'OCR_UNAVAILABLE' ? 503 : 400, comCodigo('texto inglês qualquer', code));
+    assert.match(m, re, code);
+    assert.doesNotMatch(m, new RegExp(code), code);
+    assert.doesNotMatch(m, /texto inglês qualquer/, code);
+  }
+});
+
+test('IMAGE_TOO_LARGE mantém o número de píxeis quando o texto o traz', () => {
+  assert.match(friendlyMessage(400, comCodigo('The image is too large to read: 123456789 pixels', 'IMAGE_TOO_LARGE')), /123\s456\s789 píxeis/);
+});
+
+test('sem código (backend antigo) o mapeamento por texto continua a valer', () => {
+  assert.match(friendlyMessage(400, problem('Unsupported or invalid OCR file')), /nem um PDF válido/);
+  assert.match(friendlyMessage(400, problem('OCR processing failed')), /Não foi possível ler o ficheiro/);
+});
+
+test('um código desconhecido não esconde o erro: cai para o texto, e o código não se acrescenta à mensagem', () => {
+  assert.equal(friendlyMessage(400, comCodigo('Algo novo do backend', 'CODIGO_NOVO')), 'Algo novo do backend');
+  assert.match(friendlyMessage(400, comCodigo('Unsupported or invalid OCR file', 'CODIGO_NOVO')), /nem um PDF válido/);
+});
+
+test('um código que não é do OCR (outros erros do backend) não mexe na mensagem de sempre nem a polui', () => {
+  assert.equal(friendlyMessage(409, comCodigo('Algo de conflito', 'DONATION_DUPLICATE')), 'Algo de conflito');
+});
+
+test('messageForCode: só códigos do OCR, em português; desconhecido ou vazio dá null', () => {
+  assert.match(messageForCode('OCR_NO_TEXT')!, /em branco/);
+  assert.equal(messageForCode('XYZ'), null);
+  assert.equal(messageForCode(null), null);
+  assert.equal(messageForCode(undefined), null);
+  assert.equal(messageForCode(42 as never), null);
 });
