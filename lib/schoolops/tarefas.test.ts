@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nomeDoCampo, camposEscreviveis, dadosParaConcluir, primeiroErro, pertenceA, paraTarefa, temEnvioDeFicheiros, tituloDaTarefa, valoresDasVariaveis } from './tarefas.ts';
+import { componenteDaProva, nomeDoCampo, camposEscreviveis, dadosParaConcluir, primeiroErro, pertenceA, paraTarefa, temEnvioDeFicheiros, tituloDaTarefa, valoresDasVariaveis } from './tarefas.ts';
 
 const schema = {
   components: [
@@ -176,4 +176,37 @@ test('um grupo com caminho conta pelo caminho; um sem caminho só agrupa', () =>
     parecer: 'ok',
     dados: { nota: 5 },
   });
+});
+
+// V2-10: as tarefas da P1 e da P2 («Recolher e conferir folhas», «Digitalizar as folhas») tinham o mesmo título. O dado vem
+// da própria instância: `componentes` (npp = prova P1, npt = prova P2, cada uma com o `provaId`) e o `provaId` da tarefa.
+const PAUTA = { turma: 'E2EBT2', disciplina: 'E2E-Português B' };
+const COMPONENTES = { npp: { provaId: '135' }, npt: { provaId: '136' }, macDispensada: false };
+
+test('a prova da tarefa (P1 ou P2) sai de `componentes` e do `provaId` da instância', () => {
+  assert.equal(componenteDaProva({ provaId: '135', componentes: COMPONENTES }), 'P1');
+  assert.equal(componenteDaProva({ provaId: '136', componentes: COMPONENTES }), 'P2');
+  assert.equal(componenteDaProva({ provaId: 136, componentes: COMPONENTES }), 'P2');
+  assert.equal(componenteDaProva({ provaId: '999', componentes: COMPONENTES }), null, 'uma prova que não é de nenhuma componente não se inventa');
+  assert.equal(componenteDaProva({ provaId: '135' }), null);
+  assert.equal(componenteDaProva({ provaId: '135', componentes: 'x' }), null);
+  assert.equal(componenteDaProva({ provaId: '135', componentes: { npp: {}, npt: { provaId: null } } }), null);
+  assert.equal(componenteDaProva({}), null);
+});
+
+test('uma avaliação de MAC nunca vira P1 nem P2', () => {
+  assert.equal(componenteDaProva({ provaId: '135', componentes: COMPONENTES, tipoProva: 'AVALIACAO_CONTINUA' }), null);
+});
+
+test('as tarefas da P1 e da P2 do mesmo plano distinguem-se no título', () => {
+  const p1 = tituloDaTarefa('correcao-prova', { provaId: '135', componentes: COMPONENTES, tipoProva: 'PROVA_PROFESSOR', pauta: PAUTA });
+  const p2 = tituloDaTarefa('correcao-prova', { provaId: '136', componentes: COMPONENTES, tipoProva: 'PROVA_TRIMESTRAL', pauta: PAUTA });
+  assert.equal(p1, 'Prova P1 · E2E-Português B · E2EBT2');
+  assert.equal(p2, 'Prova P2 · E2E-Português B · E2EBT2');
+  assert.notEqual(p1, p2);
+});
+
+test('sem os dados da instância o título fica como estava (turma e disciplina)', () => {
+  assert.equal(tituloDaTarefa('correcao-prova', { pauta: PAUTA }), 'E2E-Português B · E2EBT2');
+  assert.equal(tituloDaTarefa('correcao-prova', { provaId: '999', componentes: COMPONENTES, pauta: PAUTA }), 'E2E-Português B · E2EBT2');
 });

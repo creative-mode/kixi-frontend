@@ -27,6 +27,15 @@ const KNOWN: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^A term with number (\d+) already exists/i, (m) => `Já existe o período ${m[1]}.`],
   // Publicar um enunciado (StatementService.answerKeyComplete): o backend lista os números das questões sem opção correcta.
   [/^These questions have options but no correct option marked: question (\d+(?:, \d+)*)\s*$/i, (m) => `Há questões com opções mas sem a opção correcta marcada: questão ${m[1]}. Marque a resposta certa em cada uma antes de publicar.`],
+  // OCR (kixi#648): upload, validação do ficheiro e falha do trabalho. O backend não distingue «imagem em branco» de «ficheiro
+  // corrompido» na falha do trabalho (a mensagem é sempre «OCR processing failed»), por isso o texto diz o que verificar.
+  [/^Unsupported or invalid OCR file/i, () => 'O ficheiro não é uma imagem (JPG, PNG, WEBP, BMP ou TIFF) nem um PDF válido. Confirme que não está corrompido e envie de novo.'],
+  [/^Unsupported or invalid OCR image/i, () => 'Não foi possível abrir a imagem: está corrompida ou o formato não é suportado.'],
+  [/^OCR image exceeds the maximum pixel count/i, () => 'A imagem tem resolução a mais para ser lida. Reduza-a (ou fotografe a menor resolução) e envie de novo.'],
+  [/^The image is too large to read: (\d+) pixels/i, (m) => `A imagem é demasiado grande para ser lida (${Number(m[1]).toLocaleString('pt-PT')} píxeis). Reduza a resolução e envie de novo.`],
+  [/^A PDF can have at most (\d+) pages/i, (m) => `Um PDF pode ter no máximo ${m[1]} páginas. Divida-o e envie por partes.`],
+  [/^The PDF carries script or an embedded file/i, () => 'O PDF contém um script ou um ficheiro embebido. Envie fotografias das páginas ou um PDF simples (sem anexos).'],
+  [/^OCR (processing failed|stream ended without a result)/i, () => 'Não foi possível ler o ficheiro. Verifique se não está em branco nem corrompido e se a fotografia está nítida e bem enquadrada; depois tente de novo.'],
   // Salas de prova (ExamRoomService): a maior parte chega como 403/404, que antes escondiam o motivo.
   [/^The room class must match the statement class/i, () => 'A turma da sala tem de ser a do enunciado: escolha um enunciado desta turma.'],
   [/^A teacher may only create a room for an assigned class/i, () => 'Este enunciado não tem turma, por isso um professor não o pode usar numa sala: escolha a turma em «Rever enunciado» e crie a sala de novo.'],

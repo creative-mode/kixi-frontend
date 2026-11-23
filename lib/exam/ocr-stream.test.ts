@@ -124,6 +124,27 @@ test('a terminal OCR error keeps the backend message and rejects the extraction'
   }
 });
 
+test('a falha do trabalho de OCR em inglês chega ao ecrã em português (kixi#648), sem esconder um erro desconhecido', async () => {
+  const original = globalThis.XMLHttpRequest;
+  const originalFetch = globalThis.fetch;
+  globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
+  FakeXhr.responseOnSend = true;
+  try {
+    for (const [backend, esperado] of [['OCR processing failed', /não está em branco nem corrompido|em branco nem corrompido/], ['Algo que o OCR nunca disse', /Algo que o OCR nunca disse/]] as const) {
+      FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+      globalThis.fetch = (async () => Response.json({ status: 'FAILED', pageCount: 0, error: backend })) as typeof fetch;
+      const events: OcrStreamEvent[] = [];
+      await assert.rejects(streamExamOcr(new FormData(), { onUploadProgress: () => undefined, onEvent: (event) => events.push(event) }), esperado);
+      assert.match((events[1] as { message: string }).message, esperado);
+      assert.doesNotMatch((events[1] as { message: string }).message, /OCR processing failed/);
+    }
+  } finally {
+    FakeXhr.finalPayload = { jobId: '5dbfe179-e74d-4aa6-a603-8b1e6a264cea' };
+    globalThis.XMLHttpRequest = original;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('polling retries a transient server failure without abandoning the job', async () => {
   const original = globalThis.XMLHttpRequest;
   const originalFetch = globalThis.fetch;
