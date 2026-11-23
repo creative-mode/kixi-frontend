@@ -77,6 +77,33 @@ function knownDetail(body: string): string | null {
   }
 }
 
+/**
+ * Os códigos estáveis do OCR (kixi#648): o erro padrão traz `properties.code` e o estado do trabalho `errorCode`, e o texto
+ * inglês fica como estava. A mensagem sai do código quando o há (distingue em branco, ilegível e corrompido, o que o texto não
+ * faz); sem código (backend antigo) ou com um código desconhecido vale o mapeamento por texto, e nada se esconde.
+ */
+const OCR_CODES: Record<string, string> = {
+  OCR_FILE_INVALID: 'O ficheiro não é uma imagem (JPG, PNG, WEBP, BMP ou TIFF) nem um PDF válido. Confirme que não está corrompido e envie de novo.',
+  IMAGE_TOO_LARGE: 'A imagem é demasiado grande para ser lida. Reduza a resolução (ou fotografe a menor resolução) e envie de novo.',
+  OCR_FILE_REJECTED: 'O serviço de leitura recusou o ficheiro. Confirme que é uma fotografia ou um PDF nítido da prova e tente de novo.',
+  OCR_UNAVAILABLE: 'O serviço de leitura (OCR) está temporariamente indisponível. Tente de novo dentro de instantes.',
+  OCR_NO_TEXT: 'Não foi encontrado texto nesta imagem: parece estar em branco. Confirme que a folha tem a prova escrita e fotografe de novo.',
+  OCR_UNREADABLE: 'A imagem está ilegível (desfocada, escura ou cortada). Fotografe de novo com boa luz e a folha inteira.',
+  OCR_FILE_CORRUPT: 'O ficheiro está corrompido e não abre. Exporte-o de novo ou fotografe a prova outra vez.',
+  OCR_PROCESSING_FAILED: 'Não foi possível ler o ficheiro. Verifique se não está em branco nem corrompido e se a fotografia está nítida e bem enquadrada; depois tente de novo.',
+};
+
+/** A mensagem em português de um código do OCR, ou `null` se não for um código conhecido. Com o texto original em `detail`, o
+ *  «demasiado grande» ganha o número de píxeis que o texto traz. */
+export function messageForCode(code: unknown, detail?: string | null): string | null {
+  if (typeof code !== 'string' || !Object.prototype.hasOwnProperty.call(OCR_CODES, code)) return null;
+  if (code === 'IMAGE_TOO_LARGE' && detail) {
+    const comPixeis = translate(detail);
+    if (comPixeis !== detail) return comPixeis;
+  }
+  return OCR_CODES[code];
+}
+
 /** Traduz um texto do backend quando é conhecido; senão devolve-o como veio. */
 export function translate(text: string): string {
   for (const [re, to] of KNOWN) {
@@ -99,9 +126,12 @@ export function friendlyMessage(status: number, body: string): string {
   }
   try {
     const j = JSON.parse(body);
+    // O código estável do backend (`properties.code`) é para o ecrã decidir, não para se mostrar.
+    const byCode = messageForCode(j.properties?.code, typeof j.detail === 'string' ? j.detail : null);
+    if (byCode) return byCode;
     const props = j.properties && typeof j.properties === 'object'
       ? Object.entries(j.properties)
-          .filter(([k, v]) => k !== 'instance' && k !== 'requestId' && typeof v === 'string' && !TECHNICAL.test(v as string))
+          .filter(([k, v]) => k !== 'instance' && k !== 'requestId' && k !== 'code' && typeof v === 'string' && !TECHNICAL.test(v as string))
           .map(([, v]) => v as string)
       : [];
     const detail = [j.detail, ...props].filter((x) => typeof x === 'string' && x && !TECHNICAL.test(x)).map(translate).join(' · ');

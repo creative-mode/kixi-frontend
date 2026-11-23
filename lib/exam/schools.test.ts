@@ -158,3 +158,14 @@ test('o uid que vem no rascunho mantém-se; quem não vem, ganha um', () => {
   assert.equal(d.items[2].items?.[0].uid, 'muid-alinea');
   assert.ok(d.items[2].items?.[1].uid);
 });
+
+test('o rascunho guardado localmente conserva a proveniência OCR válida e descarta a inválida (kixi#648)', () => {
+  const id = '5dbfe179-e74d-4aa6-a603-8b1e6a264cea';
+  const bom = normalizeDraft({ ocrRequestId: id, ocrConfidence: 0.8 });
+  assert.equal(bom.ocrRequestId, id);
+  assert.equal(bom.ocrConfidence, 0.8);
+  const mau = normalizeDraft({ ocrRequestId: 'x', ocrConfidence: 7 } as never);
+  assert.equal(mau.ocrRequestId, undefined);
+  assert.equal(mau.ocrConfidence, undefined);
+  assert.equal(normalizeDraft({}).ocrRequestId, undefined);
+});

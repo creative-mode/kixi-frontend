@@ -629,6 +629,19 @@ export async function setStudentProcessNumber(institutionId: number, userId: num
     return ok((await res.json()) as Row);
   });
 }
+/** Os trimestres, para o construtor escolher o da prova (o backend grava o `termId` do enunciado). */
+export async function listTerms(): Promise<Result<{ value: number; label: string }[]>> {
+  return guard(async () => {
+    const res = await call('/api/v1/terms');
+    if (!res.ok) return fail(await message(res));
+    const rows = (await res.json()) as Row[];
+    return ok(rows
+      .map((t) => ({ value: Number(t.id), label: String(t.name ?? `${t.number}.º trimestre`), number: Number(t.number) }))
+      .filter((t) => Number.isInteger(t.value) && t.value > 0)
+      .sort((a, b) => a.number - b.number)
+      .map(({ value, label }) => ({ value, label })));
+  });
+}
 /** Schools the current account may build statements for (admin: all; teacher: affiliated ones). */
 export async function myInstitutions(): Promise<Result<Row[]>> {
   return guard(async () => {
