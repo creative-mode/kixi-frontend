@@ -7,7 +7,7 @@ import { reportActionError } from '@/lib/notify-session-expired';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
-import { approveStatement, createManualStatement, getStatementForReview, getStatementFull, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, updateManualStatement, type ReviewChoices, type StatementInput } from '@/app/actions/crud';
+import { approveStatement, createManualStatement, getStatementForReview, getStatementFull, listTerms, myInstitutions, publishManualStatement, reviewChoices, setStatementVisible, updateManualStatement, type ReviewChoices, type StatementInput } from '@/app/actions/crud';
 import { extractDonation, getDonation, linkDonationStatement } from '@/app/actions/donations';
 import type { DonationDetail } from '@/lib/donations/model';
 import { fetchCurrentUser } from '@/lib/auth';
@@ -19,6 +19,7 @@ import { renderPdfPageToImage, pdfPageCount } from '@/lib/exam/pdf';
 import { mergePageRetry } from '@/lib/exam/retry';
 import { flattenSourcePages, pageAtSources } from '@/lib/exam/sources';
 import { streamExamOcr } from '@/lib/exam/ocr-stream';
+import { ocrProvenance, termIdFrom } from '@/lib/exam/provenance';
 import { missingToSave, readinessParts, saveBlocker } from '@/lib/exam/readiness';
 import { cn } from '@/lib/utils';
 import { draftFromExtraction, type ExamExtraction, type ImportedNote } from '@/lib/exam/extraction';
@@ -95,6 +96,8 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
   const [admin, setAdmin] = useState<boolean | null>(null);
   const [choices, setChoices] = useState<ReviewChoices | null>(null);
   const [classId, setClassId] = useState('');
+  const [termId, setTermId] = useState('');
+  const [terms, setTerms] = useState<{ value: number; label: string }[]>([]);
   const [importOpen, setImportOpen] = useState(openImport);
   const [notes, setNotes] = useState<ImportedNote[]>([]);
   const [footerPreview, setFooterPreview] = useState<{ dataUrl: string; pageIndex: number | null; text: string[] } | null>(null);
@@ -186,6 +189,8 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
           run: () => { continueDraft(); draftDecisionPending.current = false; },
         }), 0);
     } else clearDraft();
+    // Os trimestres são opcionais: se não carregarem, a prova guarda-se sem trimestre, como antes.
+    listTerms().then((r) => { if (r.ok) setTerms(r.data); });
     myInstitutions().then((res) => {
       if (!res.ok) reportActionError(res.error);
       else setSchools(res.data.map((i) => ({ id: String(i.id), name: i.name, logo: i.logo ?? '', subjects: [] })));
@@ -278,6 +283,9 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       ...(draft.duration !== '' ? { durationMinutes: draft.duration } : {}),
       ...(draft.variant.trim() ? { variant: draft.variant.trim() } : {}),
       instructions: draft.rules.filter(Boolean).join('\n') || null,
+      // O trimestre escolhido e, se a prova veio do OCR, o id da leitura e a confiança (kixi#648): o enunciado fica `source=ocr`.
+      ...(termIdFrom(termId) !== null ? { termId: termIdFrom(termId) } : {}),
+      ...ocrProvenance(draft),
       // O gabarito viaja no próprio pedido: `ManualStatementRequest.Option.correct` é
       // honrado na criação, por isso marcar a resposta certa não custa um segundo pedido.
       questions: toRequest(draft.items),
@@ -295,7 +303,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
         instructions: draft.rules.filter(Boolean).join('\n') || null,
         totalMaxScore: totalScore(draft.items),
         schoolYearId: chosen?.schoolYearId ?? null,
-        termId: null,
+        termId: termIdFrom(termId),
         classId: chosenClassId ? Number(chosenClassId) : null,
         courseId: chosen?.courseId ?? null,
       };
@@ -426,7 +434,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
    * O que o OCR leu vira rascunho. Não se guarda nada: o professor corrige aqui e só depois grava.
    * Substituir um rascunho com conteúdo pede confirmação, porque o OCR trocava tudo de uma vez.
    */
-  function commitImport(extraction: ExamExtraction, names: string, originals?: OriginalPage[]): boolean {
+  function commitImport(extraction: ExamExtraction, names: string, originals?: OriginalPage[], meta?: { requestId: string }): boolean {
     const imported = draftFromExtraction(extraction, { subjects: school?.subjects ?? [] });
     if (imported.items.length === 0) {
       setNotes(imported.notes);
@@ -435,7 +443,10 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
       toast.error('Não foi possível ler questões nesta imagem.');
       return false;
     }
-    setDraft((d) => ({ ...d, ...imported.patch, items: imported.items }));
+    // A proveniência da leitura (kixi#648): o id do pedido OCR e a confiança global seguem no pedido ao guardar. Uma nova
+    // leitura substitui a anterior, e sem id válido o rascunho não leva proveniência nenhuma.
+    const provenance = ocrProvenance({ ocrRequestId: meta?.requestId, ocrConfidence: extraction.overall_confidence ?? undefined });
+    setDraft((d) => ({ ...d, ...imported.patch, ocrRequestId: provenance.ocrRequestId, ocrConfidence: provenance.ocrConfidence, items: imported.items }));
     setNotes(imported.notes);
     setFooterPreview(imported.footerPreview ?? null);
     trocarOriginais(originals ?? null);
@@ -445,7 +456,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
     return true;
   }
 
-  function applyImport(extraction: ExamExtraction, names: string, originals?: OriginalPage[]): boolean {
+  function applyImport(extraction: ExamExtraction, names: string, originals?: OriginalPage[], meta?: { requestId: string }): boolean {
     // O OCR substitui o cabeçalho inteiro, por isso também se confirma quando só
     // escola, disciplina ou duração foram preenchidas.
     if (draftHasContent(draft)) {
@@ -454,11 +465,11 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
         description: 'Importar substitui as questões e o cabeçalho que já escreveu.',
         action: 'Importar e substituir',
         destructive: true,
-        run: () => { commitImport(extraction, names, originals); },
+        run: () => { commitImport(extraction, names, originals, meta); },
       });
       return false;
     }
-    return commitImport(extraction, names, originals);
+    return commitImport(extraction, names, originals, meta);
   }
 
   /** Leva à questão indicada (as notas dizem «Ir para a questão N», as pendências
@@ -676,7 +687,7 @@ export function ExamBuilder({ openImport = false, donationId = null }: { openImp
 
           {footerPreview && <FooterPreviewCard footerPreview={footerPreview} />}
 
-          <EscolaDisciplinaCard ready={ready} schools={schools} schoolId={school?.id} choices={choices} chosenClassId={chosenClassId} subject={subject} subjectOptions={subjectOptions} classOptions={classOptions} admin={admin} onSchool={(value) => set('schoolId', value)} onSubject={(value) => set('subject', value)} onClass={setClassId} />
+          <EscolaDisciplinaCard ready={ready} schools={schools} schoolId={school?.id} choices={choices} chosenClassId={chosenClassId} subject={subject} subjectOptions={subjectOptions} classOptions={classOptions} admin={admin} onSchool={(value) => set('schoolId', value)} onSubject={(value) => set('subject', value)} onClass={setClassId} terms={terms} termId={termId} onTerm={setTermId} />
 
           <CabecalhoCard draft={draft} onPatch={patchDraft} subject={subject} />
 

@@ -37,10 +37,12 @@ export async function statementRoutes({ method, path, url, auth, isStaff, readBo
     const built = buildQuestions(b.questions, () => nextId('questions'), () => nextId('options'));
     if (!built.ok) return problem(built.status, built.message);
     const questions = built.questions;
+    // Como o backend (kixi#648): com o id do pedido OCR o enunciado fica `ocr`, com a proveniência gravada.
+    const ocrRequestId = typeof b.ocrRequestId === 'string' && b.ocrRequestId ? b.ocrRequestId : null;
     const row = add('statements', {
       title: b.title, examType: b.examType, durationMinutes: b.durationMinutes ?? null, variant: b.variant ?? null, instructions: b.instructions ?? null,
-      totalMaxScore: built.total, visible: !!b.visible, needsReview: false, source: 'manual',
-      ocrConfidence: null, ocrRequestId: null, schoolYearId: b.schoolYearId ?? null, termId: b.termId ?? null, subjectId: Number(b.subjectId),
+      totalMaxScore: built.total, visible: !!b.visible, needsReview: false, source: ocrRequestId ? 'OCR' : 'manual',
+      ocrConfidence: ocrRequestId && typeof b.ocrConfidence === 'number' ? b.ocrConfidence : null, ocrRequestId, schoolYearId: b.schoolYearId ?? null, termId: b.termId ?? null, subjectId: Number(b.subjectId),
       classId: b.classId ?? null, courseId: b.courseId ?? null, institutionId: inst.id, questions,
     });
     for (const q of questions) {
