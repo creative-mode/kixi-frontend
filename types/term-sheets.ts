@@ -31,6 +31,9 @@ export interface TermSheetSummary {
 }
 
 /** `mac`, `p1`, `p2` e `mt` são `null` quando o aluno faltou: nunca zero. */
+/** As componentes que a escola dispensou (kixi#635): `MAC` quando todas as avaliações de MAC do plano estão dispensadas. */
+export type DispensedComponent = 'P1' | 'P2' | 'MAC';
+
 export interface TermSheetRow {
   accountId: number;
   number: number;
@@ -49,11 +52,15 @@ export interface TermSheetRow {
 export interface TermSheetDetailResponse {
   sheet: TermSheetSummary;
   rows: TermSheetRow[];
+  /** Ausente (backend anterior) ou `[]`: nada dispensado. */
+  dispensed?: DispensedComponent[];
 }
 
 /** O detalhe como o ecrã o usa: o resumo com as linhas dentro (sai do `TermSheetDetailResponse` por `parseDetail`). */
 export interface TermSheetDetail extends TermSheetSummary {
   rows: TermSheetRow[];
+  /** Componentes dispensadas nesta pauta: nelas a nota nula é «sem nota, sem falta». */
+  dispensed: DispensedComponent[];
 }
 
 /** O que se pode exportar do detalhe de uma pauta, além da própria pauta: o resultado de cada prova com enunciado. */

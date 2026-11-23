@@ -51,7 +51,7 @@ test('prova dispensada mostra «Dispensada», não travessão nem zero; sem o ca
 
 test('a nota da MT diz que foi calculada sem a prova dispensada', () => {
   assert.equal(mtRuleNote({ dispensed: ['P1'] }), 'MT calculada sem a P1 (dispensada).');
-  assert.equal(mtRuleNote({ dispensed: ['P1', 'P2'] }), 'MT calculada sem a P1 e a P2 (dispensada).');
+  assert.equal(mtRuleNote({ dispensed: ['P1', 'P2'] }), 'MT calculada sem a P1 e a P2 (dispensadas).');
   assert.equal(mtRuleNote({ dispensed: [] }), null);
   assert.equal(mtRuleNote({}), null);
 });
@@ -87,4 +87,26 @@ test('a lista do aluno descarta o que não é pauta e mantém as completas intac
   assert.equal(l.length, 2);
   assert.deepEqual(l[0], completa);
   assert.throws(() => parseMyTermSheets({ x: 1 }), /inválida/);
+});
+
+test('a MAC dispensada mostra «Dispensada» (e não travessão) e a MT diz que foi calculada sem ela', () => {
+  const row = { mac: null, p1: 13, p2: 15, mt: 14, status: 'POSITIVA' as const, dispensed: ['MAC' as const] };
+  assert.equal(isDispensed(row, 'MAC'), true);
+  assert.equal(provaText(row, 'MAC'), 'Dispensada');
+  assert.equal(provaText({ ...row, dispensed: [] }, 'MAC'), SEM_NOTA);
+  assert.equal(provaText({ ...row, dispensed: undefined }, 'MAC'), SEM_NOTA);
+  assert.equal(provaText(row, 'P1'), '13');
+  assert.equal(mtRuleNote(row), 'MT calculada sem a MAC (dispensada).');
+});
+
+test('a nota da MT concorda no plural e combina P1, P2 e MAC por ordem', () => {
+  assert.equal(mtRuleNote({ dispensed: ['MAC', 'P1'] }), 'MT calculada sem a P1 e a MAC (dispensadas).');
+  assert.equal(mtRuleNote({ dispensed: ['P2', 'MAC'] }), 'MT calculada sem a P2 e a MAC (dispensadas).');
+  assert.equal(mtRuleNote({ dispensed: ['MAC', 'P2', 'P1'] }), 'MT calculada sem a P1, a P2 e a MAC (dispensadas).');
+  assert.equal(mtRuleNote({ dispensed: ['P1', 'P1'] }), 'MT calculada sem a P1 (dispensada).');
+});
+
+test('a normalização mantém a MAC dispensada e descarta valores desconhecidos', () => {
+  const n = normalizeMySheet({ sheetId: 'PT-1', row: { mt: 12, status: 'POSITIVA', dispensed: ['MAC', 'XX', 'P2', 3] } })!;
+  assert.deepEqual(n.row.dispensed, ['MAC', 'P2']);
 });

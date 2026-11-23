@@ -51,7 +51,7 @@ export function PautasView({ sheets }: { sheets: MyTermSheet[] }) {
                   return (
                     <tr key={s.sheetId} className="border-t">
                       <th scope="row" className="px-4 py-2.5 text-left font-medium">{subjectLabel(s)}</th>
-                      <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.mac} /></td>
+                      <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.mac} dispensed={isDispensed(s.row, 'MAC')} /></td>
                       <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.p1} dispensed={isDispensed(s.row, 'P1')} /></td>
                       <td className="px-2 py-2.5 text-right tabular-nums"><Grade value={s.row.p2} dispensed={isDispensed(s.row, 'P2')} /></td>
                       <td className={`px-2 py-2.5 text-right tabular-nums ${negative ? 'underline decoration-destructive decoration-2 underline-offset-4' : ''}`}><Grade value={s.row.mt} strong />{mtRuleNote(s.row) ? <span className="block text-xs font-normal text-muted-foreground" data-testid="pautas-mt-regra">{mtRuleNote(s.row)}</span> : null}</td>

@@ -1,4 +1,4 @@
-import type { RowStatus, SheetStatus, TermSheetDetail, TermSheetRow, TermSheetSummary } from '@/types/term-sheets';
+import type { DispensedComponent, RowStatus, SheetStatus, TermSheetDetail, TermSheetRow, TermSheetSummary } from '@/types/term-sheets';
 
 /** Regras de apresentação das pautas, sem React: ficam testáveis com `node --test`. */
 
@@ -34,6 +34,19 @@ export const SEM_TRIMESTRE = 'Sem trimestre';
 export const SEM_ANO_LETIVO = 'Sem ano letivo';
 
 /** «2.º trimestre»; sem número (o motor aceitou uma pauta incompleta) diz-se, em vez de «0.º» ou «null.º». */
+export const DISPENSADA = 'Dispensada';
+const DISPENSAVEIS: readonly DispensedComponent[] = ['P1', 'P2', 'MAC'];
+
+export const isDispensed = (dispensed: readonly string[] | null | undefined, prova: DispensedComponent): boolean => !!dispensed?.includes(prova);
+
+/** Nota sobre o cálculo da MT quando há componente dispensada; `null` sem nenhuma. Concorda no singular e no plural. */
+export function dispensedNote(dispensed: readonly string[] | null | undefined): string | null {
+  const lista = DISPENSAVEIS.filter((p) => isDispensed(dispensed, p)).map((p) => `a ${p}`);
+  if (lista.length === 0) return null;
+  const texto = lista.length === 1 ? lista[0] : `${lista.slice(0, -1).join(', ')} e ${lista[lista.length - 1]}`;
+  return `MT calculada sem ${texto} (${lista.length === 1 ? 'dispensada' : 'dispensadas'}).`;
+}
+
 export const termLabel = (termNumber: number | null | undefined): string =>
   typeof termNumber === 'number' && Number.isFinite(termNumber) && termNumber > 0 ? `${termNumber}.º trimestre` : SEM_TRIMESTRE;
 
@@ -185,11 +198,12 @@ export const isUnavailableStatus = (status: number): boolean => status === 403 |
 
 /** `GET /term-sheets/{id}` devolve `{ sheet, rows }`; o ecrã trabalha com o resumo e as linhas juntos. Lança se a forma não for essa. */
 export function parseDetail(body: unknown): TermSheetDetail {
-  const b = body as { sheet?: unknown; rows?: unknown } | null;
+  const b = body as { sheet?: unknown; rows?: unknown; dispensed?: unknown } | null;
   if (!b || typeof b !== 'object' || !b.sheet || typeof b.sheet !== 'object' || !Array.isArray(b.rows)) {
     throw new Error('Resposta da pauta inválida.');
   }
   const sheet = normalizeSummary(b.sheet);
   if (!sheet) throw new Error('Resposta da pauta inválida.');
-  return { ...sheet, rows: b.rows.map(normalizeRow).filter((x): x is TermSheetRow => x !== null) };
+  const dispensed = Array.isArray(b.dispensed) ? DISPENSAVEIS.filter((p) => (b.dispensed as unknown[]).includes(p)) : [];
+  return { ...sheet, dispensed, rows: b.rows.map(normalizeRow).filter((x): x is TermSheetRow => x !== null) };
 }

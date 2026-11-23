@@ -1,7 +1,7 @@
 // Regras de apresentação das pautas:  node --test lib/term-sheets.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyFilters, classLabel, filterOptions, formatGrade, isFinal, isNegative, isUnavailableStatus, NO_FILTERS, normalizeRow, normalizeSummary, parseDetail, parseList, schoolYearLabel, sheetTitle, SEM_NOTA, subjectLabel, termLabel, wasAbsent } from './term-sheets.ts';
+import { applyFilters, classLabel, filterOptions, formatGrade, isFinal, isNegative, isUnavailableStatus, NO_FILTERS, dispensedNote, isDispensed, normalizeRow, normalizeSummary, parseDetail, parseList, schoolYearLabel, sheetTitle, SEM_NOTA, subjectLabel, termLabel, wasAbsent } from './term-sheets.ts';
 
 const sheet = (over: Record<string, unknown>) => ({
   sheetId: 'PT-1', status: 'FECHADA', termNumber: 1, schoolYear: '2025/2026', classId: 1, className: 'M', grade: 12, course: 'SI',
@@ -137,4 +137,28 @@ test('as linhas incompletas ficam sem nota (nunca zero) e as que não são objec
   assert.equal(d.rows[0].name, 'Aluno sem nome');
   assert.equal(d.rows[1].adjusted, true);
   assert.equal(normalizeRow(null), null);
+});
+
+// A MAC (e a P1/P2) dispensada: `GET /term-sheets/{id}` traz `dispensed` ao lado de `sheet` e `rows`.
+test('o detalhe guarda as provas dispensadas ("P1", "P2", "MAC") e ignora o resto; sem o campo ou com [] nada muda', () => {
+  const rows: never[] = [];
+  assert.deepEqual(parseDetail({ sheet: sheet({}), rows, dispensed: ['MAC', 'P2', 'XX', 7] }).dispensed, ['P2', 'MAC']);
+  assert.deepEqual(parseDetail({ sheet: sheet({}), rows, dispensed: [] }).dispensed, []);
+  assert.deepEqual(parseDetail({ sheet: sheet({}), rows }).dispensed, []);
+  assert.deepEqual(parseDetail({ sheet: sheet({}), rows, dispensed: 'MAC' }).dispensed, []);
+});
+
+test('a coluna da prova dispensada diz «Dispensada»; as outras não', () => {
+  assert.equal(isDispensed(['MAC'], 'MAC'), true);
+  assert.equal(isDispensed(['MAC'], 'P1'), false);
+  assert.equal(isDispensed([], 'MAC'), false);
+  assert.equal(isDispensed(undefined, 'MAC'), false);
+});
+
+test('a nota da MT concorda no plural, com P1, P2 e MAC por ordem', () => {
+  assert.equal(dispensedNote(['MAC']), 'MT calculada sem a MAC (dispensada).');
+  assert.equal(dispensedNote(['MAC', 'P1']), 'MT calculada sem a P1 e a MAC (dispensadas).');
+  assert.equal(dispensedNote(['P2', 'MAC', 'P1']), 'MT calculada sem a P1, a P2 e a MAC (dispensadas).');
+  assert.equal(dispensedNote([]), null);
+  assert.equal(dispensedNote(undefined), null);
 });

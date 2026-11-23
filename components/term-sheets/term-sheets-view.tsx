@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { SectionState } from '@/components/dashboard/section-state';
-import { applyFilters, classLabel, filterOptions, formatGrade, isFinal, NO_FILTERS, schoolYearLabel, SHEET_STATUS_LABEL, sheetTitle, subjectLabel, termLabel, type SheetFilters } from '@/lib/term-sheets';
+import { applyFilters, classLabel, filterOptions, formatGrade, dispensedNote, isFinal, NO_FILTERS, schoolYearLabel, SHEET_STATUS_LABEL, sheetTitle, subjectLabel, termLabel, type SheetFilters } from '@/lib/term-sheets';
 import type { Section } from '@/types/analytics';
 import { exportBlockedReason, isProvisional } from '@/lib/term-sheet-export';
 import type { SheetExports, TermSheetDetail, TermSheetSummary } from '@/types/term-sheets';
@@ -214,7 +214,8 @@ export function TermSheetsView({ canExport = false }: { canExport?: boolean }) {
                 </div>
                 <Card>
                   <CardContent className="px-0">
-                    <TermSheetTable rows={d.rows} caption={`Pauta de ${sheetTitle(d)}`} />
+                    <TermSheetTable rows={d.rows} caption={`Pauta de ${sheetTitle(d)}`} dispensed={d.dispensed} />
+                    {dispensedNote(d.dispensed) ? <p className="px-4 pt-3 text-xs text-muted-foreground" data-testid="pauta-mt-regra">{dispensedNote(d.dispensed)}</p> : null}
                   </CardContent>
                 </Card>
               </>

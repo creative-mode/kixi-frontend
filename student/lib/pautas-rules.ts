@@ -15,10 +15,14 @@ export interface MyTermSheet {
   row: { mac: number | null; p1: number | null; p2: number | null; mt: number | null; status: RowStatus; dispensed?: ProvaDispensavel[] | null };
 }
 
-/** As provas que a escola pode dispensar (kixi#635): nelas a nota nula é «sem nota, sem falta», e não ausência. */
-export type ProvaDispensavel = 'P1' | 'P2';
+/**
+ * As componentes que a escola pode dispensar (kixi#635): nelas a nota nula é «sem nota, sem falta», e não ausência.
+ * `MAC` vem quando todas as avaliações de MAC do plano estão dispensadas.
+ */
+export type ProvaDispensavel = 'P1' | 'P2' | 'MAC';
+const PROVAS_DISPENSAVEIS: readonly ProvaDispensavel[] = ['P1', 'P2', 'MAC'];
 
-/** A prova foi dispensada nesta pauta? Campo ausente (backend anterior ao kixi#635) = nenhuma dispensada. */
+/** A componente foi dispensada nesta pauta? Campo ausente (backend anterior ao kixi#635) = nenhuma dispensada. */
 export const isDispensed = (row: Pick<MyTermSheet['row'], 'dispensed'>, prova: ProvaDispensavel): boolean => !!row.dispensed?.includes(prova);
 
 export const DISPENSADA = 'Dispensada';
@@ -29,14 +33,16 @@ export const DISPENSADA = 'Dispensada';
  */
 export function provaText(row: MyTermSheet['row'], prova: ProvaDispensavel): string {
   if (isDispensed(row, prova)) return DISPENSADA;
-  return formatGrade(prova === 'P1' ? row.p1 : row.p2);
+  return formatGrade(prova === 'P1' ? row.p1 : prova === 'P2' ? row.p2 : row.mac);
 }
 
 /** Nota sobre o cálculo da MT quando há prova dispensada; `null` quando a MT usa as duas provas. */
 export function mtRuleNote(row: Pick<MyTermSheet['row'], 'dispensed'>): string | null {
-  const dispensed = (['P1', 'P2'] as const).filter((p) => isDispensed(row, p));
+  const dispensed = PROVAS_DISPENSAVEIS.filter((p) => isDispensed(row, p));
   if (dispensed.length === 0) return null;
-  return `MT calculada sem a ${dispensed.join(' e a ')} (dispensada).`;
+  const nomes = dispensed.map((p) => `a ${p}`);
+  const lista = nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+  return `MT calculada sem ${lista} (${dispensed.length === 1 ? 'dispensada' : 'dispensadas'}).`;
 }
 
 /** O número de processo do trimestre: o mesmo em todas as pautas da mesma escola, por isso mostra-se uma vez (kixi#512). */
@@ -79,7 +85,7 @@ export function normalizeMySheet(raw: unknown): MyTermSheet | null {
   const sheetId = text(r.sheetId).trim();
   if (!sheetId) return null;
   const row = (r.row && typeof r.row === 'object' ? r.row : {}) as Record<string, unknown>;
-  const dispensed = Array.isArray(row.dispensed) ? row.dispensed.filter((p): p is ProvaDispensavel => p === 'P1' || p === 'P2') : undefined;
+  const dispensed = Array.isArray(row.dispensed) ? row.dispensed.filter((p): p is ProvaDispensavel => PROVAS_DISPENSAVEIS.includes(p as ProvaDispensavel)) : undefined;
   return {
     sheetId,
     termNumber: typeof r.termNumber === 'number' && Number.isFinite(r.termNumber) ? r.termNumber : 0,
