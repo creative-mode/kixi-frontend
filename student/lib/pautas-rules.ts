@@ -71,6 +71,12 @@ export const termLabel = (n: number | null | undefined) => (typeof n === 'number
 export const schoolYearLabel = (y: string | null | undefined) => y?.trim() || SEM_ANO_LETIVO;
 export const subjectLabel = (s: Pick<MyTermSheet, 'subjectName'>) => s.subjectName?.trim() || SEM_DISCIPLINA;
 
+/** O nome da região rolável da tabela de notas: quem navega por teclado chega-lhe por Tab e o leitor de ecrã diz de que trimestre é. */
+export function notasRegionLabel(g: Pick<TermGroup, 'termNumber' | 'schoolYear'>): string {
+  const base = g.termNumber > 0 ? `Notas do ${termLabel(g.termNumber)}` : 'Notas sem trimestre';
+  return g.schoolYear.trim() ? `${base}, ${g.schoolYear.trim()}` : base;
+}
+
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 const nullableNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const ROW_STATUSES: readonly RowStatus[] = ['POSITIVA', 'NEGATIVA', 'INCOMPLETA'];

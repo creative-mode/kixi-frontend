@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { averageOf, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, normalizeMySheet, parseMyTermSheets, provaText, processNumberOf, SEM_NOTA, subjectLabel, termLabel, type MyTermSheet } from './pautas-rules.ts';
+import { averageOf, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, normalizeMySheet, notasRegionLabel, parseMyTermSheets, provaText, processNumberOf, SEM_NOTA, subjectLabel, termLabel, type MyTermSheet } from './pautas-rules.ts';
 
 const sheet = (over: Partial<MyTermSheet> & { mt?: number | null }): MyTermSheet => ({
   sheetId: 'PT-1', termNumber: 1, schoolYear: '2025/2026', subjectName: 'Redes', subjectCode: 'RED', className: '12B',
@@ -109,4 +109,11 @@ test('a nota da MT concorda no plural e combina P1, P2 e MAC por ordem', () => {
 test('a normalização mantém a MAC dispensada e descarta valores desconhecidos', () => {
   const n = normalizeMySheet({ sheetId: 'PT-1', row: { mt: 12, status: 'POSITIVA', dispensed: ['MAC', 'XX', 'P2', 3] } })!;
   assert.deepEqual(n.row.dispensed, ['MAC', 'P2']);
+});
+
+test('a região da tabela de notas tem nome (acesso por teclado), com trimestre e ano; sem eles não inventa', () => {
+  assert.equal(notasRegionLabel({ termNumber: 1, schoolYear: '2026/2027' }), 'Notas do 1.º trimestre, 2026/2027');
+  assert.equal(notasRegionLabel({ termNumber: 2, schoolYear: '' }), 'Notas do 2.º trimestre');
+  assert.equal(notasRegionLabel({ termNumber: 0, schoolYear: '2026/2027' }), 'Notas sem trimestre, 2026/2027');
+  assert.equal(notasRegionLabel({ termNumber: 0, schoolYear: '' }), 'Notas sem trimestre');
 });

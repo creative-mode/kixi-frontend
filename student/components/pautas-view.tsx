@@ -1,7 +1,7 @@
 import { TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { DISPENSADA, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, processNumberOf, schoolYearLabel, SEM_NOTA, STATUS_LABEL, subjectLabel, termLabel, type MyTermSheet, type RowStatus } from '@/lib/pautas-rules';
+import { DISPENSADA, formatGrade, groupByTerm, isDispensed, isNegative, mtRuleNote, notasRegionLabel, processNumberOf, schoolYearLabel, SEM_NOTA, STATUS_LABEL, subjectLabel, termLabel, type MyTermSheet, type RowStatus } from '@/lib/pautas-rules';
 
 const VARIANT: Record<RowStatus, 'success' | 'destructive' | 'secondary'> = { POSITIVA: 'success', NEGATIVA: 'destructive', INCOMPLETA: 'secondary' };
 
@@ -32,7 +32,8 @@ export function PautasView({ sheets }: { sheets: MyTermSheet[] }) {
             <h2 className="text-base font-bold">{termLabel(g.termNumber)} <span className="font-normal text-muted-foreground">· {schoolYearLabel(g.schoolYear)}</span></h2>
             <p className="text-sm text-muted-foreground tabular-nums">Média do trimestre <strong className="text-foreground">{formatGrade(g.average)}</strong></p>
           </div>
-          <div className="overflow-x-auto">
+          {/* A tabela rola na horizontal em ecrãs estreitos: a região é focável (Tab + setas) e tem nome, senão quem não usa rato não a alcança. */}
+          <div className="overflow-x-auto outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/40" role="region" tabIndex={0} aria-label={notasRegionLabel(g)}>
             <table className="w-full text-sm">
               <caption className="sr-only">As minhas notas do {termLabel(g.termNumber)}, {schoolYearLabel(g.schoolYear)}</caption>
               <thead>
