@@ -1,5 +1,5 @@
 import type { ExamExtraction } from './extraction';
-import { translate } from '../crud/messages.ts';
+import { messageForCode, translate } from '../crud/messages.ts';
 import { createOcrRequestId, isOcrRequestId, type OcrMark } from './ocr-telemetry.ts';
 
 export type OcrStreamEvent =
@@ -138,7 +138,7 @@ export function streamExamOcr(
         consecutivePollFailures = 0;
         const job = await response.json() as {
           status?: string; pageCount?: number; completedPages?: number; currentPage?: number;
-          eventType?: string; result?: ExamExtraction; error?: string;
+          eventType?: string; result?: ExamExtraction; error?: string; errorCode?: string | null;
         };
         const pageCount = Math.max(0, Number(job.pageCount) || 0);
         const currentPage = Math.max(0, Number(job.currentPage) || 0);
@@ -169,8 +169,9 @@ export function streamExamOcr(
           return finish(undefined, job.result);
         }
         if (job.status === 'FAILED' || job.status === 'CANCELLED') {
-          // O erro do trabalho vem do backend em inglês (kixi#648): traduz-se o que se conhece, o resto fica como veio.
-          const error = translate(job.error || (job.status === 'CANCELLED'
+          // O erro do trabalho vem do backend em inglês (kixi#648): prefere-se o código estável (`errorCode`, que distingue
+          // em branco, ilegível e corrompido); sem ele traduz-se o texto que se conhece, e o resto fica como veio.
+          const error = messageForCode(job.errorCode, job.error) ?? translate(job.error || (job.status === 'CANCELLED'
             ? 'Importação OCR cancelada.' : 'O OCR falhou durante o processamento.'));
           callbacks.onEvent({ type: 'error', message: error });
           acceptedJobId = null;
