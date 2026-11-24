@@ -59,10 +59,35 @@ async function pedir<T>(caminho: string, init: RequestInit = {}, prazoMs = 10_00
   }
 }
 
+const ESPERAS_DA_LEITURA_MS = [400, 1_200];
+const PRAZO_DA_LEITURA_MS = 15_000;
+
+/** Falha passageira (Camunda ocupado): tempo esgotado, ligação cortada ou 429/502/503/504. */
+function passageira(e: unknown): boolean {
+  if (e instanceof CamundaErro) return [429, 502, 503, 504].includes(e.estado);
+  const nome = (e as Error)?.name;
+  return nome === 'TimeoutError' || nome === 'AbortError' || e instanceof TypeError;
+}
+
+/**
+ * Uma leitura (só consulta, pode repetir-se sem efeitos) tenta mais duas vezes com uma espera curta antes de desistir
+ * (kixi-frontend#844): com o Camunda ocupado o primeiro pedido esgota o tempo e o seguinte passa.
+ */
+async function ler<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+  for (let tentativa = 0; ; tentativa++) {
+    try {
+      return await pedir<T>(caminho, init, PRAZO_DA_LEITURA_MS);
+    } catch (e) {
+      if (tentativa >= ESPERAS_DA_LEITURA_MS.length || !passageira(e)) throw e;
+      await new Promise((r) => setTimeout(r, ESPERAS_DA_LEITURA_MS[tentativa]));
+    }
+  }
+}
+
 const LIMITE_TAREFAS = 100;
 
 export async function tarefasDoProfessor(accountId: number): Promise<{ items: TarefaCamunda[]; total: number }> {
-  const r = await pedir<{ items: TarefaCamunda[]; page: { totalItems: number } }>('/user-tasks/search', {
+  const r = await ler<{ items: TarefaCamunda[]; page: { totalItems: number } }>('/user-tasks/search', {
     method: 'POST',
     body: JSON.stringify({
       filter: { assignee: String(accountId), state: 'CREATED' },
@@ -74,12 +99,12 @@ export async function tarefasDoProfessor(accountId: number): Promise<{ items: Ta
   return { items: r.items, total: r.page?.totalItems ?? r.items.length };
 }
 
-export const obterTarefa = (key: string) => pedir<TarefaCamunda>(`/user-tasks/${encodeURIComponent(key)}`);
+export const obterTarefa = (key: string) => ler<TarefaCamunda>(`/user-tasks/${encodeURIComponent(key)}`);
 
 /** O schema do form vem como texto JSON. */
 export async function obterFormulario(key: string): Promise<{ formId: string; schema: Componente } | null> {
   try {
-    const f = await pedir<{ formId: string; schema: string }>(`/user-tasks/${encodeURIComponent(key)}/form`);
+    const f = await ler<{ formId: string; schema: string }>(`/user-tasks/${encodeURIComponent(key)}/form`);
     try {
       return { formId: f.formId, schema: JSON.parse(f.schema) as Componente };
     } catch {
@@ -98,7 +123,7 @@ export async function variaveisDaTarefa(key: string): Promise<{ name: string; va
   const todas: VariavelCamunda[] = [];
   let depois: string | undefined;
   for (let pagina = 0; pagina < 10; pagina++) {
-    const r = await pedir<{ items: VariavelCamunda[]; page: { endCursor?: string } }>(
+    const r = await ler<{ items: VariavelCamunda[]; page: { endCursor?: string } }>(
       `/user-tasks/${encodeURIComponent(key)}/variables/search`,
       { method: 'POST', body: JSON.stringify({ page: { limit: 200, ...(depois ? { after: depois } : {}) } }) },
     );
@@ -109,7 +134,7 @@ export async function variaveisDaTarefa(key: string): Promise<{ name: string; va
   return Promise.all(
     todas.map(async (v) => {
       if (!v.isTruncated || !v.variableKey) return { name: v.name, value: v.value };
-      const inteira = await pedir<{ value: string }>(`/variables/${encodeURIComponent(v.variableKey)}`);
+      const inteira = await ler<{ value: string }>(`/variables/${encodeURIComponent(v.variableKey)}`);
       return { name: v.name, value: inteira.value };
     }),
   );
@@ -127,8 +152,25 @@ export async function carregarDocumento(ficheiro: { nome: string; tipo: string; 
   return referenciaDoDocumento(await pedir<unknown>('/documents', { method: 'POST', body: corpo }, PRAZO_DO_UPLOAD_MS));
 }
 
-export const concluirTarefa = (key: string, variables: Record<string, unknown>) =>
-  pedir<void>(`/user-tasks/${encodeURIComponent(key)}/completion`, { method: 'POST', body: JSON.stringify({ variables }) });
+/**
+ * Conclui a tarefa e só dá a conclusão por feita depois de o Camunda a confirmar (kixi-frontend#848): o pedido pode ser
+ * aceite e a tarefa continuar `CREATED` durante um instante, e mostrá-la como concluída antes disso devolve o professor a
+ * uma lista que ainda a traz.
+ */
+export async function concluirTarefa(key: string, variables: Record<string, unknown>): Promise<void> {
+  await pedir<void>(`/user-tasks/${encodeURIComponent(key)}/completion`, { method: 'POST', body: JSON.stringify({ variables }) });
+  for (let i = 0; i < 10; i++) {
+    try {
+      const t = await pedir<{ state?: string }>(`/user-tasks/${encodeURIComponent(key)}`);
+      if (t.state !== 'CREATED') return;
+    } catch (e) {
+      if (e instanceof CamundaErro && e.estado === 404) return;
+      if (!passageira(e)) throw e;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`A conclusão da tarefa ${key} não foi confirmada pelo Camunda (continua CREATED)`);
+}
 
 /**
  * As variáveis que descrevem cada tarefa (prova, avaliação contínua, pauta), para todas as instâncias de uma vez
@@ -142,7 +184,7 @@ export async function variaveisDasTarefas(processInstanceKeys: string[]): Promis
   const porInstancia: Record<string, VariavelCamunda[]> = {};
   let depois: string | undefined;
   for (let pagina = 0; pagina < 20; pagina++) {
-    const r = await pedir<{ items: (VariavelCamunda & { processInstanceKey: string })[]; page: { endCursor?: string } }>(
+    const r = await ler<{ items: (VariavelCamunda & { processInstanceKey: string })[]; page: { endCursor?: string } }>(
       '/variables/search',
       {
         method: 'POST',
@@ -162,7 +204,7 @@ export async function variaveisDasTarefas(processInstanceKeys: string[]): Promis
       const completas = await Promise.all(
         vars.map(async (v) => {
           if (!v.isTruncated || !v.variableKey) return { name: v.name, value: v.value };
-          const inteira = await pedir<{ value: string }>(`/variables/${encodeURIComponent(v.variableKey)}`);
+          const inteira = await ler<{ value: string }>(`/variables/${encodeURIComponent(v.variableKey)}`);
           return { name: v.name, value: inteira.value };
         }),
       );

@@ -210,3 +210,12 @@ test('sem os dados da instância o título fica como estava (turma e disciplina)
   assert.equal(tituloDaTarefa('correcao-prova', { pauta: PAUTA }), 'E2E-Português B · E2EBT2');
   assert.equal(tituloDaTarefa('correcao-prova', { provaId: '999', componentes: COMPONENTES, pauta: PAUTA }), 'E2E-Português B · E2EBT2');
 });
+
+// schoolops#88: a pauta trimestral é da disciplina inteira; o `provaId` herdado não a faz parecer «Prova P1».
+test('a tarefa da pauta trimestral nunca se descreve como Prova P1/P2', () => {
+  assert.equal(
+    tituloDaTarefa('pauta-trimestral', { provaId: '135', componentes: COMPONENTES, pauta: PAUTA }),
+    'E2E-Português B · E2EBT2',
+  );
+  assert.equal(tituloDaTarefa('pauta-trimestral', { provaId: '135', componentes: COMPONENTES }), null);
+});

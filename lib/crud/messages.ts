@@ -35,6 +35,7 @@ const KNOWN: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^The image is too large to read: (\d+) pixels/i, (m) => `A imagem é demasiado grande para ser lida (${Number(m[1]).toLocaleString('pt-PT')} píxeis). Reduza a resolução e envie de novo.`],
   [/^A PDF can have at most (\d+) pages/i, (m) => `Um PDF pode ter no máximo ${m[1]} páginas. Divida-o e envie por partes.`],
   [/^The PDF carries script or an embedded file/i, () => 'O PDF contém um script ou um ficheiro embebido. Envie fotografias das páginas ou um PDF simples (sem anexos).'],
+  [/^An OCR import is already active for this account/i, () => 'Já tem uma leitura de folhas em curso. Espere que termine (ou cancele-a) antes de enviar outra.'],
   [/^OCR (processing failed|stream ended without a result)/i, () => 'Não foi possível ler o ficheiro. Verifique se não está em branco nem corrompido e se a fotografia está nítida e bem enquadrada; depois tente de novo.'],
   // Salas de prova (ExamRoomService): a maior parte chega como 403/404, que antes escondiam o motivo.
   [/^The room class must match the statement class/i, () => 'A turma da sala tem de ser a do enunciado: escolha um enunciado desta turma.'],

@@ -148,3 +148,9 @@ test('messageForCode: só códigos do OCR, em português; desconhecido ou vazio 
   assert.equal(messageForCode(undefined), null);
   assert.equal(messageForCode(42 as never), null);
 });
+
+// kixi-frontend#848: o conflito de um import do OCR já activo aparecia em inglês.
+test('o conflito de um import do OCR já activo fica em português', () => {
+  assert.match(friendlyMessage(409, problem('An OCR import is already active for this account')), /leitura de folhas em curso/);
+  assert.doesNotMatch(translate('An OCR import is already active for this account'), /OCR import/);
+});
