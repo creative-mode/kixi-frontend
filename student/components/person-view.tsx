@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Ico } from '@/components/ui/ico';
 import { Experience } from '@/components/experience';
@@ -13,6 +14,7 @@ import { Badge as Pill } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CLASSMATE_LABEL, type FeedAuthor } from '@/lib/feed-rules';
+import { podePedirAmizade, restrictedNotice } from '@/lib/social-rules';
 import type { FeedPost } from '@/lib/feed';
 import type { Friend } from '@/lib/friends';
 import type { PersonProfile } from '@/lib/profiles';
@@ -34,6 +36,7 @@ export function PersonView({
   myName,
   myPhoto,
   myClassId,
+  mySchoolId = null,
   friend,
   experience = [],
 }: {
@@ -45,8 +48,12 @@ export function PersonView({
   myName: string;
   myPhoto: string | null;
   myClassId: number | null;
+  /** A escola de quem vê: sem ela não se sabe se a pessoa é da mesma escola e o botão fica como estava. */
+  mySchoolId?: number | null;
   friend: Friend | null;
 }) {
+  // Depois de «Bloquear», «Adicionar» não faz sentido (S17): o estado vem do botão de bloquear, aqui ao lado.
+  const [bloqueado, setBloqueado] = useState(person.blocked === true);
   // 'teacher'/'student' em minúsculas — o que o backend devolve desde a #336 (#427).
   const teacher = person.kind === 'teacher';
   const author: FeedAuthor = { name: person.displayName, photo: person.photo, verified: person.verified };
@@ -72,7 +79,7 @@ export function PersonView({
 
       <ProfileHero name={person.displayName} photo={person.photo} verified={person.verified} verifiedLabel={teacher ? 'Professor verificado' : 'Perfil verificado'}>
         {person.restricted ? (
-          <p className="mt-1 text-[15px] text-muted-foreground">Esta pessoa escolheu não mostrar mais do que o nome e a foto.</p>
+          <p className="mt-1 text-[15px] text-muted-foreground">{restrictedNotice(person.visibility)}</p>
         ) : (
           <>
             {person.schools.length === 0 ? (
@@ -109,7 +116,7 @@ export function PersonView({
       {/* Amizade (#121): só entre alunos — o professor e quem já viu a regra "mesma
           escola e ano letivo" falhar fica sem o botão em vez de um pedido que o
           servidor recusa sempre. Não aparece no próprio perfil (a página redirige antes). */}
-      {!teacher && myAccountId !== null && (
+      {podePedirAmizade({ teacher, signedIn: myAccountId !== null, blocked: bloqueado, restricted: person.restricted, visibility: person.visibility, schoolIds: person.schools.map((x) => x.id), mySchoolId }) && (
         <div className="border-t pt-4">
           <PersonFriendButton accountId={person.accountId} friend={friend} />
         </div>
@@ -122,6 +129,7 @@ export function PersonView({
           accountId={person.accountId}
           nome={person.displayName}
           podeBloquear={myAccountId !== null && myAccountId !== person.accountId}
+          onBlockedChange={setBloqueado}
         />
       </div>
 

@@ -151,7 +151,20 @@ export function ModerationQueue() {
   // Ocultar e suspender pedem nota escrita (mínimo): sem ela o confirmar nem ativa.
   const erroNota = aAbrir ? notaDecisaoError(aAbrir.decision, nota) : null;
 
-  if (erro && !reports) return <p className="text-sm text-destructive">{erro}</p>;
+  // Sem título nem moldura, o aviso ficava como uma linha solta no canto do ecrã (G7): a página diz sempre onde está.
+  if (erro && !reports) {
+    return (
+      <div className="grid gap-6">
+        <header>
+          <h1 className="text-[26px] font-extrabold text-foreground md:text-3xl">Moderação</h1>
+          <p className="text-sm text-muted-foreground">Denúncias de perfis e de escolas. Só o administrador decide, e cada decisão fica registada.</p>
+        </header>
+        <Card>
+          <CardContent role="alert" className="py-4 text-sm text-destructive">{erro}</CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (!reports) return <p className="text-sm text-muted-foreground">A carregar denúncias…</p>;
 
   return (
@@ -163,11 +176,18 @@ export function ModerationQueue() {
             Denúncias de perfis e de escolas. Só o administrador decide, e cada decisão fica registada.
           </p>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/moderacao/auditoria">
-            <ScrollText size={16} aria-hidden /> Ver auditoria
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/moderacao/publicacoes">
+              <Flag size={16} aria-hidden /> Publicações denunciadas
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/moderacao/auditoria">
+              <ScrollText size={16} aria-hidden /> Ver auditoria
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <FilterTabs

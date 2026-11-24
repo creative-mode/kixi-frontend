@@ -154,3 +154,14 @@ test('o conflito de um import do OCR já activo fica em português', () => {
   assert.match(friendlyMessage(409, problem('An OCR import is already active for this account')), /leitura de folhas em curso/);
   assert.doesNotMatch(translate('An OCR import is already active for this account'), /OCR import/);
 });
+
+test('as mensagens do feed, das amizades e das contas chegam em português (S9)', () => {
+  assert.equal(translate('Class not found'), 'A turma não existe ou foi removida.');
+  assert.equal(translate('Content must have 5 to 2000 characters (optional for SIMULATION posts)'), 'O texto tem de ter entre 5 e 2000 caracteres.');
+  assert.equal(translate('Content must have at least 5 characters'), 'O texto tem de ter pelo menos 5 caracteres.');
+  assert.match(translate('Account is inactive'), /conta está desativada/);
+  assert.match(translate('Too many feed requests. Try again later.'), /pedidos a mais/);
+  assert.equal(friendlyMessage(404, problem('Post not found')), 'A publicação não existe ou foi removida.');
+  assert.match(translate('You cannot follow yourself'), /si próprio/);
+  assert.equal(translate('Class not found, or you do not belong to it'), 'A turma não existe ou não pertence a ela.');
+});

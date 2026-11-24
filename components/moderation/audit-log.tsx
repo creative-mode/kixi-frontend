@@ -30,7 +30,20 @@ export function AuditLog() {
     return () => window.clearTimeout(task);
   }, []);
 
-  if (erro) return <p className="text-sm text-destructive" role="alert">{erro}</p>;
+  // Com título e moldura (G7): uma linha vermelha solta não diz de que página é.
+  if (erro) {
+    return (
+      <div className="grid gap-6">
+        <header>
+          <h1 className="text-[26px] font-extrabold text-foreground md:text-3xl">Auditoria</h1>
+          <p className="text-sm text-muted-foreground">Quem decidiu o quê, quando e porquê. Só de leitura.</p>
+        </header>
+        <Card>
+          <CardContent role="alert" className="py-4 text-sm text-destructive">{erro}</CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (!entradas) return <p className="text-sm text-muted-foreground">A carregar o registo…</p>;
 
   return (

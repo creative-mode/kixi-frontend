@@ -1,14 +1,15 @@
 /**
  * Se a moderação e a auditoria existem no servidor (#749).
  *
- * Em `prod` o backend ainda não tem `/api/v1/moderation/*` (kixi#591): as rotas estão fechadas com
- * `denyAll` e respondem 403, que o ecrã mostrava como «Não tem permissão» a um ADMIN. Enquanto o
- * backend não as tem, as duas entradas saem do menu e as páginas dizem a verdade, sem chamar o
- * servidor em vão.
+ * Está LIGADA por omissão: o backend já tem `/api/v1/moderation/*` (kixi#591) e uma moderação desligada
+ * em silêncio (a flag em falta no `env` do deploy) deixava os administradores sem fila nem auditoria
+ * (escrutínio final, S3). Ligar por omissão é seguro: contra um backend que ainda não tenha as
+ * rotas (403/404/405/501 sem corpo, o `denyAll`) o ecrã continua a dizer a verdade com a mensagem de
+ * `MODERATION_UNAVAILABLE`, em vez de um «Não tem permissão» enganador (#749).
  *
- * `MODERATION_ENABLED=true` liga-as quando o backend as tiver. No modo de demonstração
- * (`KIXI_MOCK=true`) estão sempre ligadas, porque o mock implementa os endpoints. A variável é
- * lida em execução, não no build: ligar a funcionalidade não pede uma imagem nova.
+ * `MODERATION_ENABLED=false` desliga-a (e tira «Moderação» e «Auditoria» do menu) para um backend
+ * antigo, sem chamar o servidor em vão. No modo de demonstração (`KIXI_MOCK=true`) está sempre
+ * ligada, porque o mock implementa os endpoints. A variável é lida em execução, não no build.
  */
 
 import { friendlyMessage } from '../crud/messages.ts';
@@ -16,7 +17,9 @@ import { friendlyMessage } from '../crud/messages.ts';
 type Env = Record<string, string | undefined>;
 
 export function moderationAvailable(env: Env = process.env): boolean {
-  return env.KIXI_MOCK === 'true' || env.MODERATION_ENABLED === 'true';
+  if (env.KIXI_MOCK === 'true') return true;
+  const flag = (env.MODERATION_ENABLED ?? '').trim().toLowerCase();
+  return flag !== 'false' && flag !== '0';
 }
 
 export const MODERATION_UNAVAILABLE =

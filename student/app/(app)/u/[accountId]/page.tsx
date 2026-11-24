@@ -45,6 +45,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ account
       myName={me ? fullName(me) : ''}
       myPhoto={me ? photoUrl(me) : null}
       myClassId={myClassId}
+      mySchoolId={me?.school?.id ?? null}
       friend={friend}
       experience={experience.ok ? experience.data : []}
     />

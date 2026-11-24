@@ -41,3 +41,30 @@ export function profileTabOf(value: string | string[] | undefined): ProfileTab {
   if (['Atividade', 'Desempenho', 'Medalhas', 'Histórico'].includes(raw ?? '')) return 'Conquistas';
   return (PROFILE_TABS as readonly string[]).includes(raw ?? '') ? (raw as ProfileTab) : 'Publicações';
 }
+
+/** O que o perfil de outra pessoa diz quando só mostra o nome e a foto. Com a visibilidade «só a minha escola» a
+ *  causa é eu não ser da escola dela, e não uma escolha de esconder o perfil de toda a gente (S10). */
+export function restrictedNotice(visibility: string | null | undefined): string {
+  return visibility === 'school'
+    ? 'Este perfil só é visível para quem é da mesma escola.'
+    : 'Esta pessoa escolheu não mostrar mais do que o nome e a foto.';
+}
+
+/** Se o ecrã oferece «Adicionar» a quem está a ver o perfil. A amizade é entre alunos da mesma escola e o servidor recusa
+ *  o resto com um 400 genérico: com um perfil de outra escola (ou de alguém que bloqueei) o botão nem aparece (S10, S17). */
+export function podePedirAmizade(input: {
+  teacher: boolean;
+  signedIn: boolean;
+  blocked: boolean;
+  restricted: boolean;
+  visibility?: string | null;
+  schoolIds: readonly number[];
+  mySchoolId: number | null;
+}): boolean {
+  if (input.teacher || !input.signedIn || input.blocked) return false;
+  // Um perfil que só a mesma escola vê e que veio restrito: é de outra escola.
+  if (input.restricted && input.visibility === 'school') return false;
+  // Com as escolas à vista, tem de haver uma em comum.
+  if (input.mySchoolId != null && input.schoolIds.length > 0 && !input.schoolIds.includes(input.mySchoolId)) return false;
+  return true;
+}

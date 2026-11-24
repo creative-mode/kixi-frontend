@@ -81,6 +81,7 @@ Equivalentes no PowerShell: `$env:KIXI_MOCK='true'; npm run dev` e
 | `APP_ORIGIN` | raiz, student | sim em prod (ex.: `https://kixi.ao`) — endereço público do gateway |
 | `NEXT_PUBLIC_MANAGER_URL` | student, landing | sim em produção quando `PUBLIC_ORIGINS` está definido; URL pública do host isolado do gestor |
 | `NEXT_PUBLIC_APP_URL` | landing | não |
+| `MODERATION_ENABLED` | raiz (gestor) | não: **ligada por omissão**. Só `false` (ou `0`) desliga a Moderação e a Auditoria, para um backend sem `/api/v1/moderation/*` |
 | `PORT`, `*_HOST`, `*_PORT` | gateway | não (defeitos: 3000/3002/3003/3004) |
 
 `APP_ORIGIN` é o que o gestor e o aluno usam para montar redireccionamentos para fora da
