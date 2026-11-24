@@ -97,6 +97,53 @@ export function blockPair(a: number, b: number): { accountId: number; blockedAcc
   return a < b ? { accountId: a, blockedAccountId: b } : { accountId: b, blockedAccountId: a };
 }
 
+/* ── estado do bloqueio no cliente (kixi#656) ──────────────────────────────
+ * O backend responde `{ blocked, blockedByMe }`: `blocked` é o bloqueio nos dois sentidos,
+ * `blockedByMe` diz se fui eu a pô-lo, e só quem bloqueou desbloqueia. Um backend antigo
+ * não traz `blockedByMe`; nesse caso quem vê `blocked` é quem o pôs (era um toggle de quem
+ * carrega no botão), por isso assume-se o mesmo valor.
+ */
+
+export interface BlockState {
+  blocked: boolean;
+  blockedByMe: boolean;
+}
+
+export function readBlockState(raw: unknown): BlockState {
+  const row = (raw && typeof raw === 'object' ? raw : {}) as { blocked?: unknown; blockedByMe?: unknown };
+  const blocked = row.blocked === true;
+  return { blocked, blockedByMe: blocked && (typeof row.blockedByMe === 'boolean' ? row.blockedByMe : true) };
+}
+
+/** Uma pessoa da lista «Pessoas bloqueadas» (`GET /profiles/blocks`). */
+export interface BlockedPerson {
+  accountId: number;
+  displayName: string;
+  photo: string | null;
+  blockedAt: string | null;
+}
+
+export function readBlockedPeople(raw: unknown): BlockedPerson[] {
+  if (!Array.isArray(raw)) return [];
+  const out: BlockedPerson[] = [];
+  for (const item of raw) {
+    const row = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    if (typeof row.accountId !== 'number' || !Number.isInteger(row.accountId) || row.accountId <= 0) continue;
+    out.push({
+      accountId: row.accountId,
+      displayName: typeof row.displayName === 'string' && row.displayName.trim() ? row.displayName : 'Pessoa sem nome',
+      photo: typeof row.photo === 'string' && row.photo ? row.photo : null,
+      blockedAt: typeof row.blockedAt === 'string' ? row.blockedAt : null,
+    });
+  }
+  return out;
+}
+
+/** O texto do botão do perfil: bloqueia quem ainda não está bloqueado, desbloqueia quem eu bloqueei. */
+export function blockButtonLabel(blockedByMe: boolean): string {
+  return blockedByMe ? 'Desbloquear' : 'Bloquear';
+}
+
 /* ── decisão do moderador ─────────────────────────────────────────────────── */
 
 /** O que cada decisão faz. `IGNORED` não muda nada; as outras mudam o alvo. */

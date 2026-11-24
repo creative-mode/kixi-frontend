@@ -16,6 +16,12 @@ export function messageForStatus(status: number): string {
   return 'Não foi possível concluir. Tenta de novo.';
 }
 
+/** O 409 de um pedido de amizade a quem já é amigo: o ecrã actualiza-se para mostrar a amizade. */
+export const ALREADY_FRIENDS = 'Já são amigos.';
+
+/** O 403 de um enunciado usado numa prova que ainda não terminou. */
+export const EMBARGO = 'Ainda não está disponível: este enunciado faz parte de uma prova que ainda não terminou. Abre quando a prova terminar.';
+
 /** Os textos do feed, das amizades e das contas que o backend devolve em inglês (S9): têm frase própria, que diz a causa. */
 const FEED: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Class not found, or you do not belong to it/i, () => 'Essa turma não existe ou não é a tua.'],
@@ -28,6 +34,14 @@ const FEED: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Comment not found/i, () => 'O comentário já não existe.'],
   [/^You have already reported this post/i, () => 'Já denunciaste esta publicação.'],
   [/^You cannot follow yourself/i, () => 'Não podes enviar um pedido de amizade a ti próprio.'],
+  // Amizades e bloqueio (kixi#656): o 409 diz a causa; o 404 de quem me bloqueou não revela o bloqueio.
+  [/^Já são amigos/i, () => ALREADY_FRIENDS],
+  [/^Bloqueaste esta pessoa/i, () => 'Bloqueaste esta pessoa. Desbloqueia-a (em Definições, «Pessoas bloqueadas») antes de enviar um pedido de amizade.'],
+  [/^Pessoa não encontrada/i, () => 'Não foi possível concluir. Esta pessoa já não está disponível.'],
+  [/^You cannot block yourself/i, () => 'Não podes bloquear-te a ti.'],
+  [/^Could not update the block state/i, () => 'O bloqueio mudou entretanto. Atualiza a página e tenta de novo.'],
+  // Enunciado de uma prova por terminar (kixi#659): as perguntas e opções, e a simulação ou o treino que as usam, abrem no fim.
+  [/prova que ainda não terminou/i, () => EMBARGO],
 ];
 
 export function translateFeedError(serverText: string): string {

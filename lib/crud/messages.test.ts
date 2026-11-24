@@ -165,3 +165,14 @@ test('as mensagens do feed, das amizades e das contas chegam em português (S9)'
   assert.match(translate('You cannot follow yourself'), /si próprio/);
   assert.equal(translate('Class not found, or you do not belong to it'), 'A turma não existe ou não pertence a ela.');
 });
+
+test('plano do trimestre: dispensa com a pauta aberta (409) e reagendar para o passado (400) (kixi#657)', () => {
+  assert.equal(friendlyMessage(409, problem('A pauta já está aberta: já não se pode dispensar uma avaliação')), 'A pauta já está aberta: já não se pode dispensar uma avaliação.');
+  assert.match(friendlyMessage(409, problem('The pauta is already open: its assessments cannot be rescheduled')), /A pauta já está aberta/);
+  assert.match(friendlyMessage(400, problem('A nova data não pode ser no passado')), /não pode ser no passado/);
+});
+
+test('enunciado de uma prova por terminar: o 403 diz porquê, em vez de «sem permissão» (kixi#659)', () => {
+  const texto = 'Este enunciado faz parte de uma prova que ainda não terminou. As perguntas só ficam disponíveis depois de a prova terminar.';
+  assert.match(friendlyMessage(403, problem(texto)), /Ainda não está disponível/);
+});

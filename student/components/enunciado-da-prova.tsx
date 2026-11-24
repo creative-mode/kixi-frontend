@@ -1,4 +1,5 @@
 import { ChevronDown, FileText } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FolhaDaProva } from '@/components/folha-da-prova';
 import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
 
@@ -11,6 +12,16 @@ import { getQuestionImages, getStatementFull, loadPaperMeta } from '@/lib/exam';
  */
 export async function EnunciadoDaProva({ statementId }: { statementId: number }) {
   const full = await getStatementFull(statementId, { cached: true });
+  // 403: o enunciado é de uma prova que ainda não terminou (kixi#659). Diz-se porquê em vez de a folha desaparecer sem rasto.
+  if (!full.ok && full.status === 403) {
+    return (
+      <div className="mx-auto w-full max-w-[960px] px-4 pb-24 md:px-7 md:pb-10">
+        <Alert variant="info" role="status" data-testid="aluno-enunciado-embargado">
+          <AlertDescription>{full.message}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
   if (!full.ok || full.data.questions.length === 0) return null;
   const questions = full.data.questions;
   const [meta, entries] = await Promise.all([

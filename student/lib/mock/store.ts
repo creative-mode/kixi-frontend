@@ -264,7 +264,7 @@ export type Store = {
   nextReport: number;
   /** Bloqueios de pessoa (#323). Guardados como par normalizado: `blockPair` garante
    *  que o mesmo bloqueio nunca existe nos dois sentidos. */
-  blocks: { accountId: number; blockedAccountId: number; createdAt: string }[];
+  blocks: { accountId: number; blockedAccountId: number; createdAt: string; /** Quem bloqueou (kixi#656): só ele desbloqueia e mantém o perfil. */ blockedBy?: number }[];
   /** Eventos do modo de avaliação (#192): o que o aluno fez e o servidor viu. A hora
    *  é carimbada no servidor, nunca a que o cliente mande. */
   integrityEvents: MockIntegrityEvent[];

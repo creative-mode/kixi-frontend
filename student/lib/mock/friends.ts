@@ -56,7 +56,9 @@ export function searchable(
 export function request(rows: Friendship[], me: number, target: unknown, nextId: number): Outcome<Friendship> {
   if (typeof target !== 'number' || !Number.isInteger(target)) return { ok: false, status: 400, message: 'An account is required to follow someone' };
   if (target === me) return { ok: false, status: 400, message: 'You cannot follow yourself' };
-  if (rows.some((r) => mine(r, me) && other(r, me) === target)) return { ok: false, status: 409, message: 'You already follow this colleague, or a request is pending' };
+  const live = rows.find((r) => mine(r, me) && other(r, me) === target);
+  if (live?.accepted) return { ok: false, status: 409, message: 'Já são amigos' };
+  if (live) return { ok: false, status: 409, message: 'You already follow this colleague, or a request is pending' };
   return { ok: true, value: { id: nextId, requesterId: me, addresseeId: target, accepted: false } };
 }
 
