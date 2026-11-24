@@ -10,6 +10,8 @@ import { sairAction } from '@/lib/auth-actions';
 import { PostCard } from '@/components/post-card';
 import { RankingVisibility } from '@/components/ranking-visibility';
 import { VisibilityPicker } from '@/components/visibility-picker';
+import { BlockedPeople } from '@/components/blocked-people';
+import type { BlockedPerson } from '@/lib/moderation';
 import type { Visibility } from '@/lib/profiles';
 import { ProfileEditor } from '@/components/profile-editor';
 import { EmptyState } from '@/components/states';
@@ -45,9 +47,14 @@ export function PerfilView({
   visibility = 'school',
   rankingVisibility = null,
   experience = [],
+  blockedPeople = [],
+  blockedError = null,
 }: {
   landingOrigin: string | null;
   experience?: ExperienceEntry[];
+  /** As pessoas que bloqueei (kixi#656), para a lista das definições. */
+  blockedPeople?: BlockedPerson[];
+  blockedError?: string | null;
   me: Me;
   visibility?: Visibility;
   rankingVisibility?: VisibilityPreferences | null;
@@ -201,6 +208,7 @@ export function PerfilView({
             {/* #800: um interruptor só, mas o #611 guarda a resposta por âmbito. */}
             <RankingVisibility initial={rankingVisibility} compact className="border-t border-[#eef0ec]" />
             <VisibilityPicker initial={visibility} />
+            <BlockedPeople initial={blockedPeople} loadError={blockedError} />
             {/* #802: o caminho antigo também conta, para comparar com a entrada nova do menu. */}
             <Link href="/pautas" onClick={() => track('pautas_aberta', { origem: 'perfil' })} className="flex min-h-[58px] items-center gap-3 border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]"><span className="flex-1">As minhas pautas</span><Ico name="chevron" size={18} className="text-[#7a857d]" aria-hidden /></Link>
             <a href={`${landingOrigin ?? ''}/privacidade`} className="flex min-h-[58px] items-center border-t border-[#eef0ec] text-base text-[#121c15] no-underline hover:text-[#1f5a2c]">Privacidade</a>

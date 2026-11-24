@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { apiGet, type Result } from './api';
+import { readBlockedPeople, readBlockState, type BlockedPerson, type BlockState } from './moderation';
 import { getCatalog, getCatalogNames, type CatalogItem } from './catalog';
 
 /** GET /profiles/search (InstitutionCard). */
@@ -60,6 +61,18 @@ export type Visibility = 'public' | 'school' | 'private';
 export const getSchool = (id: number) => apiGet<SchoolProfile>(`/profiles/institutions/${id}`);
 export const getSchoolTeachers = (id: number) => apiGet<TeacherCard[]>(`/profiles/institutions/${id}/teachers`);
 export const getPerson = (accountId: number) => apiGet<PersonProfile>(`/profiles/accounts/${accountId}`);
+/** O estado do bloqueio com esta pessoa (`blocked`, `blockedByMe`). O perfil não o traz: pede-se à parte. */
+export async function getBlockState(accountId: number): Promise<Result<BlockState>> {
+  const res = await apiGet<unknown>(`/profiles/accounts/${accountId}/block`);
+  return res.ok ? { ok: true, data: readBlockState(res.data) } : res;
+}
+
+/** As pessoas que bloqueei (`GET /profiles/blocks`), para a lista «Pessoas bloqueadas» das definições. */
+export async function getMyBlocks(): Promise<Result<BlockedPerson[]>> {
+  const res = await apiGet<unknown>('/profiles/blocks');
+  return res.ok ? { ok: true, data: readBlockedPeople(res.data) } : res;
+}
+
 export const getMyVisibility = () => apiGet<{ visibility: Visibility }>('/profiles/me/visibility');
 
 /** Procura escolas pelo nome ou código. Abaixo de 2 letras não pergunta ao servidor. */

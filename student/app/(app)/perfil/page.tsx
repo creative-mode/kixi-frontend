@@ -2,7 +2,7 @@ import { PerfilView } from '@/components/perfil-view';
 import { RefreshError } from '@/components/refresh-error';
 import { getFeed } from '@/lib/feed';
 import { getExperience } from '@/lib/experience';
-import { getMyVisibility } from '@/lib/profiles';
+import { getMyBlocks, getMyVisibility } from '@/lib/profiles';
 import { loadRankingVisibility } from '@/lib/ranking';
 import { getProfile } from '@/lib/me';
 import { loadSocial } from '@/lib/social';
@@ -35,12 +35,13 @@ export default async function PerfilPage({ searchParams }: { searchParams: Promi
   const me = profile.me;
   const classId = me.currentClass?.id ?? null;
 
-  const [social, feed, visibility, experience, rankingVisibility] = await Promise.all([
+  const [social, feed, visibility, experience, rankingVisibility, blocks] = await Promise.all([
     loadSocial(me),
     classId ? getFeed(classId, 1, 30) : Promise.resolve(null),
     getMyVisibility(),
     me.accountId ? getExperience(me.accountId) : Promise.resolve(null),
     loadRankingVisibility(),
+    getMyBlocks(),
   ]);
 
   return (
@@ -57,6 +58,8 @@ export default async function PerfilPage({ searchParams }: { searchParams: Promi
         posts={feed?.ok ? ownPosts(feed.data, me.accountId) : []}
         feedError={feed && !feed.ok ? feed.message : null}
         experience={experience?.ok ? experience.data : []}
+        blockedPeople={blocks.ok ? blocks.data : []}
+        blockedError={blocks.ok ? null : blocks.message}
         initialTab={profileTabOf(query.tab)}
         startEditing={query.editar === '1'}
     />

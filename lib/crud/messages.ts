@@ -70,6 +70,12 @@ const KNOWN: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Invalid exam room state transition/i, () => 'A sala não pode passar a esse estado agora.'],
   [/^The exam room has ended/i, () => 'A hora de fecho da sala já passou.'],
   [/^The exam room is outside its active window/i, () => 'Só pode iniciar a prova dentro da janela da sala.'],
+  // Plano do trimestre (kixi#657): dispensar com a pauta aberta é 409 e reagendar para o passado é 400. O backend novo já
+  // responde em português; as frases inglesas ficam para um backend antigo.
+  [/^A pauta já está aberta: já não se pode dispensar/i, () => 'A pauta já está aberta: já não se pode dispensar uma avaliação.'],
+  [/^The pauta is already open: its assessments cannot be rescheduled/i, () => 'A pauta já está aberta: já não se pode reagendar uma avaliação.'],
+  [/^A nova data não pode ser no passado/i, () => 'A nova data não pode ser no passado. Escolha uma data a partir de hoje.'],
+  [/^Este enunciado faz parte de uma prova que ainda não terminou/i, () => 'Ainda não está disponível: este enunciado faz parte de uma prova que ainda não terminou. As perguntas abrem quando a prova terminar.'],
   [/^Exam room changed concurrently/i, () => 'A sala mudou entretanto: atualize a página e tente de novo.'],
 ];
 

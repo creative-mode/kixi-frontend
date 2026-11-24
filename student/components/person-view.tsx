@@ -129,6 +129,7 @@ export function PersonView({
           accountId={person.accountId}
           nome={person.displayName}
           podeBloquear={myAccountId !== null && myAccountId !== person.accountId}
+          initialBlocked={person.blocked === true}
           onBlockedChange={setBloqueado}
         />
       </div>

@@ -21,6 +21,13 @@ export async function friendsRoutes({ method, pathname, search, filter, body, te
       return json(friends.searchable(db.friendships, me, colleagues, search.get('q') ?? ''));
     }
     if (pathname === '/friends' && method === 'POST') {
+      // Bloqueio entre os dois (kixi#656): quem bloqueou é avisado; o bloqueado leva 404, sem revelar o bloqueio.
+      const blockedRow = db.blocks.find((b) => (b.accountId === me && b.blockedAccountId === body.accountId) || (b.accountId === body.accountId && b.blockedAccountId === me));
+      if (blockedRow) {
+        return (blockedRow.blockedBy ?? blockedRow.accountId) === me
+          ? problem(409, 'Bloqueaste esta pessoa. Desbloqueia-a antes de enviar um pedido de amizade')
+          : problem(404, 'Pessoa não encontrada');
+      }
       const made = friends.request(db.friendships, me, body.accountId, db.nextFriendship);
       if (!made.ok) return problem(made.status, made.message);
       const target = Number(body.accountId);
