@@ -17,12 +17,15 @@ export function TarefasLista() {
   const [tarefas, setTarefas] = useState<Tarefa[] | null>(null);
   const [total, setTotal] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+  // O relógio lê-se ao carregar a lista, não a cada render.
+  const [agora, setAgora] = useState(0);
   const [filtro, setFiltro] = useState<FiltroDeTarefas>(SEM_FILTRO);
 
   const carregar = useCallback(async () => {
     setErro(null);
     const r = await listarTarefas();
     if (r.ok) {
+      setAgora(Date.now());
       setTarefas(r.data.tarefas);
       setTotal(r.data.total);
     }
@@ -38,8 +41,7 @@ export function TarefasLista() {
   }, [carregar]);
 
   const processos = useMemo(() => [...new Set((tarefas ?? []).map((t) => t.processo))].sort((a, b) => a.localeCompare(b, 'pt')), [tarefas]);
-  // O relógio só se lê quando o filtro ou a lista mudam, não a cada render.
-  const visiveis = useMemo(() => filtrarTarefas(tarefas ?? [], filtro, Date.now()), [tarefas, filtro]);
+  const visiveis = useMemo(() => filtrarTarefas(tarefas ?? [], filtro, agora), [tarefas, filtro, agora]);
 
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-8">
