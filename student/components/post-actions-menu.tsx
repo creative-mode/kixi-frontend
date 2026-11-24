@@ -150,7 +150,7 @@ export function PostActionsMenu({
         ref={trigger}
         type="button"
         className="acao ml-auto"
-        aria-label={`Acções ${of}`}
+        aria-label={`Ações ${of}`}
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={disabled}
@@ -159,7 +159,7 @@ export function PostActionsMenu({
         <MoreHorizontal size={17} aria-hidden />
       </button>
       {open && (
-        <div ref={menu} role="menu" aria-label={`Acções ${of}`} onKeyDown={onMenuKeyDown} className="absolute right-0 bottom-full z-30 mb-1 grid min-w-[168px] gap-0.5 rounded-xl border border-[#e4e7e1] bg-white p-1.5 shadow-[0_12px_32px_rgba(18,28,21,0.14)]">
+        <div ref={menu} role="menu" aria-label={`Ações ${of}`} onKeyDown={onMenuKeyDown} className="absolute right-0 bottom-full z-30 mb-1 grid min-w-[168px] gap-0.5 rounded-xl border border-[#e4e7e1] bg-white p-1.5 shadow-[0_12px_32px_rgba(18,28,21,0.14)]">
           {canEdit && (
             <button type="button" role="menuitem" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold hover:bg-[#f5f6f4]" onClick={edit}>
               <Pencil size={15} aria-hidden />Editar

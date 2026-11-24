@@ -24,7 +24,7 @@ export async function pedirRevisaoAction(simulationId: number, questionId: numbe
   }
   const trimmed = motivo.trim();
   if (!trimmed) {
-    return { ok: false, message: 'Tens de explicar por que não concordas com a correcção.' };
+    return { ok: false, message: 'Tens de explicar por que não concordas com a correção.' };
   }
   if (trimmed.length > MAX_MOTIVO_LENGTH) {
     return { ok: false, message: `O motivo não pode exceder ${MAX_MOTIVO_LENGTH} caracteres.` };

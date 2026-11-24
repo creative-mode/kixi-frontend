@@ -72,8 +72,10 @@ const HERO_SUB = 'Estuda o que vai mesmo sair: simulações, tutor de IA e a red
  *  camada que desvanece (#764): o herói some ao rolar, o salto não — quem quer
  *  sair da apresentação encontra-o em qualquer ponto do percurso.
  *  O clique leva o foco para o título de destino, para quem vai pelo teclado
- *  sentir a chegada (#608 re-revisão: a âncora sozinha não movia o foco). */
-function SkipShow() {
+ *  sentir a chegada (#608 re-revisão: a âncora sozinha não movia o foco).
+ *  Depois de o herói sumir (`tarde`), no telemóvel o salto desce para o fundo do ecrã: no sítio do herói
+ *  ficava por cima do texto das cenas. */
+function SkipShow({ tarde }: { tarde: boolean }) {
   const saltar = () => {
     const alvo = document.querySelector<HTMLElement>('#modulos h2');
     if (!alvo) return;
@@ -81,7 +83,7 @@ function SkipShow() {
     window.setTimeout(() => alvo.focus({ preventScroll: true }), 50);
   };
   return (
-    <a href="#modulos" className="pres__skip" onClick={saltar}>
+    <a href="#modulos" className={tarde ? 'pres__skip pres__skip--tarde' : 'pres__skip'} onClick={saltar}>
       <span>Saltar a apresentação</span>
       <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
         <polyline points="4,7 10,13 16,7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -194,7 +196,7 @@ export function Presentation() {
                 onde a navegação do cabeçalho está escondida. */}
             <TrackedLink href="/doar" origem="hero" className="pres__donate">Doar um enunciado</TrackedLink>
           </div>
-          <SkipShow />
+          <SkipShow tarde={!reduced && hero <= 0.01} />
         </div>
         {/* #764: a apresentação continua longa; a barra diz quanto falta sem
             obrigar a adivinhar. Só existe no palco animado (em movimento

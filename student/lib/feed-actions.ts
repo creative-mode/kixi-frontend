@@ -34,7 +34,7 @@ export async function loadFeedPageAction(
   return { ok: true, posts: result.data, authors };
 }
 
-/** Publica uma dúvida ou tema na turma do aluno. Chamado directamente do formulário
+/** Publica uma dúvida ou tema na turma do aluno. Chamado diretamente do formulário
  *  do compositor (components/inicio/*), sem useActionState: o próprio componente
  *  mantém o texto em estado local e só o limpa depois de um `{ ok: true }`. */
 export async function publishPostAction(

@@ -17,7 +17,7 @@ const ITEMS: (ShellNavItem & { label: string; ariaLabel?: string; icon: NavIconN
   { href: '/inicio', label: 'Início', icon: 'inicio', also: [] },
   { href: '/provas', label: 'Provas', icon: 'provas', also: ['/prova', '/resultado', '/sala', '/tutor'] },
   { href: '/pesquisa', label: 'Explorar', ariaLabel: 'Pesquisar escolas, professores e alunos', icon: 'explorar', also: ['/escola', '/u'] },
-  { href: '/turma', label: 'Turma', icon: 'turma', also: ['/ranking', '/pautas', '/discussao'] },
+  { href: '/turma', label: 'Turma', icon: 'turma', also: ['/ranking', '/discussao'] },
   { href: '/notificacoes', label: 'Notificações', icon: 'notificacoes', also: [], desktopOnly: true },
 ];
 

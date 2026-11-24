@@ -167,7 +167,7 @@ export async function getCatalog(
       school: s.institutionId == null ? '' : (schoolById.get(s.institutionId) ?? ''),
       year: s.schoolYearId == null ? '' : (yearById.get(s.schoolYearId) ?? ''),
       state: !attempt ? 'new' : finished ? 'done' : 'progress',
-      // A nota só é nota quando a correcção está feita; até lá mostra-se o estado (#791).
+      // A nota só é nota quando a correção está feita; até lá mostra-se o estado (#791).
       score: finished && nota.kind === 'nota' ? formatScore(nota.nota) : undefined,
       correction: finished && attempt ? estadoDaNotaEmPalavras(attempt) ?? undefined : undefined,
       maxScore: s.totalMaxScore ?? undefined,

@@ -16,7 +16,7 @@ export type { PaperAnswer, PaperMark, PaperStamp };
 
 const fmt = (n: number) => new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(n);
 
-/** Verde e vermelho de caneta de correcção, escuros o bastante para se lerem sobre o branco do papel. */
+/** Verde e vermelho de caneta de correção, escuros o bastante para se lerem sobre o branco do papel. */
 const INK = { correct: 'text-green-700', wrong: 'text-red-700', pending: 'text-neutral-600', blank: 'text-neutral-500' } as const;
 
 const cell = 'border border-black';
@@ -45,7 +45,7 @@ export function FolhaDaProva({
   questions: readonly ExamQuestion[];
   images?: Record<number, QuestionImage[]>;
   answers?: Record<number, PaperAnswer>;
-  /** Na página de resultado: a correcção de cada questão. Sem isto a folha é a da sala, para responder. */
+  /** Na página de resultado: a correção de cada questão. Sem isto a folha é a da sala, para responder. */
   marks?: Record<number, PaperMark>;
   /** Na página de resultado: a nota, estampada no topo. */
   stamp?: PaperStamp;
@@ -137,7 +137,7 @@ export function FolhaDaProva({
 }
 
 /** Uma folha da prova (uma questão ou uma alínea): realça-se quando é a aberta e, na sala, abre-se ao tocar. Na página
- *  de resultado ganha o fundo e a nota da correcção. */
+ *  de resultado ganha o fundo e a nota da correção. */
 function Leaf({
   id,
   label,
@@ -196,7 +196,7 @@ function Correction({ mark }: { mark: PaperMark }) {
   return (
     <span
       className={cn('float-right ml-3 rotate-[-4deg] whitespace-nowrap text-[15px] font-bold [font-family:\'Segoe_Print\',\'Comic_Sans_MS\',cursive]', INK[mark.verdict])}
-      aria-label={`Correcção: ${text}`}
+      aria-label={`Correção: ${text}`}
     >
       {mark.verdict === 'correct' ? <Check aria-hidden className="mr-0.5 inline size-4 align-[-2px]" /> : mark.verdict === 'wrong' ? <X aria-hidden className="mr-0.5 inline size-4 align-[-2px]" /> : null}{text}
     </span>
@@ -206,7 +206,7 @@ function Correction({ mark }: { mark: PaperMark }) {
 /** A nota estampada: carimbo inclinado, verde se positiva e vermelho se negativa. */
 function Stamp({ stamp }: { stamp: PaperStamp }) {
   const tone = stamp.passed === null ? 'border-neutral-600 text-neutral-700' : stamp.passed ? 'border-green-700 text-green-700' : 'border-red-700 text-red-700';
-  const word = stamp.passed === null ? (stamp.provisional ? 'Em correcção' : 'Sem cotação') : stamp.passed ? 'Positiva' : 'Negativa';
+  const word = stamp.passed === null ? (stamp.provisional ? 'Em correção' : 'Sem cotação') : stamp.passed ? 'Positiva' : 'Negativa';
   return (
     <div
       role="img"
@@ -280,7 +280,7 @@ function ItemBody({ item, images, answer, mark }: { item: PaperItem; images?: Qu
   );
 }
 
-/** A resposta: as opções (com a marcada, e na correcção a certa) ou as linhas com o que o aluno escreveu. */
+/** A resposta: as opções (com a marcada, e na correção a certa) ou as linhas com o que o aluno escreveu. */
 function Answer({ options, answer, mark, lines }: { options: ExamOption[]; answer?: PaperAnswer; mark?: PaperMark; lines: number }) {
   if (options.length > 0) return <Options options={options} chosen={answer?.optionId ?? null} correct={mark?.correctOptionId ?? null} reviewed={mark != null} verdict={mark?.verdict ?? 'pending'} />;
   return (

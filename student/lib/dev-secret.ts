@@ -10,7 +10,7 @@ function configuredJwtSecret(env: RuntimeEnvironment): string | undefined {
   const configured = raw?.trim();
   if (!configured) return undefined;
   if (raw !== configured) {
-    throw new Error('JWT_SECRET não pode começar ou terminar com espaços; use o valor exacto partilhado com o backend');
+    throw new Error('JWT_SECRET não pode começar ou terminar com espaços; use o valor exato partilhado com o backend');
   }
   if (configured.length < MIN_JWT_SECRET_LENGTH) {
     throw new Error(`JWT_SECRET deve ter pelo menos ${MIN_JWT_SECRET_LENGTH} caracteres`);

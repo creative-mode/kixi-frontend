@@ -75,6 +75,20 @@ export function verdict(q: ResultQuestion): Verdict {
   return q.isCorrect === false ? 'wrong' : 'pending';
 }
 
+/** O resultado de uma prova entregue que ainda não tem veredicto: sem nota final e com respostas por corrigir
+ *  (p. ex. uma prova de sala antes de o professor a fechar). Não é «bom trabalho» nem «errado»: é «a aguardar». */
+export function aguardaCorrecao(result: Pick<SimulationResult, 'finalScore' | 'questions'>): boolean {
+  if (result.finalScore != null) return false;
+  return (result.questions ?? []).some((q) => verdict(q) === 'pending');
+}
+
+/** As certas sobre as questões já corrigidas: uma resposta por corrigir (dissertativa) não é «certa» nem entra no total. */
+export function contagemDeCertas(questions: readonly ResultQuestion[] | undefined): { certas: number; corrigidas: number; porCorrigir: number } {
+  const verdicts = (questions ?? []).map(verdict);
+  const porCorrigir = verdicts.filter((v) => v === 'pending').length;
+  return { certas: verdicts.filter((v) => v === 'correct').length, corrigidas: verdicts.length - porCorrigir, porCorrigir };
+}
+
 /** The questions in the order of the paper: the order the server sends (each alínea right after its question).
  *  Not sorted by `number`: for an alínea that number (301) only exists to be unique. */
 export function inOrder(questions: ResultQuestion[] | undefined): ResultQuestion[] {
@@ -196,7 +210,7 @@ export function optionTag(option: ResultOption, index: number): string {
 /** Score breakdown for display: objective vs open questions, separating graded from pending. */
 export interface ScoreBreakdownData {
   objectiveScore: number;
-  /** Alguma objectiva já tem nota. Sem nenhuma (sala ainda aberta) a soma é 0 por falta de dados, não por nota. */
+  /** Alguma objetiva já tem nota. Sem nenhuma (sala ainda aberta) a soma é 0 por falta de dados, não por nota. */
   objectiveGraded: boolean;
   objectiveMax: number;
   openScore: number;
