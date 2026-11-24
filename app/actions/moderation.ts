@@ -12,9 +12,10 @@
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentUser } from '@/lib/auth.server';
-import { call, fail, guard, ok, type Result } from '@/lib/crud/http';
+import { call, fail, guard, message, ok, type Result } from '@/lib/crud/http';
 import { MODERATION_UNAVAILABLE, moderationAvailable, moderationRefusal } from '@/lib/moderation/availability';
 import { auditPath, decisionPath, reportsPath } from '@/lib/moderation/contract';
+import { isPostId, postVisibilityPath, REPORTED_POSTS_PATH, type ReportedPost } from '@/lib/moderation/posts';
 import {
   decisionValida,
   isId,
@@ -98,4 +99,38 @@ export async function decideReport(
     revalidatePath('/moderacao/auditoria');
     return ok((await res.json()) as Report);
   });
-}
+}
+
+// ── Publicações denunciadas (S2) ─────────────────────────────────────────────
+// Não dependem da flag da moderação: são as rotas do feed (`/feed/posts/reported`, `/hide`, `/unhide`), abertas ao ADMIN e ao
+// professor. O servidor decide o âmbito (o professor só as turmas em que dá aulas); aqui só se barra quem não modera.
+
+async function moderator(): Promise<Result<undefined>> {
+  const user = await getCurrentUser();
+  if (!user) return fail('Sessão expirada. Inicie sessão novamente.');
+  if (!user.roles.includes('ADMIN') && !user.roles.includes('TEACHER')) return fail('Só o administrador e os professores moderam publicações.');
+  return ok(undefined);
+}
+
+export async function listReportedPosts(): Promise<Result<ReportedPost[]>> {
+  return guard(async () => {
+    const allowed = await moderator();
+    if (!allowed.ok) return allowed;
+    const res = await call(REPORTED_POSTS_PATH);
+    if (!res.ok) return fail(await message(res));
+    return ok((await res.json()) as ReportedPost[]);
+  });
+}
+
+/** Oculta (`hidden: true`) ou repõe (`false`) uma publicação denunciada. */
+export async function setPostHidden(postId: number, hidden: boolean): Promise<Result<undefined>> {
+  return guard(async () => {
+    const allowed = await moderator();
+    if (!allowed.ok) return allowed;
+    if (!isPostId(postId)) return fail('Publicação inválida.');
+    const res = await call(postVisibilityPath(postId, hidden), { method: 'PATCH' });
+    if (!res.ok) return fail(await message(res));
+    revalidatePath('/moderacao/publicacoes');
+    return ok(undefined);
+  });
+}

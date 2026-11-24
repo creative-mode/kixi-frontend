@@ -16,6 +16,28 @@ export function messageForStatus(status: number): string {
   return 'Não foi possível concluir. Tenta de novo.';
 }
 
+/** Os textos do feed, das amizades e das contas que o backend devolve em inglês (S9): têm frase própria, que diz a causa. */
+const FEED: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/^Class not found, or you do not belong to it/i, () => 'Essa turma não existe ou não é a tua.'],
+  [/^Class not found/i, () => 'A turma não existe ou foi removida.'],
+  [/^Content must have at least (\d+) characters/i, (m) => `Escreve pelo menos ${m[1]} caracteres.`],
+  [/^Content must have (\d+) to (\d+) characters/i, (m) => `O texto tem de ter entre ${m[1]} e ${m[2]} caracteres.`],
+  [/^Account is inactive/i, () => 'Esta conta está desativada. Fala com a tua escola para a reativar.'],
+  [/^Too many feed requests/i, () => 'Pediste o feed vezes de mais. Espera um momento e tenta de novo.'],
+  [/^Post not found/i, () => 'A publicação já não existe.'],
+  [/^Comment not found/i, () => 'O comentário já não existe.'],
+  [/^You have already reported this post/i, () => 'Já denunciaste esta publicação.'],
+  [/^You cannot follow yourself/i, () => 'Não podes enviar um pedido de amizade a ti próprio.'],
+];
+
+export function translateFeedError(serverText: string): string {
+  for (const [re, to] of FEED) {
+    const m = serverText.match(re);
+    if (m) return to(m);
+  }
+  return serverText;
+}
+
 /** A frase para o aluno. Os textos do servidor que já conhecemos têm tradução própria (exam-rules,
  *  exam-room-rules) porque dizem a causa exacta ("a prova já foi entregue"); tudo o resto cai na
  *  frase genérica do estado, nunca no texto em inglês. */
@@ -24,6 +46,8 @@ export function friendlyMessage(status: number, serverText: string): string {
   if (exam !== serverText) return exam;
   const room = translateRoomError(serverText);
   if (room !== serverText) return room;
+  const feed = translateFeedError(serverText);
+  if (feed !== serverText) return feed;
   return messageForStatus(status);
 }
 

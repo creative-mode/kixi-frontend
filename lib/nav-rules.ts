@@ -21,6 +21,8 @@ const GROUP_OF: Record<string, NavGroupId> = {
   '/coordenacao': 'ensino',
   '/desempenho': 'ensino',
   '/professor/tutor': 'ensino',
+  // Do ADMIN e do professor (S2): vive em «Ensino» para o professor não ficar com um grupo «Administração» só para isto.
+  '/moderacao/publicacoes': 'ensino',
 
   '/school-year': 'estrutura',
   '/terms': 'estrutura',

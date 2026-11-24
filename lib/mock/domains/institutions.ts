@@ -2,7 +2,7 @@
 // @ts-nocheck
  
 import { OGI_EXTRACTION } from '../ogi-extraction';
-import { add, db, donationStore, hash, json, missing, moderationStore, now, problem, roleId, verificationStore } from '../store';
+import { add, db, donationStore, hash, json, missing, moderationStore, now, problem, reportedPostsStore, roleId, verificationStore } from '../store';
 import type { MockContext } from './auth';
 
 /** Rotas do domínio «institutions» do mock; devolve `undefined` quando o pedido não é deste domínio. */
@@ -145,6 +145,20 @@ export async function institutionRoutes({ method, path, url, auth, isStaff, read
       Object.assign(donation, { status: 'converted', statementId: b.statementId, reviewedAt: donation.reviewedAt ?? now() });
       return json(200, detail(donation));
     }
+  }
+
+  // ── publicações denunciadas (S2): o ADMIN e o professor ──
+  if ((m = path.match(/^\/api\/v1\/feed\/posts\/(?:reported|(\d+)\/(hide|unhide))$/))) {
+    if (!isStaff) return problem(403, 'Forbidden');
+    const posts = reportedPostsStore();
+    if (m[1]) {
+      if (method !== 'PATCH') return problem(405, 'Method not allowed');
+      const post = posts.find((p) => p.postId === Number(m[1]));
+      if (!post) return problem(404, 'Post not found');
+      post.isHidden = m[2] === 'hide';
+      return new Response(null, { status: 204 });
+    }
+    return json(200, posts);
   }
 
   // ── verificação de escolas (#332): só o ADMIN revê ──

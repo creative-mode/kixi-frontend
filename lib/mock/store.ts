@@ -445,6 +445,16 @@ export function moderationStore() {
   return G.__kixiModeration;
 }
 
+/** Publicações denunciadas (S2): o que o `GET /feed/posts/reported` devolve ao ADMIN e ao professor. */
+export function reportedPostsStore() {
+  G.__kixiReportedPosts ??= [
+    { postId: 11, authorAccountId: 3, classId: 1, content: 'Alguém tem o gabarito da prova de amanhã? Pago um café a quem mandar.', isHidden: false, reportCount: 3, createdAt: '2026-10-14T08:10:00' },
+    { postId: 12, authorAccountId: 4, classId: 1, content: 'Esta pergunta é uma perda de tempo e o professor não sabe explicar.', isHidden: false, reportCount: 1, createdAt: '2026-10-15T09:30:00' },
+    { postId: 13, authorAccountId: 3, classId: 1, content: 'Publicação já retirada pela moderação.', isHidden: true, reportCount: 2, createdAt: '2026-10-10T17:45:00' },
+  ];
+  return G.__kixiReportedPosts as { postId: number; authorAccountId: number; classId: number; content: string; isHidden: boolean; reportCount: number; createdAt: string }[];
+}
+
 // Doações do mock: três, para a lista, o filtro e a revisão terem com que trabalhar.
 export const PIXEL = ['iVBORw0KGgoAAA', 'ANSUhEUgAAAAE', 'AAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ', 'AA', 'AABJRU5ErkJg', 'g=='].join('');
 export function donationStore() {
