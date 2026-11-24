@@ -44,7 +44,9 @@ export function profileTabOf(value: string | string[] | undefined): ProfileTab {
 
 /** O que o perfil de outra pessoa diz quando só mostra o nome e a foto. Com a visibilidade «só a minha escola» a
  *  causa é eu não ser da escola dela, e não uma escolha de esconder o perfil de toda a gente (S10). */
-export function restrictedNotice(visibility: string | null | undefined): string {
+export function restrictedNotice(visibility: string | null | undefined, blocked = false): string {
+  // Quem bloqueou é da mesma escola e vê o perfil restrito por causa do bloqueio, não da escola (N5).
+  if (blocked) return 'Bloqueaste esta pessoa, por isso só vês o nome e a foto. Desbloqueia para voltares a ver o perfil.';
   return visibility === 'school'
     ? 'Este perfil só é visível para quem é da mesma escola.'
     : 'Esta pessoa escolheu não mostrar mais do que o nome e a foto.';

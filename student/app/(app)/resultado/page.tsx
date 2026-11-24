@@ -300,8 +300,9 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                 : reading ? reading.text : certas.corrigidas > 0 ? `${certas.certas} de ${certas.corrigidas} respostas certas${certas.porCorrigir > 0 ? ` (${certas.porCorrigir} por corrigir)` : ''}${time ? ` em ${time}` : ''}.` : `${result.correctAnswers ?? '—'}${result.totalQuestions != null ? ` de ${result.totalQuestions}` : ''} respostas certas${time ? ` em ${time}` : ''}.`}
             </span>
             <div className="mt-1 flex flex-wrap gap-2" aria-label="O que ganhaste" role="group">
-              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1b4d27]">{stats.xp} XP · nível {stats.level}</span>}
-              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#fbe9ea] px-3 text-[13px] font-bold text-[#8a2a2e]">{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} de sequência</span>}
+              {/* Sem nota (por corrigir) o XP e a sequência escondem-se: mostrá-los diria que há resultado (N9). */}
+              {stats != null && !aguarda && <span className="flex h-[30px] items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1b4d27]">{stats.xp} XP · nível {stats.level}</span>}
+              {stats != null && !aguarda && <span className="flex h-[30px] items-center rounded-full bg-[#fbe9ea] px-3 text-[13px] font-bold text-[#8a2a2e]">{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} de sequência</span>}
               {comparison && <span className="flex h-[30px] items-center rounded-full bg-[#fbf1d6] px-3 text-[13px] font-bold text-[#8a5a00]">{formatDelta(comparison.delta)} face à anterior</span>}
             </div>
           </div>

@@ -47,7 +47,7 @@ function loadAnalytics() {
  *  mesmo peso por baixo, sem cortar texto — o consentimento tem de ser informado. */
 export function CookieBanner() {
   // A página 403 é um ecrã de erro: pedir cookies por cima da porta fechada atrapalha (G6).
-  const emErro403 = ['/403', '/erro-403'].includes(usePathname());
+  const emErro403 = usePathname() === '/403';
   const [choice, setChoice] = useState<Consent | null | undefined>(undefined);
   const banner = useRef<HTMLElement | null>(null);
   /** Onde o foco estava antes do banner aparecer: a escolha e o Esc devolvem-no lá. */

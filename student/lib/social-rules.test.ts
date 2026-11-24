@@ -45,4 +45,6 @@ test('«Adicionar» não aparece a quem é de outra escola nem a quem se bloqueo
   assert.equal(podePedirAmizade({ ...base, mySchoolId: null, schoolIds: [] }), true, 'sem dados não se esconde');
   assert.match(restrictedNotice('school'), /mesma escola/);
   assert.match(restrictedNotice('private'), /escolheu não mostrar/);
+  assert.match(restrictedNotice('school', true), /Bloqueaste/);
+  assert.doesNotMatch(restrictedNotice('school', true), /mesma escola/);
 });

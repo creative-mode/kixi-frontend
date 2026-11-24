@@ -79,7 +79,7 @@ export function PersonView({
 
       <ProfileHero name={person.displayName} photo={person.photo} verified={person.verified} verifiedLabel={teacher ? 'Professor verificado' : 'Perfil verificado'}>
         {person.restricted ? (
-          <p className="mt-1 text-[15px] text-muted-foreground">{restrictedNotice(person.visibility)}</p>
+          <p className="mt-1 text-[15px] text-muted-foreground">{restrictedNotice(person.visibility, bloqueado)}</p>
         ) : (
           <>
             {person.schools.length === 0 ? (

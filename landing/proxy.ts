@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { prefersMarkdown } from './lib/markdown-negotiation';
+import { FORBIDDEN_REASON_HEADER } from './lib/forbidden-reasons';
 import { redirectOrigin, SESSION_COOKIE, sessionDestination } from './lib/session-destination';
 
 /**
@@ -60,12 +61,12 @@ function sessionRedirect(request: NextRequest, destination: string) {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // A porta fechada responde 403 a sério (G6): uma página do Next não escolhe o estado, por isso `/403` é reescrita para a
-  // página real (`/erro-403`) com esse estado. O endereço que se vê continua a ser `/403`.
+  // A `/403` responde 403 por `forbidden()` (ver `app/403`). O `forbidden.tsx` não recebe os parâmetros do endereço, por isso o
+  // motivo segue num cabeçalho do pedido (sempre escrito aqui, nunca o que o cliente mande).
   if (pathname === '/403') {
-    const destino = request.nextUrl.clone();
-    destino.pathname = '/erro-403';
-    return NextResponse.rewrite(destino, { status: 403 });
+    const headers = new Headers(request.headers);
+    headers.set(FORBIDDEN_REASON_HEADER, request.nextUrl.searchParams.get('reason') ?? '');
+    return NextResponse.next({ request: { headers } });
   }
 
   // Os não-negociáveis saem limpos: um `Vary: Accept` num ficheiro estático não
