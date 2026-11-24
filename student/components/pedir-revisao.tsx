@@ -115,10 +115,10 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
           onClick={openForm}
           aria-expanded={false}
           aria-controls={formId}
-          aria-label="Pedir revisão desta correcção"
+          aria-label="Pedir revisão desta correção"
         >
           <AlertCircle className="size-3.5" aria-hidden />
-          Não concordo com esta correcção
+          Não concordo com esta correção
         </Button>
       ) : (
         <form
@@ -131,7 +131,7 @@ export function PedirRevisaoButton({ simulationId, questionId }: PedirRevisaoPro
             ref={textareaRef}
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Explica por que não concordas com a correcção da IA..."
+            placeholder="Explica por que não concordas com a correção da IA..."
             rows={3}
             className="text-sm"
             disabled={status === 'loading'}

@@ -99,7 +99,7 @@ export function leafNumber(paper: PaperQuestion, item?: PaperItem): string {
 /** O que o aluno tem escrito numa questão, para a folha o mostrar como o papel: a opção marcada e o texto. */
 export type PaperAnswer = { optionId: number | null; text: string };
 
-/** A correcção de uma questão, para a folha a mostrar como um professor a corrigiria à mão. */
+/** A correção de uma questão, para a folha a mostrar como um professor a corrigiria à mão. */
 export type PaperMark = {
   verdict: 'correct' | 'wrong' | 'pending' | 'blank';
   correctOptionId?: number | null;

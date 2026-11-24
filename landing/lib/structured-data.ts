@@ -92,7 +92,7 @@ export function organizationLdFrom(contact: {
 }
 
 /** O sítio, e o que se pode perguntar-lhe. Sem `SearchAction`: não há pesquisa
- *  pública na landing, e declarar uma acção de pesquisa que não existe é pior do que
+ *  pública na landing, e declarar uma ação de pesquisa que não existe é pior do que
  *  não declarar nenhuma. */
 export function webSiteLd(): JsonLd {
   return {

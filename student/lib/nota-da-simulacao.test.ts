@@ -18,13 +18,13 @@ test('por corrigir nunca mostra a nota parcial do backend', () => {
   }
 });
 
-test('a correcção falhada diz-se, não se disfarça de nota', () => {
+test('a correção falhada diz-se, não se disfarça de nota', () => {
   assert.deepEqual(notaDaSimulacao({ correctionStatus: 'FAILED', finalScore: 9.5 }), { kind: 'falhou' });
   assert.equal(notaFinal({ correctionStatus: 'FAILED', finalScore: 9.5 }), null);
   assert.equal(estadoDaNotaEmPalavras({ correctionStatus: 'FAILED' }), 'Correção falhou');
 });
 
-test('sem estado da correcção vale a nota final que existir (prova de sala, backend antigo)', () => {
+test('sem estado da correção vale a nota final que existir (prova de sala, backend antigo)', () => {
   assert.deepEqual(notaDaSimulacao({ finalScore: 12 }), { kind: 'nota', nota: 12 });
   assert.deepEqual(notaDaSimulacao({ correctionStatus: null, finalScore: 12 }), { kind: 'nota', nota: 12 });
   assert.deepEqual(notaDaSimulacao({}), { kind: 'sem-nota' });

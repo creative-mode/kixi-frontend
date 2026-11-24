@@ -477,9 +477,9 @@ test.describe('menu da conta por cima do conteúdo (#752)', () => {
   });
 });
 
-/** Passe visual do aluno (#761): títulos com espaço, rótulos de acção numa linha e o botão do tutor dentro do campo. */
+/** Passe visual do aluno (#761): títulos com espaço, rótulos de ação numa linha e o botão do tutor dentro do campo. */
 test.describe('passe visual do aluno (#761)', () => {
-  /** Rótulos de acção que partiram em duas linhas: devolve os que ocupam mais do que uma. */
+  /** Rótulos de ação que partiram em duas linhas: devolve os que ocupam mais do que uma. */
   async function partidos(page: Page) {
     return page.evaluate(() =>
       [...document.querySelectorAll<HTMLElement>('main a, main button, main span.px-btn')]

@@ -78,7 +78,7 @@ test('fora de produção, a configuração continua a ganhar ao pedido', () => {
 
 test('originFromRequest recusa em produção mesmo quando é chamado à mão', () => {
   // O throw está em resolveOrigin, por onde passam o proxy e as páginas. Mas
-  // originFromRequest também está exportado, e um import futuro que o chame directamente
+  // originFromRequest também está exportado, e um import futuro que o chame diretamente
   // não pode ficar com o Host do atacante. A guarda está nos dois sítios por isso.
   comAmbiente('production', () => {
     assert.equal(originFromRequest(pedido(), 'http:'), null);

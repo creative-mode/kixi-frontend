@@ -99,7 +99,7 @@ export function SalasDeProva({ invitations, invitationsError, hiddenCount = 0, s
 
 /** A linha de resumo para o que ficou fora dos cartões — entregues/terminadas
  *  (`hiddenCount`, todas as páginas) e por abrir (`scheduledCount`, só o Início,
- *  #806 — code review). Nenhuma das duas descreve "sala para já sem acção", por
+ *  #806 — code review). Nenhuma das duas descreve "sala para já sem ação", por
  *  isso partilham a mesma frase em vez de uma por cada chamador. */
 function ForaDosCartoes({ hiddenCount, scheduledCount }: { hiddenCount: number; scheduledCount: number }) {
   const partes = [
@@ -171,7 +171,8 @@ function SalaCard({ inv, now, offset, origem }: { inv: Invitation; now: number |
         </div>
         <Badge variant={BADGE[ended && phase !== 'submitted' ? 'over' : phase].variant}>{BADGE[ended && phase !== 'submitted' ? 'over' : phase].label}</Badge>
       </div>
-      <p className="flex items-center gap-2 text-sm" role="status" aria-live="off">
+      {/* O texto à vista não se lê em voz alta: o anúncio por baixo diz o mesmo por minutos, sem repetir a frase. */}
+      <p className="flex items-center gap-2 text-sm" aria-hidden="true">
         <Clock className="size-4 shrink-0 text-muted-foreground" aria-hidden />{when}
       </p>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>

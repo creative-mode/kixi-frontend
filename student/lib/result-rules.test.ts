@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  aguardaCorrecao,
   calculateScoreBreakdown,
+  contagemDeCertas,
   compareWithPrevious,
   formatDelta,
   formatDuration,
@@ -168,7 +170,7 @@ test('uma dissertativa corrigida pela IA não fica por corrigir', () => {
 
 // ── calculateScoreBreakdown (#798: transparência da nota) ────────────────────
 
-/** Helper próprio dos testes de breakdown: questões de objectivas vs abertas. */
+/** Helper próprio dos testes de breakdown: questões de objetivas vs abertas. */
 const bq = (over: Partial<ResultQuestion> = {}): ResultQuestion => ({
   questionId: 1,
   number: 1,
@@ -287,14 +289,35 @@ test('quando o cartão de partilha não aparece, diz-se porquê em vez de desapa
 const aguardar = (over: Partial<ResultQuestion> = {}): ResultQuestion =>
   bq({ options: [{ id: 1, optionText: 'A' }, { id: 2, optionText: 'B' }], selectedOptionId: 2, scoreObtained: null, isCorrect: null, correctOptionId: null, ...over });
 
-test('calculateScoreBreakdown: sem nota das objectivas não há «0 pelo gabarito», há a aguardar a correcção', () => {
+test('calculateScoreBreakdown: sem nota das objetivas não há «0 pelo gabarito», há a aguardar a correção', () => {
   const b = calculateScoreBreakdown([aguardar(), aguardar({ questionId: 2 })]);
   assert.equal(b.objectiveGraded, false);
   assert.equal(b.objectiveMax, 4);
 });
 
-test('calculateScoreBreakdown: com pelo menos uma objectiva corrigida a nota conta, mesmo que seja 0', () => {
+test('calculateScoreBreakdown: com pelo menos uma objetiva corrigida a nota conta, mesmo que seja 0', () => {
   assert.equal(calculateScoreBreakdown([obj({ scoreObtained: 0, isCorrect: false })]).objectiveGraded, true);
   assert.equal(calculateScoreBreakdown([obj({ scoreObtained: 2 }), aguardar()]).objectiveGraded, true);
   assert.equal(calculateScoreBreakdown([]).objectiveGraded, false);
+});
+
+test('uma prova entregue sem nota e com respostas por corrigir aguarda correção', () => {
+  const objetiva = q({ questionId: 1, selectedOptionId: 3, isCorrect: null });
+  assert.equal(aguardaCorrecao({ finalScore: null, questions: [objetiva] }), true);
+  assert.equal(aguardaCorrecao({ finalScore: 12, questions: [objetiva] }), false);
+  assert.equal(aguardaCorrecao({ finalScore: null, questions: [q({ isCorrect: false })] }), false, 'em branco não aguarda nada');
+  assert.equal(aguardaCorrecao({ finalScore: null, questions: [] }), false);
+});
+
+test('a dissertativa por corrigir não conta como certa nem entra no total', () => {
+  const certa = q({ questionId: 1, isCorrect: true, selectedOptionId: 1 });
+  const errada = q({ questionId: 2, isCorrect: false, selectedOptionId: 2 });
+  const aberta = q({ questionId: 3, answerText: 'texto', reviewStatus: 'PENDING_REVIEW' });
+  assert.deepEqual(contagemDeCertas([certa, errada, aberta]), { certas: 1, corrigidas: 2, porCorrigir: 1 });
+});
+
+test('abertas sem nenhuma corrigida dizem «a aguardar», não «0/0»', () => {
+  const b = calculateScoreBreakdown([q({ questionId: 1, options: [{ id: 1, optionText: 'a' }], maxScore: 5, scoreObtained: 5 }), q({ questionId: 2, maxScore: 10, scoreObtained: null })]);
+  assert.equal(b.openMax, 0);
+  assert.equal(b.openPendingMax, 10);
 });

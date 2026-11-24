@@ -261,6 +261,12 @@ export function describeHttpFailure(status: number, retryAfter: number | null, s
   return 'Não conseguimos falar com o tutor. Tenta de novo.';
 }
 
+/** Se «Tentar de novo» ajuda depois de uma falha antes do stream. Com o tutor indisponível (503), a prova ausente (404) ou a
+ *  sessão expirada (401/403) tentar logo outra vez dá o mesmo aviso: o botão prometia o que não entrega (#A12). */
+export function podeTentarDeNovo(status: number): boolean {
+  return ![401, 403, 404, 503].includes(status);
+}
+
 /** `em 30 s`, `em 4 min`, `em 2 h`. Rounded up: telling someone to retry earlier than
  *  the server allows just earns them another 429. */
 export function formatWait(seconds: number): string {
