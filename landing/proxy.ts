@@ -60,6 +60,14 @@ function sessionRedirect(request: NextRequest, destination: string) {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // A porta fechada responde 403 a sério (G6): uma página do Next não escolhe o estado, por isso `/403` é reescrita para a
+  // página real (`/erro-403`) com esse estado. O endereço que se vê continua a ser `/403`.
+  if (pathname === '/403') {
+    const destino = request.nextUrl.clone();
+    destino.pathname = '/erro-403';
+    return NextResponse.rewrite(destino, { status: 403 });
+  }
+
   // Os não-negociáveis saem limpos: um `Vary: Accept` num ficheiro estático não
   // fragmenta o cache por nada, porque estático não varia com o `Accept`.
   if (NOT_NEGOTIABLE.some((pattern) => pattern.test(pathname))) {

@@ -219,3 +219,38 @@ test('a tarefa da pauta trimestral nunca se descreve como Prova P1/P2', () => {
   );
   assert.equal(tituloDaTarefa('pauta-trimestral', { provaId: '135', componentes: COMPONENTES }), null);
 });
+
+test('G1: leituras sem aluno ou ainda por carregar não se concluem', async () => {
+  const { problemaDasLeituras, pedeLeituras } = await import('./tarefas.ts');
+  const schema = { components: [{ type: 'dynamiclist', path: 'leituras', components: [{ type: 'number', key: 'alunoId' }] }] };
+  assert.equal(pedeLeituras(schema), true);
+  assert.match(problemaDasLeituras({}, schema) ?? '', /ainda não chegaram/);
+  assert.match(problemaDasLeituras({ leituras: [{ alunoId: null }] }, schema) ?? '', /sem aluno/);
+  assert.match(problemaDasLeituras({ leituras: [{ alunoId: 8 }, { alunoId: null }, {}] }, schema) ?? '', /2 leituras sem aluno/);
+  assert.equal(problemaDasLeituras({ leituras: [{ alunoId: 8 }] }, schema), null);
+  assert.equal(problemaDasLeituras({}, { components: [{ type: 'textfield', key: 'x' }] }), null);
+});
+
+test('G2: o total de folhas tem de bater com os presentes', async () => {
+  const { problemaDasFolhasRecolhidas } = await import('./tarefas.ts');
+  const quatro = [{ presente: true }, { presente: true }, { presente: true }, { presente: true }, { presente: false }];
+  assert.match(problemaDasFolhasRecolhidas({ entregas: quatro, folhasRecolhidas: 3 }) ?? '', /\(3\).*\(4\)/);
+  assert.equal(problemaDasFolhasRecolhidas({ entregas: quatro, folhasRecolhidas: 4 }), null);
+  assert.equal(problemaDasFolhasRecolhidas({ entregas: quatro, folhasRecolhidas: '4' }), null);
+  assert.equal(problemaDasFolhasRecolhidas({ folhasRecolhidas: 1 }), null);
+});
+
+test('G13: o filtro separa por processo e por prazo', async () => {
+  const { filtrarTarefas, SEM_FILTRO } = await import('./tarefas.ts');
+  const base = { key: '1', nome: 'n', elemento: 'e', criadaEm: '2026-01-01', detalhe: null };
+  const lista = [
+    { ...base, key: 'a', processo: 'Prova', prazo: '2026-01-10T00:00:00Z' },
+    { ...base, key: 'b', processo: 'Prova', prazo: '2099-01-10T00:00:00Z' },
+    { ...base, key: 'c', processo: 'Pauta do trimestre', prazo: null },
+  ];
+  const agora = Date.parse('2026-06-01T00:00:00Z');
+  assert.equal(filtrarTarefas(lista, SEM_FILTRO, agora).length, 3);
+  assert.deepEqual(filtrarTarefas(lista, { processo: 'Prova', prazo: 'todas' }, agora).map((t) => t.key), ['a', 'b']);
+  assert.deepEqual(filtrarTarefas(lista, { processo: '', prazo: 'atrasadas' }, agora).map((t) => t.key), ['a']);
+  assert.deepEqual(filtrarTarefas(lista, { processo: '', prazo: 'em-prazo' }, agora).map((t) => t.key), ['b', 'c']);
+});

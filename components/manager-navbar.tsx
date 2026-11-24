@@ -43,7 +43,7 @@ import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 type NavLink = { href: string; label: string; icon: LucideIcon };
 
 const allNavLinks: NavLink[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "Painel", icon: LayoutDashboard },
   { href: "/exam-rooms", label: "Salas de Prova", icon: DoorOpen },
   { href: "/tarefas", label: "Tarefas das pautas", icon: ClipboardCheck },
   { href: "/planos", label: "Plano do trimestre", icon: CalendarCheck },

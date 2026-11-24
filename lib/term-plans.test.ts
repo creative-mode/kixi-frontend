@@ -88,3 +88,15 @@ test('o agendamento concluído só promete a pauta «em instantes» se todas as 
   assert.equal(schedulingNote({ ...ligado, schedulingConcluded: false }), null);
   assert.equal(schedulingNote({ ...ligado, pautaOpened: true }), null);
 });
+
+test('G11: o estado da pauta vem da pauta do plano', async () => {
+  const { estadoDaPauta } = await import('./term-plans.ts');
+  const plan = { classId: 1, subjectId: 2, termNumber: 1, pautaOpened: true };
+  const pauta = (status: string) => [{ classId: 1, subjectId: 2, termNumber: 1, status }];
+  assert.equal(estadoDaPauta(plan, pauta('FECHADA')), 'fechada');
+  assert.equal(estadoDaPauta(plan, pauta('ANULADA')), 'anulada');
+  assert.equal(estadoDaPauta(plan, pauta('REGISTADA')), 'aberta');
+  assert.equal(estadoDaPauta(plan, []), 'aberta');
+  assert.equal(estadoDaPauta({ ...plan, subjectId: 9 }, pauta('FECHADA')), 'aberta', 'outra disciplina');
+  assert.equal(estadoDaPauta({ ...plan, pautaOpened: false }, pauta('FECHADA')), null);
+});

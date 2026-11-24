@@ -19,7 +19,7 @@ import { campoDeFicheiros, problemaDasFolhas, referenciasRecebidas, tipoPeloCont
 import {
   dadosParaConcluir,
   paraTarefa,
-  primeiroErro,
+  problemaDosDados,
   pertenceA,
   temEnvioDeFicheiros,
   valoresDasVariaveis,
@@ -129,7 +129,7 @@ export async function concluir(key: string, dados: Record<string, unknown>): Pro
     const formulario = await obterFormulario(key);
     if (!formulario) return fail('Esta tarefa não tem formulário.');
     if (temEnvioDeFicheiros(formulario.schema)) return fail('Esta tarefa pede ficheiros: carregue as folhas no ecrã da tarefa.');
-    const erro = primeiroErro(dados, formulario.schema);
+    const erro = problemaDosDados(dados, formulario.schema);
     if (erro) return fail(erro);
     // Só se devolvem os campos de entrada do form (não os de leitura nem os calculados): o professor não altera as outras
     // variáveis do processo.

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { CONSENT_EVENT, GA_ID, readConsent, setAnalyticsEnabled, writeConsent, type Consent } from '@/lib/consent';
 import { flushAnalytics, pageForPath, safePageLocation, track } from '@/lib/analytics';
 
@@ -45,6 +46,8 @@ function loadAnalytics() {
  *  Compacto em ecrã estreito (#545): frase curta em largura total e os dois botões do
  *  mesmo peso por baixo, sem cortar texto — o consentimento tem de ser informado. */
 export function CookieBanner() {
+  // A página 403 é um ecrã de erro: pedir cookies por cima da porta fechada atrapalha (G6).
+  const emErro403 = ['/403', '/erro-403'].includes(usePathname());
   const [choice, setChoice] = useState<Consent | null | undefined>(undefined);
   const banner = useRef<HTMLElement | null>(null);
   /** Onde o foco estava antes do banner aparecer: a escolha e o Esc devolvem-no lá. */
@@ -106,7 +109,7 @@ export function CookieBanner() {
     }
   }, [choice]);
 
-  if (choice !== null) return null;
+  if (choice !== null || emErro403) return null;
 
   /** O banner não é modal: o foco começa lá dentro, mas ninguém fica preso nele.
    *  Sem destino válido (o caso normal é o body, que não é focável), tirar o

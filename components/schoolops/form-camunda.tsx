@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Componente } from '@/lib/schoolops/tarefas';
+import { pedeLeituras, problemaDosDados, type Componente } from '@/lib/schoolops/tarefas';
+import { moduloDeTraducao } from '@/lib/schoolops/traducao';
 import './calendario.css';
 import './form-camunda.css';
 
@@ -30,7 +31,7 @@ export function FormCamunda({ schema, dados, aEnviar, onEnviar }: Props) {
     void (async () => {
       const { Form } = await import('@bpmn-io/form-js-viewer');
       if (cancelado || !contentor.current) return;
-      const instancia = new Form({ container: contentor.current });
+      const instancia = new Form({ container: contentor.current, additionalModules: [moduloDeTraducao] });
       form.current = instancia;
       try {
         await instancia.importSchema(schema, dados);
@@ -47,6 +48,9 @@ export function FormCamunda({ schema, dados, aEnviar, onEnviar }: Props) {
     };
   }, [schema, dados]);
 
+  // Com a lista das leituras por chegar, concluir mandava `alunoId: null` ao motor (G1): o botão espera pelos dados.
+  const carregado = !pedeLeituras(schema) || Array.isArray(dados.leituras);
+
   function submeter() {
     const instancia = form.current;
     if (!instancia) return;
@@ -54,6 +58,11 @@ export function FormCamunda({ schema, dados, aEnviar, onEnviar }: Props) {
     const invalidos = Object.keys(errors ?? {}).length;
     if (invalidos > 0) {
       setProblemas(invalidos === 1 ? 'Há um campo por corrigir.' : `Há ${invalidos} campos por corrigir.`);
+      return;
+    }
+    const doServidor = problemaDosDados(data as Record<string, unknown>, schema);
+    if (doServidor) {
+      setProblemas(doServidor);
       return;
     }
     setProblemas(null);
@@ -67,7 +76,7 @@ export function FormCamunda({ schema, dados, aEnviar, onEnviar }: Props) {
       {falhou && <p role="alert" className="text-sm text-destructive">Não foi possível mostrar o formulário desta tarefa. Conclua-a no Tasklist.</p>}
       {problemas && <p role="alert" className="text-sm text-destructive">{problemas}</p>}
       <div className="flex justify-end">
-        <Button onClick={submeter} disabled={!pronto || aEnviar}>
+        <Button onClick={submeter} disabled={!pronto || aEnviar || !carregado}>
           {aEnviar ? 'A concluir…' : 'Concluir tarefa'}
         </Button>
       </div>
