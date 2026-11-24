@@ -109,6 +109,8 @@ export function tituloDaTarefa(processDefinitionId: string, variaveis: Record<st
     const titulo = typeof avaliacao === 'string' ? texto(avaliacao) : texto(avaliacao?.titulo);
     return [titulo, contexto].filter(Boolean).join(' · ') || null;
   }
+  // A pauta trimestral é da disciplina inteira, não de uma prova: nunca «Prova P1» (schoolops#88), mesmo que a instância traga `provaId`.
+  if (processDefinitionId === 'pauta-trimestral') return contexto ?? null;
   // `correcao-prova` (recolher, digitalizar, tratar leituras): diz se é a P1 ou a P2, que de outro modo têm o mesmo título (V2-10).
   const componente = componenteDaProva(variaveis);
   if (componente) return [`Prova ${componente}`, contexto].filter(Boolean).join(' · ');
