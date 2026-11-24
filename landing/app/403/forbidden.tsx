@@ -1,21 +1,10 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import ForbiddenScene from '@/components/forbidden/forbidden-scene';
 import { Logo } from '@/components/kixi';
-import { getForbiddenReason } from '@/lib/forbidden-reasons';
+import { FORBIDDEN_REASON_HEADER, getForbiddenReason } from '@/lib/forbidden-reasons';
 import '@/components/forbidden/forbidden.css';
 import { ErrorView } from '@/components/analytics/trackers';
-
-export const metadata: Metadata = {
-  title: '403 · Acesso não permitido',
-  description: 'Área restrita do Kixi. A porta não abre para esta conta.',
-  // Um 403 no índice é uma página de erro indexada: o buscador guarda-a, alguém
-  // clica e leva a uma porta fechada. O `robots.txt` já a barra; isto é o pedido
-  // explícito, para o que a busca já tenha guardado saber que já não vale.
-  robots: { index: false, follow: false },
-};
-
-type PageProps = { searchParams: Promise<{ reason?: string | string[] }> };
 
 function button(href: string, label: string) {
   return (
@@ -27,10 +16,12 @@ function button(href: string, label: string) {
   );
 }
 
-export default async function ForbiddenPage({ searchParams }: PageProps) {
-  const raw = (await searchParams).reason;
-  const reason = Array.isArray(raw) ? raw[0] : raw;
-  const config = getForbiddenReason(reason);
+/**
+ * O ecrã da porta fechada. É a interface de `forbidden()` (ver `page.tsx`): é assim que o Next responde
+ * 403 a sério, sem depender do proxy (G6/N7).
+ */
+export default async function Forbidden() {
+  const config = getForbiddenReason((await headers()).get(FORBIDDEN_REASON_HEADER) ?? undefined);
 
   return (
     <>
