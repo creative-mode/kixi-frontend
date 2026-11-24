@@ -146,7 +146,7 @@ export function cardWithoutScore<T extends {
 }
 
 /** Quantas respostas abertas ainda faltam corrigir (kixi#788). Zero, ausente ou um
- *  número inválido valem «sem correcção pendente»; um valor negativo nunca é uma
+ *  número inválido valem «sem correção pendente»; um valor negativo nunca é uma
  *  contagem. Enquanto for maior do que zero, o cartão não mostra a nota parcial
  *  como final: diz «A corrigir» até a nota definitiva chegar. */
 export function pendingReviews(card: { pendingReviewCount?: number | null }): number {

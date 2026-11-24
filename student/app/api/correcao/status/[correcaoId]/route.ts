@@ -3,7 +3,7 @@ import { consultarEstadoCorrecao } from '@/lib/schoolops/correcao';
 import { estadoParaEspera } from '@/lib/schoolops/correcao-rules';
 import { listSimulationsResult } from '@/lib/exam';
 
-// Rota leve de polling (#794): o ecrã de espera lê o estado da correcção sem
+// Rota leve de polling (#794): o ecrã de espera lê o estado da correção sem
 // reabrir a página inteira no servidor. Só devolve o estado (nunca o resultado
 // completo com justificações) e só depois de confirmar que a simulação é do aluno.
 

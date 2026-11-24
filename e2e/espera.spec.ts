@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
- * O ecrã de espera pela correcção (#792): em qualquer momento o aluno vê o que já está feito e uma previsão.
+ * O ecrã de espera pela correção (#792): em qualquer momento o aluno vê o que já está feito e uma previsão.
  * O SchoolOps não existe no mock, por isso o estado que o motor daria combina-se por `/aluno/api/mock-correcao`
  * (`motor`), e só a simulação 1 (do aluno 12345, com uma resposta aberta) passa pela espera.
  */
@@ -28,7 +28,7 @@ async function abrirEspera(page: Page, motor: Motor) {
   await page.goto('/aluno/resultado?prova=1');
 }
 
-test.describe('espera pela correcção com progresso e previsão (#792)', () => {
+test.describe('espera pela correção com progresso e previsão (#792)', () => {
   test.beforeEach(async ({ page }) => {
     await alunoLogin(page);
   });
@@ -36,15 +36,15 @@ test.describe('espera pela correcção com progresso e previsão (#792)', () => 
     await combinar(page, null);
   });
 
-  test('mostra já a nota das objectivas como parcial, o progresso das abertas e a previsão do motor', async ({ page }) => {
+  test('mostra já a nota das objetivas como parcial, o progresso das abertas e a previsão do motor', async ({ page }) => {
     await abrirEspera(page, { estado: 'ABERTA', progresso: { corrigidas: 2, total: 5 }, previsaoSegundos: 60 });
 
     const espera = page.getByTestId('correcao-em-curso');
     await expect(espera).toBeVisible();
     const parcial = page.getByTestId('nota-parcial');
-    await expect(parcial.getByText('Objectivas')).toBeVisible();
+    await expect(parcial.getByText('Objetivas')).toBeVisible();
     await expect(parcial.getByText('· nota parcial')).toBeVisible();
-    // O valor vem do backend (as fechadas já foram pontuadas na entrega), nunca da correcção do motor.
+    // O valor vem do backend (as fechadas já foram pontuadas na entrega), nunca da correção do motor.
     await expect(parcial).toContainText(/\d+(,\d+)? de \d+(,\d+)? valores/);
 
     const abertas = page.getByTestId('progresso-abertas');
@@ -63,7 +63,7 @@ test.describe('espera pela correcção com progresso e previsão (#792)', () => 
 
     const abertas = page.getByTestId('progresso-abertas');
     await expect(abertas).toHaveAttribute('data-origem', 'estimada');
-    // A simulação 1 tem uma resposta aberta: 0 de 1 e uma estimativa «cerca de», nunca um número exacto.
+    // A simulação 1 tem uma resposta aberta: 0 de 1 e uma estimativa «cerca de», nunca um número exato.
     await expect(abertas.getByText('0 de 1', { exact: true })).toBeVisible();
     await expect(page.getByTestId('previsao')).toHaveText(/^Fica pronta (dentro de instantes|em cerca de \d+ segundos)\.$/);
     await expect(page.getByTestId('nota-parcial')).toBeVisible();
@@ -76,7 +76,7 @@ test.describe('espera pela correcção com progresso e previsão (#792)', () => 
     await expect(page.getByRole('progressbar', { name: '4 de 5 respostas abertas corrigidas' })).toHaveAttribute('aria-valuenow', '80');
   });
 
-  test('uma correcção falhada continua a dar saída, sem previsão', async ({ page }) => {
+  test('uma correção falhada continua a dar saída, sem previsão', async ({ page }) => {
     await abrirEspera(page, { estado: 'FALHADA', progresso: { corrigidas: 2, total: 5 } });
 
     await expect(page.getByTestId('correcao-falhou')).toBeVisible();

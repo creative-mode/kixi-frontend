@@ -14,6 +14,7 @@ import {
   precisaDecisao,
   validateReport,
   visibilidadePara,
+  readBlockState, readBlockedPeople, blockButtonLabel,
 } from './moderation.ts';
 
 // O critério de aceitação da #323 é «perfil ocultado devolve 404 a terceiros» e
@@ -129,4 +130,30 @@ test('sem nada que esconda, manda a visibilidade que o proprio escolheu', () => 
   assert.equal(visibilidadePara({ targetOwnVisibility: 'school', mine: false, bloqueado: false, desaparece: false }), 'school');
   assert.equal(visibilidadePara({ targetOwnVisibility: 'public', mine: true, bloqueado: true, desaparece: true }), 'public');
   assert.equal(visibilidadePara({ targetOwnVisibility: 'public', mine: false, bloqueado: true, desaparece: false }), 'private');
+});
+
+test('o estado do bloqueio traz blockedByMe; sem ele (backend antigo) quem vê «blocked» é quem o pôs (kixi#656)', () => {
+  assert.deepEqual(readBlockState({ blocked: true, blockedByMe: true }), { blocked: true, blockedByMe: true });
+  assert.deepEqual(readBlockState({ blocked: true, blockedByMe: false }), { blocked: true, blockedByMe: false });
+  assert.deepEqual(readBlockState({ blocked: true }), { blocked: true, blockedByMe: true });
+  assert.deepEqual(readBlockState({ blocked: false, blockedByMe: true }), { blocked: false, blockedByMe: false });
+  assert.deepEqual(readBlockState(null), { blocked: false, blockedByMe: false });
+});
+
+test('a lista «Pessoas bloqueadas» ignora linhas sem conta e dá nome por omissão', () => {
+  const lista = readBlockedPeople([
+    { accountId: 7, displayName: 'Ana M.', photo: null, blockedAt: '2026-11-24T10:00:00' },
+    { accountId: 'x' },
+    { accountId: 9, displayName: '  ' },
+    null,
+  ]);
+  assert.equal(lista.length, 2);
+  assert.equal(lista[0].displayName, 'Ana M.');
+  assert.equal(lista[1].displayName, 'Pessoa sem nome');
+  assert.deepEqual(readBlockedPeople({ nope: 1 }), []);
+});
+
+test('o botão diz «Desbloquear» só a quem bloqueou', () => {
+  assert.equal(blockButtonLabel(true), 'Desbloquear');
+  assert.equal(blockButtonLabel(false), 'Bloquear');
 });

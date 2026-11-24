@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Ico } from '@/components/ui/ico';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { acceptFriendAction, removeFriendAction, requestFriendAction } from '@/lib/friends-actions';
 import type { Friend } from '@/lib/friends';
+import { ALREADY_FRIENDS } from '@/lib/error-messages';
 
 /**
  * O botão de amizade no perfil de outra pessoa (#121): o mesmo "Convidar"/"Aceitar"/"Remover"
@@ -14,6 +16,7 @@ import type { Friend } from '@/lib/friends';
  * repete essa regra aqui — um pedido que o servidor recusa mostra-se tal e qual, como ali.
  */
 export function PersonFriendButton({ accountId, friend }: { accountId: number; friend: Friend | null }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -64,6 +67,8 @@ export function PersonFriendButton({ accountId, friend }: { accountId: number; f
               setMessage(result.ok ? null : result.message);
               setNotice(result.ok ? 'Pedido enviado. A pessoa passa a aparecer nos teus amigos quando aceitar.' : null);
               if (!result.ok) setSent(false);
+              // 409 «Já são amigos»: o ecrã estava atrasado; volta a pedir o estado em vez de deixar «Adicionar».
+              if (!result.ok && result.message === ALREADY_FRIENDS) router.refresh();
             });
           }}
         >

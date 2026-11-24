@@ -1,12 +1,12 @@
 /**
- * A nota de uma simulação só existe quando a correcção está feita (kixi#609).
+ * A nota de uma simulação só existe quando a correção está feita (kixi#609).
  *
  * Fora do ecrã de resultado, o backend devolve a nota parcial (só as fechadas) enquanto as
  * dissertativas estão por corrigir. Mostrá-la no histórico, nas notificações ou no desempenho
  * era o #791: o mesmo aluno via três notas diferentes — ou nenhuma — para a mesma prova.
  *
  * Esta é a única regra: quem mostra uma nota lê-a daqui, e quem não tem nota mostra o estado da
- * correcção em vez de inventar um número.
+ * correção em vez de inventar um número.
  */
 
 /** `PENDING` e `IN_PROGRESS` vêm do `correctionStatus` das simulações livres (kixi#609). */

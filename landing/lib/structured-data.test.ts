@@ -21,7 +21,7 @@ test('a organização e o sítio apontam um para o outro, e sem contactos invent
 });
 
 test('o Website não declara um SearchAction que não existe', () => {
-  // A landing não tem pesquisa pública. Declarar a acção seria dizer aos motores
+  // A landing não tem pesquisa pública. Declarar a ação seria dizer aos motores
   // que há um campo de pesquisa que leadaria a lado nenhum.
   assert.equal(webSiteLd().potentialAction, undefined);
 });

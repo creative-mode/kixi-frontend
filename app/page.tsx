@@ -152,7 +152,7 @@ export default function ManagerDashboard() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-foreground">
-            Dashboard
+            Painel
           </h1>
           <p className="mt-1 text-muted-foreground">
             Desempenho dos estudantes e estado das provas

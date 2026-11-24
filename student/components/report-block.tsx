@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
-import { REPORT_REASONS, REPORT_REASON_KEYS, exigeNota, type ReportTarget } from '@/lib/moderation';
+import { blockButtonLabel, REPORT_REASONS, REPORT_REASON_KEYS, exigeNota, type ReportTarget } from '@/lib/moderation';
 
 export interface ReportBlockProps {
   target: ReportTarget;
@@ -18,7 +18,10 @@ export interface ReportBlockProps {
   accountId?: number;
   podeBloquear?: boolean;
   onReport: (reason: string, note: string) => Promise<{ ok?: boolean; error?: string }>;
-  onBlock?: () => Promise<{ blocked?: boolean; error?: string }>;
+  /** Eu bloqueei esta pessoa? Só quem bloqueou vê «Desbloquear». */
+  initialBlocked?: boolean;
+  /** `block` é o que se quer: `true` bloqueia, `false` desbloqueia (rotas explícitas, nada de alternar às cegas). */
+  onBlock?: (block: boolean) => Promise<{ blocked?: boolean; blockedByMe?: boolean; error?: string }>;
 }
 
 /**
@@ -31,12 +34,12 @@ export interface ReportBlockProps {
  * O motivo é lista fechada com nota opcional: permite triar e contar quantas denúncias
  * há de cada tipo, coisa que o texto livre das publicações não permite.
  */
-export function ReportBlock({ target, nome, accountId, podeBloquear = false, onReport, onBlock }: ReportBlockProps) {
+export function ReportBlock({ target, nome, accountId, podeBloquear = false, initialBlocked = false, onReport, onBlock }: ReportBlockProps) {
   const [aberto, setAberto] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [nota, setNota] = useState('');
   const [enviado, setEnviado] = useState(false);
-  const [bloqueado, setBloqueado] = useState(false);
+  const [bloqueado, setBloqueado] = useState(initialBlocked);
   const [erro, setErro] = useState<string | null>(null);
   const [aTratar, iniciar] = useTransition();
 
@@ -60,9 +63,9 @@ export function ReportBlock({ target, nome, accountId, podeBloquear = false, onR
   function alternarBloqueio() {
     setErro(null);
     iniciar(async () => {
-      const r = await onBlock?.();
+      const r = await onBlock?.(!bloqueado);
       if (r?.error) setErro(r.error);
-      else if (typeof r?.blocked === 'boolean') setBloqueado(r.blocked);
+      else if (typeof r?.blocked === 'boolean') setBloqueado(r.blockedByMe ?? r.blocked);
     });
   }
 
@@ -81,7 +84,7 @@ export function ReportBlock({ target, nome, accountId, podeBloquear = false, onR
         </Button>
         {podeBloquear && accountId !== undefined && onBlock && (
           <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={alternarBloqueio} disabled={aTratar}>
-            <ShieldOff aria-hidden />{bloqueado ? `Deixar de bloquear ${nome}` : `Bloquear ${nome}`}
+            <ShieldOff aria-hidden />{bloqueado ? `${blockButtonLabel(true)} ${nome}` : `${blockButtonLabel(false)} ${nome}`}
           </Button>
         )}
       </div>

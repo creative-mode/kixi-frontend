@@ -32,6 +32,13 @@ for (const rota of [...ENTRADA, ...ERRO]) {
   });
 }
 
+test('403: o documento responde HTTP 403 a sério, com ou sem motivo (N7/G6)', async ({ request }) => {
+  for (const url of ['/403', '/403?reason=role', '/403?reason=student-manager', '/403?reason=manager', '/403?reason=qualquer-coisa']) {
+    const res = await request.get(url, { maxRedirects: 0 });
+    expect(res.status(), url).toBe(403);
+  }
+});
+
 test('403: cada motivo com o seu texto e destino, e o desconhecido neutro', async ({ page }) => {
   for (const [reason, config] of Object.entries(FORBIDDEN_REASONS)) {
     await page.goto(`/403?reason=${reason}`);

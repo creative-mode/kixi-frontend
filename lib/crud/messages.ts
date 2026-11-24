@@ -47,7 +47,20 @@ const KNOWN: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Only teachers or ADMIN can (create|manage) exam rooms/i, () => 'Só um professor ou o administrador pode gerir salas de prova.'],
   [/^Only the room owner or ADMIN can manage it/i, () => 'Só o dono da sala ou o administrador a pode gerir.'],
   [/^Statement not found/i, () => 'O enunciado não existe ou foi removido.'],
+  [/^Class not found, or you do not belong to it/i, () => 'A turma não existe ou não pertence a ela.'],
   [/^Class not found/i, () => 'A turma não existe ou foi removida.'],
+  // Feed, amizades e contas (PostService, FriendshipService, autenticação): o aluno e o professor também as vêem.
+  [/^Content must have at least (\d+) characters/i, (m) => `O texto tem de ter pelo menos ${m[1]} caracteres.`],
+  [/^Content must have (\d+) to (\d+) characters/i, (m) => `O texto tem de ter entre ${m[1]} e ${m[2]} caracteres.`],
+  [/^Account is inactive/i, () => 'Esta conta está desativada. Fale com a escola para a reativar.'],
+  [/^Too many feed requests/i, () => 'Foram feitos pedidos a mais ao feed. Espere um momento e tente de novo.'],
+  [/^Post not found/i, () => 'A publicação não existe ou foi removida.'],
+  [/^Comment not found/i, () => 'O comentário não existe ou foi removido.'],
+  [/^Comment cannot exceed (\d+) characters/i, (m) => `O comentário tem no máximo ${m[1]} caracteres.`],
+  [/^Comment content cannot be empty/i, () => 'Escreva o comentário.'],
+  [/^Report reason is required/i, () => 'Escolha um motivo para a denúncia.'],
+  [/^You have already reported this post/i, () => 'Já denunciou esta publicação.'],
+  [/^You cannot follow yourself/i, () => 'Não pode enviar um pedido de amizade a si próprio.'],
   [/^The class has no active students/i, () => 'A turma não tem alunos matriculados para convidar.'],
   [/^The invited account must be a STUDENT/i, () => 'Há uma conta matriculada nesta turma que não tem o papel de aluno, por isso ninguém foi convidado: retire-a da turma ou dê-lhe o papel de aluno.'],
   [/^The student is not enrolled in this room class/i, () => 'Há um aluno que não está matriculado na turma da sala, por isso ninguém foi convidado.'],
@@ -57,6 +70,12 @@ const KNOWN: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Invalid exam room state transition/i, () => 'A sala não pode passar a esse estado agora.'],
   [/^The exam room has ended/i, () => 'A hora de fecho da sala já passou.'],
   [/^The exam room is outside its active window/i, () => 'Só pode iniciar a prova dentro da janela da sala.'],
+  // Plano do trimestre (kixi#657): dispensar com a pauta aberta é 409 e reagendar para o passado é 400. O backend novo já
+  // responde em português; as frases inglesas ficam para um backend antigo.
+  [/^A pauta já está aberta: já não se pode dispensar/i, () => 'A pauta já está aberta: já não se pode dispensar uma avaliação.'],
+  [/^The pauta is already open: its assessments cannot be rescheduled/i, () => 'A pauta já está aberta: já não se pode reagendar uma avaliação.'],
+  [/^A nova data não pode ser no passado/i, () => 'A nova data não pode ser no passado. Escolha uma data a partir de hoje.'],
+  [/^Este enunciado faz parte de uma prova que ainda não terminou/i, () => 'Ainda não está disponível: este enunciado faz parte de uma prova que ainda não terminou. As perguntas abrem quando a prova terminar.'],
   [/^Exam room changed concurrently/i, () => 'A sala mudou entretanto: atualize a página e tente de novo.'],
 ];
 

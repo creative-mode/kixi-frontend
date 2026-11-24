@@ -11,6 +11,7 @@ import {
   buildSessionPayload,
   composerAction,
   describeHttpFailure,
+  podeTentarDeNovo,
   formatWait,
   modeNeedsQuestion,
   parseQuestionNumbers,
@@ -295,4 +296,12 @@ test('um 404 ao abrir a conversa diz que a prova não está disponível, não qu
   assert.doesNotMatch(describeHttpFailure(404, null, 'open'), /conversa/);
   // Os outros estados não mudam com a fase.
   assert.equal(describeHttpFailure(503, null, 'open'), describeHttpFailure(503, null, 'message'));
+});
+
+test('«Tentar de novo» só aparece quando tentar outra vez pode resolver', () => {
+  assert.equal(podeTentarDeNovo(503), false, 'tutor indisponível');
+  assert.equal(podeTentarDeNovo(404), false);
+  assert.equal(podeTentarDeNovo(401), false);
+  assert.equal(podeTentarDeNovo(504), true, 'tempo esgotado é transitório');
+  assert.equal(podeTentarDeNovo(502), true);
 });

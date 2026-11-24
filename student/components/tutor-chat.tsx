@@ -28,6 +28,7 @@ import {
   modeNeedsQuestion,
   parseRetryAfter,
   parseSse,
+  podeTentarDeNovo,
   preselectQuestion,
   questionOptions,
   type ChatMessage,
@@ -278,7 +279,7 @@ export function TutorChat({
         // stays above the box, with the question still there to send again.
         setMessages((prev) => prev.filter((m) => !(m.role === 'tutor' && m.text === '' && m.streaming)));
         setNotice(message);
-        setNoticeRetry(true);
+        setNoticeRetry(podeTentarDeNovo(status));
         if (status === 401) window.location.assign(`${BASE_PATH}/entrar?reason=session-expired`);
       }
     } finally {

@@ -60,6 +60,6 @@ test('a opção marcada só fica «errada» quando a folha sabe qual é a certa:
   assert.equal(optionMark({ optionId: 3, chosen: 2, correct: 1, reviewed: true, verdict: 'wrong' }), 'none');
   // Por corrigir pelo professor (questão que espera revisão): nada de certo/errado.
   assert.equal(optionMark({ optionId: 2, chosen: 2, correct: 1, reviewed: true, verdict: 'pending' }), 'none');
-  // Sem correcção (folha em branco da prova): nada.
+  // Sem correção (folha em branco da prova): nada.
   assert.equal(optionMark({ optionId: 1, chosen: 1, correct: 1, reviewed: false, verdict: 'pending' }), 'none');
 });

@@ -165,7 +165,7 @@ test('desligar «Mostrar a nota» tira os números do cartão antes de chegar ao
 test('a nota só é provisória enquanto houver respostas abertas por corrigir (#788)', () => {
   assert.equal(pendingReviews({ pendingReviewCount: 3 }), 3);
   assert.equal(pendingReviews({ pendingReviewCount: 0 }), 0);
-  // Sem o campo (backend antigo) ou com um valor inválido não se inventa correcção pendente.
+  // Sem o campo (backend antigo) ou com um valor inválido não se inventa correção pendente.
   assert.equal(pendingReviews({}), 0);
   assert.equal(pendingReviews({ pendingReviewCount: null }), 0);
   assert.equal(pendingReviews({ pendingReviewCount: -2 }), 0);

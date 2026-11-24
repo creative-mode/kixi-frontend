@@ -6,7 +6,7 @@ import { SalasDeProva } from '@/components/salas-de-prova';
 
 /**
  * As salas de prova no topo do Início (#795): a decorrer e na sala de espera, em
- * qualquer tamanho de ecrã — são as únicas que pedem uma acção agora.
+ * qualquer tamanho de ecrã — são as únicas que pedem uma ação agora.
  *
  * As que ainda não abriram (`scheduled`) não ganham cartão cheio (#806 — code
  * review): com o atalho do tutor (#804) e o compositor também no topo do Início,
