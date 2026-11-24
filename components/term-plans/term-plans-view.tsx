@@ -10,8 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { SectionState } from '@/components/dashboard/section-state';
-import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, conclusionProblem, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac, schedulingNote, statementTargets } from '@/lib/term-plans';
+import { MAX_MAC, STATUS_LABEL, KIND_LABEL, LEVEL_LABEL, conclusionProblem, estadoDaPauta, draftProblem, formatDate, daysText, planTitle, progress, reminderText, remindersFirst, resizeMac, schedulingNote, statementTargets } from '@/lib/term-plans';
 import type { Section } from '@/types/analytics';
+import { listTermSheets } from '@/app/actions/term-sheets';
+import type { TermSheetSummary } from '@/types/term-sheets';
 import type { Assessment, PlanDraft, TermPlan } from '@/types/term-plans';
 
 const EMPTY: PlanDraft = { classId: 0, subjectId: 0, termId: 0, p1Date: '', p2Date: '', macCount: 0, macDates: [], macTitles: [] };
@@ -25,11 +27,15 @@ const DONE_TONE = new Set(['GRADED', 'DISPENSED']);
 export function TermPlansView() {
   const [state, setState] = useState<Section<PlanContext> | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** As pautas que o utilizador vê: dizem se a de um plano já fechou. Uma falha aqui não derruba o ecrã (G11). */
+  const [pautas, setPautas] = useState<TermSheetSummary[]>([]);
 
   const load = useCallback(async () => {
     try {
       const r = await withDeadline(planContext(), ACTION_TIMEOUT_MS);
       setState(r.ok ? { ok: true, data: r.data } : { ok: false, error: r.error });
+      const lista = await withDeadline(listTermSheets(), ACTION_TIMEOUT_MS).catch(() => null);
+      setPautas(lista?.ok ? lista.data : []);
     } catch {
       setState({ ok: false, error: 'Não foi possível contactar o servidor. Tente novamente.' });
     }
@@ -63,7 +69,7 @@ export function TermPlansView() {
             {ctx.plans.length === 0 ? (
               <p className="text-sm text-muted-foreground">Ainda não há planos{ctx.canPlan ? '. Crie o primeiro acima.' : ' visíveis para si.'}</p>
             ) : (
-              ctx.plans.map((plan) => <PlanCard key={plan.id} plan={plan} ctx={ctx} act={act} />)
+              ctx.plans.map((plan) => <PlanCard key={plan.id} plan={plan} ctx={ctx} act={act} pautas={pautas} />)
             )}
           </>
         )}
@@ -179,7 +185,8 @@ function NewPlan({ ctx, onCreate }: { ctx: PlanContext; onCreate: (d: PlanDraft)
 
 type Act = (run: () => Promise<{ ok: boolean; error?: string }>, done: string) => Promise<boolean>;
 
-function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: Act }) {
+function PlanCard({ plan, ctx, act, pautas }: { plan: TermPlan; ctx: PlanContext; act: Act; pautas: TermSheetSummary[] }) {
+  const pauta = estadoDaPauta(plan, pautas);
   const { done, total } = progress(plan);
   const mine = ctx.pairs.some((p) => p.classId === plan.classId && p.subjectId === plan.subjectId);
   const problem = conclusionProblem(plan);
@@ -191,11 +198,11 @@ function PlanCard({ plan, ctx, act }: { plan: TermPlan; ctx: PlanContext; act: A
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{done}/{total} concluídas</Badge>
             {plan.approved && <Badge>Aprovado</Badge>}
-            {plan.pautaOpened ? <Badge variant="secondary">Pauta aberta</Badge> : plan.schedulingConcluded ? <Badge variant="secondary">Agendamento concluído</Badge> : null}
+            {pauta === 'fechada' ? <Badge variant="secondary">Pauta homologada</Badge> : pauta === 'anulada' ? <Badge variant="secondary">Pauta anulada</Badge> : plan.pautaOpened ? <Badge variant="secondary">Pauta aberta</Badge> : plan.schedulingConcluded ? <Badge variant="secondary">Agendamento concluído</Badge> : null}
           </div>
         </div>
         <CardDescription>
-          {plan.pautaOpened ? 'A pauta está a correr no SchoolOps: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? schedulingNote(plan) : `Ligue o enunciado ${statementTargets(plan)} e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.`}
+          {pauta === 'fechada' ? 'A pauta está fechada e homologada. Consulte as notas em Pautas.' : pauta === 'anulada' ? 'A pauta foi anulada. Consulte o estado em Pautas.' : plan.pautaOpened ? 'A pauta está aberta: cada componente espera pela sua data e a correção segue o fluxo. Acompanhe-a em Pautas.' : plan.schedulingConcluded ? schedulingNote(plan) : `Ligue o enunciado ${statementTargets(plan)} e conclua o agendamento: a pauta abre nesse momento e cada componente espera pela sua data.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

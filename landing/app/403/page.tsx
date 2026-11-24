@@ -1,10 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import ForbiddenScene from '@/components/forbidden/forbidden-scene';
-import { Header } from '@/components/sections/Header';
-import { getForbiddenReason } from '@/lib/forbidden-reasons';
-import '@/components/forbidden/forbidden.css';
-import { ErrorView } from '@/components/analytics/trackers';
+import { forbidden } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: '403 · Acesso não permitido',
@@ -17,30 +12,13 @@ export const metadata: Metadata = {
 
 type PageProps = { searchParams: Promise<{ reason?: string | string[] }> };
 
-function button(href: string, label: string) {
-  return (
-    <span className="kx-btn-wrap kx-scope">
-      <Link href={href} className="kx-btn kx-btn--lg" style={{ textDecoration: 'none' }}>
-        <span className="kx-btn__label">{label}</span>
-      </Link>
-    </span>
-  );
-}
-
+/**
+ * A porta fechada responde 403 a sério (G6/N7). Uma página não escolhe o estado, por isso `forbidden()` entrega a
+ * resposta a `forbidden.tsx`, que o Next serve com 403. Antes o proxy reescrevia `/403` com `{ status: 403 }`, mas
+ * atrás do gateway o anfitrião do pedido não coincide com o do servidor, o Next trata a reescrita como externa e
+ * descarta o estado (200 na stack real).
+ */
 export default async function ForbiddenPage({ searchParams }: PageProps) {
-  const raw = (await searchParams).reason;
-  const reason = Array.isArray(raw) ? raw[0] : raw;
-  const config = getForbiddenReason(reason);
-
-  return (
-    <>
-      <ErrorView app="landing" kind="forbidden" />
-      <ForbiddenScene
-        header={<Header />}
-        hint={config.message}
-        primary={button(config.primary.href, config.primary.label)}
-        secondary={config.secondary ? button(config.secondary.href, config.secondary.label) : undefined}
-      />
-    </>
-  );
+  await searchParams;
+  forbidden();
 }

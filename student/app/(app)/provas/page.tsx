@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/states';
 import { RefreshError } from '@/components/refresh-error';
 import { getCatalog, getCatalogNames, type CatalogItem, type ExamState } from '@/lib/catalog';
 import { listInvitations } from '@/lib/exam-room';
-import { hasLiveRoom, invitationsErrorOf } from '@/lib/exam-room-rules';
+import { hasLiveRoom, invitationsErrorOf, openRooms } from '@/lib/exam-room-rules';
 import { SalasDeProva } from '@/components/salas-de-prova';
 import { Calendario } from '@/components/calendario';
 import { DonateLink } from '@/components/donate-link';
@@ -113,7 +113,8 @@ function Abas({ aba, salas, enunciados, convites }: { aba: Aba; salas: string; e
   return (
     <nav aria-label="Provas" className="flex gap-1 border-b">
       {item('enunciados', enunciados, 'Enunciados')}
-      {item('salas', salas, convites > 0 ? `Salas de prova (${convites})` : 'Salas de prova')}
+      {item('salas', salas, // O mesmo número do ponto da barra («Provas»): as salas abertas, não todos os convites (10 contra 13).
+      convites > 0 ? `Salas de prova (${convites} ${convites === 1 ? 'aberta' : 'abertas'})` : 'Salas de prova')}
     </nav>
   );
 }
@@ -220,7 +221,7 @@ export default async function Provas({ searchParams }: { searchParams: Params })
   // `?aba=enunciados` explícito (#795 — code review): sem ele, quem tem uma sala a decorrer
   // nunca saía das Salas ao clicar em «Enunciados» — a omissão do parâmetro cai sempre no
   // valor por omissão, e esse é «Salas» enquanto `hasLiveRoom` for verdade.
-  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas?aba=enunciados" convites={invitations.length} />;
+  const abas = <Abas aba={aba} salas="/provas?aba=salas" enunciados="/provas?aba=enunciados" convites={openRooms(invitations).length} />;
   // #762: a landing é outra app; `appOrigin()` é a raiz do gateway (o mesmo padrão
   // do CookieBanner e do menu da conta). Sem origem configurada cai em `/doar`,
   // que é o que o `npm run dev` atrás do gateway serve.

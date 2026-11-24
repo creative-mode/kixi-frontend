@@ -4,6 +4,11 @@ import { isRestricted, isVisibility, matchesSearch, personAttributes, type Visib
 import { validateReport, blockPair, bloqueadoEntre, deveDesaparecer, desaparecePara, visibilidadePara } from '@/lib/moderation';
 import { toLocalDateTime } from '../simulation';
 
+/** O bloqueio entre os dois foi posto por `viewer`? */
+function blockedByViewer(blocks: ReadonlyArray<{ accountId: number; blockedAccountId: number; blockedBy?: number }>, other: number, viewer: number): boolean {
+  return blocks.some((b) => ((b.accountId === other && b.blockedAccountId === viewer) || (b.accountId === viewer && b.blockedAccountId === other)) && (b.blockedBy === undefined || b.blockedBy === viewer));
+}
+
 import type { Institution } from '@/lib/types';
 import { json, problem } from '../store';
 import type { MockCtx } from '../store';
@@ -40,21 +45,43 @@ export async function profilesRoutes({ method, pathname, search, filter, body, t
     return json(row, 201);
   }
 
-  /** PUT /profiles/accounts/{id}/block — alterna o bloqueio nos dois sentidos. */
+  /* Bloqueio (kixi#656): GET devolve o estado, POST bloqueia e DELETE desbloqueia (idempotentes, só quem bloqueou
+   * desbloqueia); o PUT antigo alterna. A resposta traz `blocked` (nos dois sentidos) e `blockedByMe`. */
   const block = pathname.match(/^\/profiles\/accounts\/(\d+)\/block$/);
-  if (block && method === 'PUT') {
+  if (block && ['GET', 'PUT', 'POST', 'DELETE'].includes(method)) {
     if (accountId === null) return problem(401, 'Unauthorized');
     const target = db.accounts.find((a) => a.id === Number(block[1]));
     if (!target) return problem(404, 'Profile not found');
     const par = blockPair(accountId, target.id);
-    if (!par) return problem(400, 'Alvo invalido');
+    if (!par) return problem(400, 'You cannot block yourself');
     const i = db.blocks.findIndex((b) => b.accountId === par.accountId && b.blockedAccountId === par.blockedAccountId);
-    if (i >= 0) {
+    const byMe = (row: { blockedBy?: number }) => row.blockedBy === undefined || row.blockedBy === accountId;
+    const state = () => (i >= 0 ? { blocked: true, blockedByMe: byMe(db.blocks[i]) } : { blocked: false, blockedByMe: false });
+    if (method === 'GET') return json(state());
+    const unblock = method === 'DELETE' || (method === 'PUT' && i >= 0);
+    if (unblock) {
+      if (i < 0) return json({ blocked: false, blockedByMe: false });
+      if (!byMe(db.blocks[i])) return problem(404, 'Pessoa não encontrada');
       db.blocks.splice(i, 1);
-      return json({ blocked: false });
+      return json({ blocked: false, blockedByMe: false });
     }
-    db.blocks.push({ ...par, createdAt: toLocalDateTime(new Date()) });
-    return json({ blocked: true });
+    if (i < 0) {
+      db.blocks.push({ ...par, createdAt: toLocalDateTime(new Date()), blockedBy: accountId });
+      // Bloquear termina a amizade, aceite ou pendente.
+      db.friendships = db.friendships.filter((f) => !((f.requesterId === accountId && f.addresseeId === target.id) || (f.requesterId === target.id && f.addresseeId === accountId)));
+    }
+    return json({ blocked: true, blockedByMe: i < 0 ? true : byMe(db.blocks[i]) });
+  }
+
+  if (pathname === '/profiles/blocks' && method === 'GET') {
+    if (accountId === null) return problem(401, 'Unauthorized');
+    return json(db.blocks
+      .filter((b) => (b.blockedBy ?? b.accountId) === accountId)
+      .map((b) => {
+        const otherId = b.accountId === accountId ? b.blockedAccountId : b.accountId;
+        const other = db.accounts.find((a) => a.id === otherId);
+        return { accountId: otherId, displayName: other ? `${other.firstName} ${other.lastName}` : null, photo: other?.photo ?? null, blockedAt: b.createdAt };
+      }));
   }
 
   if (pathname.startsWith('/profiles/') && method === 'GET' || pathname === '/profiles/me/visibility') {
@@ -101,7 +128,8 @@ export async function profilesRoutes({ method, pathname, search, filter, body, t
     // devolvesse «só o nome e a foto» não deixava de ver nada de útil.
     if (desaparecePara({
       mine: target.id === accountId,
-      bloqueado: bloqueadoEntre(db.blocks, target.id, accountId ?? -1),
+      // O bloqueador mantém o perfil (para o desbloquear); a pessoa bloqueada leva 404.
+      bloqueado: bloqueadoEntre(db.blocks, target.id, accountId ?? -1) && !blockedByViewer(db.blocks, target.id, accountId ?? -1),
       oculto: deveDesaparecer({ hidden: target.hidden, suspended: target.suspended }),
     })) {
       return problem(404, 'Profile not found');
@@ -113,7 +141,7 @@ export async function profilesRoutes({ method, pathname, search, filter, body, t
       const effective = visibilidadePara({
         targetOwnVisibility: ownVisibility,
         mine,
-        bloqueado: bloqueadoEntre(db.blocks, target.id, accountId ?? -1),
+        bloqueado: bloqueadoEntre(db.blocks, target.id, accountId ?? -1) && !blockedByViewer(db.blocks, target.id, accountId ?? -1),
         desaparece: deveDesaparecer({ hidden: target.hidden, suspended: target.suspended }),
       });
       const visibility = effective;
@@ -130,7 +158,7 @@ export async function profilesRoutes({ method, pathname, search, filter, body, t
         verified: isTeacher,
         restricted,
         visibility,
-        blocked: mine ? false : bloqueadoEntre(db.blocks, target.id, accountId ?? -1),
+        blocked: mine ? false : blockedByViewer(db.blocks, target.id, accountId ?? -1),
         schools: restricted
           ? []
           : db.institutions.filter((i) => schoolIds.has(i.id) || (isTeacher && i.id === 1)).map(card),

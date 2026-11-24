@@ -6,7 +6,7 @@ import { getFeed } from '@/lib/feed';
 import { loadConnectionsAction } from '@/lib/friends-actions';
 import { getProfile } from '@/lib/me';
 import { fullName, photoUrl } from '@/lib/profile';
-import { getPerson } from '@/lib/profiles';
+import { getBlockState, getPerson } from '@/lib/profiles';
 
 export async function generateMetadata({ params }: { params: Promise<{ accountId: string }> }) {
   const person = await getPerson(Number((await params).accountId));
@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ accountId
 export default async function PessoaPage({ params }: { params: Promise<{ accountId: string }> }) {
   const id = Number((await params).accountId);
   if (!Number.isInteger(id) || id <= 0) notFound();
-  const [result, profile] = await Promise.all([getPerson(id), getProfile()]);
+  const [result, profile, blockState] = await Promise.all([getPerson(id), getProfile(), getBlockState(id)]);
   if (profile.kind === 'ok' && profile.me.accountId === id) redirect('/perfil');
   if (!result.ok) {
     if (result.status === 404) notFound();
@@ -37,7 +37,8 @@ export default async function PessoaPage({ params }: { params: Promise<{ account
 
   return (
     <PersonView
-      person={{ ...result.data, accountId: id }}
+      // `blocked`: fui eu que bloqueei (só quem bloqueou vê o perfil e desbloqueia).
+      person={{ ...result.data, accountId: id, blocked: blockState.ok && blockState.data.blockedByMe }}
       posts={posts}
       // O perfil não diz a turma; uma publicação na tua turma é a prova de que é da mesma.
       classmate={posts.length > 0}
@@ -45,6 +46,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ account
       myName={me ? fullName(me) : ''}
       myPhoto={me ? photoUrl(me) : null}
       myClassId={myClassId}
+      mySchoolId={me?.school?.id ?? null}
       friend={friend}
       experience={experience.ok ? experience.data : []}
     />

@@ -6,6 +6,8 @@ import { cabecalhosDeSeguranca } from './lib/security-headers';
 // postcss config, proxy.ts and lockfile.
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // `forbidden()` faz a `/403` responder 403 a sério (G6/N7).
+  experimental: { authInterrupts: true },
   turbopack: { root: path.resolve(__dirname) },
   // Imagem Docker mínima (docker/app.Dockerfile); a raiz fixa evita que o servidor fique em subpastas.
   output: 'standalone',

@@ -32,6 +32,8 @@ import { answersOf, marksOf, paperQuestions, stampOf } from '@/lib/folha-do-resu
 import {
   formatDelta,
   formatDuration,
+  aguardaCorrecao,
+  contagemDeCertas,
   formatScore,
   givenAnswers,
   inOrder,
@@ -95,14 +97,15 @@ function Review({ question, context, simulationId }: { question: ResultQuestion;
                 key={option.id}
                 className={
                   'flex items-center gap-2.5 rounded-md border px-3 py-2 text-sm ' +
-                  (right ? 'border-success/50 bg-success-soft' : chosen ? 'border-destructive/50 bg-danger-soft' : '')
+                  (right ? 'border-success/50 bg-success-soft' : chosen ? (v === 'pending' ? 'border-primary/40 bg-secondary/60' : 'border-destructive/50 bg-danger-soft') : '')
                 }
               >
                 <span className="font-bold">{optionTag(option, i)}</span>
                 <span className="min-w-0 flex-1">{option.optionText}</span>
                 {/* Texto e não só cor: quem não distingue cores tem de saber qual era a certa. */}
                 {right && <span className="inline-flex items-center gap-1 text-xs font-semibold text-success"><Check className="size-3.5" aria-hidden />Resposta certa</span>}
-                {chosen && !right && <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive"><X className="size-3.5" aria-hidden />A tua resposta</span>}
+                {chosen && !right && v === 'pending' && <span className="text-xs font-semibold text-muted-foreground">A tua resposta</span>}
+                {chosen && !right && v !== 'pending' && <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive"><X className="size-3.5" aria-hidden />A tua resposta</span>}
                 {chosen && right && <span className="text-xs text-muted-foreground">(a tua)</span>}
               </li>
             );
@@ -158,16 +161,18 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
 
   const { result: resultadoDoBackend, statementId, comparison } = view;
   const me = await getMe();
+  // Uma prova de sala tem tempo fixo e não se refaz: o botão «Refazer simulação» só existe nas simulações livres.
+  const salasDoAluno = await listInvitations();
+  const refazivel = salasDoAluno.ok ? eSimulacaoLivre(resultadoDoBackend.simulationId, salasDoAluno.data) : true;
 
   let totalMax = view.totalMaxScore;
   let result = resultadoDoBackend;
   // Uma simulação (iniciativa do aluno) é corrigida em tempo real pelo SchoolOps e não tem nota até estar corrigida.
   // Uma prova de sala não: o professor valida e a nota vem da pauta. Se a lista de salas falhar, não se arrisca.
   if ((correcaoLigada() || correcaoSimulada(resultadoDoBackend.simulationId)) && me && statementId != null) {
-    const salas = await listInvitations();
-    if (salas.ok && eSimulacaoLivre(resultadoDoBackend.simulationId, salas.data)) {
-      // Com correcaoId (entrega #794): lê o estado pela rota leve, sem reabrir a correcção.
-      // Sem correcaoId (ecrã aberto antes da entrega, ou utilizador voltou mais tarde): abre a correcção (idempotente).
+    if (salasDoAluno.ok && refazivel) {
+      // Com correcaoId (entrega #794): lê o estado pela rota leve, sem reabrir a correção.
+      // Sem correcaoId (ecrã aberto antes da entrega, ou utilizador voltou mais tarde): abre a correção (idempotente).
       // Se o motor estiver em baixo com correcaoId, não se mostra a nota do backend como se
       // fosse final: fica "a corrigir" e a espera volta a ler.
       const lida = correcaoId ? await consultarEstadoCorrecao(correcaoId) : null;
@@ -214,7 +219,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
                 )}
               </Card>
               <div className="flex flex-wrap items-start gap-2.5">
-                {statementId != null && <RefazerSimulacao statementId={statementId} />}
+                {statementId != null && refazivel && <RefazerSimulacao statementId={statementId} />}
                 <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
               </div>
             </Column>
@@ -258,7 +263,10 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
     sampleSize: community?.ok ? community.data.sampleSize : null,
     delta: comparison?.delta ?? null,
   });
-  const medalhasNovas = badgesUnlockedIn(badges, view.startedAt, view.finishedAt);
+  const aguarda = aguardaCorrecao(result);
+  const certas = contagemDeCertas(questions);
+  // Sem veredicto não há medalhas: «Tema dominado» sobre uma prova por corrigir seria um elogio sem nota.
+  const medalhasNovas = aguarda ? [] : badgesUnlockedIn(badges, view.startedAt, view.finishedAt);
 
   // A prova entregue na folha, corrigida. O cabeçalho e as figuras são extras: se algum falhar, a folha leva o
   // molde em branco e a revisão questão a questão, mais abaixo, continua a ser a fonte de tudo.
@@ -285,13 +293,16 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
           </div>
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-[15px] font-semibold text-[#1f5a2c]">{view.title}</span>
-            <h1 className="m-0 text-[28px] leading-[1.15] font-extrabold tracking-[-0.02em]">{me?.first_name ? `Bom trabalho, ${me.first_name}.` : 'Bom trabalho.'}</h1>
+            <h1 className="m-0 text-[28px] leading-[1.15] font-extrabold tracking-[-0.02em]">{aguarda ? 'A aguardar a correção.' : me?.first_name ? `Bom trabalho, ${me.first_name}.` : 'Bom trabalho.'}</h1>
             <span data-testid={reading ? 'resultado-leitura' : undefined} role={reading ? 'status' : undefined} className="text-[15px] leading-[1.4] text-[#3d4a41]">
-              {reading ? reading.text : `${result.correctAnswers ?? '—'}${result.totalQuestions != null ? ` de ${result.totalQuestions}` : ''} respostas certas${time ? ` em ${time}` : ''}.`}
+              {aguarda
+                ? `Entregaste a prova${time ? ` em ${time}` : ''}. O resultado aparece quando for corrigida.`
+                : reading ? reading.text : certas.corrigidas > 0 ? `${certas.certas} de ${certas.corrigidas} respostas certas${certas.porCorrigir > 0 ? ` (${certas.porCorrigir} por corrigir)` : ''}${time ? ` em ${time}` : ''}.` : `${result.correctAnswers ?? '—'}${result.totalQuestions != null ? ` de ${result.totalQuestions}` : ''} respostas certas${time ? ` em ${time}` : ''}.`}
             </span>
             <div className="mt-1 flex flex-wrap gap-2" aria-label="O que ganhaste" role="group">
-              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1b4d27]">{stats.xp} XP · nível {stats.level}</span>}
-              {stats != null && <span className="flex h-[30px] items-center rounded-full bg-[#fbe9ea] px-3 text-[13px] font-bold text-[#8a2a2e]">{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} de sequência</span>}
+              {/* Sem nota (por corrigir) o XP e a sequência escondem-se: mostrá-los diria que há resultado (N9). */}
+              {stats != null && !aguarda && <span className="flex h-[30px] items-center rounded-full bg-[#eef6ea] px-3 text-[13px] font-bold text-[#1b4d27]">{stats.xp} XP · nível {stats.level}</span>}
+              {stats != null && !aguarda && <span className="flex h-[30px] items-center rounded-full bg-[#fbe9ea] px-3 text-[13px] font-bold text-[#8a2a2e]">{stats.streak} {stats.streak === 1 ? 'dia' : 'dias'} de sequência</span>}
               {comparison && <span className="flex h-[30px] items-center rounded-full bg-[#fbf1d6] px-3 text-[13px] font-bold text-[#8a5a00]">{formatDelta(comparison.delta)} face à anterior</span>}
             </div>
           </div>
@@ -314,7 +325,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
               <Link href={`/tutor?statementId=${statementId}&questoes=${wholeNumbers(toReview(result.questions)).join(',')}${wrongAnswersParam(givenAnswers(result.questions))}&de=resultado&simulacao=${result.simulationId}`}><MessageCircle aria-hidden />Estudar os erros com o tutor</Link>
             </Button>
           )}
-          {statementId != null && <RefazerSimulacao statementId={statementId} />}
+          {statementId != null && refazivel && <RefazerSimulacao statementId={statementId} />}
           <Button asChild variant="ghost" className="text-primary"><Link href="/provas">Voltar às provas</Link></Button>
         </div>
 
@@ -333,10 +344,10 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         )}
 
         {questions.length > 0 && (
-          <Card className="gap-3 p-3 sm:p-5" aria-label="A tua prova corrigida">
+          <Card className="gap-3 p-3 sm:p-5" aria-label={aguarda ? 'A tua prova entregue' : 'A tua prova corrigida'}>
             <div>
-              <h2 className="text-[17px] font-bold tracking-tight">A tua prova corrigida</h2>
-              <p className="text-sm text-muted-foreground">Como a entregaste: a verde o que acertaste, a vermelho o que falhaste, com a resposta certa.</p>
+              <h2 className="text-[17px] font-bold tracking-tight">{aguarda ? 'A tua prova entregue' : 'A tua prova corrigida'}</h2>
+              <p className="text-sm text-muted-foreground">{aguarda ? 'Como a entregaste. A correção ainda não terminou: não há certas nem erradas por agora.' : 'Como a entregaste: a verde o que acertaste, a vermelho o que falhaste, com a resposta certa.'}</p>
             </div>
             <div className="overflow-x-auto rounded-lg border bg-muted/50 p-2 sm:p-3">
               <FolhaDaProva
@@ -352,7 +363,7 @@ export default async function Resultado({ searchParams }: { searchParams: Promis
         )}
 
         <Card className="gap-0 py-0" aria-label="Revisão questão a questão">
-          <CardHeader className="pt-5 pb-3"><CardTitle>{questions.filter((q) => ['wrong', 'blank'].includes(verdict(q))).length > 0 ? 'As que falhaste e as que acertaste' : 'Revisão questão a questão'}</CardTitle></CardHeader>
+          <CardHeader className="pt-5 pb-3"><CardTitle>{!aguarda && questions.filter((q) => ['wrong', 'blank'].includes(verdict(q))).length > 0 ? 'As que falhaste e as que acertaste' : 'Revisão questão a questão'}</CardTitle></CardHeader>
           {questions.length === 0 ? (
             <p className="border-t px-5 py-4 text-sm text-muted-foreground">Não respondeste a nenhuma questão desta prova.</p>
           ) : (

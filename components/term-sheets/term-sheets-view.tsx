@@ -89,7 +89,7 @@ export function TermSheetsView({ canExport = false }: { canExport?: boolean }) {
     <div className="mx-auto max-w-7xl space-y-8 p-6 md:p-8 lg:p-10">
       <div>
         <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-foreground">Pautas</h1>
-        <p className="mt-1 text-muted-foreground">As pautas trimestrais das turmas e disciplinas que lecciona, com as notas de cada aluno.</p>
+        <p className="mt-1 text-muted-foreground">As pautas trimestrais das turmas e disciplinas a que tem acesso, com as notas de cada aluno.</p>
       </div>
 
       {all && all.length > 0 ? (

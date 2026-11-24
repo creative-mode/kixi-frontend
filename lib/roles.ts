@@ -102,6 +102,7 @@ export function teacherMayOpen(pathname: string): boolean {
     pathname === '/tarefas' ||
     pathname === '/pautas' ||
     pathname === '/planos' ||
+    pathname === '/moderacao/publicacoes' ||
     /^\/tarefas\/\d+$/.test(pathname)
   );
 }

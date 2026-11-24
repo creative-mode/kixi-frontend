@@ -4,11 +4,14 @@ import assert from 'node:assert/strict';
 import { MODERATION_UNAVAILABLE, moderationAvailable, moderationRefusal, routeClosed } from './availability.ts';
 import { visibleLinks } from '../nav-rules.ts';
 
-test('a moderação só existe com a flag ou no modo de demonstração (#749)', () => {
-  assert.equal(moderationAvailable({}), false);
-  assert.equal(moderationAvailable({ MODERATION_ENABLED: 'false' }), false);
+test('a moderação está ligada por omissão e só se desliga com MODERATION_ENABLED=false (S3)', () => {
+  assert.equal(moderationAvailable({}), true);
+  assert.equal(moderationAvailable({ MODERATION_ENABLED: '' }), true);
   assert.equal(moderationAvailable({ MODERATION_ENABLED: 'true' }), true);
-  assert.equal(moderationAvailable({ KIXI_MOCK: 'true' }), true);
+  assert.equal(moderationAvailable({ MODERATION_ENABLED: 'false' }), false);
+  assert.equal(moderationAvailable({ MODERATION_ENABLED: ' FALSE ' }), false);
+  assert.equal(moderationAvailable({ MODERATION_ENABLED: '0' }), false);
+  assert.equal(moderationAvailable({ KIXI_MOCK: 'true', MODERATION_ENABLED: 'false' }), true, 'o mock tem sempre os endpoints');
 });
 
 test('um 403, 404, 405 ou 501 de uma rota só de ADMIN é rota fechada, não falta de papel', () => {

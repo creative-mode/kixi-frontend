@@ -57,3 +57,6 @@ export function getForbiddenReason(reason: string | undefined): ForbiddenReasonC
   if (!r) return FALLBACK;
   return FORBIDDEN_REASONS[r] ?? FALLBACK;
 }
+
+/** Cabeçalho interno do pedido com o motivo da `/403`: o proxy escreve-o e `app/403/forbidden.tsx` lê-o. */
+export const FORBIDDEN_REASON_HEADER = 'x-kixi-forbidden-reason';

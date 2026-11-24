@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { prefersMarkdown } from './lib/markdown-negotiation';
+import { FORBIDDEN_REASON_HEADER } from './lib/forbidden-reasons';
 import { redirectOrigin, SESSION_COOKIE, sessionDestination } from './lib/session-destination';
 
 /**
@@ -59,6 +60,14 @@ function sessionRedirect(request: NextRequest, destination: string) {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // A `/403` responde 403 por `forbidden()` (ver `app/403`). O `forbidden.tsx` não recebe os parâmetros do endereço, por isso o
+  // motivo segue num cabeçalho do pedido (sempre escrito aqui, nunca o que o cliente mande).
+  if (pathname === '/403') {
+    const headers = new Headers(request.headers);
+    headers.set(FORBIDDEN_REASON_HEADER, request.nextUrl.searchParams.get('reason') ?? '');
+    return NextResponse.next({ request: { headers } });
+  }
 
   // Os não-negociáveis saem limpos: um `Vary: Accept` num ficheiro estático não
   // fragmenta o cache por nada, porque estático não varia com o `Accept`.

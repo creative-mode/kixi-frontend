@@ -26,6 +26,7 @@ export function StatementDetailView({
   attempts,
   current,
   community,
+  embargoed = false,
 }: {
   summary: StatementSummaryView;
   /** null when the history could not be loaded: the banner below says so, rather than
@@ -35,6 +36,8 @@ export function StatementDetailView({
   /** Null sem tentativa corrigida (#32/#119): a comunidade compara desempenhos, e sem
    *  um próprio não há "tu vs. a média" para mostrar. */
   community: { stats: CommunityStats | null; solutions: SharedSolution[]; schools: Named[]; locked?: boolean } | null;
+  /** Enunciado de uma prova que ainda não terminou: não há simulação nem treino, e o botão não pode levar a um 403. */
+  embargoed?: boolean;
 }) {
   const id = summary.id;
   const duration = summary.durationMinutes;
@@ -72,6 +75,10 @@ export function StatementDetailView({
           <div className="flex flex-wrap gap-2">
             {current?.label === 'corrected' || current?.label === 'correcting' ? (
               <VerResultado simulationId={current.id} variant="default" className="flex-1 sm:flex-none" />
+            ) : embargoed ? (
+              <Button disabled className={`${ACTION_LABEL} flex-1 sm:flex-none`} title="Abre quando a prova terminar">
+                {current?.label === 'unfinished' ? 'Continuar a prova' : 'Começar a simulação'}
+              </Button>
             ) : (
               <Button asChild className={`${ACTION_LABEL} flex-1 sm:flex-none`}>
                 <Link href={`/prova/${id}`}>{current?.label === 'unfinished' ? 'Continuar a prova' : 'Começar a simulação'}</Link>

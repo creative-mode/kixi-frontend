@@ -477,9 +477,9 @@ test.describe('menu da conta por cima do conteúdo (#752)', () => {
   });
 });
 
-/** Passe visual do aluno (#761): títulos com espaço, rótulos de acção numa linha e o botão do tutor dentro do campo. */
+/** Passe visual do aluno (#761): títulos com espaço, rótulos de ação numa linha e o botão do tutor dentro do campo. */
 test.describe('passe visual do aluno (#761)', () => {
-  /** Rótulos de acção que partiram em duas linhas: devolve os que ocupam mais do que uma. */
+  /** Rótulos de ação que partiram em duas linhas: devolve os que ocupam mais do que uma. */
   async function partidos(page: Page) {
     return page.evaluate(() =>
       [...document.querySelectorAll<HTMLElement>('main a, main button, main span.px-btn')]
@@ -1722,6 +1722,21 @@ test.describe('moderação com diálogo, nota e auditoria (#525)', () => {
     await page.getByRole('main').getByRole('link', { name: 'Ver auditoria' }).click();
     await expect(page).toHaveURL(/\/moderacao\/auditoria$/);
     await expect(page.getByRole('heading', { name: 'Auditoria' })).toBeVisible();
+  });
+
+  test('publicações denunciadas: o admin oculta e repõe uma publicação (S2)', async ({ page }) => {
+    await gestorLogin(page);
+    await page.goto('/manager/moderacao');
+    await page.getByRole('main').getByRole('link', { name: 'Publicações denunciadas' }).click();
+    await expect(page).toHaveURL(/\/moderacao\/publicacoes$/);
+    await expect(page.getByRole('heading', { name: 'Publicações denunciadas', level: 1 })).toBeVisible();
+    const cartao = page.getByTestId('post-denunciado-12');
+    await expect(cartao).toContainText('1 denúncia');
+    await cartao.getByTestId('post-ocultar-12').click();
+    const oculta = page.getByTestId('post-denunciado-12');
+    await expect(oculta.getByTestId('post-repor-12')).toBeVisible();
+    await oculta.getByTestId('post-repor-12').click();
+    await expect(page.getByTestId('post-denunciado-12').getByTestId('post-ocultar-12')).toBeVisible();
   });
 
   test('decisão falhada mostra o erro dentro do diálogo', async ({ page }) => {

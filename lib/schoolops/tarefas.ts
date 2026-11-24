@@ -229,3 +229,57 @@ export function primeiroErro(dados: Record<string, unknown>, schema: Componente)
   }
   return null;
 }
+
+const preenchido = (v: unknown) => v !== undefined && v !== null && v !== '';
+
+/**
+ * A lista das leituras do OCR («Validar ou transcrever leituras») sem aluno (G1): se o ecrã deixar concluir antes de os dados
+ * chegarem, `leituras` vai com `alunoId: null` e o motor falha a submeter as folhas, sem saída para o professor. O motor
+ * também vai passar a recusá-lo; esta é a defesa do ecrã e da acção.
+ */
+export function problemaDasLeituras(dados: Record<string, unknown>, schema: Componente): string | null {
+  if (!camposEscreviveis(schema).some((c) => nomeDoCampo(c) === 'leituras')) return null;
+  const leituras = dados.leituras;
+  if (!Array.isArray(leituras)) return 'As leituras ainda não chegaram. Espere que o formulário carregue e tente de novo.';
+  const semAluno = leituras.filter((l) => !preenchido((l as Record<string, unknown> | null)?.alunoId)).length;
+  if (semAluno > 0) {
+    return semAluno === 1
+      ? 'Há uma leitura sem aluno (falta o número de processo). Espere que o formulário carregue por completo ou corrija-a.'
+      : `Há ${semAluno} leituras sem aluno (falta o número de processo). Espere que o formulário carregue por completo ou corrija-as.`;
+  }
+  return null;
+}
+
+/** «Recolher e conferir folhas» (G2): o total de folhas recolhidas tem de ser o dos alunos marcados como «Entregou a folha». */
+export function problemaDasFolhasRecolhidas(dados: Record<string, unknown>): string | null {
+  const entregas = dados.entregas;
+  if (!Array.isArray(entregas) || !preenchido(dados.folhasRecolhidas)) return null;
+  const total = Number(dados.folhasRecolhidas);
+  if (!Number.isFinite(total)) return null;
+  const presentes = entregas.filter((e) => (e as Record<string, unknown> | null)?.presente === true).length;
+  if (total === presentes) return null;
+  return `O total de folhas recolhidas (${total}) não bate certo com os alunos que entregaram a folha (${presentes}). Corrija o total ou as presenças: um aluno sem folha deve ficar com falta, não presente.`;
+}
+
+/** Tudo o que o ecrã e o servidor conferem antes de concluir: campos obrigatórios, leituras com aluno e folhas recolhidas. */
+export function problemaDosDados(dados: Record<string, unknown>, schema: Componente): string | null {
+  return primeiroErro(dados, schema) ?? problemaDasLeituras(dados, schema) ?? problemaDasFolhasRecolhidas(dados);
+}
+
+/** O form tem a lista das leituras do OCR. */
+export const pedeLeituras = (schema: Componente) => camposEscreviveis(schema).some((c) => nomeDoCampo(c) === 'leituras');
+
+export type FiltroDeTarefas = { processo: string; prazo: 'todas' | 'em-prazo' | 'atrasadas' };
+export const SEM_FILTRO: FiltroDeTarefas = { processo: '', prazo: 'todas' };
+
+/** Filtra a lista por tipo de processo e por prazo (G13): quem tem dezenas de tarefas antigas «Prazo ultrapassado» encontra as
+ *  que ainda importam. `agora` vem de fora para o teste. */
+export function filtrarTarefas(tarefas: readonly Tarefa[], filtro: FiltroDeTarefas, agora: number): Tarefa[] {
+  return tarefas.filter((t) => {
+    if (filtro.processo && t.processo !== filtro.processo) return false;
+    const atrasada = t.prazo !== null && new Date(t.prazo).getTime() < agora;
+    if (filtro.prazo === 'atrasadas') return atrasada;
+    if (filtro.prazo === 'em-prazo') return !atrasada;
+    return true;
+  });
+}

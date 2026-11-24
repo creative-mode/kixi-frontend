@@ -18,7 +18,7 @@ import { previsaoValida, progressoValido, type MotivoDaFalha, type ProgressoDoMo
 /**
  * A prova entregue ainda está a ser corrigida (kixi#542). Não há erro nem desistência: o ecrã tranquiliza, mostra em que
  * ponto está (entregue, a corrigir, resultado) e diz que o aluno pode sair; o resultado aparece nas provas assim que
- * estiver pronto. Enquanto o ecrã está à vista volta a ler o estado da correcção, cada vez mais devagar, e pára quando está escondido.
+ * estiver pronto. Enquanto o ecrã está à vista volta a ler o estado da correção, cada vez mais devagar, e pára quando está escondido.
  *
  * `desdeMs`: o tempo que já passou quando o ecrã abre (uma correção que o motor atrasou abre já na fase calma e longa).
  *
@@ -29,7 +29,7 @@ import { previsaoValida, progressoValido, type MotivoDaFalha, type ProgressoDoMo
  * incidente (`falha`), o ecrã mostra a nota das questões fechadas como provisória, diz que as abertas ficam por corrigir
  * e oferece «Tentar de novo», que volta a pedir a correção.
  *
- * Em qualquer momento da espera o aluno vê o que já está feito e uma previsão (#792): a nota das objectivas, como parcial,
+ * Em qualquer momento da espera o aluno vê o que já está feito e uma previsão (#792): a nota das objetivas, como parcial,
  * as respostas abertas já corrigidas e quanto falta. `progresso` e `previsaoSegundos` vêm do motor; sem eles estima-se
  * pelo número de abertas da prova (`abertas`).
  */
@@ -93,7 +93,7 @@ export function CorrecaoEmCurso({
             }
           } else if (res.status === 404 || res.status === 403) {
             // 404/403: a correção não é nossa ou já não existe; não insistir.
-            setErroPoll('Não foi possível confirmar o estado da correcção.');
+            setErroPoll('Não foi possível confirmar o estado da correção.');
             return;
           } else {
             // 5xx/503: motor ou backend em baixo; continua a tentar.
@@ -179,12 +179,12 @@ export function CorrecaoEmCurso({
 
       {provisoria ? (
         <section
-          aria-label="Nota das questões objectivas"
+          aria-label="Nota das questões objetivas"
           data-testid="nota-parcial"
           className="flex w-full max-w-md items-baseline justify-between gap-3 rounded-xl border border-border bg-secondary/70 px-4 py-3 text-left"
         >
           <h3 className="text-sm font-semibold">
-            Objectivas <span className="font-normal text-muted-foreground">· nota parcial</span>
+            Objetivas <span className="font-normal text-muted-foreground">· nota parcial</span>
           </h3>
           <p className="shrink-0 tabular-nums">
             <span className="text-2xl font-bold">{formatScore(provisoria.pontos)}</span>{' '}

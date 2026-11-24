@@ -57,7 +57,7 @@ O Kixi é uma plataforma de avaliação e estudo para escolas, feita por alunos 
 
 ## Falar connosco
 
-${CONTACT_EMAIL ? `- **Email:** ${CONTACT_EMAIL} — a via mais directa para qualquer assunto sobre a plataforma.` : '- **Email:** não definido nesta publicação.'}
+${CONTACT_EMAIL ? `- **Email:** ${CONTACT_EMAIL} — a via mais direta para qualquer assunto sobre a plataforma.` : '- **Email:** não definido nesta publicação.'}
 
 ## O que costuma ser mais rápido do que escrever
 

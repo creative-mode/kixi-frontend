@@ -63,7 +63,7 @@ interface Page<T> {
 
 export async function getCommunityStats(statementId: number): Promise<Result<CommunityStats>> {
   const result = await apiGet<CommunityStats>(`/statements/${statementId}/community`);
-  // Com a correcção do SchoolOps ligada, a tua nota só aparece no resultado: aqui não há comparação com a média por corrigir.
+  // Com a correção do SchoolOps ligada, a tua nota só aparece no resultado: aqui não há comparação com a média por corrigir.
   if (result.ok && result.data.mine && correcaoLigada()) {
     return { ok: true, data: { ...result.data, mine: { ...result.data.mine, finalScore: null } } };
   }

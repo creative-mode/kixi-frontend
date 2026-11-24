@@ -24,6 +24,7 @@ import {
   Gift,
   BadgeCheck,
   Flag,
+  MessageSquareWarning,
   ScrollText,
   type LucideIcon,
 } from "lucide-react";
@@ -43,7 +44,7 @@ import { ENTITIES, NAV_KEYS } from "@/lib/crud/entities";
 type NavLink = { href: string; label: string; icon: LucideIcon };
 
 const allNavLinks: NavLink[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "Painel", icon: LayoutDashboard },
   { href: "/exam-rooms", label: "Salas de Prova", icon: DoorOpen },
   { href: "/tarefas", label: "Tarefas das pautas", icon: ClipboardCheck },
   { href: "/planos", label: "Plano do trimestre", icon: CalendarCheck },
@@ -55,6 +56,7 @@ const allNavLinks: NavLink[] = [
   { href: "/donations", label: "Doações", icon: Gift },
   { href: "/verification", label: "Verificação", icon: BadgeCheck },
   { href: "/moderacao", label: "Moderação", icon: Flag },
+  { href: "/moderacao/publicacoes", label: "Publicações denunciadas", icon: MessageSquareWarning },
   { href: "/moderacao/auditoria", label: "Auditoria", icon: ScrollText },
   ...NAV_KEYS.map((k) => {
     const e = ENTITIES[k];
@@ -66,7 +68,7 @@ const allNavLinks: NavLink[] = [
 // lista mandava o professor de volta ao início.
 // O coordenador só vê o plano, as pautas e as salas da instituição (o proxy fecha o resto: `coordinatorMayOpen`).
 const COORDINATOR_HREFS = ["/planos", "/pautas", "/coordenacao", "/tarefas"];
-const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/classes"];
+const TEACHER_HREFS = ["/desempenho", "/tarefas", "/planos", "/pautas", "/exam-rooms", "/statements", "/exam-builder", "/simulations", "/classes", "/moderacao/publicacoes"];
 
 const teacherHomeLink: NavLink = { href: "/professor", label: "Início", icon: Home };
 

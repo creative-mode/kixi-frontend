@@ -2,7 +2,7 @@ import { formatScore } from '@/lib/result-rules';
 
 interface ScoreBreakdownProps {
   objectiveScore: number;
-  /** Falso quando as objectivas ainda não têm nota (sala aberta): diz-se «a aguardar», não «0/20». */
+  /** Falso quando as objetivas ainda não têm nota (sala aberta): diz-se «a aguardar», não «0/20». */
   objectiveGraded?: boolean;
   objectiveMax: number;
   openScore: number;
@@ -19,7 +19,6 @@ export function ScoreBreakdown({
   objectiveMax,
   openScore,
   openMax,
-  openPendingScore,
   openPendingMax,
   hasAiGraded,
   hasSchoolOpsGraded,
@@ -27,7 +26,8 @@ export function ScoreBreakdown({
   const hasOpen = openMax > 0 || openPendingMax > 0;
   // O aluno não conhece "SchoolOps": diz-se "pela escola". A IA diz-se "pela IA".
   const openLabel = hasAiGraded ? 'pela IA' : hasSchoolOpsGraded ? 'pela escola' : '';
-  const pendingLabel = openPendingMax > 0 ? ` · ${openPendingScore} de ${openPendingMax} pendentes` : '';
+  // Só há «pendentes» ao lado de abertas já corrigidas; sem nenhuma corrigida a frase é «a aguardar a correção».
+  const pendingLabel = openPendingMax > 0 && openMax > 0 ? ` · mais ${formatScore(openPendingMax)} a aguardar a correção` : '';
 
   if (objectiveMax <= 0 && !hasOpen) return null;
 
@@ -36,16 +36,20 @@ export function ScoreBreakdown({
       {objectiveMax > 0 && (
         <span>
           {objectiveGraded ? (
-            <>Objectivas <b className="font-bold">{formatScore(objectiveScore)}</b>/{formatScore(objectiveMax)} pelo gabarito</>
+            <>Objetivas <b className="font-bold">{formatScore(objectiveScore)}</b>/{formatScore(objectiveMax)} pelo gabarito</>
           ) : (
-            <>Objectivas <b className="font-bold">a aguardar a correcção</b> (valem {formatScore(objectiveMax)})</>
+            <>Objetivas <b className="font-bold">a aguardar a correção</b> (valem {formatScore(objectiveMax)})</>
           )}
         </span>
       )}
       {objectiveMax > 0 && hasOpen && <span className="text-muted-foreground" aria-hidden>·</span>}
       {hasOpen && (
         <span>
-          Abertas <b className="font-bold">{formatScore(openScore)}</b>/{formatScore(openMax)}{openLabel ? ` ${openLabel}` : ''}{pendingLabel}
+          {openMax > 0 ? (
+            <>Abertas <b className="font-bold">{formatScore(openScore)}</b>/{formatScore(openMax)}{openLabel ? ` ${openLabel}` : ''}{pendingLabel}</>
+          ) : (
+            <>Abertas <b className="font-bold">a aguardar a correção</b> (valem {formatScore(openPendingMax)})</>
+          )}
         </span>
       )}
     </p>

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 export const VER_RESULTADO = 'Ver resultado';
 
 /**
- * Um rótulo de acção numa linha só (#761). «Ver resultado» chegava a partir-se em duas
+ * Um rótulo de ação numa linha só (#761). «Ver resultado» chegava a partir-se em duas
  * linhas e a sair descentrado quando a coluna apertava: `whitespace-nowrap` não o deixa
  * quebrar, `shrink-0` não o deixa encolher e a largura mínima mantém os botões da mesma
  * lista com o mesmo tamanho, seja qual for o texto.

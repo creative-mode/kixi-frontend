@@ -28,3 +28,26 @@ test('mantém a causa exacta dos textos que já conhecemos', () => {
 test('texto desconhecido em inglês cai na frase do estado, nunca é mostrado', () => {
   assert.equal(friendlyMessage(404, 'Something odd happened'), messageForStatus(404));
 });
+
+test('as mensagens em inglês do feed e das amizades saem em português (S9)', () => {
+  assert.match(friendlyMessage(404, 'Class not found'), /turma não existe/);
+  assert.equal(friendlyMessage(400, 'Content must have 5 to 2000 characters (optional for SIMULATION posts)'), 'O texto tem de ter entre 5 e 2000 caracteres.');
+  assert.match(friendlyMessage(400, 'Account is inactive'), /conta está desativada/);
+  assert.match(friendlyMessage(429, 'Too many feed requests. Try again later.'), /Espera um momento/);
+});
+
+test('amizades e bloqueio: a causa em português, sem revelar o bloqueio a quem foi bloqueado (kixi#656)', () => {
+  assert.equal(friendlyMessage(409, 'Já são amigos'), 'Já são amigos.');
+  assert.match(friendlyMessage(409, 'Bloqueaste esta pessoa. Desbloqueia-a antes de enviar um pedido de amizade'), /Pessoas bloqueadas/);
+  // O 404 de quem me bloqueou diz o mesmo que uma pessoa que já não existe.
+  const neutro = friendlyMessage(404, 'Pessoa não encontrada');
+  assert.doesNotMatch(neutro, /bloque/i);
+  assert.match(friendlyMessage(404, 'Post not found'), /já não existe/);
+});
+
+test('enunciado de uma prova por terminar: ainda não disponível, abre quando a prova terminar (kixi#659)', () => {
+  const texto = 'Este enunciado faz parte de uma prova que ainda não terminou. As perguntas só ficam disponíveis depois de a prova terminar.';
+  const msg = friendlyMessage(403, texto);
+  assert.match(msg, /Ainda não está disponível/);
+  assert.match(msg, /quando a prova terminar/);
+});

@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ErrorState } from '@/components/states';
 import { StatementDetailView } from '@/components/statement-detail';
+import { getStatementFull } from '@/lib/exam';
 import { getStatementDetail } from '@/lib/statement-detail';
 import { entrarUrl } from '@/lib/guard';
 import { getCommunityStats, getSharedSolutions } from '@/lib/community';
@@ -50,6 +51,11 @@ export default async function StatementDetailPage({ params }: { params: Promise<
   if (result.kind === 'unauthorized') redirect(await entrarUrl('session-expired'));
   if (result.kind === 'missing') notFound();
 
+  // 403: o enunciado é de uma prova que ainda não terminou (kixi#659). A simulação e o treino dariam o mesmo 403, por
+  // isso o botão de começar fica desativado em vez de levar a um erro (N6). A leitura é a mesma que a folha usa, em cache.
+  const full = await getStatementFull(id, { cached: true });
+  const embargoed = !full.ok && full.status === 403;
+
   if (result.kind === 'unknown') {
     return (
       <div className="mx-auto w-full max-w-[760px] p-4 md:p-7">
@@ -64,7 +70,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
   if (result.kind === 'partial') {
     return (
       <>
-        <StatementDetailView summary={result.summary} attempts={null} current={null} community={null} />
+        <StatementDetailView summary={result.summary} attempts={null} current={null} community={null} embargoed={embargoed} />
         <HistoryUnavailable message={result.message} />
         <EnunciadoDaProva statementId={id} />
       </>
@@ -94,7 +100,7 @@ export default async function StatementDetailPage({ params }: { params: Promise<
   return (
     <>
       <StatementDetailView
-        summary={result.summary} attempts={result.attempts} current={result.current} community={community}
+        summary={result.summary} attempts={result.attempts} current={result.current} community={community} embargoed={embargoed}
       />
       <EnunciadoDaProva statementId={id} />
     </>

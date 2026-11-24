@@ -179,7 +179,7 @@ function medirTeclado() {
     ['aluno', join(STUDENT, 'components', 'Shell.tsx'), /<main[^>]*tabIndex=\{-1\}/],
     ['gestor', join(RAIZ, 'components', 'auth-layout.tsx'), /href="#conteudo"/],
     ['gestor', join(RAIZ, 'components', 'auth-layout.tsx'), /<main[^>]*id="conteudo"/],
-    ['landing', join(RAIZ, 'landing', 'app', 'page.tsx'), /<main[^>]*id="conteudo"/],
+    ['landing', join(RAIZ, 'landing', 'app', '(site)', 'page.tsx'), /<main[^>]*id="conteudo"/],
   ];
 
   for (const [nome, caminho, re] of casos) {

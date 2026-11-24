@@ -92,7 +92,7 @@ async function pedir(metodo, caminho, { form, seguir = false } = {}) {
   return { resposta, final: visited, status: resposta.status };
 }
 
-/** O HTML vem com `&quot;` e companhia. Sem descodificar, o id da acção chega ao
+/** O HTML vem com `&quot;` e companhia. Sem descodificar, o id da ação chega ao
  *  servidor com as entidades dentro e o Next responde "Failed to find Server Action" —
  *  um 500 que não parece nada ter a ver com o form. */
 function descodificar(valor) {
@@ -117,8 +117,8 @@ function textoLegivel(html) {
 /**
  * Os inputs escondidos que o próprio form emite, que é como se submete uma server action.
  *
- * `FormData` e não `URLSearchParams` porque o Next lê o corpo da acção como multipart: com
- * `application/x-www-form-urlencoded` a acção até corre, mas devolve 200 com o estado do
+ * `FormData` e não `URLSearchParams` porque o Next lê o corpo da ação como multipart: com
+ * `application/x-www-form-urlencoded` a ação até corre, mas devolve 200 com o estado do
  * formulário em vez do redirect, e o fluxo passa a parecer quebrado sem erro nenhum.
  */
 function camposDoForm(html, extras = {}) {
@@ -205,7 +205,7 @@ function lerLogDoServidor() {
 
 async function main() {
   exigirBuild();
-  // `next start` directamente, e não `npm start`: o script fixa a porta 3003.
+  // `next start` diretamente, e não `npm start`: o script fixa a porta 3003.
   const servidor = spawn('node_modules/.bin/next', ['start', '-p', String(PORT)], {
     cwd: APP,
     // `next start` corre em produção, e lá `APP_ORIGIN` é obrigatório: sem esta variável a
@@ -354,7 +354,7 @@ async function main() {
 
     // 4a · o resultado da tentativa que acabou de ser entregue (#18): vem do servidor,
     // e a tentativa de outra conta não se abre.
-    await passo('o resultado mostra a revisão e as acções', 'GET', `/aluno/resultado?prova=${sessao}`, {}, async (r, final, status) => {
+    await passo('o resultado mostra a revisão e as ações', 'GET', `/aluno/resultado?prova=${sessao}`, {}, async (r, final, status) => {
       if (status !== 200) return `esperado 200, veio ${status}`;
       const html = await r.text();
       const falta = ['Revisão questão a questão', 'Refazer simulação', 'Voltar às provas'].find((t) => !html.includes(t));

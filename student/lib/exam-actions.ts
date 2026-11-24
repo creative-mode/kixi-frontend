@@ -144,10 +144,10 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
   // por acidentalmente carregar em Entregar duas vezes.
   if (!result.ok && result.status !== 409) return { error: translateError(result.message) };
 
-  // Se a entrega foi bem sucedida (ou já entregue), a correcção do SchoolOps arranca
+  // Se a entrega foi bem sucedida (ou já entregue), a correção do SchoolOps arranca
   // **depois da resposta** (`after`), para o aluno não esperar pelo motor (#794): a
   // entrega já está guardada e o ecrã de resultado aparece de imediato. Se isto
-  // falhar, nada quebra — o resultado volta a pedir a correcção (idempotente no motor).
+  // falhar, nada quebra — o resultado volta a pedir a correção (idempotente no motor).
   if (result.ok) {
     after(async () => {
       try {
@@ -160,7 +160,7 @@ export async function submeterAction(_: SubmitState, form: FormData): Promise<Su
         if (!salas.ok || !eSimulacaoLivre(simulationId, salas.data)) return;
         await iniciarCorrecao({ me, simulationId, statementId });
       } catch {
-        // o resultado volta a pedir a correcção ao abrir (idempotente)
+        // o resultado volta a pedir a correção ao abrir (idempotente)
       }
     });
   }

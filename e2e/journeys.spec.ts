@@ -194,7 +194,7 @@ async function assertPrintablePdf(page: Page) {
   expect(pdf.byteLength).toBeGreaterThan(1_000);
 }
 
-const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
+const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Painel' } as const;
 const TEACHER_LANDING = { landing: /\/manager\/professor\/?$/, heading: 'Início' } as const;
 
 /**
@@ -449,7 +449,7 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(meu.getByRole('button', { name: 'Denunciar publicação' })).toHaveCount(0);
 
     // Editar reabre o compositor com o conteúdo e não cria outra publicação.
-    await meu.getByRole('button', { name: 'Acções da publicação' }).click();
+    await meu.getByRole('button', { name: 'Ações da publicação' }).click();
     // O menu abre com o foco no primeiro item, e as setas percorrem-no (#753).
     await expect(meu.getByRole('menuitem', { name: 'Editar' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
@@ -470,13 +470,13 @@ test.describe('jornadas críticas do Kixi', () => {
     await expect(page.getByRole('article').filter({ hasText: `Publicação a editar ${id}` })).toHaveCount(0);
 
     // Eliminar pede confirmação, avisa e tira o cartão do feed.
-    await editada.getByRole('button', { name: 'Acções da publicação' }).click();
+    await editada.getByRole('button', { name: 'Ações da publicação' }).click();
     await editada.getByRole('menuitem', { name: 'Eliminar' }).click();
     const confirmarPost = page.getByRole('alertdialog', { name: 'Eliminar publicação?' });
     await expect(confirmarPost).toBeVisible();
     await confirmarPost.getByRole('button', { name: 'Cancelar' }).click();
     await expect(confirmarPost).toHaveCount(0);
-    await editada.getByRole('button', { name: 'Acções da publicação' }).click();
+    await editada.getByRole('button', { name: 'Ações da publicação' }).click();
     await editada.getByRole('menuitem', { name: 'Eliminar' }).click();
     await page.getByRole('alertdialog', { name: 'Eliminar publicação?' }).getByRole('button', { name: 'Eliminar' }).click();
     await expect(page.getByText('Publicação eliminada.')).toBeVisible();
@@ -491,14 +491,14 @@ test.describe('jornadas críticas do Kixi', () => {
     await alheio.getByRole('button', { name: 'Enviar comentário' }).click();
     const linha = alheio.getByRole('listitem').filter({ hasText: id }).first();
     await expect(linha).toBeVisible();
-    await linha.getByRole('button', { name: 'Acções do comentário' }).click();
+    await linha.getByRole('button', { name: 'Ações do comentário' }).click();
     await linha.getByRole('menuitem', { name: 'Editar' }).click();
     await alheio.getByLabel('Editar comentário').fill(`Comentário editado ${id}`);
     await alheio.getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(alheio.getByText(`Comentário editado ${id}`)).toBeVisible();
     await expect(page.getByText('Comentário editado.')).toBeVisible();
     const comentario = alheio.getByRole('listitem').filter({ hasText: `Comentário editado ${id}` }).first();
-    await comentario.getByRole('button', { name: 'Acções do comentário' }).click();
+    await comentario.getByRole('button', { name: 'Ações do comentário' }).click();
     await comentario.getByRole('menuitem', { name: 'Eliminar' }).click();
     await page.getByRole('alertdialog', { name: 'Eliminar comentário?' }).getByRole('button', { name: 'Eliminar' }).click();
     await expect(page.getByText('Comentário eliminado.')).toBeVisible();
@@ -546,7 +546,7 @@ test.describe('jornadas críticas do Kixi', () => {
     // Quem escreveu tenta eliminar: o servidor recusa com 409 e a mensagem diz o que fazer.
     await nuno.goto('/aluno/inicio');
     const comentario = nuno.getByRole('listitem').filter({ hasText: `Resposta aceite ${id}` }).first();
-    await comentario.getByRole('button', { name: 'Acções do comentário' }).click();
+    await comentario.getByRole('button', { name: 'Ações do comentário' }).click();
     await comentario.getByRole('menuitem', { name: 'Eliminar' }).click();
     const confirmar = nuno.getByRole('alertdialog', { name: 'Eliminar comentário?' });
     await confirmar.getByRole('button', { name: 'Eliminar' }).click();
@@ -558,7 +558,7 @@ test.describe('jornadas críticas do Kixi', () => {
     await abner.goto('/aluno/discussao/1');
     await abner.getByRole('button', { name: 'Retirar como resposta' }).click();
     await expect(abner.getByRole('button', { name: 'Aceitar como resposta' })).toBeVisible();
-    await comentario.getByRole('button', { name: 'Acções do comentário' }).click();
+    await comentario.getByRole('button', { name: 'Ações do comentário' }).click();
     await comentario.getByRole('menuitem', { name: 'Eliminar' }).click();
     await nuno.getByRole('alertdialog', { name: 'Eliminar comentário?' }).getByRole('button', { name: 'Eliminar' }).click();
     await expect(nuno.getByText('Comentário eliminado.')).toBeVisible();
@@ -873,7 +873,7 @@ test.describe('jornadas críticas do Kixi', () => {
   test('aluno: sem sessão regressa ao destino depois de entrar e a recuperação é neutra (#503)', async ({ page }) => {
     // Sem endpoint de recuperação, a página dá instruções úteis sem simular um pedido.
     await page.goto('/aluno/recuperar');
-    await expect(page.getByRole('note')).toContainText('Contacta o teu professor ou a secretaria da escola');
+    await expect(page.getByRole('note')).toContainText('Fala com o teu professor ou com a secretaria da escola');
     await expect(page.locator('form')).toHaveCount(0);
 
     await page.goto('/aluno/prova/2');
@@ -1159,7 +1159,7 @@ await expect(page.getByText(/\(1 de \d+\)/)).toBeVisible();
     await expect(page.getByText('Resposta guardada. Podes mudá-la até entregares a prova.')).toHaveCount(0);
 
     // A resposta permanece apenas no dispositivo até o relógio chegar ao fim.
-    // Base: reproduz a perda; correcção: mantém o estado pendente e não declara rejeição.
+    // Base: reproduz a perda; correção: mantém o estado pendente e não declara rejeição.
     await page.clock.setFixedTime(new Date(Date.now() + 60 * 60_000 + (baseline ? 130_000 : 0)));
     await page.waitForTimeout(1_100);
     await expect(page.getByText('O tempo desta prova terminou')).toBeVisible();

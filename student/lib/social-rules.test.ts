@@ -32,3 +32,19 @@ test('o separador do perfil vem do endereço só se existir', () => {
   assert.equal(profileTabOf('hack'), 'Publicações');
   assert.equal(profileTabOf(undefined), 'Publicações');
 });
+
+test('«Adicionar» não aparece a quem é de outra escola nem a quem se bloqueou (S10, S17)', async () => {
+  const { podePedirAmizade, restrictedNotice } = await import('./social-rules.ts');
+  const base = { teacher: false, signedIn: true, blocked: false, restricted: false, visibility: 'public', schoolIds: [1], mySchoolId: 1 };
+  assert.equal(podePedirAmizade(base), true);
+  assert.equal(podePedirAmizade({ ...base, schoolIds: [2] }), false, 'outra escola');
+  assert.equal(podePedirAmizade({ ...base, restricted: true, visibility: 'school', schoolIds: [] }), false, 'restrito a uma escola que não é a minha');
+  assert.equal(podePedirAmizade({ ...base, blocked: true }), false, 'bloqueado');
+  assert.equal(podePedirAmizade({ ...base, teacher: true }), false);
+  assert.equal(podePedirAmizade({ ...base, signedIn: false }), false);
+  assert.equal(podePedirAmizade({ ...base, mySchoolId: null, schoolIds: [] }), true, 'sem dados não se esconde');
+  assert.match(restrictedNotice('school'), /mesma escola/);
+  assert.match(restrictedNotice('private'), /escolheu não mostrar/);
+  assert.match(restrictedNotice('school', true), /Bloqueaste/);
+  assert.doesNotMatch(restrictedNotice('school', true), /mesma escola/);
+});
