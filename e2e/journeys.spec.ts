@@ -194,7 +194,7 @@ async function assertPrintablePdf(page: Page) {
   expect(pdf.byteLength).toBeGreaterThan(1_000);
 }
 
-const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Dashboard' } as const;
+const ADMIN_LANDING = { landing: /\/manager\/?$/, heading: 'Painel' } as const;
 const TEACHER_LANDING = { landing: /\/manager\/professor\/?$/, heading: 'Início' } as const;
 
 /**

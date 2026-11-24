@@ -105,3 +105,19 @@ export function remindersFirst(reminders: readonly Reminder[]): Reminder[] {
   const rank: Record<ReminderLevel, number> = { LATE: 0, D2: 1, D7: 2, D14: 3 };
   return [...reminders].sort((a, b) => rank[a.level] - rank[b.level] || a.plannedDate.localeCompare(b.plannedDate));
 }
+
+/** O estado da pauta de um plano, para o cartão dizer a verdade: aberta (a correr), fechada (homologada) ou anulada. */
+export type EstadoDaPauta = 'aberta' | 'fechada' | 'anulada';
+
+/** A pauta do plano pelas pautas que o utilizador vê (turma, disciplina e período): sem pauta registada, ou com ela ainda
+ *  em registo, a pauta continua «aberta»; `FECHADA` (homologada) e `ANULADA` mudam o texto (G11). */
+export function estadoDaPauta(
+  plan: Pick<TermPlan, 'classId' | 'subjectId' | 'termNumber' | 'pautaOpened'>,
+  pautas: readonly { classId: number; subjectId: number; termNumber: number; status: string }[],
+): EstadoDaPauta | null {
+  if (!plan.pautaOpened) return null;
+  const pauta = pautas.find((p) => p.classId === plan.classId && p.subjectId === plan.subjectId && p.termNumber === plan.termNumber);
+  if (pauta?.status === 'FECHADA') return 'fechada';
+  if (pauta?.status === 'ANULADA') return 'anulada';
+  return 'aberta';
+}

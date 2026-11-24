@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ForbiddenScene from '@/components/forbidden/forbidden-scene';
-import { Header } from '@/components/sections/Header';
+import { Logo } from '@/components/kixi';
 import { getForbiddenReason } from '@/lib/forbidden-reasons';
 import '@/components/forbidden/forbidden.css';
 import { ErrorView } from '@/components/analytics/trackers';
@@ -36,7 +36,17 @@ export default async function ForbiddenPage({ searchParams }: PageProps) {
     <>
       <ErrorView app="landing" kind="forbidden" />
       <ForbiddenScene
-        header={<Header />}
+        // Só o logo: o menu da landing («Criar conta», «Entrar», «Doar um enunciado») não faz sentido a quem já tem sessão e
+        // chegou aqui por não ter acesso (G6).
+        header={(
+          <header className="site-header">
+            <div className="wrap site-header__in">
+              <Link href="/" aria-label="Kixi, início" className="site-header__logo">
+                <Logo size={28} wordmark />
+              </Link>
+            </div>
+          </header>
+        )}
         hint={config.message}
         primary={button(config.primary.href, config.primary.label)}
         secondary={config.secondary ? button(config.secondary.href, config.secondary.label) : undefined}
