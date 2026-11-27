@@ -13,10 +13,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-function button(href: string, label: string) {
+function button(href: string, label: string, secondary = false) {
   return (
     <span className="kx-btn-wrap kx-scope">
-      <Link href={href} className="kx-btn kx-btn--lg" style={{ textDecoration: 'none' }}>
+      <Link href={href} className={`kx-btn kx-btn--lg${secondary ? ' kx-btn--secondary' : ''}`} style={{ textDecoration: 'none' }}>
         <span className="kx-btn__label">{label}</span>
       </Link>
     </span>
@@ -33,7 +33,7 @@ export default function NotFound() {
       <a href="#conteudo" className="skip">Saltar para o conteúdo</a>
       <Header />
       <main id="conteudo" tabIndex={-1} className="lp-stack">
-        <p className="nf__code">ERRO 404</p>
+        <p className="nf__code">Erro 404</p>
         <h1 className="nf__title">Esta página não existe</h1>
         <p className="nf__message">
           O endereço está incompleto, a página mudou de sítio ou já não está disponível.
@@ -41,7 +41,7 @@ export default function NotFound() {
         </p>
         <div className="actions nf__actions">
           {button('/', 'Ir para o início')}
-          {button(LOGIN_URL, 'Entrar')}
+          {button(LOGIN_URL, 'Entrar', true)}
         </div>
       </main>
       {/* A folga em baixo é para o banner de cookies fixo nunca ficar por cima de

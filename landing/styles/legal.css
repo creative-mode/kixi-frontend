@@ -3,14 +3,14 @@
 .lg-top { display: flex; align-items: center; height: 72px; padding-inline: var(--gutter); }
 .lg-main { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px var(--gutter) 72px; outline: none; }
 .lg-title { margin: 0; font: 700 clamp(28px, 6vw, 44px)/1.05 var(--font-sans); letter-spacing: -0.04em; text-wrap: balance; }
-.lg-updated { margin: 8px 0 32px; font-size: 14px; color: var(--ink-muted, #55583f); }
+.lg-updated { margin: 8px 0 32px; font-size: 14px; color: var(--ink-muted); }
 .lg-body { display: grid; gap: 14px; font: 400 16px/1.65 var(--font-sans); }
 .lg-body h2 { margin: 22px 0 0; font: 700 20px/1.2 var(--font-sans); letter-spacing: -0.02em; }
 .lg-body p, .lg-body ul { margin: 0; }
 .lg-body ul { padding-left: 20px; display: grid; gap: 6px; }
 .lg-body a, .lg-back a { color: var(--btn); font-weight: 600; text-underline-offset: 3px; }
 .lg-body table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.lg-body th, .lg-body td { text-align: left; vertical-align: top; padding: 10px 12px; border: 2px solid var(--line-strong); }
+.lg-body th, .lg-body td { text-align: left; vertical-align: top; padding: 10px 12px; border: 1px solid var(--line); }
 .lg-body th { background: var(--surface-high); }
 .lg-tablewrap { overflow-x: auto; }
 .lg-tablewrap:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -21,7 +21,7 @@
    texto (o consentimento tem de ser informado), e "só necessários" tem o mesmo peso
    que "aceitar". */
 .ck { position: fixed; inset: auto 0 0 0; z-index: 90; padding: 12px; pointer-events: none; }
-.ck__in { pointer-events: auto; max-width: 920px; margin: 0 auto; display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding: 16px 18px; background: var(--paper-3); color: var(--ink); border: 2px solid var(--line-strong); }
+.ck__in { pointer-events: auto; max-width: 920px; margin: 0 auto; display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding: 16px 18px; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
 .ck__text { flex: 1 1 360px; font-size: 14px; line-height: 1.5; min-width: 0; }
 .ck__title { margin: 0 0 2px; font: 700 15px/1.2 var(--font-sans); }
 .ck__text p { margin: 0; }
@@ -33,7 +33,7 @@
 @media (max-width: 520px) {
   /* Em baixo e sem margens: cada pixel de cromo conta para os 12% (390x844). */
   .ck { padding: 0; }
-  .ck__in { flex-direction: column; align-items: stretch; padding: 8px 12px; gap: 6px; border-width: 2px 0 0; }
+  .ck__in { flex-direction: column; align-items: stretch; padding: 8px 12px; gap: 6px; border-width: 1px 0 0; border-radius: 0; }
   .ck__title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
   .ck__lead { display: inline; }
   .ck__text { flex: 1 1 auto; font-size: 13px; }
@@ -45,6 +45,6 @@
 }
 /* O "CookieSettings" no rodapé abre o banner de novo: o foco chega ao banner. */
 .ck:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-.footer__nav button { font: inherit; font-weight: 600; font-size: 14px; color: #b9b6c8; background: none; border: 0; padding: 0; cursor: pointer; }
-.footer__nav button:hover { color: var(--paper-3, white); }
+.footer__nav button { font: inherit; font-weight: 600; font-size: 14px; color: var(--lp-dim); background: none; border: 0; padding: 0; cursor: pointer; }
+.footer__nav button:hover { color: var(--foreground); }
 .lg-linkbtn { font: inherit; font-weight: 600; color: var(--btn); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }

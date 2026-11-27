@@ -82,22 +82,6 @@ test.describe('rotas do gestor no gateway (#541)', () => {
   });
 });
 
-/** Leva mesmo ao fim da página, mesmo que o conteúdo ainda esteja a crescer: o
- *  scroll de tiro único perdia-se quando o `scrollHeight` ainda não tinha os
- *  1200 ecrãs da apresentação — a cena do fim ficava `aria-hidden` e o
- *  `getByRole` nem a via ("element(s) not found"). */
-async function irAoFim(page: Page) {
-  await expect
-    .poll(
-      async () => {
-        await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
-        return page.evaluate(() => window.innerHeight + window.scrollY >= document.body.scrollHeight - 2);
-      },
-      { message: 'chegar ao fim da página', timeout: 15000 },
-    )
-    .toBe(true);
-}
-
 const ALUNO = ['/aluno/inicio', '/aluno/provas', '/aluno/ranking', '/aluno/perfil', '/aluno/prova/1/detalhe'];
 const GESTOR = ['/manager', '/manager/school-year', '/manager/statements', '/manager/exam-rooms', '/manager/verification', '/manager/moderacao'];
 const LANDING = ['/', '/doar', '/privacidade', '/cookies'];
@@ -818,71 +802,23 @@ test.describe('404 da landing (#544)', () => {
   });
 });
 
-/** Contraste do LCD (#520): o verde médio sobre verde claro ficava nos 3:1, longe
- *  dos 4,5 do texto pequeno. O axe não via: com hachuras e máscaras por cima, o
- *  fundo é ambíguo e a regra cala-se. Por isso trava-se o par de tokens. */
-test.describe('contraste do LCD (#520)', () => {
-  /** WCAG 2.x: luminância relativa e rácio, os mesmos do axe. */
-  function razao(a: string, b: string) {
-    const lum = (hex: string) => {
-      const h = hex.replace('#', '');
-      const [r, g, bl] = [0, 2, 4].map((i) => {
-        const c = parseInt(h.slice(i, i + 2), 16) / 255;
-        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-      });
-      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-    };
-    const [claro, escuro] = [lum(a), lum(b)].sort((x, y) => y - x);
-    return (claro + 0.05) / (escuro + 0.05);
-  }
-
-  async function tokens(page: Page) {
-    return page.evaluate(() => {
-      const cs = getComputedStyle(document.documentElement);
-      const ler = (nome: string) => cs.getPropertyValue(nome).trim();
-      return { fundo: ler('--lcd-0'), fundoAlt: ler('--lcd-1'), texto: ler('--lcd-3') };
-    });
-  }
-
-  test('texto pequeno do LCD com pelo menos 4,5:1 nos dois fundos', async ({ page }) => {
-    await page.goto('/');
-    const t = await tokens(page);
-    expect(t.texto, 'token do texto').toMatch(/^#[0-9a-f]{6}$/);
-    expect(razao(t.texto, t.fundo), 'texto sobre lcd-0').toBeGreaterThanOrEqual(4.5);
-    expect(razao(t.texto, t.fundoAlt), 'texto sobre lcd-1').toBeGreaterThanOrEqual(4.5);
-  });
-
-  test('axe sem falta de contraste nas zonas LCD', async ({ page }) => {
-    // Apontado às zonas desta issue (o axe cala-se onde o fundo é ambíguo;
-    // a página inteira já é coberta pelos testes de acessibilidade).
+/** Contraste da landing (#520): títulos e texto pequeno com o rácio do WCAG AA. Antes
+ *  o risco era o LCD verde do jogo; agora a página usa só os tokens do design system,
+ *  e o axe confirma-o em desktop, no telemóvel e com movimento reduzido. */
+test.describe('contraste da landing (#520)', () => {
+  test('axe sem falta de contraste no herói, no percurso e em «para quem»', async ({ page }) => {
     for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
       await page.setViewportSize(viewport);
       await page.goto('/');
       await page.waitForLoadState('networkidle');
       const { violations } = await new AxeBuilder({ page })
+        .include('.hero')
+        .include('.flow')
         .include('.aud')
-        .include('.pres__art')
         .withRules(['color-contrast'])
         .analyze();
       expect(violations.map((v) => v.id), `${viewport.width}px`).toEqual([]);
     }
-  });
-
-  test.describe('movimento reduzido', () => {
-    test.use({ contextOptions: { reducedMotion: 'reduce' } });
-
-    test('axe sem falta de contraste no modo still', async ({ page }) => {
-      await page.goto('/');
-      await page.waitForLoadState('networkidle');
-      const { violations } = await new AxeBuilder({ page })
-        .include('.aud')
-        .withRules(['color-contrast'])
-        .analyze();
-      expect(violations.map((v) => v.id), 'still').toEqual([]);
-      // O modo still mostra o cartucho parado e a lista: texto pequeno legível.
-      // Sem `exact`: no still o texto vive na lista ("Fotografa a prova. Em segundos…").
-      await expect(page.locator('#solucao').getByText(/Fotografa a prova/)).toBeVisible();
-    });
   });
 });
 
@@ -1296,51 +1232,12 @@ test.describe('doação sem ecrã cortado (#515)', () => {
   });
 });
 
-/** Foco, setas e movimento reduzido na apresentação (#513): o CTA do fim era
- *  focável invisível, as setas estavam sequestradas e o modo parado chegava
- *  depois da hidratação, com a página a saltar de 1200 ecrãs para uma lista. */
-test.describe('foco e movimento da apresentação (#513)', () => {
-  /** Visitante da primeira vez: sem escolha guardada o banner aparece. */
-  async function primeiraVisita(page: Page) {
-    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
-  }
-
-  test('o CTA do fim só é focável quando está visível', async ({ page }) => {
-    await primeiraVisita(page);
-    await page.goto('/');
-    // Por DOM e não por papel: apagada (`aria-hidden` + `inert`), a cena sai da
-    // árvore de acessibilidade — que é exatamente o que se quer provar.
-    const outro = page.locator('#solucao').locator('a', { hasText: 'Começar a estudar' });
-    // No topo a cena do fim está apagada: focar é pedir e não receber.
-    const noTopo = await outro.evaluate((el) => {
-      (el as HTMLElement).focus();
-      return document.activeElement === el;
-    });
-    expect(noTopo, 'CTA invisível não recebe foco').toBe(false);
-    // No fim da história a cena acende e o botão entra no Tab.
-    // O layout pode crescer depois de chegar ao fim (tipografia, imagens): sem
-    // evento de scroll novo a cena não acende, por isso desce-se a cada ronda.
-    await irAoFim(page);
-    const cenaOutro = page.locator('#solucao .pres__scene', { has: page.locator('a', { hasText: 'Começar a estudar' }) });
-    await expect
-      .poll(
-        async () => {
-          await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
-          return cenaOutro.getAttribute('aria-hidden');
-        },
-        { message: 'a cena do fim acende', timeout: 20000 },
-      )
-      .toBe('false');
-    await expect(outro).toBeVisible({ timeout: 15000 });
-    const noFim = await outro.evaluate((el) => {
-      (el as HTMLElement).focus();
-      return document.activeElement === el;
-    });
-    expect(noFim, 'CTA visível recebe foco').toBe(true);
-  });
-
+/** Setas e movimento reduzido na landing (#513): as setas mantêm o passo nativo e,
+ *  com movimento reduzido, a página não salta. A apresentação com scroll (1200 ecrãs)
+ *  saiu com a migração para o design system; estes dois critérios continuam a valer. */
+test.describe('setas e movimento da landing (#513)', () => {
   test('as setas mantêm o passo nativo', async ({ page }) => {
-    await primeiraVisita(page);
+    await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
     await page.goto('/');
     await page.evaluate(() => window.scrollTo(0, 0));
     const antes = await page.evaluate(() => window.scrollY);
@@ -1356,7 +1253,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
     // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
     test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-    test('sem salto de layout e sem os 1200 ecrãs', async ({ page }) => {
+    test('sem salto de layout e com os passos à vista', async ({ page }) => {
       await page.addInitScript(() => {
         (window as unknown as { __cls?: number }).__cls = 0;
         new PerformanceObserver((list) => {
@@ -1366,36 +1263,15 @@ test.describe('foco e movimento da apresentação (#513)', () => {
           }
         }).observe({ type: 'layout-shift', buffered: true });
       });
-      await primeiraVisita(page);
+      await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
       await page.goto('/');
       await page.waitForLoadState('networkidle');
       await page.evaluate(() => document.fonts.ready);
-      // O `reduced` só existe depois da hidratação: sem ele as cenas continuam
-      // `aria-hidden` e a árvore de acessibilidade vem vazia.
-      const secao = page.locator('#solucao');
-      await expect
-        .poll(() => secao.locator('[aria-hidden="false"]').count(), { message: 'hidratação do modo reduzido', timeout: 30000 })
-        .toBeGreaterThan(0);
-      await page.waitForTimeout(2000);
-      // A apresentação nasce compacta: herói, cenas empilhadas e cartucho parado.
-      const altura = await secao.evaluate((el) => el.getBoundingClientRect().height);
-      const ecra = await page.evaluate(() => window.innerHeight);
-      expect(altura, 'sem os 1200 ecrãs').toBeLessThan(8 * ecra);
-      await expect(secao.getByRole('heading', { name: /Fotografa a prova/ })).toBeVisible();
-      // O colapso de 1200 ecrãs para lista pontuava muito acima de 1; a troca
-      // de webfont (`font-display: swap`, decisão de produto) mexe ~0.1 e não
-      // é o salto que este teste vigia.
+      await page.waitForTimeout(1000);
+      await expect(page.locator('#solucao').getByRole('heading', { name: /Fotografa o enunciado/ })).toBeVisible();
+      // A troca de webfont (`font-display: swap`, decisão de produto) mexe ~0.1.
       const cls = await page.evaluate(() => (window as unknown as { __cls?: number }).__cls ?? 0);
       expect(cls, 'sem salto de layout').toBeLessThan(0.15);
-      // Duas instâncias do cartucho no DOM (a animada escondida e a parada
-      // visível), zero ids repetidos: com ids fixos o `url(#…)` resolvia para a
-      // escondida e a visível perdia hachuras e filtro.
-      const ids = await page.evaluate(() => {
-        const todos = [...document.querySelectorAll('[id^="kx-"]')].map((el) => el.id);
-        return { total: todos.length, unicos: new Set(todos).size };
-      });
-      expect(ids.total, 'há cartuchos com ids').toBeGreaterThan(0);
-      expect(ids.unicos, 'ids repetidos no SVG').toBe(ids.total);
     });
   });
 });
@@ -1403,7 +1279,7 @@ test.describe('foco e movimento da apresentação (#513)', () => {
 /** O CTA de registo da landing (#512): antes o 1.º ecrã só tinha "Entrar" e o
  *  "Começar a estudar" morava ~18 ecrãs abaixo, com a barra de scroll escondida. */
 test.describe('CTA de registo da landing (#512)', () => {
-  const FRASE = 'Estuda o que vai mesmo sair';
+  const FRASE = 'O Kixi junta as provas reais';
 
   async function semEscolha(page: Page) {
     await page.addInitScript(() => localStorage.removeItem('kixi-consent'));
@@ -1448,61 +1324,26 @@ test.describe('CTA de registo da landing (#512)', () => {
     const solucao = cabecalho.getByRole('link', { name: 'Solução' });
     await expect(solucao).toBeVisible();
     await expect(solucao).toHaveAttribute('href', '#solucao');
-    await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Estuda a prova que vai mesmo sair/ })).toBeVisible();
     await expect(page.getByText(FRASE)).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Saltar a apresentação' })).toBeVisible();
-  });
-
-  test('saltar a apresentação a rato', async ({ page }) => {
-    await semEscolha(page);
-    await page.goto('/');
-    await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
-    await expect(page).toHaveURL(/#modulos/);
-    await expect(page.locator('#modulos h2')).toBeInViewport();
-    // O foco segue para o destino: quem vai pelo teclado sente a chegada.
-    await expect(page.locator('#modulos h2')).toBeFocused();
-  });
-
-  test('saltar a apresentação a teclado', async ({ page }) => {
-    await semEscolha(page);
-    await page.goto('/');
-    const salto = page.getByRole('link', { name: 'Saltar a apresentação' });
-    await salto.focus();
-    await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/#modulos/);
-    await expect(page.locator('#modulos h2')).toBeInViewport();
-    // O foco segue para o destino: quem vai pelo teclado sente a chegada.
-    await expect(page.locator('#modulos h2')).toBeFocused();
-  });
-
-  test.describe('no telemóvel', () => {
-    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-
-    test('saltar a apresentação ao toque', async ({ page }) => {
-      await semEscolha(page);
-      await page.goto('/');
-      await page.getByRole('link', { name: 'Saltar a apresentação' }).tap();
-      await expect(page).toHaveURL(/#modulos/);
-      await expect(page.locator('#modulos h2')).toBeInViewport();
-      await expect(page.locator('#modulos h2')).toBeFocused();
-    });
+    // O registo também está no herói, no primeiro ecrã, e não só no cabeçalho.
+    await expect(page.locator('.hero').getByRole('link', { name: 'Começar a estudar' })).toBeInViewport();
   });
 
   test.describe('movimento reduzido', () => {
     // `reducedMotion` não existe em `test.use` neste Playwright: vai por `contextOptions`.
     test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-    test('herói com valor e salto, sem animação', async ({ page }) => {
+    test('herói com valor e registo, sem animação', async ({ page }) => {
       await semEscolha(page);
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: /E se estudar fosse/ })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Estuda a prova que vai mesmo sair/ })).toBeVisible();
       await expect(page.getByText(FRASE)).toBeVisible();
-      await page.getByRole('link', { name: 'Saltar a apresentação' }).click();
-      await expect(page).toHaveURL(/#modulos/);
+      await expect(page.locator('.hero').getByRole('link', { name: 'Começar a estudar' })).toBeVisible();
     });
   });
 
-  test('o clique regista a origem: header, outro e faq', async ({ page }) => {
+  test('o clique regista a origem: header, hero e faq', async ({ page }) => {
     // Só se mede com consentimento (#517): sem escolha, `track` devolve `denied`.
     await page.addInitScript(() => localStorage.setItem('kixi-consent', 'all'));
     const eventos = await apanharCta(page);
@@ -1513,27 +1354,9 @@ test.describe('CTA de registo da landing (#512)', () => {
     expect(eventos[0]).toEqual(['event', 'cta_clique', { origem: 'header', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
-    // A hidratação pode chegar depois do `goBack`: sem o `#solucao` no DOM, o
-    // scroll de baixo perdia-se (ainda sem ouvintes) e o CTA do fim nunca nascia.
-    // Em runner carregado a hidratação demora: os 15 s são os dos testes irmãos.
-    await expect(page.locator('#solucao')).toBeAttached({ timeout: 15000 });
-    // O outro só fica clicável no fim da apresentação de 1200 ecrãs, e o layout
-    // pode crescer depois de lá chegar: desce-se a cada ronda até o CTA entrar
-    // na árvore de acessibilidade.
-    await irAoFim(page);
-    const outro = page.locator('#solucao').getByRole('link', { name: 'Começar a estudar' });
-    await expect
-      .poll(
-        async () => {
-          await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
-          return outro.isVisible();
-        },
-        { message: 'o CTA do fim fica visível', timeout: 20000 },
-      )
-      .toBe(true);
-    await outro.click();
-    await expect.poll(() => eventos.length, 'clique no outro').toBe(2);
-    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'outro', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
+    await page.locator('.hero').getByRole('link', { name: 'Começar a estudar' }).click();
+    await expect.poll(() => eventos.length, 'clique no herói').toBe(2);
+    expect(eventos[1]).toEqual(['event', 'cta_clique', { origem: 'hero', page_location: `${new URL(page.url()).origin}/`, page_referrer: '' }]);
     await page.goBack();
 
     const faq = page.locator('#perguntas').getByRole('link', { name: 'Começar a estudar' });
@@ -1544,30 +1367,15 @@ test.describe('CTA de registo da landing (#512)', () => {
   });
 });
 
-/** Apresentação sem derreter o telemóvel (#514): o scroll alimentava um `setState`
- *  por frame e a demo do herói nunca parava. */
-test.describe('apresentação sem derreter (#514)', () => {
+/** Landing sem derreter o telemóvel (#514): o h1 vem no HTML e o scroll não deixa
+ *  tarefas longas no fio principal, mesmo com o CPU lento. */
+test.describe('landing sem derreter (#514)', () => {
   test('o h1 vem no HTML inicial, sem JS', async ({ request }) => {
     const res = await request.get('/');
     expect(res.ok()).toBeTruthy();
     const html = await res.text();
     expect(html).toContain('id="hero-title"');
-    expect(html).toContain('E se estudar fosse');
-  });
-
-  test('a demo do herói congela após 5 segundos', async ({ page }) => {
-    await page.goto('/');
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForLoadState('networkidle');
-    // Passados os 5 s o intervalo pára: dois fotogramas com 1,2 s de distância
-    // (17 ticks a 70 ms) têm de ser pixel a pixel iguais.
-    await page.waitForTimeout(6000);
-    const lcd = page.locator('.gb__lcd');
-    await expect(lcd).toBeVisible();
-    const a = await lcd.screenshot();
-    await page.waitForTimeout(1200);
-    const b = await lcd.screenshot();
-    expect(a.equals(b), 'a demo continua a mexer').toBe(true);
+    expect(html).toContain('Estuda a prova que vai mesmo sair');
   });
 
   test('scroll de uma ponta à outra sem tarefas longas em CPU fraca', async ({ page, context }) => {

@@ -9,10 +9,10 @@ Sistema de design partilhado pelas apps do Kixi (aluno e gestor). Segue o modelo
 | `tokens.css` | **Fonte única** das cores, raio e sombras. Tema claro (único). |
 | `theme.css` | Mapeia os tokens para utilitários Tailwind v4 (`bg-primary`, `text-muted-foreground`, `bg-success-soft`…) e define a fonte. |
 
-As cópias em `app/ds-*.css` (gestor) e `student/styles/ds-*.css` (aluno) são **geradas**. Não as edites.
+As cópias em `app/ds-*.css` (gestor), `student/styles/ds-*.css` (aluno) e `landing/styles/ds-tokens.css` (landing, só os tokens: não usa Tailwind) são **geradas**. Não as edites.
 
 ```bash
-npm run ds:sync            # copia tokens.css e theme.css para as duas apps
+npm run ds:sync            # copia tokens.css e theme.css para o gestor e o aluno, e tokens.css para a landing
 npm run ds:sync -- --check # falha se alguma cópia estiver desactualizada (CI)
 ```
 
@@ -22,7 +22,7 @@ npm run ds:sync -- --check # falha se alguma cópia estiver desactualizada (CI)
 - **Estado (extensão Kixi):** `success`, `warning`, `info` e os fundos suaves `success-soft`, `warning-soft`, `info-soft`, `danger-soft`.
 - **Raio:** `--radius: .625rem` (`rounded-md` = raio - 2px, `rounded-xl` = raio + 4px). Governa os cantos dos componentes DS (`Button`, `Card`, `Input`, etc.).
 - **Tema:** só claro. Não há tema escuro nem preferência guardada; não acrescentes variantes `dark:`.
-- **Cantos em degrau / clip-path:** `.px-step` e `.px-box` (cantos em degrau, contorno de 2 px) são uma sobreposição de marca aplicada nos botões/caixas da landing e do aluno — não são tokens DS nem substituem `--radius`. Não os misture com `rounded-*` do Tailwind.
+- **Cantos em degrau / clip-path:** já não se usam em nenhuma app. Botões, campos e cartões usam os cantos do DS (`--radius`).
 
 Regra: nunca uses cores literais em componentes. Usa sempre o token (`text-destructive`, não `text-red-600`).
 
@@ -65,7 +65,7 @@ Uma coluna centrada: marca e cartão com o formulário (400px), sem painel later
 
 - **App do aluno**: cada rota tem um `loading.tsx` que usa `components/skeletons.tsx` (`InicioSkeleton`, `ProvasSkeleton`, `RankingSkeleton`, `TutorSkeleton`, `PerfilSkeleton`, `ResultadoSkeleton`, `ProvaSkeleton`, `AuthSkeleton`). Reaproveitam `Page`/`Column`/`Rail`, por isso têm a mesma largura e grelha da página real e nada "salta" quando o conteúdo chega.
 - **Login e cadastro**: `AuthSkeleton` reproduz o `AuthShell` (coluna única centrada, sem painel lateral).
-- **Landing**: `landing/app/loading.tsx` usa blocos `.lp-sk` (tinta sobre papel oliva, cantos em degrau, varrimento em passos). **A landing mantém a sua paleta própria** (`landing/styles/tokens.css`, ex: `--brand`, `--tiro`, `--alvo`) e não consome os tokens DS; consulte esse ficheiro para as exceções documentadas. O login e o cadastro para onde "Entrar" e "Começar a estudar" apontam são os do aluno.
+- **Landing**: `landing/app/loading.tsx` usa blocos `.lp-sk` (o Skeleton do DS: `muted`, cantos redondos, varrimento suave). A landing **consome os tokens DS** (`landing/styles/ds-tokens.css`); `landing/styles/tokens.css` só dá nomes curtos a esses tokens (`--brand` = `--primary`, `--ink` = `--foreground`, `--line` = `--border`...), sem cores próprias. O jogo (consola, cartucho e LCD) saiu com a migração para a nova experiência. O login e o cadastro para onde "Entrar" e "Começar a estudar" apontam são os do aluno.
 - Todos respeitam `prefers-reduced-motion` e anunciam `role="status"` para leitores de ecrã.
 ## Checklist de conformidade (gestor e aluno)
 

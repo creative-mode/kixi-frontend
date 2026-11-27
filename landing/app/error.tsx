@@ -20,7 +20,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       <Header />
       <main id="conteudo" tabIndex={-1} className="lp-stack">
         <div role="alert">
-          <p className="nf__code">ERRO</p>
+          <p className="nf__code">Erro</p>
           <h1 className="nf__title">Algo falhou. Tenta de novo.</h1>
           <p className="nf__message">
             Se continuar, volta ao início e continua a estudar.
@@ -33,7 +33,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
             </button>
           </span>
           <span className="kx-btn-wrap kx-scope">
-            <Link href="/" className="kx-btn kx-btn--lg" style={{ textDecoration: 'none' }}>
+            <Link href="/" className="kx-btn kx-btn--lg kx-btn--secondary" style={{ textDecoration: 'none' }}>
               <span className="kx-btn__label">Ir para o início</span>
             </Link>
           </span>
