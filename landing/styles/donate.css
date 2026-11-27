@@ -1,11 +1,12 @@
 /* Doação de enunciados: um ecrã com um só foco quando cabe, página com scroll quando não cabe (#515).
    Com altura fixa e scroll escondido, zoom 200%, teclado virtual ou paisagem deixavam campos,
-   erros e consentimento fora de vista (WCAG 1.4.10). Agora o palco cresce e a página rola. */
+   erros e consentimento fora de vista (WCAG 1.4.10). Agora o palco cresce e a página rola.
+   Desenho do design system: um cartão com o formulário, campos e botões com cantos de 12 px. */
 .dn-stage { min-height: 100svh; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
-.dn-top { display: flex; align-items: center; padding-inline: var(--gutter); }
-.dn-top__contact { margin-left: auto; font: 700 13px/1 var(--font-sans); color: var(--lcd-3); text-decoration: underline; }
+.dn-top { display: flex; align-items: center; padding-inline: var(--gutter); border-bottom: 1px solid var(--line); }
+.dn-top__contact { margin-left: auto; font: 600 14px/1 var(--font-sans); color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 
-.dn-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: clamp(10px, 2.5svh, 24px); padding: 0 var(--gutter) clamp(18px, 4svh, 40px); outline: none; }
+.dn-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: clamp(12px, 2.5svh, 24px); padding: clamp(16px, 3svh, 32px) var(--gutter) clamp(18px, 4svh, 40px); outline: none; }
 /* O banner de cookies é fixo e mora no fundo: a folga é a altura real que ele
    publica em `--ck-banner-h` (#515, medida como no #506), por isso nunca tapa o
    "Continuar"/"Doar" nem deixa espaço morto sem banner. */
@@ -13,128 +14,120 @@
 
 /* título: duas linhas e mais nada */
 .dn-pitch { display: flex; flex-direction: column; justify-content: center; }
-.dn-title { margin: 0; font: 700 clamp(26px, min(7vw, 4.6svh + 10px), 64px)/1.02 var(--font-sans); letter-spacing: -0.045em; text-wrap: balance; }
-.dn-title span { color: var(--btn); }
+.dn-title { margin: 0; font: 700 clamp(26px, min(7vw, 4.6svh + 10px), 64px)/1.04 var(--font-sans); letter-spacing: -0.04em; text-wrap: balance; }
+.dn-title span { color: var(--primary); }
 .dn-lead { display: none; }
 
-/* o cartucho: a mesma moldura em degrau dos botões e cartões da landing (aresta de tinta + face), sem sombra */
-.dn-console { --edge: var(--lp-ink); position: relative; isolation: isolate; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 14px 16px 16px; width: 100%; max-width: 520px; justify-self: center; align-self: center; max-height: 100%;
-  background: var(--edge); clip-path: var(--kx-clip); color: var(--lcd-3); }
-.dn-console::before { content: ''; position: absolute; z-index: -1; inset: 2px; background: var(--shell); clip-path: var(--kx-clip); }
+/* o formulário: um cartão do DS (fundo branco, linha de 1 px, cantos de 20 px, sem sombra) */
+.dn-console { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 16px; width: 100%; max-width: 520px; justify-self: center; align-self: center; max-height: 100%;
+  background: var(--card); color: var(--card-foreground); border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .dn-label { display: flex; align-items: center; }
+/* passos: três barras curtas, a ativa a verde */
 .dn-pips { margin: 0; display: flex; gap: 6px; }
-.dn-pips span { width: 12px; height: 12px; border: 2px solid var(--lp-ink); }
-.dn-pips .is-on { background: var(--lp-ink); }
+.dn-pips span { width: 28px; height: 6px; border-radius: 999px; background: var(--muted); }
+.dn-pips .is-on { background: var(--primary); }
 
-/* o ecrã: único bloco a cores; rola por dentro quando o conteúdo passa da moldura, com
-   barra visível (#515) - sem sinal de scroll ninguém adivinha que há mais formulário. */
-.dn-screenwrap { min-height: 0; min-width: 0; display: grid; padding: 2px; background: var(--lp-ink); clip-path: var(--kx-clip); }
-.dn-console { min-width: 0; }
-.dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 16px; color: var(--lcd-3); background: var(--lcd-0); clip-path: var(--kx-clip); scrollbar-width: thin; scrollbar-color: var(--lcd-3) var(--lcd-1); }
+/* o conteúdo rola por dentro quando passa do cartão, com barra visível (#515):
+   sem sinal de scroll ninguém adivinha que há mais formulário. */
+.dn-screenwrap { min-height: 0; min-width: 0; display: grid; }
+.dn-lcd { position: relative; min-height: 0; overflow-y: auto; padding: 4px 2px; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
 .dn-lcd::-webkit-scrollbar { width: 8px; }
-.dn-lcd::-webkit-scrollbar-thumb { background: var(--lcd-3); }
-.dn-lcd::-webkit-scrollbar-track { background: var(--lcd-1); }
-.dn-screen { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.dn-lcd::-webkit-scrollbar-thumb { background: var(--input); border-radius: 999px; }
+.dn-screen { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 12px; align-content: start; }
 .dn-screen[hidden] { display: none; }
-.dn-legend { padding: 0; margin: 0 0 4px; font: 400 clamp(11px, 1.6svh + 3px, 14px)/1.3 var(--font-pixel); outline: none; text-transform: uppercase; }
-.dn-grid { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-.dn-field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
+.dn-legend { padding: 0; margin: 0 0 2px; font: 700 clamp(16px, 1.6svh + 6px, 19px)/1.3 var(--font-sans); letter-spacing: -0.01em; outline: none; }
+.dn-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.dn-field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .dn-field--wide { grid-column: 1 / -1; }
-.dn-field label { font: 700 13px/1.2 var(--font-sans); }
-.dn-field input, .dn-field select, .dn-field textarea { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; font: 500 16px/1.3 var(--font-sans); color: var(--lcd-3); background: var(--lcd-1); border: 2px solid var(--lcd-3); border-radius: 0; }
+.dn-field label { font: 600 13px/1.2 var(--font-sans); }
+.dn-field input, .dn-field select, .dn-field textarea { width: 100%; min-width: 0; min-height: 44px; padding: 8px 12px; font: 400 16px/1.3 var(--font-sans); color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-md); }
+.dn-field input::placeholder, .dn-field textarea::placeholder { color: var(--muted-foreground); }
 .dn-field textarea { resize: none; min-height: 56px; }
-.dn-field :focus-visible, .dn-drop:focus-within, .dn-consent__row input:focus-visible { outline: 3px solid var(--lcd-3); outline-offset: 2px; }
-.dn-field [aria-invalid="true"] { background: #c9d98a; border-color: #5c0d0a; }
+.dn-field :focus-visible, .dn-consent__row input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.dn-drop:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.dn-field [aria-invalid="true"] { background: var(--danger-soft); border-color: var(--destructive); }
 
-/* Combobox da instituição (#763): a lista entra no fluxo, dentro do ecrã que já
-   rola, em vez de flutuar e ficar cortada pela moldura. */
-.dn-combo { display: grid; gap: 4px; min-width: 0; }
-.dn-combo__list { margin: 0; padding: 0; list-style: none; max-height: 190px; overflow-y: auto; background: var(--lcd-1); border: 2px solid var(--lcd-3); scrollbar-width: thin; scrollbar-color: var(--lcd-3) var(--lcd-1); }
-.dn-combo__option { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 10px; font-size: 14px; line-height: 1.3; cursor: pointer; border-top: 1px solid var(--lcd-3); }
-.dn-combo__option:first-child { border-top: 0; }
-.dn-combo__option.is-active, .dn-combo__option:hover { background: var(--lcd-3); color: var(--lcd-0); }
-.dn-combo__option[aria-selected="true"] { font-weight: 800; }
-.dn-combo__short { flex: none; font: 400 11px/1 var(--font-pixel); white-space: nowrap; }
-.dn-combo__empty { padding: 9px 10px; font-size: 13px; opacity: .75; }
+/* Combobox da instituição (#763): a lista entra no fluxo, dentro do cartão que já
+   rola, em vez de flutuar e ficar cortada. */
+.dn-combo { display: grid; gap: 6px; min-width: 0; }
+.dn-combo__list { margin: 0; padding: 4px; list-style: none; max-height: 190px; overflow-y: auto; background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--line); border-radius: var(--radius-md); scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+.dn-combo__option { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 10px; font-size: 14px; line-height: 1.3; cursor: pointer; border-radius: calc(var(--radius-md) - 4px); }
+.dn-combo__option.is-active, .dn-combo__option:hover { background: var(--accent); color: var(--accent-foreground); }
+.dn-combo__option[aria-selected="true"] { font-weight: 700; }
+.dn-combo__short { flex: none; font: 600 12px/1 var(--font-sans); color: var(--muted-foreground); white-space: nowrap; }
+.dn-combo__empty { padding: 9px 10px; font-size: 13px; color: var(--muted-foreground); }
 .dn-combo__other { font-weight: 700; }
-.dn-combo__back { justify-self: start; min-height: 32px; padding: 0; font: 700 13px/1 var(--font-sans); color: var(--lcd-3); background: transparent; border: 0; text-decoration: underline; cursor: pointer; }
-.dn-step-hint { margin: 0 0 12px; padding: 10px 12px; background: var(--lcd-1); border: 1px solid var(--lcd-3); border-radius: 0; }
-.dn-step-hint__title { margin: 0 0 4px; font: 800 12px/1.2 var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; color: var(--lp-ink); }
-.dn-step-hint__list { margin: 0; padding-left: 16px; line-height: 1.5; color: var(--lcd-3); }
-.dn-data-warning { margin: 0 0 12px; padding: 8px 10px; font-size: 12px; line-height: 1.4; color: #5c0d0a; background: #fdf6e3; border: 1px solid #5c0d0a; border-radius: 0; }
-.dn-consent__policy { font: 600 11px/1 var(--font-sans); color: var(--lcd-2); text-decoration: underline; cursor: pointer; }
+.dn-combo__back { justify-self: start; min-height: 32px; padding: 0; font: 600 13px/1 var(--font-sans); color: var(--primary); background: transparent; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.dn-step-hint { margin: 0 0 4px; padding: 12px 14px; background: var(--secondary); border-radius: var(--radius-md); }
+.dn-step-hint__title { margin: 0 0 4px; font: 600 13px/1.3 var(--font-sans); color: var(--foreground); }
+.dn-step-hint__list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; color: var(--muted-foreground); }
+.dn-data-warning { margin: 0 0 4px; padding: 10px 12px; font-size: 13px; line-height: 1.45; color: var(--warning); background: var(--warning-soft); border-radius: var(--radius-md); }
+.dn-consent__policy { font: 600 12px/1 var(--font-sans); color: var(--primary); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 
-.dn-help { margin: 0; font-size: 13px; line-height: 1.4; }
+.dn-help { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted-foreground); }
 .dn-help--small { font-size: 12px; }
-.dn-err { margin: 0; font-size: 13px; font-weight: 800; color: #5c0d0a; }
+.dn-err { margin: 0; font-size: 13px; font-weight: 600; color: var(--destructive); }
 
-.dn-drop { position: relative; border: 3px dashed var(--lcd-3); background: var(--lcd-1); }
-.dn-drop--over { background: var(--lcd-0); border-style: solid; }
-.dn-drop__label { display: grid; justify-items: center; gap: 6px; padding: clamp(18px, 6svh, 48px) 12px; text-align: center; cursor: pointer; }
-.dn-drop__title { font: 800 18px/1.2 var(--font-sans); }
-.dn-drop__hint { font-size: 12px; }
+.dn-drop { position: relative; border: 1.5px dashed var(--input); border-radius: var(--radius-lg); background: var(--secondary); transition: background-color .15s, border-color .15s; }
+.dn-drop--over { background: var(--accent); border-color: var(--primary); border-style: solid; }
+.dn-drop__label { display: grid; justify-items: center; gap: 6px; padding: clamp(18px, 6svh, 44px) 12px; text-align: center; cursor: pointer; }
+.dn-drop__title { font: 700 17px/1.25 var(--font-sans); }
+.dn-drop__hint { font-size: 12px; color: var(--muted-foreground); }
 .dn-drop__input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.dn-count { margin: 0; font: 400 10px/1.4 var(--font-pixel); }
+.dn-count { margin: 0; font: 600 12px/1.4 var(--font-sans); color: var(--muted-foreground); }
 .dn-files { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 22svh; overflow-y: auto; scrollbar-width: thin; }
-.dn-files__item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 2px 4px 2px 10px; background: var(--lcd-1); border: 2px solid var(--lcd-3); font-size: 13px; }
-.dn-drop__tip { margin-top: 2px; font-size: 12px; font-weight: 700; opacity: .75; }
-.dn-files__item--bad { background: #c9d98a; border-color: #5c0d0a; }
-.dn-files__note { grid-column: 1 / -1; padding: 0 0 6px; font-size: 12px; font-weight: 800; line-height: 1.3; }
-.dn-files__item--bad .dn-files__note { color: #5c0d0a; }
+.dn-files__item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 2px 4px 2px 12px; background: var(--background); border: 1px solid var(--line); border-radius: var(--radius-md); font-size: 13px; }
+.dn-drop__tip { margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
+.dn-files__item--bad { background: var(--danger-soft); border-color: var(--destructive); }
+.dn-files__note { grid-column: 1 / -1; padding: 0 0 6px; font-size: 12px; font-weight: 600; line-height: 1.3; }
+.dn-files__item--bad .dn-files__note { color: var(--destructive); }
 .dn-files__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dn-files__size { white-space: nowrap; }
-.dn-files__remove { width: 44px; min-height: 36px; font: 800 20px/1 var(--font-sans); color: var(--lcd-3); background: transparent; border: 0; cursor: pointer; }
-.dn-files__remove:hover { background: var(--lcd-3); color: var(--lcd-0); }
+.dn-files__size { white-space: nowrap; color: var(--muted-foreground); }
+.dn-files__remove { width: 44px; min-height: 36px; font: 600 20px/1 var(--font-sans); color: var(--muted-foreground); background: transparent; border: 0; border-radius: calc(var(--radius-md) - 4px); cursor: pointer; }
+.dn-files__remove:hover { background: var(--muted); color: var(--foreground); }
 
 .dn-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
-.dn-consent { display: grid; gap: 6px; }
-.dn-consent__row { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; font-size: 12.5px; line-height: 1.4; cursor: pointer; }
-.dn-consent__row input { width: 24px; height: 24px; margin: 0; accent-color: var(--lcd-3); }
+.dn-consent { display: grid; gap: 8px; }
+.dn-consent__row { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; font-size: 13px; line-height: 1.45; cursor: pointer; }
+.dn-consent__row input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--primary); }
 .dn-live:empty, .dn-live:has(:empty) { display: none; }
-.dn-problem { margin: 8px 0 0; padding: 8px 10px; font-weight: 800; font-size: 13px; color: #5c0d0a; border: 2px solid #5c0d0a; }
-.dn-progress { position: relative; height: 32px; margin-top: 8px; border: 2px solid var(--lcd-3); overflow: hidden; }
-.dn-progress__bar { position: absolute; inset: 0 auto 0 0; background: var(--lcd-2); transition: width .2s linear; }
-.dn-progress span { position: relative; display: grid; place-items: center; height: 100%; font: 800 13px/1 var(--font-sans); mix-blend-mode: difference; color: white; }
+.dn-problem { margin: 8px 0 0; padding: 10px 12px; font-weight: 600; font-size: 13px; color: var(--destructive); background: var(--danger-soft); border-radius: var(--radius-md); }
+.dn-progress { position: relative; height: 28px; margin-top: 8px; background: var(--muted); border-radius: 999px; overflow: hidden; }
+.dn-progress__bar { position: absolute; inset: 0 auto 0 0; background: var(--success-soft); transition: width .2s linear; }
+.dn-progress span { position: relative; display: grid; place-items: center; height: 100%; font: 600 13px/1 var(--font-sans); color: var(--foreground); }
+@media (prefers-reduced-motion: reduce) { .dn-progress__bar, .dn-drop { transition: none; } }
 
 /* os botões são os da landing (kx-btn); só a disposição é daqui: em ecrã estreito
    empilham em vez de rebentar para scroll horizontal (#515) */
-.dn-pad { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.dn-pad { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .dn-pad__next { margin-left: auto; }
 
 /* depois de enviar: a referência e nada mais */
 .dn-done { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; outline: none; }
-.dn-done__title { margin: 0; font: 800 clamp(22px, 3.6svh, 30px)/1.1 var(--font-sans); letter-spacing: -0.03em; text-wrap: balance; }
-.dn-done__ref { margin: 4px 0; padding: 10px 14px; font: 400 clamp(16px, 3.4svh, 24px)/1 var(--font-pixel); border: 3px solid var(--lcd-3); background: var(--lcd-1); user-select: all; }
+.dn-done__title { margin: 0; font: 700 clamp(22px, 3.6svh, 30px)/1.15 var(--font-sans); letter-spacing: -0.03em; text-wrap: balance; }
+.dn-done__ref { margin: 4px 0; padding: 10px 14px; font: 500 clamp(16px, 3.4svh, 22px)/1 var(--font-mono); letter-spacing: .04em; border: 1px dashed var(--input); border-radius: var(--radius-md); background: var(--secondary); user-select: all; }
 .dn-done__contact { display: flex; justify-content: center; margin-top: 12px; }
 
 .dn-done__refrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; min-width: 0; max-width: 100%; }
-.dn-done__text { margin: 0; font-size: 14px; line-height: 1.45; max-width: 34ch; }
-/* No ecrã final não há a linha dos passos (.dn-label), que é quem ocupa o topo nos outros: repõe-se o padding que falta para a moldura ficar simétrica. */
-.dn-console[data-state="done"] { grid-template-rows: auto minmax(0, 1fr) auto; padding-top: 16px; }
+.dn-done__text { margin: 0; font-size: 14px; line-height: 1.5; max-width: 34ch; color: var(--muted-foreground); }
 
-@media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } .dn-lcd { padding: 10px; } }
+@media (max-height: 560px) { .dn-title { font-size: 20px; } .dn-stage { grid-template-rows: 56px minmax(0, 1fr); } }
 @media (max-width: 899px) {
   /* Limita o palco à altura visível. Com apenas min-height, o track flexível
      cresce com o conteúdo e o rodapé fixo de cookies acaba por tapar o CTA. */
   .dn-stage { height: 100svh; height: 100dvh; min-height: 0; }
-  /* A ajuda de privacidade fica sempre visível (#515): doar sem se identificar é
-     uma promessa que o telemóvel também tem de ler. */
-  /* O espaço medido do banner já está reservado em .dn-main; o ecrã rola por dentro. */
-  .dn-console { align-self: stretch; }
+  /* O espaço medido do banner já está reservado em .dn-main; o cartão rola por dentro. */
+  .dn-console { align-self: stretch; padding: 14px; }
   .dn-field textarea { min-height: 44px; }
-  .dn-consent__row { font-size: 12px; line-height: 1.3; }
-  .dn-lcd { padding: 12px; }
+  .dn-consent__row { font-size: 12px; line-height: 1.35; }
 }
 
-/* computador: título à esquerda, cartucho à direita */
+/* computador: título à esquerda, formulário à direita */
 @media (min-width: 900px) {
   .dn-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); column-gap: clamp(32px, 6vw, 96px); align-items: center; max-width: calc(var(--page) + 2 * var(--gutter)); width: 100%; margin: 0 auto; }
-  .dn-title { font-size: clamp(40px, min(5vw, 8svh), 76px); }
+  .dn-title { font-size: clamp(40px, min(5vw, 8svh), 72px); }
   .dn-title span { display: block; }
   .dn-lead { display: block; margin: 20px 0 0; font: 400 clamp(16px, 1.5vw, 19px)/1.5 var(--font-sans); color: var(--lp-dim); max-width: 30ch; }
-  .dn-console { padding: 0 20px 18px; max-height: min(100%, 620px); }
-  .dn-console[data-state="done"] { padding-top: 18px; }
-  .dn-label { margin: 0 -20px; padding: 10px 20px; }
-  .dn-lcd { padding: 18px; }
+  .dn-console { padding: 20px 24px; max-height: min(100%, 640px); }
 }
 @media (min-width: 900px) and (max-height: 640px) { .dn-lead { display: none; } }

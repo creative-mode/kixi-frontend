@@ -124,7 +124,7 @@ test('teclado: o skip link aparece com foco visível e leva ao conteúdo', async
   await page.addInitScript(() => localStorage.setItem('kixi-consent', 'necessary'));
   for (const rota of ['/', '/doar']) {
     await page.goto(rota);
-    // O Tab só vai para o skip link depois de a página estar pronta (a apresentação da landing hidrata tarde).
+    // O Tab só vai para o skip link depois de a página estar pronta (hidratação).
     await page.waitForLoadState('networkidle');
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'Saltar para o conteúdo' }), rota).toBeFocused();
@@ -184,7 +184,7 @@ test('landing: «Doar um enunciado» no primeiro ecrã e no cabeçalho (#762)', 
   await page.waitForLoadState('networkidle');
   await expect(page.getByRole('dialog', { name: 'Cookies' })).toBeVisible();
 
-  const hero = page.locator('.pres__hero').getByRole('link', { name: 'Doar um enunciado' });
+  const hero = page.locator('.hero').getByRole('link', { name: 'Doar um enunciado' });
   await expect(hero).toBeVisible();
   await expect(hero).toHaveAttribute('href', '/doar');
 

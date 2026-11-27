@@ -346,7 +346,7 @@ export function DonationForm() {
         <div className="dn-pad">
           <span className="kx-btn-wrap kx-scope"><button
             type="button"
-            className="kx-btn kx-btn--a"
+            className="kx-btn"
             onClick={() => {
               setFiles([]);
               selectedFilesRef.current = [];
@@ -582,11 +582,11 @@ export function DonationForm() {
         )}
         <span className="kx-btn-wrap kx-scope dn-pad__next">
           {last ? (
-            <button key="enviar" type="submit" className="kx-btn kx-btn--a" disabled={sending}>
+            <button key="enviar" type="submit" className="kx-btn" disabled={sending}>
               <span className="kx-btn__label">{sending ? 'A enviar…' : retryable ? 'Tentar novamente' : 'Doar'}</span>
             </button>
           ) : (
-            <button key="continuar" type="button" className="kx-btn kx-btn--a" onClick={next} disabled={sending}>
+            <button key="continuar" type="button" className="kx-btn" onClick={next} disabled={sending}>
               <span className="kx-btn__label">Continuar</span>
             </button>
           )}

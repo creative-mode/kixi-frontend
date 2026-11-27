@@ -39,7 +39,7 @@ export function Cta({ href, origem, size = 'lg', secondary, children }: {
       <a
         href={href}
         onClick={() => track('cta_clique', { origem })}
-        className={`kx-btn kx-btn--${size}${secondary ? ' kx-btn--secondary' : ' kx-btn--a'}`}
+        className={`kx-btn kx-btn--${size}${secondary ? ' kx-btn--secondary' : ''}`}
         style={{ textDecoration: 'none' }}
       >
         <span className="kx-btn__label">{children}</span>

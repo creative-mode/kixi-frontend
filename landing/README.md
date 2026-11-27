@@ -28,7 +28,7 @@ Todas estas entram no **build** (`ARG`/`ENV` em `docker/app.Dockerfile`, `build.
 - `lib/structured-data.ts`, `components/JsonLd.tsx` — JSON-LD, gerado do `content.ts`.
 - `app/opengraph-image.tsx`, `app/robots.ts`, `app/sitemap.ts` — SEO; as fontes da imagem de partilha estão em `assets/og/` (TTF, porque o gerador não lê woff2).
 - `components/sections/*` — uma secção por ficheiro.
-- `components/kixi.tsx`, `styles/*` — componentes e tokens do design system.
+- `components/kixi.tsx` — o logótipo. `styles/*` — tokens (cópia gerada de `design-system/tokens.css` em `ds-tokens.css`) e componentes no desenho do design system.
 - `app/globals.css` — estilos da página; animações só com `prefers-reduced-motion: no-preference`.
 
-A landing não mostra maquetas com dados: só ilustrações (consola, cartucho). Não há métricas, alunos nem notas inventadas.
+A landing não mostra maquetas com dados: só ilustrações (os três pilares do herói, cartões com ícone e frase). Não há métricas, alunos nem notas inventadas.

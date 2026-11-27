@@ -25,9 +25,3 @@ for (const [rota, seletor] of [['/', 'h1'], ['/doar', 'h1'], ['/aluno/entrar', '
     expect(carregada, `${primeira} carregada`).toBe(true);
   });
 }
-
-test('landing: o título pixel usa a Press Start 2P do next/font', async ({ page }) => {
-  await page.goto('/');
-  const pixel = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--font-pixel'));
-  expect(pixel, '--font-pixel aponta para a variável do next/font').toMatch(/pixel|Press_Start/i);
-});

@@ -4,7 +4,7 @@ import { CONTACT_EMAIL, LOGIN_URL, NAV, SIGNUP_URL, TRUST_LINKS } from '@/lib/co
 
 export function Footer() {
   return (
-    <footer className="footer" data-surface="inverse">
+    <footer className="footer">
       <div className="wrap footer__in">
         <Logo size={28} wordmark />
         <p className="footer__lead">Feito por alunos do ITEL, para alunos.</p>

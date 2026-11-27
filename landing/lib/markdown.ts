@@ -6,7 +6,7 @@
  * fica a saber a mesma coisa que um humano lê ao abrir a página.
  */
 
-import { AUDIENCES, CONTACT_EMAIL, FAQ, MODULES, SIGNUP_URL, SITE_URL } from './content.ts';
+import { AUDIENCES, CONTACT_EMAIL, FAQ, HERO_TITLE, MODULES, SIGNUP_URL, SITE_URL } from './content.ts';
 
 /** O `Contact` de um documento Markdown. Sem ele o bloco de YAML não liga a nada. */
 type FrontMatter = Record<string, string>;
@@ -34,7 +34,7 @@ export function homeMarkdown(): string {
     '',
     '# Kixi',
     '',
-    'E se estudar fosse... divertido?',
+    HERO_TITLE,
     '',
     'O Kixi transforma cada prova num gémeo digital: fotografas a prova, fazes uma simulação',
     'com os parâmetros que o teu professor definiu, comparas como outras escolas resolveram e',

@@ -51,6 +51,18 @@ export const NAV = [
   { href: '/doar', label: 'Doar um enunciado' },
 ] as const;
 
+/** Herói: a promessa, presa ao que o Kixi faz — as provas reais da tua escola. */
+export const HERO_TITLE = 'Estuda a prova que vai mesmo sair.';
+export const HERO_SUB = 'O Kixi junta as provas reais da tua escola, simulações com o tempo da prova e um tutor que explica cada questão.';
+
+/** Do papel à simulação: o percurso de um enunciado no Kixi. Cada passo tem uma ilustração em Flow.tsx. */
+export const FLOW = [
+  { id: 'foto', head: 'Fotografa o enunciado.', line: 'Uma foto ou um PDF da prova chega. Folha inteira, com luz e sem tremer.' },
+  { id: 'leitura', head: 'O Kixi separa as perguntas.', line: 'Lê o cabeçalho, as questões, as opções e as cotações. Sem passar nada à mão.' },
+  { id: 'simulacao', head: 'Fazes a prova a contar o tempo.', line: 'Com as regras que o professor definiu. A nota sai no fim, em décimas.' },
+  { id: 'tutor', head: 'O tutor explica cada erro.', line: 'Pergunta-lhe porquê. Ele responde com base na questão, e dá-te outra parecida.' },
+] as const;
+
 export const MODULES = [
   { n: 'I', title: 'OCR', headline: 'Fotografa a prova. O Kixi lê-a.', text: 'Converte fotos ou PDF em texto editável e estruturado. Identifica o cabeçalho, separa as perguntas das opções e reconhece as pontuações, sem erros de transcrição.' },
   { n: 'II', title: 'Gestão pedagógica', headline: 'Salas de prova em tempo real.', text: 'O professor carrega o enunciado e a chave (P1, Exame…), liga-o a escola, ano letivo, classe e disciplina e cria salas de prova. As notas saem em decimais, com feedback instantâneo.' },
